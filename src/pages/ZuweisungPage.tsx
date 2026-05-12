@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
-  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, X,
+  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText,
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, updateRecallPatient } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
@@ -44,6 +44,7 @@ export default function ZuweisungPage() {
       ...p.zuweisung!,
       status: 'erledigt',
       erledigtAm: new Date().toISOString().slice(0, 10),
+      berichtErhalten: p.zuweisung!.berichtErhalten ?? false,
     }
     try {
       await updateRecallPatient(p.id, { zuweisung: updated }, displayLabel)
@@ -193,12 +194,18 @@ export default function ZuweisungPage() {
                     <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-400 flex-wrap">
                       <span className="flex items-center gap-1">
                         <CalendarDays className="w-3 h-3" />
-                        Beschlossen: {formatDate(z.datum)}
+                        Zugewiesen: {formatDate(z.datum)}
                       </span>
                       {isErledigt && z.erledigtAm && (
                         <span className="text-green-600 font-medium flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
                           Erledigt: {formatDate(z.erledigtAm)}
+                        </span>
+                      )}
+                      {isErledigt && (
+                        <span className={`flex items-center gap-1 font-medium ${z.berichtErhalten ? 'text-blue-600' : 'text-gray-400'}`}>
+                          <FileText className="w-3 h-3" />
+                          {z.berichtErhalten ? 'Bericht erhalten' : 'Kein Bericht'}
                         </span>
                       )}
                       {z.von && (

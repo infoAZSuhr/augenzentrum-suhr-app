@@ -8,9 +8,10 @@ export interface Zuweisung {
   typ: 'intern' | 'extern'
   ziel: string          // arzt (intern) or provider/clinic (extern)
   grund: string
-  datum: string         // YYYY-MM-DD – when decided
+  datum: string         // YYYY-MM-DD – when assigned
   status: 'ausstehend' | 'erledigt'
   erledigtAm: string    // YYYY-MM-DD or ''
+  berichtErhalten: boolean
   notiz: string
   von: string           // username who created it
 }

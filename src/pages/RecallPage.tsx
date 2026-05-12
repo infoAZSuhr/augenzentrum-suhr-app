@@ -274,6 +274,7 @@ type EditForm = {
   zuweisungDatum: string
   zuweisungStatus: 'ausstehend' | 'erledigt'
   zuweisungErledigtAm: string
+  zuweisungBerichtErhalten: boolean
   zuweisungNotiz: string
 }
 
@@ -305,9 +306,10 @@ function initForm(p?: RecallPatient): EditForm {
     zuweisungZiel:      p?.zuweisung?.ziel       ?? '',
     zuweisungGrund:     p?.zuweisung?.grund      ?? '',
     zuweisungDatum:     p?.zuweisung?.datum      ?? new Date().toISOString().slice(0, 10),
-    zuweisungStatus:    p?.zuweisung?.status     ?? 'ausstehend',
-    zuweisungErledigtAm: p?.zuweisung?.erledigtAm ?? '',
-    zuweisungNotiz:     p?.zuweisung?.notiz       ?? '',
+    zuweisungStatus:    p?.zuweisung?.status          ?? 'ausstehend',
+    zuweisungErledigtAm: p?.zuweisung?.erledigtAm    ?? '',
+    zuweisungBerichtErhalten: p?.zuweisung?.berichtErhalten ?? false,
+    zuweisungNotiz:     p?.zuweisung?.notiz            ?? '',
   }
 }
 
@@ -1778,8 +1780,9 @@ export default function RecallPage() {
           grund:      form.zuweisungGrund.trim(),
           datum:      form.zuweisungDatum,
           status:     form.zuweisungStatus,
-          erledigtAm: form.zuweisungErledigtAm,
-          notiz:      form.zuweisungNotiz.trim(),
+          erledigtAm:      form.zuweisungErledigtAm,
+          berichtErhalten: form.zuweisungBerichtErhalten,
+          notiz:           form.zuweisungNotiz.trim(),
           von:        displayLabel,
         } as Zuweisung) : null,
       }
@@ -3758,10 +3761,10 @@ export default function RecallPage() {
                       )}
                     </div>
 
-                    {/* Datum + Status */}
+                    {/* Zugewiesen am + Status */}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className={labelCls}>Beschlossen am</label>
+                        <label className={labelCls}>Zugewiesen am</label>
                         <div className="relative">
                           <input type="date" value={form.zuweisungDatum}
                             onChange={e => setField('zuweisungDatum', e.target.value)}
@@ -3772,8 +3775,12 @@ export default function RecallPage() {
                       <div>
                         <label className={labelCls}>Status</label>
                         <div className="flex gap-1.5">
-                          {([['ausstehend', 'Ausstehend'], ['erledigt', 'Erledigt']] as const).map(([v, l]) => (
+                          {([
+                            ['ausstehend', 'Ausstehend', 'Patient noch nicht dort'],
+                            ['erledigt',   'Erledigt',   'Patient war in der Praxis'],
+                          ] as const).map(([v, l, hint]) => (
                             <button key={v} type="button"
+                              title={hint}
                               onClick={() => {
                                 setField('zuweisungStatus', v)
                                 if (v === 'erledigt' && !form.zuweisungErledigtAm) {
@@ -3790,19 +3797,35 @@ export default function RecallPage() {
                             >{l}</button>
                           ))}
                         </div>
+                        <p className="mt-1 text-[10px] text-gray-400">
+                          {form.zuweisungStatus === 'ausstehend'
+                            ? 'Patient noch nicht in der Praxis'
+                            : 'Patient war in der Praxis'}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Erledigt am */}
+                    {/* Erledigt am + Bericht erhalten */}
                     {form.zuweisungStatus === 'erledigt' && (
-                      <div>
-                        <label className={labelCls}>Erledigt am</label>
-                        <div className="relative">
-                          <input type="date" value={form.zuweisungErledigtAm}
-                            onChange={e => setField('zuweisungErledigtAm', e.target.value)}
-                            className={`${inputCls} pr-6`} />
-                          <ClearBtn show={!!form.zuweisungErledigtAm} onClear={() => setField('zuweisungErledigtAm', '')} />
+                      <div className="space-y-2">
+                        <div>
+                          <label className={labelCls}>Erledigt am</label>
+                          <div className="relative">
+                            <input type="date" value={form.zuweisungErledigtAm}
+                              onChange={e => setField('zuweisungErledigtAm', e.target.value)}
+                              className={`${inputCls} pr-6`} />
+                            <ClearBtn show={!!form.zuweisungErledigtAm} onClear={() => setField('zuweisungErledigtAm', '')} />
+                          </div>
                         </div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={form.zuweisungBerichtErhalten}
+                            onChange={e => setField('zuweisungBerichtErhalten', e.target.checked)}
+                            className="w-4 h-4 rounded accent-violet-600"
+                          />
+                          <span className="text-xs font-semibold text-gray-700">Bericht erhalten</span>
+                        </label>
                       </div>
                     )}
 
