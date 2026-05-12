@@ -26,13 +26,28 @@ jobs:
 
       - name: Zur Rose Nota-Liste herunterladen
         run: |
-          curl -L -s -f \
-            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+          # Schritt 1: Elternseite aufrufen → Session-Cookie holen
+          curl -s -L -c /tmp/zr-cookies.txt -b /tmp/zr-cookies.txt \
+            -A "$UA" \
+            "https://www.zurrose.ch/apothekenpartner/bestellsysteme/nota-liste" > /dev/null
+          # Schritt 2: Datei mit Cookie herunterladen
+          curl -L -s \
+            -A "$UA" \
             -H "Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*" \
             -H "Referer: https://www.zurrose.ch/apothekenpartner/bestellsysteme/nota-liste" \
+            -c /tmp/zr-cookies.txt -b /tmp/zr-cookies.txt \
             -o /tmp/Nota-Liste.xlsx \
             "https://www.zurrose.ch/sites/default/files/media/downloads/Nota-Liste.xlsx"
-          echo "Heruntergeladen: $(du -k /tmp/Nota-Liste.xlsx | cut -f1) KB"
+          SIZE=$(du -k /tmp/Nota-Liste.xlsx | cut -f1)
+          echo "Heruntergeladen: ${SIZE} KB"
+          # Prüfe Magic Bytes (PK = ZIP = XLSX)
+          if ! xxd -l 2 /tmp/Nota-Liste.xlsx | grep -q "504b"; then
+            echo "FEHLER: Keine XLSX-Datei (erwartet PK Magic Bytes)"
+            xxd -l 200 /tmp/Nota-Liste.xlsx
+            exit 1
+          fi
+          echo "✓ XLSX-Datei bestätigt"
 
       - name: Zur Rose Nota-Liste Firestore sync
         env:
