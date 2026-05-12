@@ -8,7 +8,7 @@ import {
   subscribeBoards, createBoard, updateBoard, deleteBoard, createTaskNotification,
   subscribePolls, createStandalonePoll, updateStandalonePoll, deleteStandalonePoll,
 } from '../lib/firestoreTasks'
-import { Plus, LayoutList, Trash2, Settings, X, Loader2, BarChart2, Clock, Check, Search } from 'lucide-react'
+import { Plus, LayoutList, Trash2, Settings, X, Loader2, BarChart2, Clock, Check, Search, UserCheck } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 
 interface UserEntry { uid: string; displayName: string; username: string }
@@ -476,6 +476,7 @@ export default function TasksPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editingBoard, setEditingBoard] = useState<TaskBoard | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [onlyMine, setOnlyMine] = useState(false)
 
   const [polls, setPolls] = useState<StandalonePoll[]>([])
   const [pollsLoading, setPollsLoading] = useState(true)
@@ -497,6 +498,11 @@ export default function TasksPage() {
   const visibleBoards = boards
     .filter(b => canSeeBoard(b, role, isAdmin, isGeschaeftsleitung, uid, additionalRoles))
     .filter(b => {
+      if (onlyMine) {
+        const mine = b.createdByUid === uid ||
+          (b.visibleTo === 'user' && (b.visibleToUids?.includes(uid) || b.visibleToUid === uid))
+        if (!mine) return false
+      }
       const q = searchQuery.trim().toLowerCase()
       if (!q) return true
       return b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q)
@@ -614,6 +620,13 @@ export default function TasksPage() {
                 </button>
               )}
             </div>
+            <button
+              onClick={() => setOnlyMine(s => !s)}
+              title="Nur meine Boards"
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-xl border transition-colors ${onlyMine ? 'bg-primary-600 text-white border-primary-600' : 'text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+              <UserCheck className="w-4 h-4" />
+              <span className="hidden sm:inline">Meine</span>
+            </button>
             <button onClick={() => { setEditingBoard(null); setShowCreate(true) }}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors whitespace-nowrap">
               <Plus className="w-4 h-4" /> Neues Board
