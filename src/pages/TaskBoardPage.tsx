@@ -597,31 +597,46 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
             )}
           </div>
 
-          {/* Members — available for all board types, all users selectable */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mitglieder</span>
+          {/* Members */}
+          {(canEdit || members.length > 0) && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mitglieder</span>
+              </div>
+              {canEdit ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {approvedUsers.map(u => {
+                    const active = members.some(m => m.uid === u.uid)
+                    const initials = (u.displayName || u.username).split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+                    return (
+                      <button key={u.uid}
+                        onClick={() => setMembers(prev => active ? prev.filter(m => m.uid !== u.uid) : [...prev, { uid: u.uid, name: u.displayName || u.username }])}
+                        title={u.displayName || u.username}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${active ? 'bg-primary-100 text-primary-700 border-primary-300 hover:bg-primary-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}>
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${active ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                          {initials}
+                        </span>
+                        {u.displayName || u.username}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {members.map(m => {
+                    const initials = m.name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+                    return (
+                      <span key={m.uid} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-primary-50 text-primary-700 border-primary-200">
+                        <span className="w-5 h-5 rounded-full bg-primary-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">{initials}</span>
+                        {m.name}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {approvedUsers.map(u => {
-                const active = members.some(m => m.uid === u.uid)
-                const initials = (u.displayName || u.username).split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
-                return (
-                  <button key={u.uid}
-                    onClick={() => canEdit && setMembers(prev => active ? prev.filter(m => m.uid !== u.uid) : [...prev, { uid: u.uid, name: u.displayName || u.username }])}
-                    disabled={!canEdit}
-                    title={u.displayName || u.username}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${active ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-gray-50 text-gray-500 border-gray-200'} ${canEdit ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'}`}>
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${active ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                      {initials}
-                    </span>
-                    {u.displayName || u.username}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          )}
 
           {/* Assignee — only when board targets everyone */}
           {board.visibleTo === 'all' && isManager && (
