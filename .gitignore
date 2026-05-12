@@ -1,8 +1,23 @@
 node_modules/
 dist/
+dist-electron/
 .env
 .env.local
 *.local
 service-account*.json
 *.pem
 .DS_Store
+.firebase/
+
+# Grosse generierte Datendateien (via Scripts heruntergeladen)
+public/sl-data.json
+public/refdata-data.json
+public/lieferengpaesse-data.json
+public/zurrose-nota-data.json
+public/recall-data.json
+public/recall-pid-sync.json
+public/recall-zu-bearbeiten.json
+
+# Zur Rose XLSX wird lokal heruntergeladen und committed
+# (nicht ignorieren!)
+# scripts/Nota-Liste.xlsx  ← absichtlich NICHT ignoriert

@@ -18,8 +18,9 @@ const path   = require('path')
 const os     = require('os')
 const xlsx   = require('../node_modules/xlsx')
 
-const XLSX_URL   = 'https://www.zurrose.ch/sites/default/files/media/downloads/Nota-Liste.xlsx'
-const META_FILE  = path.join(__dirname, '..', 'public', 'zurrose-nota-meta.json')
+const XLSX_URL        = 'https://www.zurrose.ch/sites/default/files/media/downloads/Nota-Liste.xlsx'
+const XLSX_LOCAL_COPY = path.join(__dirname, 'Nota-Liste.xlsx')   // lokale Kopie im Repo
+const META_FILE       = path.join(__dirname, '..', 'public', 'zurrose-nota-meta.json')
 const PROJECT_ID = 'azsdb-999d6'
 const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
@@ -242,16 +243,30 @@ async function main() {
     } catch {}
   }
 
-  // ── 1. Excel laden (aus Datei oder herunterladen) ─────────────────────────
+  // ── 1. Excel laden ────────────────────────────────────────────────────────
+  // Priorität: 1. ZURROSE_XLSX_PATH env  2. Download  3. lokale Repo-Kopie
   let buf
   const xlsxPath = process.env.ZURROSE_XLSX_PATH
   if (xlsxPath && fs.existsSync(xlsxPath)) {
     buf = fs.readFileSync(xlsxPath)
-    console.log(`Lese Datei: ${xlsxPath} (${Math.round(buf.length / 1024)} KB)`)
+    console.log(`Lese Datei von ZURROSE_XLSX_PATH: ${xlsxPath} (${Math.round(buf.length / 1024)} KB)`)
   } else {
-    console.log('Lade Zur Rose Nota-Liste herunter...')
-    buf = await httpGet(XLSX_URL)
-    console.log(`Heruntergeladen: ${Math.round(buf.length / 1024)} KB`)
+    try {
+      console.log('Lade Zur Rose Nota-Liste herunter...')
+      buf = await httpGet(XLSX_URL)
+      console.log(`Heruntergeladen: ${Math.round(buf.length / 1024)} KB`)
+      // Lokale Kopie für nächste CI-Runs aktualisieren
+      fs.writeFileSync(XLSX_LOCAL_COPY, buf)
+      console.log(`Lokale Kopie aktualisiert: ${XLSX_LOCAL_COPY}`)
+    } catch (e) {
+      console.warn(`⚠ Download fehlgeschlagen: ${e.message}`)
+      if (fs.existsSync(XLSX_LOCAL_COPY)) {
+        buf = fs.readFileSync(XLSX_LOCAL_COPY)
+        console.log(`Verwende lokale Repo-Kopie: ${XLSX_LOCAL_COPY} (${Math.round(buf.length / 1024)} KB)`)
+      } else {
+        throw new Error('Kein XLSX verfügbar: Download fehlgeschlagen und keine lokale Kopie vorhanden.')
+      }
+    }
   }
 
   // ── 2. Excel parsen ───────────────────────────────────────────────────────
