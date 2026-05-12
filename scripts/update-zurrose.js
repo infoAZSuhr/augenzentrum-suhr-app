@@ -29,17 +29,38 @@ const CLI_CLIENT_SECRET = 'j9iVZfS8xyyrHE-Sg5Vhvtov'
 
 // ── HTTP-Hilfsfunktionen ──────────────────────────────────────────────────────
 
-function httpGet(url) {
+function httpGet(url, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http
-    mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' } }, res => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+      'Accept-Language': 'de-CH,de;q=0.9',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Referer': 'https://www.zurrose.ch/',
+      ...extraHeaders,
+    }
+    mod.get(url, { headers }, res => {
+      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 303) {
         res.destroy()
-        return httpGet(res.headers.location.startsWith('http') ? res.headers.location : new URL(res.headers.location, url).href).then(resolve).catch(reject)
+        const location = res.headers.location
+        return httpGet(location.startsWith('http') ? location : new URL(location, url).href).then(resolve).catch(reject)
+      }
+      if (res.statusCode !== 200) {
+        res.destroy()
+        return reject(new Error(`HTTP ${res.statusCode} für ${url}`))
       }
       const chunks = []
       res.on('data', c => chunks.push(c))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks)
+        // Sicherheitscheck: Excel-Dateien beginnen mit PK (ZIP-Magic-Bytes 50 4B)
+        if (buf[0] === 0x50 && buf[1] === 0x4B) return resolve(buf)
+        // Möglicherweise HTML-Fehlerseite zurückgegeben
+        const preview = buf.slice(0, 200).toString('utf8')
+        return reject(new Error(`Keine XLSX-Datei erhalten (${buf.length} Bytes). Anfang: ${preview}`))
+      })
       res.on('error', reject)
     }).on('error', reject)
   })
