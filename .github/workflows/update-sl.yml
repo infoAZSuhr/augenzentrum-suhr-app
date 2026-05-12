@@ -1,0 +1,51 @@
+name: BAG Spezialitätenliste aktualisieren
+
+on:
+  schedule:
+    # Täglich 04:30 UTC = 05:30/06:30 Schweizer Zeit
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm ci
+
+      - name: BAG Spezialitätenliste herunterladen
+        run: node scripts/update-sl.js --force
+
+      - name: App bauen
+        run: npm run build
+
+      - name: Firebase Hosting deployen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          npm install -g firebase-tools
+          firebase deploy --only hosting --project azsdb-999d6 --non-interactive
+          rm -f /tmp/sa.json
+
+      - name: Meta-Datei committen
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/sl-meta.json
+          git diff --staged --quiet || git commit -m "chore: BAG Spezialitätenliste $(date +%d.%m.%Y)"
+          git push
