@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
@@ -384,6 +385,7 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 
 export default function RecallPage() {
   const { profile } = useAuth()
+  const navigate     = useNavigate()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -2025,6 +2027,14 @@ export default function RecallPage() {
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" /> Neu
+          </button>
+
+          {/* Zuweisungen */}
+          <button
+            onClick={() => navigate('/zuweisungen')}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
+          >
+            <ArrowRightLeft className="w-4 h-4" /> Zuweisungen
           </button>
 
           {/* Kimenda Excel import – only on "Zu bearbeiten" tab */}
