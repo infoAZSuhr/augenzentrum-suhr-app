@@ -59,6 +59,8 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
   const [assigneePickerItemId, setAssigneePickerItemId] = useState<string | null>(null)
   const [draggingCheckId, setDraggingCheckId] = useState<string | null>(null)
   const [dragOverCheckId, setDragOverCheckId] = useState<string | null>(null)
+  const [editingCheckId, setEditingCheckId] = useState<string | null>(null)
+  const [editingCheckText, setEditingCheckText] = useState('')
   const [members, setMembers] = useState<TaskMember[]>(card.members ?? [])
   const [lightboxAtt, setLightboxAtt] = useState<TaskAttachment | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -431,7 +433,29 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                       {item.done ? <CheckSquare className="w-4 h-4 text-green-500" /> : <Square className="w-4 h-4" />}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <span className={`text-sm ${item.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{item.text}</span>
+                      {canEdit && editingCheckId === item.id ? (
+                        <input
+                          autoFocus
+                          value={editingCheckText}
+                          onChange={e => setEditingCheckText(e.target.value)}
+                          onBlur={() => {
+                            const trimmed = editingCheckText.trim()
+                            if (trimmed) setChecklist(prev => prev.map(i => i.id === item.id ? { ...i, text: trimmed } : i))
+                            setEditingCheckId(null)
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.currentTarget.blur() }
+                            if (e.key === 'Escape') { setEditingCheckId(null) }
+                          }}
+                          className="w-full text-sm text-gray-700 bg-transparent border-b border-primary-400 focus:outline-none py-0"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => { if (canEdit && !item.done) { setEditingCheckId(item.id); setEditingCheckText(item.text) } }}
+                          className={`text-sm ${item.done ? 'line-through text-gray-400' : 'text-gray-700'} ${canEdit && !item.done ? 'cursor-text hover:text-primary-700' : ''}`}>
+                          {item.text}
+                        </span>
+                      )}
                       {item.done && item.doneBy && (
                         <span className="block text-[10px] text-gray-400">✓ {item.doneBy}</span>
                       )}
