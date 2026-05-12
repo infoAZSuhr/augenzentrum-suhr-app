@@ -14,6 +14,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import {
   Plus, X, Loader2, Clock, Trash2, CheckCircle2,
   Circle, MessageSquare, Settings, GripVertical, Paperclip, Square, CheckSquare, Users, User,
+  Search, SortAsc, UserCheck, ArrowRightLeft,
 } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 
@@ -32,13 +33,14 @@ function dueStyle(due: string | null, done: boolean) {
 }
 
 // ── Card detail modal ──────────────────────────────────────────────────────────
-function CardDetail({ card, board, onClose, isManager, profile, approvedUsers }: {
+function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, allBoards }: {
   card: TaskCard
   board: TaskBoard
   onClose: () => void
   isManager: boolean
   profile: UserProfile | null
   approvedUsers: UserProfile[]
+  allBoards: TaskBoard[]
 }) {
   const [title, setTitle]   = useState(card.title)
   const [desc, setDesc]     = useState(card.description)
@@ -59,6 +61,7 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers }:
   const [lightboxAtt, setLightboxAtt] = useState<TaskAttachment | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [showMoveCard, setShowMoveCard] = useState(false)
   const [comments, setComments] = useState<TaskComment[]>([])
   const [newComment, setNewComment] = useState('')
   const [postingComment, setPostingComment] = useState(false)
@@ -415,6 +418,26 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers }:
                       )}
                     </div>
                     {canEdit && (
+                      <div className="flex flex-col gap-0.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                        <button
+                          onClick={() => setChecklist(prev => {
+                            const idx = prev.findIndex(i => i.id === item.id)
+                            if (idx <= 0) return prev
+                            const a = [...prev]; [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]]; return a
+                          })}
+                          disabled={checklist.indexOf(item) === 0}
+                          className="text-gray-300 hover:text-gray-500 disabled:opacity-20 leading-none text-[10px]">▲</button>
+                        <button
+                          onClick={() => setChecklist(prev => {
+                            const idx = prev.findIndex(i => i.id === item.id)
+                            if (idx >= prev.length - 1) return prev
+                            const a = [...prev]; [a[idx], a[idx + 1]] = [a[idx + 1], a[idx]]; return a
+                          })}
+                          disabled={checklist.indexOf(item) === checklist.length - 1}
+                          className="text-gray-300 hover:text-gray-500 disabled:opacity-20 leading-none text-[10px]">▼</button>
+                      </div>
+                    )}
+                    {canEdit && (
                       <div className="relative z-50">
                         <button
                           onClick={() => setAssigneePickerItemId(prev => prev === item.id ? null : item.id)}
@@ -649,12 +672,94 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers }:
             Gespeichert ✓
           </span>
           <div className="flex-1" />
+          {canEdit && allBoards.filter(b => b.id !== board.id).length > 0 && (
+            <button onClick={() => setShowMoveCard(true)}
+              title="In anderes Board verschieben"
+              className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 border border-gray-200 rounded-xl transition-colors">
+              <ArrowRightLeft className="w-4 h-4" />
+            </button>
+          )}
           {canDelete && (
             <button onClick={handleDelete}
               className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 rounded-xl transition-colors">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Move card modal */}
+      {showMoveCard && (
+        <MoveCardModal
+          card={card}
+          allBoards={allBoards.filter(b => b.id !== board.id)}
+          onClose={() => setShowMoveCard(false)}
+          onMoved={onClose}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Move card to another board ─────────────────────────────────────────────────
+function MoveCardModal({ card, allBoards, onClose, onMoved }: {
+  card: TaskCard
+  allBoards: TaskBoard[]
+  onClose: () => void
+  onMoved: () => void
+}) {
+  const [targetBoardId, setTargetBoardId] = useState(allBoards[0]?.id ?? '')
+  const [moving, setMoving] = useState(false)
+  const targetBoard = allBoards.find(b => b.id === targetBoardId)
+  const cols = targetBoard ? targetBoard.columns.slice().sort((a, b) => a.order - b.order) : []
+  const [targetColId, setTargetColId] = useState(cols[0]?.id ?? '')
+
+  // sync column when board changes
+  useEffect(() => {
+    const b = allBoards.find(b => b.id === targetBoardId)
+    const firstCol = b?.columns.slice().sort((a, b) => a.order - b.order)[0]
+    setTargetColId(firstCol?.id ?? '')
+  }, [targetBoardId])
+
+  async function doMove() {
+    if (!targetBoardId || !targetColId) return
+    setMoving(true)
+    await updateCard(card.id, { boardId: targetBoardId, columnId: targetColId, order: Date.now() })
+    onMoved()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4 text-primary-600" /> Karte verschieben
+          </h3>
+          <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Ziel-Board</label>
+            <select value={targetBoardId} onChange={e => setTargetBoardId(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              {allBoards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Spalte</label>
+            <select value={targetColId} onChange={e => setTargetColId(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              {cols.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Abbrechen</button>
+          <button onClick={doMove} disabled={moving || !targetColId}
+            className="px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-40 transition-colors flex items-center gap-1.5">
+            {moving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
+            Verschieben
+          </button>
         </div>
       </div>
     </div>
@@ -730,12 +835,18 @@ export default function TaskBoardPage() {
   const isManager = isAdmin || isGeschaeftsleitung
 
   const [board, setBoard]   = useState<TaskBoard | null>(null)
+  const [allBoards, setAllBoards] = useState<TaskBoard[]>([])
   const [cards, setCards]   = useState<TaskCard[]>([])
   const [selectedCard, setSelectedCard] = useState<TaskCard | null>(null)
   const [showColSettings, setShowColSettings] = useState(false)
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([])
   const [addingInCol, setAddingInCol] = useState<string | null>(null)
   const [newCardTitle, setNewCardTitle] = useState('')
+  // Board toolbar
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [onlyMine, setOnlyMine] = useState(false)
+  const [sortByDue, setSortByDue] = useState(false)
 
   // Drag state
   const [draggingId, setDraggingId]   = useState<string | null>(null)
@@ -755,6 +866,7 @@ export default function TaskBoardPage() {
     const unsub = subscribeBoards(boards => {
       const b = boards.find(x => x.id === boardId)
       setBoard(b ?? null)
+      setAllBoards(boards)
     })
     return unsub
   }, [boardId])
@@ -791,17 +903,39 @@ export default function TaskBoardPage() {
   const sortedCols = board.columns.slice().sort((a, b) => a.order - b.order)
 
   function filterCard(card: TaskCard): boolean {
-    if (isManager) return true
-    if (card.members.some(m => m.uid === profile?.uid)) return true
-    return (
+    // Visibility
+    const visible = isManager ||
+      card.members.some(m => m.uid === profile?.uid) ||
       card.assigneeType === 'none' ||
       (card.assigneeType === 'group' && card.assigneeKey === `group_${profile?.role}`) ||
       (card.assigneeType === 'user' && card.assigneeKey === profile?.uid)
-    )
+    if (!visible) return false
+    // Only-mine filter
+    if (onlyMine) {
+      const mine = card.createdByUid === profile?.uid ||
+        card.members.some(m => m.uid === profile?.uid) ||
+        (card.assigneeType === 'user' && card.assigneeKey === profile?.uid)
+      if (!mine) return false
+    }
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      if (!card.title.toLowerCase().includes(q) && !card.description.toLowerCase().includes(q)) return false
+    }
+    return true
   }
 
   function colCards(colId: string) {
-    return cards.filter(c => c.columnId === colId && filterCard(c))
+    const filtered = cards.filter(c => c.columnId === colId && filterCard(c))
+    if (sortByDue) {
+      return filtered.slice().sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return a.order - b.order
+        if (!a.dueDate) return 1
+        if (!b.dueDate) return -1
+        return a.dueDate.localeCompare(b.dueDate)
+      })
+    }
+    return filtered.slice().sort((a, b) => a.order - b.order)
   }
 
   async function handleAddCard(colId: string) {
@@ -872,13 +1006,41 @@ export default function TaskBoardPage() {
             )
           })()}
         </div>
-        {isManager && (
-          <button onClick={() => setShowColSettings(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-lg transition-colors">
-            <Settings className="w-3.5 h-3.5" /> Spalten
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => { setShowSearch(s => !s); if (showSearch) setSearchQuery('') }}
+            title="Suchen"
+            className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors ${showSearch ? 'bg-white/30 text-white' : 'text-white/70 hover:text-white bg-white/10 hover:bg-white/20'}`}>
+            <Search className="w-3.5 h-3.5" />
           </button>
-        )}
+          <button onClick={() => setSortByDue(s => !s)}
+            title="Nach Fälligkeit sortieren"
+            className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors ${sortByDue ? 'bg-white/30 text-white' : 'text-white/70 hover:text-white bg-white/10 hover:bg-white/20'}`}>
+            <SortAsc className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => setOnlyMine(s => !s)}
+            title="Nur meine Aufgaben"
+            className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors ${onlyMine ? 'bg-white/30 text-white' : 'text-white/70 hover:text-white bg-white/10 hover:bg-white/20'}`}>
+            <UserCheck className="w-3.5 h-3.5" />
+          </button>
+          {isManager && (
+            <button onClick={() => setShowColSettings(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-lg transition-colors">
+              <Settings className="w-3.5 h-3.5" /> Spalten
+            </button>
+          )}
+        </div>
       </div>
+      {showSearch && (
+        <div className={`${col.bg} px-4 pb-2`}>
+          <input
+            autoFocus
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Karten suchen…"
+            className="w-full bg-white/20 placeholder-white/60 text-white text-sm rounded-xl px-3 py-2 focus:outline-none focus:bg-white/30 border border-white/20"
+          />
+        </div>
+      )}
 
 
       {/* Kanban columns */}
@@ -1076,6 +1238,7 @@ export default function TaskBoardPage() {
           isManager={isManager}
           profile={profile}
           approvedUsers={approvedUsers}
+          allBoards={allBoards}
         />
       )}
 

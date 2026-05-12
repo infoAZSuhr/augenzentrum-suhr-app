@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, TruckOff } from 'lucide-react'
+import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, Ban } from 'lucide-react'
 import Pinnwand from '../components/ui/Pinnwand'
 import IviKatOverviewModal from '../components/ui/IviKatOverviewModal'
 import { Link } from 'react-router-dom'
@@ -457,7 +457,7 @@ export default function Dashboard() {
         {canAccessLager && <div data-help="dashboard-nicht-lieferbar" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
-              <TruckOff className={`w-4 h-4 ${notDeliverableAlerts.length > 0 ? 'text-blue-500' : 'text-green-600'}`} />
+              <Ban className={`w-4 h-4 ${notDeliverableAlerts.length > 0 ? 'text-blue-500' : 'text-green-600'}`} />
               <span className="text-sm font-semibold text-gray-800">Nicht lieferbar</span>
               {notDeliverableAlerts.length > 0 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
