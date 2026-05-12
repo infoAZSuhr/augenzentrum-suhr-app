@@ -8,7 +8,7 @@ import {
   subscribeBoards, createBoard, updateBoard, deleteBoard, createTaskNotification,
   subscribePolls, createStandalonePoll, updateStandalonePoll, deleteStandalonePoll,
 } from '../lib/firestoreTasks'
-import { Plus, LayoutList, Trash2, Settings, X, Loader2, BarChart2, Clock, Check } from 'lucide-react'
+import { Plus, LayoutList, Trash2, Settings, X, Loader2, BarChart2, Clock, Check, Search } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 
 interface UserEntry { uid: string; displayName: string; username: string }
@@ -475,6 +475,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [editingBoard, setEditingBoard] = useState<TaskBoard | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [polls, setPolls] = useState<StandalonePoll[]>([])
   const [pollsLoading, setPollsLoading] = useState(true)
@@ -493,7 +494,13 @@ export default function TasksPage() {
     })
   }, [])
 
-  const visibleBoards = boards.filter(b => canSeeBoard(b, role, isAdmin, isGeschaeftsleitung, uid, additionalRoles))
+  const visibleBoards = boards
+    .filter(b => canSeeBoard(b, role, isAdmin, isGeschaeftsleitung, uid, additionalRoles))
+    .filter(b => {
+      const q = searchQuery.trim().toLowerCase()
+      if (!q) return true
+      return b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q)
+    })
   const visiblePolls  = polls.filter(p => canSeePoll(p, role, isAdmin, isGeschaeftsleitung, uid, additionalRoles))
 
   async function handleSaveBoard(name: string, description: string, color: string, columnNames: string[], visibleTo: BoardVisibility, selectedUids: string[], selectedNames: string[]) {
@@ -583,7 +590,7 @@ export default function TasksPage() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-8">
       {/* ── Boards ── */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <div className="mb-2"><BackButton /></div>
             <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -592,10 +599,26 @@ export default function TasksPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">{visibleBoards.length} Board{visibleBoards.length !== 1 ? 's' : ''}</p>
           </div>
-          <button onClick={() => { setEditingBoard(null); setShowCreate(true) }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors">
-            <Plus className="w-4 h-4" /> Neues Board
-          </button>
+          <div className="flex items-center gap-2 mt-8">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Suchen…"
+                className="pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 w-40 sm:w-52"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button onClick={() => { setEditingBoard(null); setShowCreate(true) }}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors whitespace-nowrap">
+              <Plus className="w-4 h-4" /> Neues Board
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -604,11 +627,17 @@ export default function TasksPage() {
           </div>
         ) : visibleBoards.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-12 text-center space-y-2">
-            <p className="text-sm text-gray-400">Noch keine Boards vorhanden.</p>
-            <button onClick={() => setShowCreate(true)}
-              className="text-sm font-semibold text-primary-600 hover:underline">
-              Erstes Board erstellen →
-            </button>
+            {searchQuery.trim() ? (
+              <p className="text-sm text-gray-400">Keine Boards für „{searchQuery.trim()}" gefunden.</p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-400">Noch keine Boards vorhanden.</p>
+                <button onClick={() => setShowCreate(true)}
+                  className="text-sm font-semibold text-primary-600 hover:underline">
+                  Erstes Board erstellen →
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
