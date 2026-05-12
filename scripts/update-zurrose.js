@@ -242,10 +242,17 @@ async function main() {
     } catch {}
   }
 
-  // ── 1. Excel herunterladen ────────────────────────────────────────────────
-  console.log('Lade Zur Rose Nota-Liste herunter...')
-  const buf = await httpGet(XLSX_URL)
-  console.log(`Heruntergeladen: ${Math.round(buf.length / 1024)} KB`)
+  // ── 1. Excel laden (aus Datei oder herunterladen) ─────────────────────────
+  let buf
+  const xlsxPath = process.env.ZURROSE_XLSX_PATH
+  if (xlsxPath && fs.existsSync(xlsxPath)) {
+    buf = fs.readFileSync(xlsxPath)
+    console.log(`Lese Datei: ${xlsxPath} (${Math.round(buf.length / 1024)} KB)`)
+  } else {
+    console.log('Lade Zur Rose Nota-Liste herunter...')
+    buf = await httpGet(XLSX_URL)
+    console.log(`Heruntergeladen: ${Math.round(buf.length / 1024)} KB`)
+  }
 
   // ── 2. Excel parsen ───────────────────────────────────────────────────────
   const wb   = xlsx.read(buf, { type: 'buffer' })

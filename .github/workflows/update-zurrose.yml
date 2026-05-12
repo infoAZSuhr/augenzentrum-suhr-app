@@ -24,9 +24,20 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
-      - name: Zur Rose Nota-Liste herunterladen + Firestore sync
+      - name: Zur Rose Nota-Liste herunterladen
+        run: |
+          curl -L -s -f \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            -H "Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*" \
+            -H "Referer: https://www.zurrose.ch/apothekenpartner/bestellsysteme/nota-liste" \
+            -o /tmp/Nota-Liste.xlsx \
+            "https://www.zurrose.ch/sites/default/files/media/downloads/Nota-Liste.xlsx"
+          echo "Heruntergeladen: $(du -k /tmp/Nota-Liste.xlsx | cut -f1) KB"
+
+      - name: Zur Rose Nota-Liste Firestore sync
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ZURROSE_XLSX_PATH: /tmp/Nota-Liste.xlsx
         run: node scripts/update-zurrose.js --force
 
       - name: Meta-Datei committen (falls geändert)
