@@ -1,0 +1,38 @@
+name: Zur Rose Nota-Liste aktualisieren
+
+on:
+  schedule:
+    # Täglich 06:00 UTC = 07:00/08:00 Schweizer Zeit
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Auch manuell im GitHub-Interface auslösbar (Actions → Run workflow)
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm ci
+
+      - name: Zur Rose Nota-Liste herunterladen + Firestore sync
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/update-zurrose.js --force
+
+      - name: Meta-Datei committen (falls geändert)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/zurrose-nota-meta.json
+          git diff --staged --quiet || git commit -m "chore: Zur Rose Nota-Liste $(date +%d.%m.%Y)"
+          git push

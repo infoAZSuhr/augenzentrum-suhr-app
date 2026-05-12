@@ -1,0 +1,101 @@
+{
+  "name": "augenzentrum-suhr",
+  "version": "1.0.2",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "update-sl": "node scripts/update-sl.js",
+    "update-sl:force": "node scripts/update-sl.js --force",
+    "update-refdata": "node scripts/update-refdata.js",
+    "update-refdata:force": "node scripts/update-refdata.js --force",
+    "update-lieferengpaesse": "node scripts/update-lieferengpaesse.js",
+    "update-lieferengpaesse:force": "node scripts/update-lieferengpaesse.js --force",
+    "update-zurrose": "node scripts/update-zurrose.js",
+    "update-zurrose:force": "node scripts/update-zurrose.js --force",
+    "update-zurrose:deploy": "node scripts/update-zurrose.js && npm run build && firebase deploy --only hosting --project azsdb-999d6",
+    "update-all": "node scripts/update-sl.js && node scripts/update-refdata.js && node scripts/update-zurrose.js",
+    "update-all:deploy": "node scripts/update-sl.js && node scripts/update-refdata.js && node scripts/update-zurrose.js && npm run build && firebase deploy --only hosting --project azsdb-999d6",
+    "update-sl:deploy": "node scripts/update-sl.js && npm run build && firebase deploy --only hosting --project azsdb-999d6",
+    "task:register": "powershell -ExecutionPolicy Bypass -File scripts/register-task.ps1"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.3.4",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/react-query": "^5.17.19",
+    "@tanstack/react-table": "^8.11.7",
+    "@tiptap/extension-color": "^3.22.3",
+    "@tiptap/extension-image": "^3.22.5",
+    "@tiptap/extension-link": "^3.22.5",
+    "@tiptap/extension-placeholder": "^3.22.3",
+    "@tiptap/extension-table": "^3.22.3",
+    "@tiptap/extension-table-cell": "^3.22.3",
+    "@tiptap/extension-table-header": "^3.22.3",
+    "@tiptap/extension-table-row": "^3.22.3",
+    "@tiptap/extension-text-align": "^3.22.3",
+    "@tiptap/extension-text-style": "^3.22.3",
+    "@tiptap/extension-typography": "^3.22.3",
+    "@tiptap/extension-underline": "^3.22.3",
+    "@tiptap/pm": "^3.22.3",
+    "@tiptap/react": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
+    "axios": "^1.6.5",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.3.1",
+    "firebase": "^10.8.0",
+    "lucide-react": "^0.323.0",
+    "mermaid": "^11.15.0",
+    "pdfjs-dist": "^5.6.205",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.49.3",
+    "react-router-dom": "^6.21.3",
+    "tailwind-merge": "^2.2.1",
+    "xlsx": "^0.18.5",
+    "zod": "^3.22.4",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3",
+    "firebase-admin": "^13.9.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.1",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "ch.augenzentrum-suhr",
+    "productName": "Augenzentrum Suhr",
+    "copyright": "Augenzentrum Suhr",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "electron/assets"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    }
+  }
+}

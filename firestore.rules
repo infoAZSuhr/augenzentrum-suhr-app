@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // passwordResetRequests: jeder darf erstellen (ohne Login), nur Admin liest/ändert
+    match /passwordResetRequests/{id} {
+      allow create: if true;
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // adminMessages: unauthentifizierte Benutzer dürfen erstellen (Login-Seite Kontaktformular)
+    // Felder werden validiert; nur Admin darf lesen/ändern/löschen
+    match /adminMessages/{id} {
+      allow create: if
+        request.resource.data.keys().hasOnly(['topic', 'senderName', 'email', 'note', 'status', 'createdAt']) &&
+        request.resource.data.topic in ['login', 'other'] &&
+        request.resource.data.status == 'pending' &&
+        (request.resource.data.senderName is string && request.resource.data.senderName.size() <= 100) &&
+        (request.resource.data.note is string && request.resource.data.note.size() <= 500);
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // users: lesbar ohne Login (für Username-Lookup beim Login & Passwort-Reset)
+    // schreibbar nur für eingeloggte Benutzer
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // alle anderen Collections: nur für eingeloggte Benutzer
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
