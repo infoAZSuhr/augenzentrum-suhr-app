@@ -3348,10 +3348,10 @@ export default function RecallPage() {
                       setField('letzteKons', newDate)
                       setField('storniert', '')
                       setField('grundStornierung', '')
-                      if (form.konsInterval) {
+                      if (form.konsInterval && newDate) {
                         const computed = computeNextKons(newDate, form.konsInterval)
                         if (computed) {
-                          setField('naechsteKons', computed)
+                          // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
                           const lk2 = new Date(newDate + 'T00:00:00Z')
                           lk2.setUTCMonth(lk2.getUTCMonth() + 2)
                           if (computed <= lk2.toISOString().slice(0, 10)) {
@@ -3379,7 +3379,7 @@ export default function RecallPage() {
                       if (form.letzteKons) {
                         const computed = computeNextKons(form.letzteKons, val)
                         if (computed) {
-                          setField('naechsteKons', computed)
+                          // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
                           const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
                           lk2.setUTCMonth(lk2.getUTCMonth() + 2)
                           if (computed <= lk2.toISOString().slice(0, 10)) {
@@ -3444,10 +3444,10 @@ export default function RecallPage() {
                           setField('letzteKons', newDate)
                           setField('storniert', '')
                           setField('grundStornierung', '')
+                          setField('naechsteKons', '') // manuell neu eingeben
                           if (form.konsInterval) {
                             const computed = computeNextKons(newDate, form.konsInterval)
                             if (computed) {
-                              setField('naechsteKons', computed)
                               const d = new Date(computed + 'T00:00:00Z')
                               d.setUTCMonth(d.getUTCMonth() - 2)
                               setField('aufgebotFuer', d.toISOString().slice(0, 10))
