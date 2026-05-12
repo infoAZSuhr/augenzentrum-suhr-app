@@ -345,6 +345,20 @@ const inputClsErr = 'w-full px-3 py-2 text-sm border border-red-400 rounded-lg b
 const labelCls    = 'block text-xs font-semibold text-gray-600 mb-1'
 const reqStar     = <span className="text-red-500 ml-0.5">*</span>
 
+function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
+  if (!show) return null
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      onClick={onClear}
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors z-10"
+    >
+      <X className="w-3 h-3" />
+    </button>
+  )
+}
+
 export default function RecallPage() {
   const { profile } = useAuth()
   const username     = profile?.username || profile?.displayName || 'System'
@@ -3326,9 +3340,12 @@ export default function RecallPage() {
               <div>
                 <label className={labelCls}>Geb. Datum{reqStar}</label>
                 <div className="flex items-center gap-2">
-                  <input type="date" value={form.gebDatum}
-                    onChange={e => setField('gebDatum', e.target.value)}
-                    className={`flex-1 ${formErrors.gebDatum ? inputClsErr : inputCls}`} />
+                  <div className="relative flex-1">
+                    <input type="date" value={form.gebDatum}
+                      onChange={e => setField('gebDatum', e.target.value)}
+                      className={`w-full pr-6 ${formErrors.gebDatum ? inputClsErr : inputCls}`} />
+                    <ClearBtn show={!!form.gebDatum} onClear={() => setField('gebDatum', '')} />
+                  </div>
                   {form.gebDatum && (
                     <button type="button" onClick={() => copyToClipboard(formatDate(form.gebDatum), 'modal-geb')}
                       className="shrink-0 p-2 border border-gray-200 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-gray-50 transition-colors" title="Kopieren">
@@ -3342,59 +3359,65 @@ export default function RecallPage() {
                 {/* Letzte Konst. */}
                 <div>
                   <label className={labelCls}>Letzte Konst.</label>
-                  <input type="date" value={form.letzteKons}
-                    onChange={e => {
-                      const newDate = e.target.value
-                      setField('letzteKons', newDate)
-                      setField('storniert', '')
-                      setField('grundStornierung', '')
-                      if (form.konsInterval && newDate) {
-                        const computed = computeNextKons(newDate, form.konsInterval)
-                        if (computed) {
-                          // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
-                          const lk2 = new Date(newDate + 'T00:00:00Z')
-                          lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-                          if (computed <= lk2.toISOString().slice(0, 10)) {
-                            setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-                          } else {
-                            const d = new Date(computed + 'T00:00:00Z')
-                            d.setUTCMonth(d.getUTCMonth() - 2)
-                            setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                  <div className="relative">
+                    <input type="date" value={form.letzteKons}
+                      onChange={e => {
+                        const newDate = e.target.value
+                        setField('letzteKons', newDate)
+                        setField('storniert', '')
+                        setField('grundStornierung', '')
+                        if (form.konsInterval && newDate) {
+                          const computed = computeNextKons(newDate, form.konsInterval)
+                          if (computed) {
+                            // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
+                            const lk2 = new Date(newDate + 'T00:00:00Z')
+                            lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+                            if (computed <= lk2.toISOString().slice(0, 10)) {
+                              setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+                            } else {
+                              const d = new Date(computed + 'T00:00:00Z')
+                              d.setUTCMonth(d.getUTCMonth() - 2)
+                              setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                            }
                           }
                         }
-                      }
-                    }}
-                    className={inputCls} />
+                      }}
+                      className={`${inputCls} pr-6`} />
+                    <ClearBtn show={!!form.letzteKons} onClear={() => setField('letzteKons', '')} />
+                  </div>
                 </div>
 
                 {/* Intervall */}
                 <div>
                   <label className={labelCls}>Intervall</label>
-                  <input
-                    type="text"
-                    value={form.konsInterval}
-                    onChange={e => {
-                      const val = e.target.value
-                      setField('konsInterval', val)
-                      if (form.letzteKons) {
-                        const computed = computeNextKons(form.letzteKons, val)
-                        if (computed) {
-                          // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
-                          const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
-                          lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-                          if (computed <= lk2.toISOString().slice(0, 10)) {
-                            setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-                          } else {
-                            const d = new Date(computed + 'T00:00:00Z')
-                            d.setUTCMonth(d.getUTCMonth() - 2)
-                            setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={form.konsInterval}
+                      onChange={e => {
+                        const val = e.target.value
+                        setField('konsInterval', val)
+                        if (form.letzteKons) {
+                          const computed = computeNextKons(form.letzteKons, val)
+                          if (computed) {
+                            // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
+                            const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
+                            lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+                            if (computed <= lk2.toISOString().slice(0, 10)) {
+                              setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+                            } else {
+                              const d = new Date(computed + 'T00:00:00Z')
+                              d.setUTCMonth(d.getUTCMonth() - 2)
+                              setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                            }
                           }
                         }
-                      }
-                    }}
-                    placeholder="1j · 6m · 30t"
-                    className={`${inputCls} placeholder:text-gray-300`}
-                  />
+                      }}
+                      placeholder="1j · 6m · 30t"
+                      className={`${inputCls} pr-6 placeholder:text-gray-300`}
+                    />
+                    <ClearBtn show={!!form.konsInterval} onClear={() => setField('konsInterval', '')} />
+                  </div>
                   {(() => {
                     const computed = computeNextKons(form.letzteKons, form.konsInterval)
                     if (computed) return <p className="mt-1 text-[11px] text-primary-600 font-medium">→ {formatDate(computed)}</p>
@@ -3412,29 +3435,35 @@ export default function RecallPage() {
                       <span className="ml-2 text-amber-600 font-normal">← vereinbarten Termin hier eintragen</span>
                     )}
                   </label>
-                  <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
-                    className={form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}
-                    onChange={e => {
-                      const val = e.target.value
-                      setField('naechsteKons', val)
-                      if (val) {
-                        if (form.letzteKons) {
-                          const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
-                          lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-                          if (val <= lk2.toISOString().slice(0, 10)) {
-                            setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+                  <div className="relative">
+                    <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
+                      className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
+                      onChange={e => {
+                        const val = e.target.value
+                        setField('naechsteKons', val)
+                        if (val) {
+                          if (form.letzteKons) {
+                            const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
+                            lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+                            if (val <= lk2.toISOString().slice(0, 10)) {
+                              setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+                            } else {
+                              const d = new Date(val + 'T00:00:00Z')
+                              d.setUTCMonth(d.getUTCMonth() - 2)
+                              setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                            }
                           } else {
                             const d = new Date(val + 'T00:00:00Z')
                             d.setUTCMonth(d.getUTCMonth() - 2)
                             setField('aufgebotFuer', d.toISOString().slice(0, 10))
                           }
-                        } else {
-                          const d = new Date(val + 'T00:00:00Z')
-                          d.setUTCMonth(d.getUTCMonth() - 2)
-                          setField('aufgebotFuer', d.toISOString().slice(0, 10))
                         }
-                      }
+                      }} />
+                    <ClearBtn show={!!form.naechsteKons} onClear={() => {
+                      setField('naechsteKons', '')
+                      setField('keinTermin', false)
                     }} />
+                  </div>
                   {form.naechsteKons && (
                     <div className="flex justify-end mt-1.5">
                       <button
@@ -3498,9 +3527,12 @@ export default function RecallPage() {
                 <div className="space-y-2">
                   <div>
                     <label className={labelCls}>RC zu erstellen ab</label>
-                    <input type="date" value={form.aufgebotFuer}
-                      onChange={e => setField('aufgebotFuer', e.target.value)}
-                      className={inputCls} />
+                    <div className="relative">
+                      <input type="date" value={form.aufgebotFuer}
+                        onChange={e => setField('aufgebotFuer', e.target.value)}
+                        className={`${inputCls} pr-6`} />
+                      <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
+                    </div>
                   </div>
                   <div>
                     <label className={labelCls}>{
@@ -3510,9 +3542,12 @@ export default function RecallPage() {
                       form.aufgebotArt === 'Praxis'   ? 'Vereinbarungsdatum' :
                       'Aufgebot erstellt am'
                     }</label>
-                    <input type="date" value={form.aufgebotErstellt}
-                      onChange={e => setField('aufgebotErstellt', e.target.value)}
-                      className={inputCls} />
+                    <div className="relative">
+                      <input type="date" value={form.aufgebotErstellt}
+                        onChange={e => setField('aufgebotErstellt', e.target.value)}
+                        className={`${inputCls} pr-6`} />
+                      <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
+                    </div>
                     {form.aufgebotArt === 'Praxis' && (
                       <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
                         <span>⚠️</span> Das Terminsdatum bitte oben unter <strong>«Nächste Konst.»</strong> eintragen.
@@ -3593,7 +3628,7 @@ export default function RecallPage() {
                     <>
                       <button type="button"
                         onClick={async () => {
-                          if (!editTarget || editTarget === 'new') return
+                          if (!editTarget || (editTarget as unknown as string) === 'new') return
                           const entry: any = { datum: new Date().toISOString().slice(0, 10), aktion: 'Telefonanruf', ergebnis: 'noch zu erledigen', von: displayLabel }
                           const newVerlauf = [...form.verlauf, entry]
                           setField('verlauf', newVerlauf)
