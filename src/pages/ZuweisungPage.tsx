@@ -14,7 +14,7 @@ function formatDate(s: string | null | undefined): string {
   return `${m[3]}.${m[2]}.${m[1]}`
 }
 
-type FilterStatus = 'alle' | 'ausstehend' | 'erledigt'
+type FilterStatus = 'alle' | 'pendent' | 'erledigt'
 type FilterTyp    = 'alle' | 'intern' | 'extern'
 
 export default function ZuweisungPage() {
@@ -23,16 +23,19 @@ export default function ZuweisungPage() {
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
   const [patients, setPatients] = useState<RecallPatient[]>([])
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('ausstehend')
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('pendent')
   const [filterTyp, setFilterTyp] = useState<FilterTyp>('alle')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => subscribeZuweisungPatients(setPatients), [])
 
+  // normalise legacy 'ausstehend' → 'pendent'
+  function normStatus(s: string) { return s === 'ausstehend' ? 'pendent' : s }
+
   const visible = patients.filter(p => {
     const z = p.zuweisung!
-    if (filterStatus !== 'alle' && z.status !== filterStatus) return false
+    if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
     if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
     return true
   })
@@ -56,7 +59,7 @@ export default function ZuweisungPage() {
   async function reopen(p: RecallPatient) {
     if (savingId) return
     setSavingId(p.id)
-    const updated: Zuweisung = { ...p.zuweisung!, status: 'ausstehend', erledigtAm: '' }
+    const updated: Zuweisung = { ...p.zuweisung!, status: 'pendent', erledigtAm: '' }
     try {
       await updateRecallPatient(p.id, { zuweisung: updated }, displayLabel)
     } finally {
@@ -64,7 +67,7 @@ export default function ZuweisungPage() {
     }
   }
 
-  const ausstehendCount = patients.filter(p => p.zuweisung?.status === 'ausstehend').length
+  const ausstehendCount = patients.filter(p => normStatus(p.zuweisung?.status ?? '') === 'pendent').length
   const erledigtCount   = patients.filter(p => p.zuweisung?.status === 'erledigt').length
 
   return (
@@ -79,7 +82,7 @@ export default function ZuweisungPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold text-gray-900 leading-tight">Zuweisungen</h1>
             <p className="text-xs text-gray-400 leading-tight">
-              {ausstehendCount} ausstehend · {erledigtCount} erledigt
+              {ausstehendCount} pendent · {erledigtCount} erledigt
             </p>
           </div>
         </div>
@@ -88,17 +91,17 @@ export default function ZuweisungPage() {
         <div className="max-w-4xl mx-auto px-4 pb-3 flex flex-wrap gap-2">
           <div className="flex gap-1 items-center">
             <Filter className="w-3.5 h-3.5 text-gray-400" />
-            {(['ausstehend', 'erledigt', 'alle'] as FilterStatus[]).map(s => (
+            {(['pendent', 'erledigt', 'alle'] as FilterStatus[]).map(s => (
               <button key={s} onClick={() => setFilterStatus(s)}
-                className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors capitalize ${
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
                   filterStatus === s
-                    ? s === 'ausstehend' ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                    : s === 'erledigt'  ? 'bg-green-100 text-green-700 border border-green-300'
-                    :                     'bg-gray-200 text-gray-700 border border-gray-300'
+                    ? s === 'pendent'  ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                    : s === 'erledigt' ? 'bg-green-100 text-green-700 border border-green-300'
+                    :                    'bg-gray-200 text-gray-700 border border-gray-300'
                     : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-300'
                 }`}
               >
-                {s === 'alle' ? 'Alle' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'alle' ? 'Alle' : s === 'pendent' ? 'Pendent' : 'Erledigt'}
               </button>
             ))}
           </div>
@@ -125,7 +128,7 @@ export default function ZuweisungPage() {
             <CheckCircle2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-medium">Keine Zuweisungen gefunden</p>
             <p className="text-xs mt-1">
-              {filterStatus === 'ausstehend' ? 'Alle Zuweisungen sind erledigt.' : 'Noch keine Einträge.'}
+              {filterStatus === 'pendent' ? 'Alle Zuweisungen sind erledigt.' : 'Noch keine Einträge.'}
             </p>
           </div>
         )}
@@ -133,7 +136,7 @@ export default function ZuweisungPage() {
         {visible.map(p => {
           const z = p.zuweisung!
           const isExpanded = expandedId === p.id
-          const isErledigt = z.status === 'erledigt'
+          const isErledigt = normStatus(z.status) === 'erledigt'
           const isSaving   = savingId === p.id
 
           return (

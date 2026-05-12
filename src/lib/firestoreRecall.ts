@@ -9,7 +9,7 @@ export interface Zuweisung {
   ziel: string          // arzt (intern) or provider/clinic (extern)
   grund: string
   datum: string         // YYYY-MM-DD – when assigned
-  status: 'ausstehend' | 'erledigt'
+  status: 'pendent' | 'erledigt'
   erledigtAm: string    // YYYY-MM-DD or ''
   berichtErhalten: boolean
   notiz: string
@@ -175,7 +175,7 @@ export function subscribeZuweisungPatients(
         .sort((a, b) => {
           // ausstehend first, then by datum desc
           if (a.zuweisung!.status !== b.zuweisung!.status) {
-            return a.zuweisung!.status === 'ausstehend' ? -1 : 1
+            return a.zuweisung!.status === 'pendent' ? -1 : 1
           }
           return (b.zuweisung!.datum ?? '').localeCompare(a.zuweisung!.datum ?? '')
         })
