@@ -305,7 +305,7 @@ function initForm(p?: RecallPatient): EditForm {
     zuweisungTyp:       p?.zuweisung?.typ       ?? 'extern',
     zuweisungZiel:      p?.zuweisung?.ziel       ?? '',
     zuweisungGrund:     p?.zuweisung?.grund      ?? '',
-    zuweisungDatum:     p?.zuweisung?.datum      ?? toInputDate(p?.letzteKons) ?? new Date().toISOString().slice(0, 10),
+    zuweisungDatum:     p?.zuweisung?.datum      || toInputDate(p?.letzteKons) || new Date().toISOString().slice(0, 10),
     zuweisungStatus:    ((p?.zuweisung?.status as string) === 'ausstehend' ? 'pendent' : p?.zuweisung?.status) ?? 'pendent',
     zuweisungErledigtAm: p?.zuweisung?.erledigtAm    ?? '',
     zuweisungBerichtErhalten: p?.zuweisung?.berichtErhalten ?? false,
@@ -3583,7 +3583,7 @@ export default function RecallPage() {
                     onClick={() => {
                       const next = !form.zuweisungAktiv
                       setField('zuweisungAktiv', next)
-                      if (next && !form.zuweisungDatum && form.letzteKons) {
+                      if (next && form.letzteKons) {
                         setField('zuweisungDatum', form.letzteKons)
                       }
                     }}
