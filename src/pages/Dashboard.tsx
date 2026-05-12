@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer } from 'lucide-react'
+import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, TruckOff } from 'lucide-react'
 import Pinnwand from '../components/ui/Pinnwand'
 import IviKatOverviewModal from '../components/ui/IviKatOverviewModal'
 import { Link } from 'react-router-dom'
@@ -423,16 +423,45 @@ export default function Dashboard() {
         {canAccessLager && <div data-help="dashboard-lager" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
-              <Package className={`w-4 h-4 ${criticalAlerts.length > 0 ? 'text-red-600' : stockAlerts.length > 0 ? 'text-amber-500' : notDeliverableAlerts.length > 0 ? 'text-blue-500' : 'text-green-600'}`} />
+              <Package className={`w-4 h-4 ${criticalAlerts.length > 0 ? 'text-red-600' : stockAlerts.length > 0 ? 'text-amber-500' : 'text-green-600'}`} />
               <span className="text-sm font-semibold text-gray-800">Lager-Warnungen</span>
               {stockAlerts.length > 0 && (
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${criticalAlerts.length > 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                   {stockAlerts.length}
                 </span>
               )}
+            </div>
+            <Link to="/lager" className="text-xs text-primary-600 hover:text-primary-700 font-medium">Lager →</Link>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {stockAlerts.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400 italic">Kein Handlungsbedarf</p>
+            ) : (
+              stockAlerts.slice(0, 6).map((a, i) => (
+                <div key={i} className="px-4 py-2 flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${a.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{a.articleName}</p>
+                    <p className="text-xs text-gray-500">{a.detail}</p>
+                  </div>
+                  {a.severity === 'critical' && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">Kritisch</span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>}
+
+        {/* Nicht lieferbar */}
+        {canAccessLager && <div data-help="dashboard-nicht-lieferbar" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <TruckOff className={`w-4 h-4 ${notDeliverableAlerts.length > 0 ? 'text-blue-500' : 'text-green-600'}`} />
+              <span className="text-sm font-semibold text-gray-800">Nicht lieferbar</span>
               {notDeliverableAlerts.length > 0 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                  {notDeliverableAlerts.length} n. lieferbar
+                  {notDeliverableAlerts.length}
                 </span>
               )}
             </div>
@@ -443,40 +472,19 @@ export default function Dashboard() {
               <Link to="/lager" className="text-xs text-primary-600 hover:text-primary-700 font-medium">Lager →</Link>
             </div>
           </div>
-          <div className="divide-y divide-gray-50">
-            {stockAlerts.length === 0 && notDeliverableAlerts.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-400 italic">Kein Handlungsbedarf</p>
+          <div className="divide-y divide-gray-50 overflow-y-auto max-h-64">
+            {notDeliverableAlerts.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400 italic">Alle Artikel lieferbar</p>
             ) : (
-              <>
-                {stockAlerts.slice(0, 5).map((a, i) => (
-                  <div key={i} className="px-4 py-2 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${a.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{a.articleName}</p>
-                      <p className="text-xs text-gray-500">{a.detail}</p>
-                    </div>
-                    {a.severity === 'critical' && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">Kritisch</span>
-                    )}
+              notDeliverableAlerts.map((a, i) => (
+                <div key={i} className="px-4 py-2 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full shrink-0 bg-blue-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{a.articleName}</p>
+                    <p className="text-xs text-blue-600">{a.detail}</p>
                   </div>
-                ))}
-                {notDeliverableAlerts.length > 0 && (
-                  <>
-                    <div className="px-4 py-1.5 bg-blue-50 border-t border-blue-100">
-                      <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Nicht lieferbar</p>
-                    </div>
-                    {notDeliverableAlerts.map((a, i) => (
-                      <div key={i} className="px-4 py-2 flex items-center gap-2 bg-blue-50/40">
-                        <span className="w-2 h-2 rounded-full shrink-0 bg-blue-400" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{a.articleName}</p>
-                          <p className="text-xs text-blue-600">{a.detail}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </>
+                </div>
+              ))
             )}
           </div>
         </div>}
