@@ -57,6 +57,8 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
   const [newCheckAssigneeUid, setNewCheckAssigneeUid] = useState('')
   const [newCheckAssigneeName, setNewCheckAssigneeName] = useState('')
   const [assigneePickerItemId, setAssigneePickerItemId] = useState<string | null>(null)
+  const [draggingCheckId, setDraggingCheckId] = useState<string | null>(null)
+  const [dragOverCheckId, setDragOverCheckId] = useState<string | null>(null)
   const [members, setMembers] = useState<TaskMember[]>(card.members ?? [])
   const [lightboxAtt, setLightboxAtt] = useState<TaskAttachment | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -394,8 +396,28 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                 const initials = item.assigneeName
                   ? item.assigneeName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
                   : ''
+                const isDraggingThis = draggingCheckId === item.id
+                const isOverThis    = dragOverCheckId === item.id && !isDraggingThis
                 return (
-                  <div key={item.id} className="flex items-start gap-2 group">
+                  <div key={item.id}
+                    draggable={canEdit}
+                    onDragStart={() => { setDraggingCheckId(item.id) }}
+                    onDragEnd={() => { setDraggingCheckId(null); setDragOverCheckId(null) }}
+                    onDragOver={e => { e.preventDefault(); if (draggingCheckId && draggingCheckId !== item.id) setDragOverCheckId(item.id) }}
+                    onDrop={e => {
+                      e.preventDefault()
+                      if (!draggingCheckId || draggingCheckId === item.id) return
+                      setChecklist(prev => {
+                        const from = prev.findIndex(i => i.id === draggingCheckId)
+                        const to   = prev.findIndex(i => i.id === item.id)
+                        if (from === -1 || to === -1) return prev
+                        const a = [...prev]; const [moved] = a.splice(from, 1); a.splice(to, 0, moved); return a
+                      })
+                      setDraggingCheckId(null); setDragOverCheckId(null)
+                    }}
+                    className={`flex items-start gap-2 group select-none transition-all
+                      ${isDraggingThis ? 'opacity-30' : ''}
+                      ${isOverThis ? 'ring-1 ring-primary-400 rounded-lg bg-primary-50/40' : ''}`}>
                     <button onClick={() => canCheckChecklist && setChecklist(prev => prev.map(i => {
                       if (i.id !== item.id) return i
                       const nowDone = !i.done
@@ -418,24 +440,7 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                       )}
                     </div>
                     {canEdit && (
-                      <div className="flex flex-col gap-0.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-all">
-                        <button
-                          onClick={() => setChecklist(prev => {
-                            const idx = prev.findIndex(i => i.id === item.id)
-                            if (idx <= 0) return prev
-                            const a = [...prev]; [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]]; return a
-                          })}
-                          disabled={checklist.indexOf(item) === 0}
-                          className="text-gray-300 hover:text-gray-500 disabled:opacity-20 leading-none text-[10px]">▲</button>
-                        <button
-                          onClick={() => setChecklist(prev => {
-                            const idx = prev.findIndex(i => i.id === item.id)
-                            if (idx >= prev.length - 1) return prev
-                            const a = [...prev]; [a[idx], a[idx + 1]] = [a[idx + 1], a[idx]]; return a
-                          })}
-                          disabled={checklist.indexOf(item) === checklist.length - 1}
-                          className="text-gray-300 hover:text-gray-500 disabled:opacity-20 leading-none text-[10px]">▼</button>
-                      </div>
+                      <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-all cursor-grab active:cursor-grabbing" />
                     )}
                     {canEdit && (
                       <div className="relative z-50">
