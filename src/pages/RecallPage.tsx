@@ -3803,37 +3803,30 @@ export default function RecallPage() {
                             >{l}</button>
                           ))}
                         </div>
-                        <p className="mt-1 text-[10px] text-gray-400">
-                          {form.zuweisungStatus === 'pendent'
-                            ? 'Patient wird aufgeboten'
-                            : 'Patient war in der Praxis'}
-                        </p>
+                        {form.zuweisungStatus === 'pendent' && (
+                          <p className="mt-1 text-[10px] text-gray-400">Patient wird aufgeboten</p>
+                        )}
+                        {form.zuweisungStatus === 'erledigt' && (
+                          <div className="mt-1.5 space-y-1.5">
+                            <div className="relative">
+                              <input type="date" value={form.zuweisungErledigtAm}
+                                onChange={e => setField('zuweisungErledigtAm', e.target.value)}
+                                className={`${inputCls} pr-6 text-[11px] py-1`} />
+                              <ClearBtn show={!!form.zuweisungErledigtAm} onClear={() => setField('zuweisungErledigtAm', '')} />
+                            </div>
+                            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={form.zuweisungBerichtErhalten}
+                                onChange={e => setField('zuweisungBerichtErhalten', e.target.checked)}
+                                className="w-3.5 h-3.5 rounded accent-violet-600"
+                              />
+                              <span className="text-[11px] font-semibold text-gray-600">Bericht erhalten</span>
+                            </label>
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    {/* Erledigt am + Bericht erhalten */}
-                    {form.zuweisungStatus === 'erledigt' && (
-                      <div className="space-y-2">
-                        <div>
-                          <label className={labelCls}>Erledigt am</label>
-                          <div className="relative">
-                            <input type="date" value={form.zuweisungErledigtAm}
-                              onChange={e => setField('zuweisungErledigtAm', e.target.value)}
-                              className={`${inputCls} pr-6`} />
-                            <ClearBtn show={!!form.zuweisungErledigtAm} onClear={() => setField('zuweisungErledigtAm', '')} />
-                          </div>
-                        </div>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={form.zuweisungBerichtErhalten}
-                            onChange={e => setField('zuweisungBerichtErhalten', e.target.checked)}
-                            className="w-4 h-4 rounded accent-violet-600"
-                          />
-                          <span className="text-xs font-semibold text-gray-700">Bericht erhalten</span>
-                        </label>
-                      </div>
-                    )}
 
                     {/* Notiz */}
                     <div>
