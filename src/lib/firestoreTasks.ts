@@ -63,6 +63,8 @@ export interface ChecklistItem {
   done: boolean
   doneBy?: string
   doneByUid?: string
+  assigneeUid?: string
+  assigneeName?: string
 }
 
 export interface PollOption {

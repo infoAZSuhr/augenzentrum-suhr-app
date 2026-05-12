@@ -13,7 +13,7 @@ import { db, storage } from '../lib/firebase'
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import {
   Plus, X, Loader2, Clock, Trash2, CheckCircle2,
-  Circle, MessageSquare, Settings, GripVertical, Paperclip, Square, CheckSquare, Users,
+  Circle, MessageSquare, Settings, GripVertical, Paperclip, Square, CheckSquare, Users, User,
 } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 
@@ -52,6 +52,9 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers }:
   const [attachments, setAttachments] = useState<TaskAttachment[]>(card.attachments ?? [])
   const [checklist, setChecklist] = useState<ChecklistItem[]>(card.checklist ?? [])
   const [newCheckItem, setNewCheckItem] = useState('')
+  const [newCheckAssigneeUid, setNewCheckAssigneeUid] = useState('')
+  const [newCheckAssigneeName, setNewCheckAssigneeName] = useState('')
+  const [assigneePickerItemId, setAssigneePickerItemId] = useState<string | null>(null)
   const [members, setMembers] = useState<TaskMember[]>(card.members ?? [])
   const [lightboxAtt, setLightboxAtt] = useState<TaskAttachment | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -379,53 +382,161 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers }:
                   style={{ width: `${Math.round(checklist.filter(i => i.done).length / checklist.length * 100)}%` }} />
               </div>
             )}
+            {/* overlay to close any open assignee picker */}
+            {assigneePickerItemId && (
+              <div className="fixed inset-0 z-40" onClick={() => setAssigneePickerItemId(null)} />
+            )}
             <div className="space-y-1 mb-2">
-              {checklist.map(item => (
-                <div key={item.id} className="flex items-start gap-2 group">
-                  <button onClick={() => canCheckChecklist && setChecklist(prev => prev.map(i => {
-                    if (i.id !== item.id) return i
-                    const nowDone = !i.done
-                    return {
-                      ...i, done: nowDone,
-                      doneBy: nowDone ? (profile?.displayName || profile?.username || '') : undefined,
-                      doneByUid: nowDone ? (profile?.uid ?? undefined) : undefined,
-                    }
-                  }))}
-                    disabled={!canCheckChecklist} className={`shrink-0 mt-0.5 transition-colors ${canCheckChecklist ? 'text-gray-400 hover:text-green-500' : 'cursor-default text-gray-300'}`}>
-                    {item.done ? <CheckSquare className="w-4 h-4 text-green-500" /> : <Square className="w-4 h-4" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-sm ${item.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{item.text}</span>
-                    {item.done && item.doneBy && (
-                      <span className="block text-[10px] text-gray-400">✓ {item.doneBy}</span>
+              {checklist.map(item => {
+                const initials = item.assigneeName
+                  ? item.assigneeName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+                  : ''
+                return (
+                  <div key={item.id} className="flex items-start gap-2 group">
+                    <button onClick={() => canCheckChecklist && setChecklist(prev => prev.map(i => {
+                      if (i.id !== item.id) return i
+                      const nowDone = !i.done
+                      return {
+                        ...i, done: nowDone,
+                        doneBy: nowDone ? (profile?.displayName || profile?.username || '') : undefined,
+                        doneByUid: nowDone ? (profile?.uid ?? undefined) : undefined,
+                      }
+                    }))}
+                      disabled={!canCheckChecklist} className={`shrink-0 mt-0.5 transition-colors ${canCheckChecklist ? 'text-gray-400 hover:text-green-500' : 'cursor-default text-gray-300'}`}>
+                      {item.done ? <CheckSquare className="w-4 h-4 text-green-500" /> : <Square className="w-4 h-4" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-sm ${item.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{item.text}</span>
+                      {item.done && item.doneBy && (
+                        <span className="block text-[10px] text-gray-400">✓ {item.doneBy}</span>
+                      )}
+                      {!item.done && item.assigneeName && (
+                        <span className="block text-[10px] text-blue-500">→ {item.assigneeName}</span>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <div className="relative z-50">
+                        <button
+                          onClick={() => setAssigneePickerItemId(prev => prev === item.id ? null : item.id)}
+                          title={item.assigneeName || 'Verantwortliche/n zuweisen'}
+                          className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors mt-0.5
+                            ${item.assigneeName
+                              ? 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200 opacity-0 group-hover:opacity-100'}`}>
+                          {initials || <User className="w-3 h-3" />}
+                        </button>
+                        {assigneePickerItemId === item.id && (
+                          <div className="absolute right-0 top-6 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 max-h-52 overflow-y-auto">
+                            <button
+                              onClick={() => {
+                                setChecklist(prev => prev.map(i => i.id === item.id
+                                  ? { ...i, assigneeUid: undefined, assigneeName: undefined }
+                                  : i))
+                                setAssigneePickerItemId(null)
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-50 italic">
+                              Niemand
+                            </button>
+                            {approvedUsers.map(u => (
+                              <button key={u.uid}
+                                onClick={() => {
+                                  setChecklist(prev => prev.map(i => i.id === item.id
+                                    ? { ...i, assigneeUid: u.uid, assigneeName: u.displayName || u.username }
+                                    : i))
+                                  setAssigneePickerItemId(null)
+                                }}
+                                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2
+                                  ${item.assigneeUid === u.uid ? 'text-primary-700 font-semibold' : 'text-gray-700'}`}>
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0
+                                  ${item.assigneeUid === u.uid ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                                  {(u.displayName || u.username).split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')}
+                                </span>
+                                <span className="truncate">{u.displayName || u.username}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <button onClick={() => setChecklist(prev => prev.filter(i => i.id !== item.id))}
+                        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all mt-0.5">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
-                  {canEdit && (
-                    <button onClick={() => setChecklist(prev => prev.filter(i => i.id !== item.id))}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all mt-0.5">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
             {canEdit && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <input value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)}
                   onKeyDown={e => {
                     if (e.key === 'Enter' && newCheckItem.trim()) {
-                      setChecklist(prev => [...prev, { id: `ci_${Date.now()}`, text: newCheckItem.trim(), done: false }])
+                      setChecklist(prev => [...prev, {
+                        id: `ci_${Date.now()}`, text: newCheckItem.trim(), done: false,
+                        assigneeUid: newCheckAssigneeUid || undefined,
+                        assigneeName: newCheckAssigneeName || undefined,
+                      }])
                       setNewCheckItem('')
+                      setNewCheckAssigneeUid('')
+                      setNewCheckAssigneeName('')
                     }
                   }}
                   placeholder="Punkt hinzufügen…"
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                {/* assignee picker for new item */}
+                <div className="relative z-50">
+                  <button
+                    type="button"
+                    onClick={() => setAssigneePickerItemId(prev => prev === '__new' ? null : '__new')}
+                    title={newCheckAssigneeName || 'Verantwortliche/n zuweisen'}
+                    className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold border transition-colors
+                      ${newCheckAssigneeName
+                        ? 'bg-primary-100 text-primary-700 border-primary-300 hover:bg-primary-200'
+                        : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`}>
+                    {newCheckAssigneeName
+                      ? newCheckAssigneeName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+                      : <User className="w-3.5 h-3.5" />}
+                  </button>
+                  {assigneePickerItemId === '__new' && (
+                    <div className="absolute right-0 bottom-9 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 max-h-52 overflow-y-auto">
+                      <button
+                        onClick={() => { setNewCheckAssigneeUid(''); setNewCheckAssigneeName(''); setAssigneePickerItemId(null) }}
+                        className="w-full text-left px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-50 italic">
+                        Niemand
+                      </button>
+                      {approvedUsers.map(u => (
+                        <button key={u.uid}
+                          onClick={() => {
+                            setNewCheckAssigneeUid(u.uid)
+                            setNewCheckAssigneeName(u.displayName || u.username)
+                            setAssigneePickerItemId(null)
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2
+                            ${newCheckAssigneeUid === u.uid ? 'text-primary-700 font-semibold' : 'text-gray-700'}`}>
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0
+                            ${newCheckAssigneeUid === u.uid ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                            {(u.displayName || u.username).split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')}
+                          </span>
+                          <span className="truncate">{u.displayName || u.username}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   disabled={!newCheckItem.trim()}
                   onClick={() => {
                     if (!newCheckItem.trim()) return
-                    setChecklist(prev => [...prev, { id: `ci_${Date.now()}`, text: newCheckItem.trim(), done: false }])
+                    setChecklist(prev => [...prev, {
+                      id: `ci_${Date.now()}`, text: newCheckItem.trim(), done: false,
+                      assigneeUid: newCheckAssigneeUid || undefined,
+                      assigneeName: newCheckAssigneeName || undefined,
+                    }])
                     setNewCheckItem('')
+                    setNewCheckAssigneeUid('')
+                    setNewCheckAssigneeName('')
                   }}
                   className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 disabled:opacity-40 transition-colors">
                   <Plus className="w-4 h-4" />
