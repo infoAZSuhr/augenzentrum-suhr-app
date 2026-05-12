@@ -1,5 +1,5 @@
 import {
-  collection, doc, getDocs, getDocsFromServer, setDoc, updateDoc, deleteDoc,
+  collection, doc, getDocs, getDoc, getDocsFromServer, setDoc, updateDoc, deleteDoc,
   writeBatch, query, where, limit, onSnapshot,
 } from 'firebase/firestore'
 import { db } from './firebase'
@@ -329,4 +329,30 @@ export async function importRecallData(
     }
     await batch.commit()
   }
+}
+
+// ── Zuweisung-Konfiguration (Praxen & Gründe) ────────────────────────────────
+
+export const ZUWEISUNG_DEFAULT_PRAXEN  = ['Augenklinik KSA']
+export const ZUWEISUNG_DEFAULT_GRUENDE = ['YAG', 'KAT', 'Neuro']
+
+export interface ZuweisungConfig {
+  praxen:  string[]
+  gruende: string[]
+}
+
+const ZUWEISUNG_CONFIG_REF = () => doc(db, 'recall_config', 'zuweisung')
+
+export async function getZuweisungConfig(): Promise<ZuweisungConfig> {
+  const snap = await getDoc(ZUWEISUNG_CONFIG_REF())
+  if (!snap.exists()) return { praxen: ZUWEISUNG_DEFAULT_PRAXEN, gruende: ZUWEISUNG_DEFAULT_GRUENDE }
+  const d = snap.data()
+  return {
+    praxen:  Array.isArray(d.praxen)  ? d.praxen  : ZUWEISUNG_DEFAULT_PRAXEN,
+    gruende: Array.isArray(d.gruende) ? d.gruende : ZUWEISUNG_DEFAULT_GRUENDE,
+  }
+}
+
+export async function saveZuweisungConfig(config: Partial<ZuweisungConfig>): Promise<void> {
+  await setDoc(ZUWEISUNG_CONFIG_REF(), config, { merge: true })
 }

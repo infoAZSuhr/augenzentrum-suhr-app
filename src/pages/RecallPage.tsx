@@ -6,6 +6,7 @@ import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
   Zuweisung,
+  ZuweisungConfig,
   VerlaufEntry,
   zuBearbStableId,
   getRecallPatients,
@@ -18,6 +19,10 @@ import {
   applyPidSync,
   importUnmatched,
   deduplicateZuBearbeiten,
+  getZuweisungConfig,
+  saveZuweisungConfig,
+  ZUWEISUNG_DEFAULT_PRAXEN,
+  ZUWEISUNG_DEFAULT_GRUENDE,
 } from '../lib/firestoreRecall'
 import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
@@ -385,6 +390,14 @@ export default function RecallPage() {
   const [doctors, setDoctors] = useState<string[]>(DOCTORS_DEFAULT)
   const allTabs = useMemo(() => [...doctors, ZU_BEARB], [doctors])
 
+  // Zuweisung-Konfiguration (Praxen & Gründe)
+  const [zuweisungPraxen,  setZuweisungPraxen]  = useState<string[]>(ZUWEISUNG_DEFAULT_PRAXEN)
+  const [zuweisungGruende, setZuweisungGruende] = useState<string[]>(ZUWEISUNG_DEFAULT_GRUENDE)
+  const [addingPraxis,  setAddingPraxis]  = useState(false)
+  const [newPraxisText, setNewPraxisText] = useState('')
+  const [addingGrund,   setAddingGrund]   = useState(false)
+  const [newGrundText,  setNewGrundText]  = useState('')
+
   const [allData, setAllData] = useState<Map<string, RecallPatient[]>>(new Map())
   const [activeTab, setActiveTab] = useState(DOCTORS_DEFAULT[0])
   const [page, setPage]       = useState(1)
@@ -589,6 +602,13 @@ export default function RecallPage() {
         if (data.username) map[data.username] = data.fachtitel
       }
       setDoctorFachtitelMap(map)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    getZuweisungConfig().then(cfg => {
+      setZuweisungPraxen(cfg.praxen)
+      setZuweisungGruende(cfg.gruende)
     }).catch(() => {})
   }, [])
 
@@ -1699,6 +1719,22 @@ export default function RecallPage() {
   function setField<K extends keyof EditForm>(k: K, v: EditForm[K]) {
     setForm(f => ({ ...f, [k]: v }))
     if (formErrors[k as string]) setFormErrors(prev => ({ ...prev, [k as string]: false }))
+  }
+
+  async function addPraxis(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed || zuweisungPraxen.includes(trimmed)) return
+    const updated = [...zuweisungPraxen, trimmed]
+    setZuweisungPraxen(updated)
+    await saveZuweisungConfig({ praxen: updated, gruende: zuweisungGruende }).catch(() => {})
+  }
+
+  async function addGrund(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed || zuweisungGruende.includes(trimmed)) return
+    const updated = [...zuweisungGruende, trimmed]
+    setZuweisungGruende(updated)
+    await saveZuweisungConfig({ praxen: zuweisungPraxen, gruende: updated }).catch(() => {})
   }
 
   async function handleSave() {
@@ -3562,7 +3598,8 @@ export default function RecallPage() {
                       </label>
                       {form.zuweisungTyp === 'intern' ? (
                         <div className="space-y-1.5">
-                          <select value={doctors.includes(form.zuweisungZiel) ? form.zuweisungZiel : (form.zuweisungZiel ? '__custom__' : '')}
+                          <select
+                            value={doctors.includes(form.zuweisungZiel) ? form.zuweisungZiel : (form.zuweisungZiel ? '__custom__' : '')}
                             onChange={e => {
                               if (e.target.value === '__custom__') setField('zuweisungZiel', '')
                               else setField('zuweisungZiel', e.target.value)
@@ -3580,20 +3617,135 @@ export default function RecallPage() {
                           )}
                         </div>
                       ) : (
-                        <input type="text" value={form.zuweisungZiel}
-                          onChange={e => setField('zuweisungZiel', e.target.value)}
-                          placeholder="z.B. Kantonsspital Aarau, Dr. Müller…"
-                          className={inputCls} />
+                        <div className="space-y-1.5">
+                          {/* saved praxen + add-new */}
+                          <select
+                            value={zuweisungPraxen.includes(form.zuweisungZiel) ? form.zuweisungZiel : (form.zuweisungZiel ? '__custom__' : '')}
+                            onChange={e => {
+                              if (e.target.value === '__new__') {
+                                setAddingPraxis(true)
+                                setNewPraxisText('')
+                                setField('zuweisungZiel', '')
+                              } else if (e.target.value === '__custom__') {
+                                setField('zuweisungZiel', '')
+                              } else {
+                                setAddingPraxis(false)
+                                setField('zuweisungZiel', e.target.value)
+                              }
+                            }}
+                            className={inputCls}>
+                            <option value="">— Praxis wählen —</option>
+                            {zuweisungPraxen.map(p => <option key={p} value={p}>{p}</option>)}
+                            <option value="__new__">+ Neue Praxis hinzufügen…</option>
+                          </select>
+                          {/* inline add-new praxis */}
+                          {addingPraxis && (
+                            <div className="flex gap-1.5">
+                              <input
+                                type="text"
+                                value={newPraxisText}
+                                onChange={e => setNewPraxisText(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    addPraxis(newPraxisText).then(() => {
+                                      setField('zuweisungZiel', newPraxisText.trim())
+                                      setAddingPraxis(false)
+                                    })
+                                  }
+                                  if (e.key === 'Escape') setAddingPraxis(false)
+                                }}
+                                placeholder="Name der Praxis / Klinik…"
+                                className={`${inputCls} flex-1`}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addPraxis(newPraxisText).then(() => {
+                                  setField('zuweisungZiel', newPraxisText.trim())
+                                  setAddingPraxis(false)
+                                })}
+                                disabled={!newPraxisText.trim()}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                              >Speichern</button>
+                              <button type="button" onClick={() => setAddingPraxis(false)}
+                                className="px-2 py-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                          {/* free-text for values not in list */}
+                          {!addingPraxis && !zuweisungPraxen.includes(form.zuweisungZiel) && form.zuweisungZiel && (
+                            <input type="text" value={form.zuweisungZiel}
+                              onChange={e => setField('zuweisungZiel', e.target.value)}
+                              placeholder="Praxisname…"
+                              className={inputCls} />
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    {/* Grund */}
+                    {/* Grund – chip-Auswahl + Freitext */}
                     <div>
                       <label className={labelCls}>Grund</label>
-                      <input type="text" value={form.zuweisungGrund}
-                        onChange={e => setField('zuweisungGrund', e.target.value)}
-                        placeholder="z.B. Glaukomabklärung, zweite Meinung…"
-                        className={inputCls} />
+                      <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {zuweisungGruende.map(g => (
+                          <button key={g} type="button"
+                            onClick={() => setField('zuweisungGrund', form.zuweisungGrund === g ? '' : g)}
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                              form.zuweisungGrund === g
+                                ? 'bg-violet-600 text-white border-violet-600'
+                                : 'bg-white text-gray-600 border-gray-300 hover:border-violet-400 hover:text-violet-700'
+                            }`}
+                          >{g}</button>
+                        ))}
+                        {/* add-new Grund */}
+                        {!addingGrund ? (
+                          <button type="button" onClick={() => { setAddingGrund(true); setNewGrundText('') }}
+                            className="px-2.5 py-1 rounded-full text-xs font-semibold border border-dashed border-gray-300 text-gray-400 hover:border-violet-400 hover:text-violet-600 transition-colors">
+                            + Neu
+                          </button>
+                        ) : (
+                          <div className="flex gap-1 w-full mt-0.5">
+                            <input
+                              type="text"
+                              value={newGrundText}
+                              onChange={e => setNewGrundText(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  addGrund(newGrundText).then(() => {
+                                    setField('zuweisungGrund', newGrundText.trim())
+                                    setAddingGrund(false)
+                                  })
+                                }
+                                if (e.key === 'Escape') setAddingGrund(false)
+                              }}
+                              placeholder="Neuer Grund…"
+                              className={`${inputCls} flex-1 text-xs py-1`}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => addGrund(newGrundText).then(() => {
+                                setField('zuweisungGrund', newGrundText.trim())
+                                setAddingGrund(false)
+                              })}
+                              disabled={!newGrundText.trim()}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                            >+</button>
+                            <button type="button" onClick={() => setAddingGrund(false)}
+                              className="px-2 py-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {/* free-text for custom value not in chip list */}
+                      {!zuweisungGruende.includes(form.zuweisungGrund) && (
+                        <input type="text" value={form.zuweisungGrund}
+                          onChange={e => setField('zuweisungGrund', e.target.value)}
+                          placeholder="Grund (freitext)…"
+                          className={inputCls} />
+                      )}
                     </div>
 
                     {/* Datum + Status */}
