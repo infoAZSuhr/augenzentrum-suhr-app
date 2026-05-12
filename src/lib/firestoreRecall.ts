@@ -1,8 +1,19 @@
 import {
   collection, doc, getDocs, getDocsFromServer, setDoc, updateDoc, deleteDoc,
-  writeBatch, query, where, limit,
+  writeBatch, query, where, limit, onSnapshot,
 } from 'firebase/firestore'
 import { db } from './firebase'
+
+export interface Zuweisung {
+  typ: 'intern' | 'extern'
+  ziel: string          // arzt (intern) or provider/clinic (extern)
+  grund: string
+  datum: string         // YYYY-MM-DD – when decided
+  status: 'ausstehend' | 'erledigt'
+  erledigtAm: string    // YYYY-MM-DD or ''
+  notiz: string
+  von: string           // username who created it
+}
 
 export interface RecallPatient {
   id: string
@@ -29,6 +40,7 @@ export interface RecallPatient {
   neupatient: boolean | null        // true = Neupatient, false/null = bestehender Patient
   erstellt: string | null
   aktualisiert: string | null
+  zuweisung?: Zuweisung | null
 }
 
 export interface VerlaufEntry {
@@ -147,6 +159,28 @@ export async function assignRecallPatient(
     doctor,
     aktualisiert: recallTimestamp(username),
   })
+}
+
+/** Live-subscription: alle recall_patients die eine Zuweisung haben */
+export function subscribeZuweisungPatients(
+  callback: (patients: RecallPatient[]) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'recall_patients'),
+    snap => {
+      const all = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as RecallPatient))
+        .filter(p => p.zuweisung != null)
+        .sort((a, b) => {
+          // ausstehend first, then by datum desc
+          if (a.zuweisung!.status !== b.zuweisung!.status) {
+            return a.zuweisung!.status === 'ausstehend' ? -1 : 1
+          }
+          return (b.zuweisung!.datum ?? '').localeCompare(a.zuweisung!.datum ?? '')
+        })
+      callback(all)
+    }
+  )
 }
 
 export interface PidMatch {

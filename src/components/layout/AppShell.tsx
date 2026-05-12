@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, HelpCircle, BookOpen, ClipboardList, LayoutList, Phone } from 'lucide-react'
+import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, HelpCircle, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft } from 'lucide-react'
 import { HelpModeOverlay } from '../HelpMode'
 import type { HelpEntry } from '../../lib/helpTexts'
 import { cn } from '../../utils/cn'
@@ -680,6 +680,12 @@ export default function AppShell() {
                 Recall
               </NavLink>
             )}
+            {canAccessRecall && (
+              <NavLink to="/zuweisungen" className={({ isActive }) => navLinkClass(isActive)}>
+                <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                Zuweisungen
+              </NavLink>
+            )}
 
             {/* AKV */}
             {canAccessAkv && (
@@ -1320,6 +1326,12 @@ export default function AppShell() {
               <NavLink to="/recall" className={({ isActive }) => mobileNavLinkClass(isActive)}>
                 <Phone className="w-4 h-4 shrink-0" />
                 Recall
+              </NavLink>
+            )}
+            {canAccessRecall && (
+              <NavLink to="/zuweisungen" className={({ isActive }) => mobileNavLinkClass(isActive)}>
+                <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                Zuweisungen
               </NavLink>
             )}
             {canAccessAkv && (

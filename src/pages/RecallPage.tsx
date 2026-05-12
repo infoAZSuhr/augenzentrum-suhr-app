@@ -5,6 +5,7 @@ import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Load
 import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
+  Zuweisung,
   VerlaufEntry,
   zuBearbStableId,
   getRecallPatients,
@@ -258,7 +259,16 @@ type EditForm = {
   nachfassAdresse: string  // '' | 'korrekt' | 'veraltet'
   nachfassTel: string      // '' | 'erreicht' | 'nicht_erreicht'
   nachfassTelDatum: string // YYYY-MM-DD
-  verlauf: VerlaufEntry[]        // chronological log
+  verlauf: VerlaufEntry[]  // chronological log
+  // Zuweisung
+  zuweisungAktiv: boolean
+  zuweisungTyp: 'intern' | 'extern'
+  zuweisungZiel: string
+  zuweisungGrund: string
+  zuweisungDatum: string
+  zuweisungStatus: 'ausstehend' | 'erledigt'
+  zuweisungErledigtAm: string
+  zuweisungNotiz: string
 }
 
 function initForm(p?: RecallPatient): EditForm {
@@ -284,6 +294,14 @@ function initForm(p?: RecallPatient): EditForm {
     nachfassTel:      p?.nachfassTel      ?? '',
     nachfassTelDatum: p?.nachfassTelDatum ?? '',
     verlauf:          p?.verlauf          ?? [],
+    zuweisungAktiv:     !!p?.zuweisung,
+    zuweisungTyp:       p?.zuweisung?.typ       ?? 'extern',
+    zuweisungZiel:      p?.zuweisung?.ziel       ?? '',
+    zuweisungGrund:     p?.zuweisung?.grund      ?? '',
+    zuweisungDatum:     p?.zuweisung?.datum      ?? new Date().toISOString().slice(0, 10),
+    zuweisungStatus:    p?.zuweisung?.status     ?? 'ausstehend',
+    zuweisungErledigtAm: p?.zuweisung?.erledigtAm ?? '',
+    zuweisungNotiz:     p?.zuweisung?.notiz       ?? '',
   }
 }
 
@@ -1716,6 +1734,16 @@ export default function RecallPage() {
         neupatient:       (editTarget !== 'new' && normalizePid(form.pid) && !editTarget?.pid) ? false : (form.neupatient || null),
         rcErstellt:       !!(form.aufgebotArt && form.aufgebotErstellt) || null,
         verlauf:          form.verlauf.length > 0 ? form.verlauf : null,
+        zuweisung:        form.zuweisungAktiv && form.zuweisungZiel.trim() ? ({
+          typ:        form.zuweisungTyp,
+          ziel:       form.zuweisungZiel.trim(),
+          grund:      form.zuweisungGrund.trim(),
+          datum:      form.zuweisungDatum,
+          status:     form.zuweisungStatus,
+          erledigtAm: form.zuweisungErledigtAm,
+          notiz:      form.zuweisungNotiz.trim(),
+          von:        displayLabel,
+        } as Zuweisung) : null,
       }
       if (editTarget === 'new') {
         const targetTab = assignDoctor || activeTab
@@ -2175,6 +2203,9 @@ export default function RecallPage() {
                 )}
                 {row.verlauf?.some(v => v.ergebnis === 'noch zu erledigen') && (
                   <span title="Kontakt noch zu erledigen" className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">⏳</span>
+                )}
+                {row.zuweisung?.status === 'ausstehend' && (
+                  <span title={`Zuweisung ausstehend → ${row.zuweisung.ziel}`} className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">↪ {row.zuweisung.typ === 'intern' ? 'Int.' : 'Ext.'}</span>
                 )}
                 {storniert && (
                   <span className="ml-auto shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">storniert</span>
@@ -3936,6 +3967,139 @@ export default function RecallPage() {
                   <option value="Reminder">Reminder</option>
                   <option value="kein Aufgebot">kein Aufgebot - meldet sich b. Bedarf</option>
                 </select>
+              </div>
+
+              {/* ── Zuweisung ─────────────────────────────────────────────────── */}
+              <div className="pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-gray-600">
+                    Zuweisung
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setField('zuweisungAktiv', !form.zuweisungAktiv)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.zuweisungAktiv ? 'bg-violet-500' : 'bg-gray-200'}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${form.zuweisungAktiv ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+
+                {form.zuweisungAktiv && (
+                  <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
+                    {/* Typ */}
+                    <div className="flex gap-2">
+                      {(['intern', 'extern'] as const).map(t => (
+                        <button key={t} type="button"
+                          onClick={() => setField('zuweisungTyp', t)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border-2 transition-colors capitalize ${
+                            form.zuweisungTyp === t
+                              ? 'border-violet-500 bg-violet-100 text-violet-700'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                          }`}
+                        >{t === 'intern' ? 'Intern (Praxis)' : 'Extern (andere Praxis)'}</button>
+                      ))}
+                    </div>
+
+                    {/* Ziel */}
+                    <div>
+                      <label className={labelCls}>
+                        {form.zuweisungTyp === 'intern' ? 'Arzt / Abteilung' : 'Praxis / Klinik'}
+                        <span className="text-red-500 ml-0.5">*</span>
+                      </label>
+                      {form.zuweisungTyp === 'intern' ? (
+                        <div className="space-y-1.5">
+                          <select value={doctors.includes(form.zuweisungZiel) ? form.zuweisungZiel : (form.zuweisungZiel ? '__custom__' : '')}
+                            onChange={e => {
+                              if (e.target.value === '__custom__') setField('zuweisungZiel', '')
+                              else setField('zuweisungZiel', e.target.value)
+                            }}
+                            className={inputCls}>
+                            <option value="">— Arzt wählen —</option>
+                            {doctors.map(d => <option key={d} value={d}>{d}</option>)}
+                            <option value="__custom__">Sonstige…</option>
+                          </select>
+                          {!doctors.includes(form.zuweisungZiel) && (
+                            <input type="text" value={form.zuweisungZiel}
+                              onChange={e => setField('zuweisungZiel', e.target.value)}
+                              placeholder="Bezeichnung eingeben…"
+                              className={inputCls} autoFocus />
+                          )}
+                        </div>
+                      ) : (
+                        <input type="text" value={form.zuweisungZiel}
+                          onChange={e => setField('zuweisungZiel', e.target.value)}
+                          placeholder="z.B. Kantonsspital Aarau, Dr. Müller…"
+                          className={inputCls} />
+                      )}
+                    </div>
+
+                    {/* Grund */}
+                    <div>
+                      <label className={labelCls}>Grund</label>
+                      <input type="text" value={form.zuweisungGrund}
+                        onChange={e => setField('zuweisungGrund', e.target.value)}
+                        placeholder="z.B. Glaukomabklärung, zweite Meinung…"
+                        className={inputCls} />
+                    </div>
+
+                    {/* Datum + Status */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className={labelCls}>Beschlossen am</label>
+                        <div className="relative">
+                          <input type="date" value={form.zuweisungDatum}
+                            onChange={e => setField('zuweisungDatum', e.target.value)}
+                            className={`${inputCls} pr-6`} />
+                          <ClearBtn show={!!form.zuweisungDatum} onClear={() => setField('zuweisungDatum', '')} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Status</label>
+                        <div className="flex gap-1.5">
+                          {([['ausstehend', 'Ausstehend'], ['erledigt', 'Erledigt']] as const).map(([v, l]) => (
+                            <button key={v} type="button"
+                              onClick={() => {
+                                setField('zuweisungStatus', v)
+                                if (v === 'erledigt' && !form.zuweisungErledigtAm) {
+                                  setField('zuweisungErledigtAm', new Date().toISOString().slice(0, 10))
+                                }
+                              }}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border-2 transition-colors ${
+                                form.zuweisungStatus === v
+                                  ? v === 'ausstehend'
+                                    ? 'border-amber-400 bg-amber-50 text-amber-700'
+                                    : 'border-green-400 bg-green-50 text-green-700'
+                                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                              }`}
+                            >{l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Erledigt am */}
+                    {form.zuweisungStatus === 'erledigt' && (
+                      <div>
+                        <label className={labelCls}>Erledigt am</label>
+                        <div className="relative">
+                          <input type="date" value={form.zuweisungErledigtAm}
+                            onChange={e => setField('zuweisungErledigtAm', e.target.value)}
+                            className={`${inputCls} pr-6`} />
+                          <ClearBtn show={!!form.zuweisungErledigtAm} onClear={() => setField('zuweisungErledigtAm', '')} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notiz */}
+                    <div>
+                      <label className={labelCls}>Notiz</label>
+                      <textarea rows={2} value={form.zuweisungNotiz}
+                        onChange={e => setField('zuweisungNotiz', e.target.value)}
+                        placeholder="Weitere Bemerkungen…"
+                        className={`${inputCls} resize-none`} />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Assign doctor – for new patients and existing */}

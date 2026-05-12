@@ -17,6 +17,7 @@ import HelpPage from './pages/HelpPage'
 import TasksPage from './pages/TasksPage'
 import TaskBoardPage from './pages/TaskBoardPage'
 import RecallPage from './pages/RecallPage'
+import ZuweisungPage from './pages/ZuweisungPage'
 import AkvPage from './pages/AkvPage'
 
 const IVOMModule        = lazy(() => import('./modules/ivom'))
@@ -150,7 +151,8 @@ function RoutesWithPermissions() {
         <Route path="admin/log"    element={<PermissionGate allowed={isAdmin || isGeschaeftsleitung}><RequestLogPage /></PermissionGate>} />
         <Route path="aufgaben"           element={<TasksPage />} />
         <Route path="aufgaben/:boardId"  element={<TaskBoardPage />} />
-        <Route path="recall"       element={<PermissionGate allowed={canAccessRecall}><RecallPage /></PermissionGate>} />
+        <Route path="recall"        element={<PermissionGate allowed={canAccessRecall}><RecallPage /></PermissionGate>} />
+        <Route path="zuweisungen"  element={<PermissionGate allowed={canAccessRecall}><ZuweisungPage /></PermissionGate>} />
         <Route path="akv"          element={<PermissionGate allowed={canAccessAkv}><AkvPage /></PermissionGate>} />
         <Route path="hilfe"        element={<HelpPage />} />
       </Route>
