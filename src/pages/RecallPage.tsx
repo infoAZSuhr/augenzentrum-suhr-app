@@ -3479,6 +3479,8 @@ export default function RecallPage() {
                             setField('aufgebotErstellt', new Date().toISOString().slice(0, 10))
                           } else {
                             setField('aufgebotErstellt', '')
+                            setField('naechsteKons', '')
+                            setField('keinTermin', false)
                           }
                         }}
                         className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
