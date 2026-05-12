@@ -675,16 +675,19 @@ export default function AppShell() {
 
             {/* Recall */}
             {canAccessRecall && (
-              <NavLink to="/recall" className={({ isActive }) => navLinkClass(isActive)}>
-                <Phone className="w-4 h-4 shrink-0" />
-                Recall
-              </NavLink>
-            )}
-            {canAccessRecall && (
-              <NavLink to="/zuweisungen" className={({ isActive }) => navLinkClass(isActive)}>
-                <ArrowRightLeft className="w-4 h-4 shrink-0" />
-                Zuweisungen
-              </NavLink>
+              <div className="flex flex-col">
+                <NavLink to="/recall" className={({ isActive }) => navLinkClass(isActive)}>
+                  <Phone className="w-4 h-4 shrink-0" />
+                  Recall
+                </NavLink>
+                <NavLink to="/zuweisungen" className={({ isActive }) => cn(
+                  'flex items-center gap-2 pl-7 pr-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
+                  isActive ? 'text-primary-700 bg-primary-50' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                )}>
+                  <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                  Zuweisungen
+                </NavLink>
+              </div>
             )}
 
             {/* AKV */}
@@ -1323,16 +1326,19 @@ export default function AppShell() {
               </NavLink>
             )}
             {canAccessRecall && (
-              <NavLink to="/recall" className={({ isActive }) => mobileNavLinkClass(isActive)}>
-                <Phone className="w-4 h-4 shrink-0" />
-                Recall
-              </NavLink>
-            )}
-            {canAccessRecall && (
-              <NavLink to="/zuweisungen" className={({ isActive }) => mobileNavLinkClass(isActive)}>
-                <ArrowRightLeft className="w-4 h-4 shrink-0" />
-                Zuweisungen
-              </NavLink>
+              <>
+                <NavLink to="/recall" className={({ isActive }) => mobileNavLinkClass(isActive)}>
+                  <Phone className="w-4 h-4 shrink-0" />
+                  Recall
+                </NavLink>
+                <NavLink to="/zuweisungen" className={({ isActive }) => cn(
+                  'flex items-center gap-3 pl-9 pr-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                )}>
+                  <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                  Zuweisungen
+                </NavLink>
+              </>
             )}
             {canAccessAkv && (
               <NavLink to="/akv" className={({ isActive }) => mobileNavLinkClass(isActive)}>
