@@ -3902,7 +3902,7 @@ export default function RecallPage() {
               </div>
 
               {/* Assign doctor – for new patients and existing */}
-              {(editTarget === 'new' || editTarget !== 'new') && (
+              {(
                 <div className="pt-3 border-t border-gray-100">
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                     {editTarget === 'new' ? 'Arzt zuweisen' : editTarget.doctor === ZU_BEARB ? 'Arzt zuweisen' : 'Behandelnden Arzt wechseln'}

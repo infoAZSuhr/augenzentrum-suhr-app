@@ -30,7 +30,7 @@ jobs:
         run: node scripts/update-refdata.js --force
 
       - name: App bauen
-        run: npm run build
+        run: npx vite build
 
       - name: Firebase Hosting deployen
         env:
