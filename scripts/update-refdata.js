@@ -18,12 +18,26 @@ const REFDATA_URL = 'https://files.refdata.ch/simis-public-prod/Articles/1.0/Ref
 const OUT_FILE = path.join(__dirname, '..', 'public', 'refdata-data.json')
 const META_FILE = path.join(__dirname, '..', 'public', 'refdata-meta.json')
 
-function download(url) {
+function download(url, redirects = 0) {
+  if (redirects > 5) return Promise.reject(new Error('Zu viele Redirects'))
   return new Promise((resolve, reject) => {
     console.log('Downloading', url, '...')
-    https.get(url, res => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        return download(res.headers.location).then(resolve).catch(reject)
+    const mod = url.startsWith('https') ? https : require('http')
+    mod.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AZSuhr-Updater/1.0)',
+        'Accept': '*/*',
+      }
+    }, res => {
+      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 303) {
+        res.destroy()
+        const loc = res.headers.location
+        const next = loc.startsWith('http') ? loc : new URL(loc, url).href
+        return download(next, redirects + 1).then(resolve).catch(reject)
+      }
+      if (res.statusCode !== 200) {
+        res.destroy()
+        return reject(new Error(`HTTP ${res.statusCode} beim Download von ${url}`))
       }
       const chunks = []
       let size = 0
@@ -35,7 +49,7 @@ function download(url) {
       })
       res.on('end', () => { console.log(''); resolve({ buf: Buffer.concat(chunks), contentLength: size }) })
       res.on('error', reject)
-    }).on('error', reject)
+    }).on('error', err => reject(new Error(`Netzwerkfehler: ${err.message || err.code || String(err)}`)))
   })
 }
 
@@ -182,4 +196,4 @@ async function main() {
   console.log('  npm run build && firebase deploy --only hosting')
 }
 
-main().catch(e => { console.error('Fehler:', e.message); process.exit(1) })
+main().catch(e => { console.error('Fehler:', e.message || e.code || String(e)); process.exit(1) })
