@@ -7,10 +7,13 @@ import BackButton from '../components/ui/BackButton'
 import {
   Download, Database, Github, Terminal, Key, Globe, BookOpen,
   ChevronDown, ChevronRight, Loader2, CheckCircle2, AlertTriangle,
-  Users, Calendar, Phone, Settings,
+  Users, Calendar, Phone, Settings, Package, Syringe, FileText,
 } from 'lucide-react'
 import type { RecallPatient, VerlaufEntry, Zuweisung } from '../lib/firestoreRecall'
 import type { PlanungData } from '../lib/firestorePlanung'
+import type { Patient, Treatment, Appointment } from '../types/ivom.types'
+import type { InventoryArticle, InventoryLot, StockMovement, Order } from '../types/inventory.types'
+import type { OnboardingSection, OnboardingSubsection, OnboardingPage } from '../lib/firestoreOnboarding'
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -157,6 +160,216 @@ async function exportPlanung(): Promise<number> {
     }
   }
   downloadCsv(rows, `planung_${today()}.csv`)
+  return rows.length
+}
+
+// ── OP exports ───────────────────────────────────────────────────────────────
+
+async function exportOpPatienten(): Promise<number> {
+  const snap = await getDocs(collection(db, 'patients'))
+  const rows = snap.docs.map(d => {
+    const p = d.data() as Patient
+    return {
+      id: d.id,
+      nachname: p.lastName ?? '',
+      vorname: p.firstName ?? '',
+      geburtsdatum: p.dateOfBirth ?? '',
+      geschlecht: p.gender ?? '',
+      patientennummer: p.patientNumber ?? '',
+      versicherungsnummer: p.insuranceNumber ?? '',
+      versicherung: p.insuranceName ?? '',
+      diagnose_od: p.diagnosisOd ?? '',
+      diagnose_os: p.diagnosisOs ?? '',
+      allergien: p.allergies ?? '',
+      status: p.status ?? '',
+      notizen: p.notes ?? '',
+      erstellt: p.createdAt ?? '',
+      aktualisiert: p.updatedAt ?? '',
+    }
+  })
+  downloadCsv(rows, `op_patienten_${today()}.csv`)
+  return rows.length
+}
+
+async function exportOpBehandlungen(): Promise<number> {
+  const snap = await getDocs(collection(db, 'treatments'))
+  const rows = snap.docs.map(d => {
+    const t = d.data() as Treatment
+    return {
+      id: d.id,
+      patient_id: t.patientId ?? '',
+      datum: t.treatmentDate ?? '',
+      auge: t.eyeSide ?? '',
+      medikament: t.medicationName ?? '',
+      medikament_id: t.medicationId ?? '',
+      chargennummer: t.lotNumber ?? '',
+      va_vorher: t.vaBefore ?? '',
+      va_nachher: t.vaAfter ?? '',
+      va_einheit: t.vaUnit ?? '',
+      oct_vorher: t.octCentralThicknessBefore ?? '',
+      oct_nachher: t.octCentralThicknessAfter ?? '',
+      oct_befunde: t.octFindings ?? '',
+      naechster_termin: t.nextAppointment ?? '',
+      naechstes_intervall_wochen: t.nextIntervalWeeks ?? '',
+      durchgefuehrt_von: t.performedBy ?? '',
+      behandlungsstatus: t.behandlungsStatus ?? '',
+      set_name: t.setName ?? '',
+      notizen: t.notes ?? '',
+      erstellt: t.createdAt ?? '',
+    }
+  })
+  downloadCsv(rows, `op_behandlungen_${today()}.csv`)
+  return rows.length
+}
+
+async function exportOpTermine(): Promise<number> {
+  const snap = await getDocs(collection(db, 'appointments'))
+  const rows = snap.docs.map(d => {
+    const a = d.data() as Appointment
+    return {
+      id: d.id,
+      patient_id: a.patientId ?? '',
+      datum: a.scheduledDate ?? '',
+      typ: a.appointmentType ?? '',
+      auge: a.eyeSide ?? '',
+      status: a.status ?? '',
+      notizen: a.notes ?? '',
+    }
+  })
+  downloadCsv(rows, `op_termine_${today()}.csv`)
+  return rows.length
+}
+
+// ── Lager exports ─────────────────────────────────────────────────────────────
+
+async function exportLagerArtikel(): Promise<number> {
+  const snap = await getDocs(collection(db, 'inventory_articles'))
+  const rows = snap.docs.map(d => {
+    const a = d.data() as InventoryArticle
+    return {
+      id: d.id,
+      name: a.name ?? '',
+      kategorie: a.category ?? '',
+      einheit: a.unit ?? '',
+      mindestbestand: a.minStock ?? '',
+      lieferant: a.supplier ?? '',
+      gtin: a.gtin ?? '',
+      ref_nr: a.refNr ?? '',
+      preis_netto_chf: a.price ?? '',
+      menge_pro_packung: a.quantityPerUnit ?? '',
+      mengeneinheit: a.quantityUnit ?? '',
+      behandlungsart: Array.isArray(a.treatmentCategory) ? a.treatmentCategory.join('; ') : (a.treatmentCategory ?? ''),
+      nicht_lieferbar: a.notDeliverable ? 'ja' : '',
+      nicht_lieferbar_notiz: a.notDeliverableNote ?? '',
+      zur_rose_nota: a.zurRoseNota ? 'ja' : '',
+      aktiv: a.isActive ? 'ja' : 'nein',
+      notizen: a.notes ?? '',
+    }
+  })
+  downloadCsv(rows, `lager_artikel_${today()}.csv`)
+  return rows.length
+}
+
+async function exportLagerChargen(): Promise<number> {
+  const snap = await getDocs(collection(db, 'inventory_lots'))
+  const rows = snap.docs.map(d => {
+    const l = d.data() as InventoryLot
+    return {
+      id: d.id,
+      artikel_id: l.articleId ?? '',
+      chargennummer: l.lotNumber ?? '',
+      bestand: l.quantity ?? '',
+      verfall: l.expiryDate ?? '',
+      lieferdatum: l.deliveryDate ?? '',
+      einkaufspreis_chf: l.purchasePrice ?? '',
+      aufgebraucht: l.isDepleted ? 'ja' : 'nein',
+      notizen: l.notes ?? '',
+      erstellt: l.createdAt ?? '',
+    }
+  })
+  downloadCsv(rows, `lager_chargen_${today()}.csv`)
+  return rows.length
+}
+
+async function exportLagerBuchungen(): Promise<number> {
+  const snap = await getDocs(collection(db, 'stock_movements'))
+  const rows = snap.docs.map(d => {
+    const m = d.data() as StockMovement
+    return {
+      id: d.id,
+      artikel_id: m.articleId ?? '',
+      charge_id: m.lotId ?? '',
+      chargennummer: m.lotNumber ?? '',
+      datum: m.movementDate ?? '',
+      typ: m.movementType ?? '',
+      menge: m.quantityDelta ?? '',
+      grund: m.reason ?? '',
+      patient: m.patientName ?? '',
+      durchgefuehrt_von: m.performedBy ?? '',
+      notizen: m.notes ?? '',
+    }
+  })
+  downloadCsv(rows, `lager_buchungen_${today()}.csv`)
+  return rows.length
+}
+
+async function exportLagerBestellungen(): Promise<number> {
+  const snap = await getDocs(collection(db, 'orders'))
+  const rows = snap.docs.map(d => {
+    const o = d.data() as Order
+    return {
+      id: d.id,
+      artikel_id: o.articleId ?? '',
+      artikel_name: o.articleName ?? '',
+      lieferant: o.supplier ?? '',
+      bestellnummer: o.orderNumber ?? '',
+      bestelldatum: o.orderDate ?? '',
+      bestellmenge: o.quantityOrdered ?? '',
+      erwartete_lieferung: o.expectedDelivery ?? '',
+      tatsaechliche_lieferung: o.actualDelivery ?? '',
+      status: o.status ?? '',
+      notizen: o.notes ?? '',
+    }
+  })
+  downloadCsv(rows, `lager_bestellungen_${today()}.csv`)
+  return rows.length
+}
+
+// ── SOP exports ───────────────────────────────────────────────────────────────
+
+async function exportSopSeiten(): Promise<number> {
+  const [sectionsSnap, subsectionsSnap, pagesSnap] = await Promise.all([
+    getDocs(collection(db, 'onboarding_sections')),
+    getDocs(collection(db, 'onboarding_subsections')),
+    getDocs(collection(db, 'onboarding_pages')),
+  ])
+  const sections = Object.fromEntries(
+    sectionsSnap.docs.map(d => [d.id, (d.data() as OnboardingSection).title])
+  )
+  const subsections = Object.fromEntries(
+    subsectionsSnap.docs.map(d => [d.id, (d.data() as OnboardingSubsection).title])
+  )
+  const rows = pagesSnap.docs.map(d => {
+    const p = d.data() as OnboardingPage
+    // Strip HTML tags for plain-text export
+    const plainContent = p.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() ?? ''
+    return {
+      id: d.id,
+      bereich: sections[p.sectionId] ?? p.sectionId ?? '',
+      unterbereich: subsections[p.subsectionId] ?? p.subsectionId ?? '',
+      titel: p.title ?? '',
+      status: p.status ?? 'final',
+      version: p.version ?? '',
+      gueltig_ab: p.gueltigAb ?? '',
+      zustaendig: p.zustaendig ?? p.createdBy ?? '',
+      freigabe_durch: p.freigabeDurch ?? '',
+      relevant_fuer: Array.isArray(p.relevantFuer) ? p.relevantFuer.join('; ') : '',
+      inhalt_text: plainContent,
+      erstellt: p.createdAt ?? '',
+      aktualisiert: p.updatedAt ?? '',
+    }
+  })
+  downloadCsv(rows, `sop_seiten_${today()}.csv`)
   return rows.length
 }
 
@@ -350,6 +563,82 @@ export default function AdminSystemPage() {
             Firebase Console → Daten exportieren
           </a>.
         </InfoBox>
+      </Section>
+
+      {/* ── OP-Bereich ─────────────────────────────────────────────────────── */}
+      <Section title="OP-Bereich (IVI / Lid / KAT)" icon={Syringe}>
+        <p className="text-sm text-gray-600">
+          Alle Patienten, Behandlungen und Termine aus dem OP-Modul (IVOM / intravitreale Injektionen und weitere Eingriffe).
+        </p>
+        <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+          <ExportButton
+            label="OP-Patienten"
+            description="Alle Patienten: Name, Geburtsdatum, Diagnose, Allergien, Status"
+            icon={Users}
+            onExport={exportOpPatienten}
+          />
+          <ExportButton
+            label="OP-Behandlungen"
+            description="Alle Injektionen/Eingriffe: Datum, Auge, Medikament, Visus, OCT, nächster Termin"
+            icon={Syringe}
+            onExport={exportOpBehandlungen}
+          />
+          <ExportButton
+            label="OP-Termine"
+            description="Alle geplanten Termine: Datum, Typ, Status"
+            icon={Calendar}
+            onExport={exportOpTermine}
+          />
+        </div>
+      </Section>
+
+      {/* ── Lagerverwaltung ────────────────────────────────────────────────── */}
+      <Section title="Lagerverwaltung" icon={Package}>
+        <p className="text-sm text-gray-600">
+          Alle Artikel, Chargen, Lagerbewegungen und Bestellungen aus dem Lagermodul.
+        </p>
+        <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+          <ExportButton
+            label="Artikel"
+            description="Alle Lagerartikel: Name, Kategorie, Einheit, Mindestbestand, Lieferant, Preis, GTIN"
+            icon={Package}
+            onExport={exportLagerArtikel}
+          />
+          <ExportButton
+            label="Chargen"
+            description="Alle Chargen: Chargennummer, Bestand, Verfallsdatum, Einkaufspreis"
+            icon={Database}
+            onExport={exportLagerChargen}
+          />
+          <ExportButton
+            label="Buchungen (Ein-/Ausgänge)"
+            description="Alle Lagerbewegungen: Datum, Typ, Menge, Grund, Patient, Charge"
+            icon={BookOpen}
+            onExport={exportLagerBuchungen}
+          />
+          <ExportButton
+            label="Bestellungen"
+            description="Alle Bestellungen: Artikel, Lieferant, Datum, Menge, Status"
+            icon={Download}
+            onExport={exportLagerBestellungen}
+          />
+        </div>
+      </Section>
+
+      {/* ── SOP ────────────────────────────────────────────────────────────── */}
+      <Section title="SOP (Onboarding / Standard-Prozesse)" icon={FileText}>
+        <p className="text-sm text-gray-600">
+          Alle SOP-Seiten inkl. Inhalt als Plaintext, Zuständigkeit, Freigabe-Status und Versionierung.
+          Bilder und Formatierungen werden nicht exportiert.
+        </p>
+        <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+          <ExportButton
+            label="SOP-Seiten"
+            description="Alle Seiten: Bereich, Titel, Status, Version, Inhalt (Plaintext), Zuständigkeit"
+            icon={FileText}
+            onExport={exportSopSeiten}
+          />
+        </div>
       </Section>
 
       {/* ── Firebase ───────────────────────────────────────────────────────── */}
