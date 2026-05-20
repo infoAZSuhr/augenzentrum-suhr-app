@@ -2938,6 +2938,13 @@ export default function RecallPage() {
                 )}
               </div>
               <button
+                onClick={() => openEdit(p)}
+                className="p-1.5 rounded-lg text-gray-400 border border-gray-200 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                title="Patienten bearbeiten"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
                 onClick={() => openAufgebotDialog(entry)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
               >
@@ -3275,14 +3282,14 @@ export default function RecallPage() {
       {editTarget !== null && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black/50 z-50" />
+          <div className="fixed inset-0 bg-black/50 z-[55]" />
 
           {/* Modal – draggable */}
           <div
             ref={modalRef}
             style={modalPos
-              ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 51, width: 'min(32rem, calc(100vw - 2rem))' }
-              : { position: 'fixed', left: '50%',       top: '50%',      zIndex: 51, width: 'min(32rem, calc(100vw - 2rem))', transform: 'translate(-50%,-50%)' }
+              ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))' }
+              : { position: 'fixed', left: '50%',       top: '50%',      zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))', transform: 'translate(-50%,-50%)' }
             }
             className="bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col"
           >

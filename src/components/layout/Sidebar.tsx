@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Eye, Package, LayoutDashboard, CalendarDays, Users, LogOut, X, BookOpen, Phone, ClipboardList } from 'lucide-react'
+import { Eye, Package, LayoutDashboard, CalendarDays, Users, LogOut, X, BookOpen, Phone, ClipboardList, ShieldCheck } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { version } from '../../../package.json'
 import { useAuth } from '../../lib/AuthContext'
@@ -84,6 +84,20 @@ export default function Sidebar({ onClose }: SidebarProps) {
             >
               <Users className="w-4 h-4 shrink-0" />
               Benutzerverwaltung
+            </NavLink>
+            <NavLink
+              to="/admin/system"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                )
+              }
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              System & Export
             </NavLink>
           </>
         )}

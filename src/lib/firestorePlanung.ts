@@ -173,7 +173,8 @@ export async function writePlanEntry(
   const update: Record<string, unknown> = {}
   dates.forEach(date => {
     update[`schedule.${personName}.${date}`] = code
-    update[`comments.${personName}.${date}`] = comment
+    // Clear the comment when empty so no stale "warten auf Freigabe" remains
+    update[`comments.${personName}.${date}`] = comment || deleteField()
   })
   await updateDoc(planRef, update)
 }

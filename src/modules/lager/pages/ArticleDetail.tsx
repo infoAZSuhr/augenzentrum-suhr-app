@@ -227,6 +227,9 @@ const addLotMut = useMutation({
       qc.invalidateQueries({ queryKey: ['inventory-articles'] })
       setShowEdit(false)
     },
+    onError: (e: any) => {
+      alert(`Fehler beim Speichern: ${e?.message || String(e)}`)
+    },
   })
 
   const deleteArticleMut = useMutation({

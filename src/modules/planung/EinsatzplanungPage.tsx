@@ -513,6 +513,7 @@ function OpenDaysModal({data,yearDays,onClose,onAssign,editRequest}:{
   // Non-admin mode: create or update a planungRequest in Firestore
   const handleEintragen=async()=>{
     if(!profile||(validVmKeys.length===0&&validNmKeys.length===0&&validGtKeys.length===0))return
+    if(!userName){setSubmitError('Benutzerprofil nicht erkannt – bitte Administrator kontaktieren.');return}
     setSubmitting(true)
     try{
       if(editRequest){
@@ -1731,7 +1732,8 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
   initialTab?:'ferien'|'einsaetze'|'abwesenheiten'|'antraege'
   highlightRequestId?:string
 }){
-  const { profile } = useAuth()
+  const { profile, isGeschaeftsleitung } = useAuth()
+  const canDirectEdit = isAdmin || isGeschaeftsleitung
   const navigate = useNavigate()
   const [tab,setTab]=useState<'ferien'|'einsaetze'|'abwesenheiten'|'antraege'>(
     editFerienRequest?'ferien':initialTab??'ferien'
@@ -1765,7 +1767,7 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
     if(tab!=='antraege'||!liveRequests.length)return
     const unread=liveRequests.filter(r=>r.readByUser===false)
     if(!unread.length)return
-    Promise.all(unread.map(r=>updateDoc(doc(db,'planungRequests',r.id!),{readByUser:true})))
+    void Promise.all(unread.map(r=>updateDoc(doc(db,'planungRequests',r.id!),{readByUser:true})))
   },[tab])
 
   // Scroll highlighted request into view when tab is active
@@ -1950,18 +1952,23 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
     if(!profile||!einsatzDate||!einsatzCode||!userPersonName)return
     setEinsatzSubmitting(true)
     try{
-      const sectionLabel=liveData.sections.find(s=>s.persons.includes(userPersonName))?.label??''
-      await addDoc(collection(db,'planungRequests'),{
-        type:'eintrag',uid:profile.uid,
-        username:profile.username||profile.displayName,
-        personName:userPersonName,
-        dates:[einsatzDate],code:einsatzCode,section:sectionLabel,
-        note:einsatzNote.trim()||null,
-        status:'pending',createdAt:serverTimestamp(),
-      })
-      await writePlanEntry(userPersonName,[einsatzDate],einsatzCode,'warten auf Freigabe')
+      if(canDirectEdit){
+        // Admin/GL: direkt eintragen, kein Request, keine Freigabe nötig
+        await writePlanEntry(userPersonName,[einsatzDate],einsatzCode,'')
+      }else{
+        const sectionLabel=liveData.sections.find(s=>s.persons.includes(userPersonName))?.label??''
+        await addDoc(collection(db,'planungRequests'),{
+          type:'eintrag',uid:profile.uid,
+          username:profile.username||profile.displayName,
+          personName:userPersonName,
+          dates:[einsatzDate],code:einsatzCode,section:sectionLabel,
+          note:einsatzNote.trim()||null,
+          status:'pending',createdAt:serverTimestamp(),
+        })
+        await writePlanEntry(userPersonName,[einsatzDate],einsatzCode,'warten auf Freigabe')
+      }
       setEinsatzDate('');setEinsatzCode('GT');setEinsatzNote('');setEinsatzFormOpen(false)
-      showSuccess('✅ Einsatz beantragt!')
+      showSuccess(canDirectEdit?'✅ Einsatz eingetragen!':'✅ Einsatz beantragt!')
     }catch(e){console.error(e)}finally{setEinsatzSubmitting(false)}
   }
 
@@ -2139,7 +2146,7 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
               {/* Inline-Formular: Einsatz anfragen */}
               {einsatzFormOpen&&(
                 <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/40 space-y-3">
-                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Einsatz anfragen</p>
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">{canDirectEdit?'Einsatz eintragen':'Einsatz anfragen'}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
                       <span className="text-xs text-gray-500">Datum</span>
@@ -2171,7 +2178,7 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
                     <button onClick={handleEinsatzRequest}
                       disabled={einsatzSubmitting||!einsatzDate||!userPersonName}
                       className="flex-1 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors font-semibold">
-                      {einsatzSubmitting?'Wird eingereicht…':'Anfrage senden'}
+                      {einsatzSubmitting?(canDirectEdit?'Wird gespeichert…':'Wird eingereicht…'):(canDirectEdit?'Eintragen':'Anfrage senden')}
                     </button>
                   </div>
                 </div>
@@ -2179,7 +2186,7 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
               {userPersonName&&!einsatzFormOpen&&(
                 <button onClick={()=>{setEinsatzFormOpen(true);setTauschDay(null);setAendernDay(null)}}
                   className="w-full py-2 text-xs border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors font-medium flex items-center justify-center gap-1.5">
-                  <span className="text-base leading-none">+</span> Einsatz anfragen
+                  <span className="text-base leading-none">+</span> {canDirectEdit?'Einsatz eintragen':'Einsatz anfragen'}
                 </button>
               )}
               {myEinsatzDays.map(day=>{
@@ -2804,6 +2811,9 @@ export default function EinsatzplanungPage(){
   const saveTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null)
   const isFirstLoad=useRef(true)
   const isExternalUpdate=useRef(false)
+  // Captures data at the moment the debounce timer is scheduled, so the timer callback
+  // saves the correct local state even if setData() is later called by an external snapshot.
+  const pendingSaveData=useRef<PlanungData|null>(null)
 
   const feiertage=getFeiertage(year)
   const monthDays=getMonthDays(year,month,feiertage)
@@ -2840,10 +2850,12 @@ export default function EinsatzplanungPage(){
           }
           return
         }
-        // Mark as external so the save debounce skips it
-        // Also cancel any pending debounce timer to prevent stale local data from overwriting
+        // Mark as external so the save debounce skips the setData() call below.
+        // Do NOT cancel the debounce timer here: if the user made a local change within the
+        // last 800 ms, the pending timer must still fire to persist it.  Cancelling it here
+        // was the root cause of "entries not saved" — the server confirmation for a previous
+        // save arrived before the debounce fired and silently discarded the new local change.
         isExternalUpdate.current=true
-        if(saveTimerRef.current){clearTimeout(saveTimerRef.current);saveTimerRef.current=null}
         const loaded=snap.data() as PlanungData
         // Migrate: inject GL section if missing (between Augenärzte and Mitarbeiter)
         if(!loaded.sections.some(s=>s.label==='Geschäftsleitung')){
@@ -2863,12 +2875,18 @@ export default function EinsatzplanungPage(){
     if(isFirstLoad.current){isFirstLoad.current=false;return}
     if(isExternalUpdate.current){isExternalUpdate.current=false;return}
     if(saveTimerRef.current)clearTimeout(saveTimerRef.current)
+    // Capture current data into a ref so the timer callback always saves *this* snapshot,
+    // even if an incoming Firestore confirmation calls setData() before the timer fires.
+    pendingSaveData.current=data
     saveTimerRef.current=setTimeout(()=>{
+      const toSave=pendingSaveData.current
+      pendingSaveData.current=null
+      if(!toSave)return
       setIsSaving(true)
-      savePlanung(year,data).finally(()=>setTimeout(()=>setIsSaving(false),600))
+      savePlanung(year,toSave).finally(()=>setTimeout(()=>setIsSaving(false),600))
     },800)
-    // Cleanup must NOT cancel the timer when the re-render was caused by an external Firestore
-    // update — otherwise a server confirmation arriving during the 800ms window kills the pending save.
+    // Cleanup cancels the timer on local-change re-renders (isExternalUpdate=false),
+    // but leaves it running when an external snapshot triggers the re-render.
     return()=>{if(!isExternalUpdate.current&&saveTimerRef.current)clearTimeout(saveTimerRef.current)}
   },[year,data,isLoading])
 
@@ -2912,12 +2930,11 @@ export default function EinsatzplanungPage(){
   },[])
 
   const reorderPersons=useCallback((sectionLabel:string,persons:string[])=>{
-    setData(prev=>{
-      const newData={...prev,sections:prev.sections.map(s=>s.label===sectionLabel?{...s,persons}:s)}
-      savePlanung(year,newData)
-      return newData
-    })
-  },[year])
+    // Removed: savePlanung() called inside setData() — React may invoke setState callbacks
+    // multiple times in Strict Mode, and it raced against the debounced save useEffect.
+    // The debounce handles persistence within 800 ms.
+    setData(prev=>({...prev,sections:prev.sections.map(s=>s.label===sectionLabel?{...s,persons}:s)}))
+  },[])
 
   const toggleInactive=useCallback((person:string)=>{
     setData(prev=>{

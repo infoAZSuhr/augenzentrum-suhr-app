@@ -258,22 +258,20 @@ const { data: bookingData } = useQuery({
           <RefreshCw className="w-4 h-4 text-amber-600 shrink-0" />
           <div className="flex-1 text-sm">
             <span className="font-medium text-amber-800">BAG Spezialitätenliste veraltet</span>
-            <span className="text-amber-700"> · Stand {slBanner.date} · Bitte SL-Daten aktualisieren:</span>
-            <code className="ml-2 text-xs bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded font-mono">npm run update-sl</code>
+            <span className="text-amber-700"> · Stand {slBanner.date} · wird automatisch aktualisiert</span>
           </div>
           <button onClick={() => { localStorage.setItem(`sl-banner-dismissed-${slBanner.date}`, '1'); setSlBanner(null) }}
             className="text-amber-500 hover:text-amber-700 shrink-0"><X className="w-4 h-4" /></button>
         </div>
       )}
       {zurRoseBanner && (
-        <div className={`mx-6 mt-2 flex items-center gap-3 px-4 py-3 rounded-lg border ${zurRoseBanner.stale ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-          <RefreshCw className={`w-4 h-4 shrink-0 ${zurRoseBanner.stale ? 'text-blue-600' : 'text-gray-400'}`} />
+        <div className={`mx-6 mt-2 flex items-center gap-3 px-4 py-3 rounded-lg border ${zurRoseBanner.stale ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+          <RefreshCw className={`w-4 h-4 shrink-0 ${zurRoseBanner.stale ? 'text-amber-600' : 'text-gray-400'}`} />
           <div className="flex-1 text-sm">
             {zurRoseBanner.stale
-              ? <><span className="font-medium text-blue-800">Zur Rose Nota-Liste veraltet</span><span className="text-blue-700"> · Stand {zurRoseBanner.stand} · Aktualisieren:</span></>
+              ? <><span className="font-medium text-amber-800">Zur Rose Nota-Liste veraltet</span><span className="text-amber-700"> · Stand {zurRoseBanner.stand} · wird automatisch aktualisiert</span></>
               : <><span className="font-medium text-gray-700">Zur Rose Nota-Liste</span><span className="text-gray-500"> · Stand {zurRoseBanner.stand}</span></>
             }
-            <code className="ml-2 text-xs bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded font-mono">npm run update-zurrose</code>
           </div>
           <button onClick={() => { localStorage.setItem(`zurrose-banner-dismissed-${zurRoseBanner.stand}`, '1'); setZurRoseBanner(null) }}
             className="text-gray-400 hover:text-gray-600 shrink-0"><X className="w-4 h-4" /></button>

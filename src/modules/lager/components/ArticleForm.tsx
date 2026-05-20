@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, Plus, ScanLine, ImageIcon, GripHorizontal, ExternalLink } from 'lucide-react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { vatRate } from '../../../types/inventory.types'
-import { getUnits, addUnit, deleteUnit, getSuppliers, getQuantityUnits, addQuantityUnit, deleteQuantityUnit, getCategories, addCategory, deleteCategory, findArticleByGtin } from '../../../lib/firestoreLager'
+import { getUnits, addUnit, deleteUnit, getSuppliers, createSupplier, getQuantityUnits, addQuantityUnit, deleteQuantityUnit, getCategories, addCategory, deleteCategory, findArticleByGtin } from '../../../lib/firestoreLager'
 import { getTreatmentTypes, addTreatmentType } from '../../../lib/firestorePatients'
 import BarcodeScanner from '../../../components/ui/BarcodeScanner'
 import ImagePicker from '../../../components/ui/ImagePicker'
@@ -28,6 +28,8 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
   const [neueKategorieName, setNeueKategorieName] = useState('')
   const [neueBehandlungsart, setNeueBehandlungsart] = useState(false)
   const [neueBehandlungsartName, setNeueBehandlungsartName] = useState('')
+  const [neuerLieferant, setNeuerLieferant] = useState(false)
+  const [neuerLieferantName, setNeuerLieferantName] = useState('')
   const [showScanner, setShowScanner] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [gtinSuggestion, setGtinSuggestion] = useState<string | null>(null)
@@ -230,6 +232,16 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
     },
   })
 
+  const addSupplierMut = useMutation({
+    mutationFn: (name: string) => createSupplier({ name }),
+    onSuccess: (supplier) => {
+      qc.invalidateQueries({ queryKey: ['suppliers'] })
+      setValue('supplier', supplier.name)
+      setNeuerLieferant(false)
+      setNeuerLieferantName('')
+    },
+  })
+
   const { register, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       name: initial?.name ?? '',
@@ -282,6 +294,7 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
     if (!imageUrl) clean.imageUrl = initial?.imageUrl ? null : undefined
     else clean.imageUrl = imageUrl
     // Zahlenfelder: NaN/0/leer → null (Firestore deleteField beim Update, ignoriert beim Create)
+    if (isNaN(clean.minStock) || clean.minStock < 0) clean.minStock = initial?.minStock ?? 0
     if (isNaN(clean.price) || clean.price === 0) clean.price = initial?.price ? null : undefined
     if (isNaN(clean.quantityPerUnit) || clean.quantityPerUnit <= 0) clean.quantityPerUnit = initial?.quantityPerUnit ? null : undefined
     // Behandlungsart: leeres Array → null/undefined
@@ -625,21 +638,45 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
             <div>
               <label className="label">Mindestbestand (in {selectedUnit || 'Bestelleinheit'})</label>
               <div className="flex items-center gap-3">
-                <input type="number" className="input flex-1" min={0}
-                  {...register('minStock', { valueAsNumber: true })} />
+                <input type="number" className="input flex-1" min={0} step={1}
+                  {...register('minStock', { valueAsNumber: true, required: 'Pflichtfeld', min: { value: 0, message: 'Min. 0' } })} />
                 <span className="text-sm text-gray-500 shrink-0">{selectedUnit || 'Bestelleinheit'}</span>
               </div>
+              {errors.minStock && <p className="text-xs text-red-500 mt-1">{errors.minStock.message}</p>}
               <p className="text-xs text-gray-400 mt-1">Bestand bezieht sich immer auf die Bestelleinheit</p>
             </div>
 
             {/* Lieferant */}
             <div>
-              <label className="label">Lieferant</label>
-              <select className="input" value={selectedSupplier ?? ''}
-                onChange={e => setValue('supplier', e.target.value)}>
-                <option value="">— Kein Lieferant —</option>
-                {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label mb-0">Lieferant</label>
+                <button type="button" onClick={() => { setNeuerLieferant(v => !v); setNeuerLieferantName('') }}
+                  className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+                  <Plus className="w-3 h-3" /> Neuer Lieferant
+                </button>
+              </div>
+              {neuerLieferant ? (
+                <div className="flex gap-1">
+                  <input className="input text-sm flex-1" placeholder="Lieferantenname…"
+                    value={neuerLieferantName} onChange={e => setNeuerLieferantName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && neuerLieferantName && addSupplierMut.mutate(neuerLieferantName)} />
+                  <button type="button" className="btn-primary whitespace-nowrap text-sm"
+                    disabled={!neuerLieferantName || addSupplierMut.isPending}
+                    onClick={() => addSupplierMut.mutate(neuerLieferantName)}>
+                    {addSupplierMut.isPending ? '…' : 'OK'}
+                  </button>
+                  <button type="button" onClick={() => setNeuerLieferant(false)}
+                    className="text-xs text-gray-400 hover:text-gray-600 px-1">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <select className="input" value={selectedSupplier ?? ''}
+                  onChange={e => setValue('supplier', e.target.value)}>
+                  <option value="">— Kein Lieferant —</option>
+                  {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              )}
               <input type="hidden" {...register('supplier')} />
             </div>
 

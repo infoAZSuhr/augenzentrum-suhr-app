@@ -19,6 +19,7 @@ import TaskBoardPage from './pages/TaskBoardPage'
 import RecallPage from './pages/RecallPage'
 import ZuweisungPage from './pages/ZuweisungPage'
 import AkvPage from './pages/AkvPage'
+import AdminSystemPage from './pages/AdminSystemPage'
 
 const IVOMModule        = lazy(() => import('./modules/ivom'))
 const LagerModule       = lazy(() => import('./modules/lager'))
@@ -149,6 +150,7 @@ function RoutesWithPermissions() {
         <Route path="sop/*"        element={<PermissionGate allowed={canAccessSOP}><Suspense fallback={<Loading />}><OnboardingModule /></Suspense></PermissionGate>} />
         <Route path="admin/users"  element={<PermissionGate allowed={canAccessBenutzerverwaltung}><UserManagementPage /></PermissionGate>} />
         <Route path="admin/log"    element={<PermissionGate allowed={isAdmin || isGeschaeftsleitung}><RequestLogPage /></PermissionGate>} />
+        <Route path="admin/system" element={<PermissionGate allowed={isAdmin || isGeschaeftsleitung}><AdminSystemPage /></PermissionGate>} />
         <Route path="aufgaben"           element={<TasksPage />} />
         <Route path="aufgaben/:boardId"  element={<TaskBoardPage />} />
         <Route path="recall"        element={<PermissionGate allowed={canAccessRecall}><RecallPage /></PermissionGate>} />

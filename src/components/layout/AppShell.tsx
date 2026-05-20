@@ -258,6 +258,7 @@ function FerienAntragModal({ editData, onClose }: { editData: FerienEditData; on
 export default function AppShell() {
   const [menuOpen,      setMenuOpen]      = useState(false)
   const [opOpen,        setOpOpen]        = useState(false)
+  const [adminOpen,     setAdminOpen]     = useState(false)
   const [userOpen,      setUserOpen]      = useState(false)
   const [bellOpen,      setBellOpen]      = useState(false)
   const [showProfile,   setShowProfile]   = useState(false)
@@ -283,6 +284,7 @@ export default function AppShell() {
   const userRef   = useRef<HTMLDivElement>(null)
   const bellRef   = useRef<HTMLDivElement>(null)
   const opRef     = useRef<HTMLDivElement>(null)
+  const adminRef  = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
   const { profile, isAdmin, isArzt, isGuest, isGeschaeftsleitung, logout,
           canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessAufgaben,
@@ -564,6 +566,7 @@ export default function AppShell() {
       if (userRef.current   && !userRef.current.contains(e.target as Node))   setUserOpen(false)
       if (bellRef.current   && !bellRef.current.contains(e.target as Node))   setBellOpen(false)
       if (opRef.current     && !opRef.current.contains(e.target as Node))     setOpOpen(false)
+      if (adminRef.current  && !adminRef.current.contains(e.target as Node))  setAdminOpen(false)
       if (headerRef.current && !headerRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
@@ -573,7 +576,8 @@ export default function AppShell() {
   const initials  = (profile?.displayName || profile?.username)
     ?.split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('') ?? '?'
   const roleLabel = isGuest ? 'Gast' : isGeschaeftsleitung ? 'Geschäftsleitung' : isArzt ? 'Arzt/Ärztin' : profile?.role === 'mpa' ? 'MPA' : 'Admin'
-  const opActive  = opItems.some(i => location.pathname.startsWith(i.to))
+  const opActive    = opItems.some(i => location.pathname.startsWith(i.to))
+  const adminActive = ['/admin/users', '/admin/log', '/admin/system'].some(p => location.pathname.startsWith(p))
 
   return (
     <div className="flex flex-col h-screen h-dvh bg-gray-50 overflow-hidden">
@@ -650,22 +654,6 @@ export default function AppShell() {
               </NavLink>
             )}
 
-            {/* Admin + Benutzerverwaltung-Berechtigung */}
-            {canAccessBenutzerverwaltung && (
-              <NavLink data-help="nav-benutzer" to="/admin/users" className={({ isActive }) => navLinkClass(isActive)}>
-                <Users className="w-4 h-4 shrink-0" />
-                Benutzer
-              </NavLink>
-            )}
-
-            {/* GL only: Antragsprotokoll (Admin sees it as tab in Benutzerverwaltung) */}
-            {!isAdmin && isGeschaeftsleitung && (
-              <NavLink to="/admin/log" className={({ isActive }) => navLinkClass(isActive)}>
-                <ClipboardList className="w-4 h-4 shrink-0" />
-                Protokoll
-              </NavLink>
-            )}
-
             {canAccessAufgaben && (
               <NavLink to="/aufgaben" className={({ isActive }) => navLinkClass(isActive)}>
                 <LayoutList className="w-4 h-4 shrink-0" />
@@ -687,6 +675,49 @@ export default function AppShell() {
                 <ClipboardList className="w-4 h-4 shrink-0" />
                 AKV
               </NavLink>
+            )}
+
+            {/* Admin dropdown — Admin + GL */}
+            {(isAdmin || isGeschaeftsleitung) && (
+              <div className="relative" ref={adminRef}>
+                <button
+                  onClick={() => setAdminOpen(v => !v)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
+                    adminActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  )}
+                >
+                  Admin
+                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', adminOpen && 'rotate-180')} />
+                </button>
+                {adminOpen && (
+                  <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">Administration</div>
+                    {canAccessBenutzerverwaltung && (
+                      <NavLink data-help="nav-benutzer" to="/admin/users" onClick={() => setAdminOpen(false)}
+                        className={({ isActive }) => cn('flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                          isActive ? 'text-primary-700 bg-primary-50' : 'text-gray-700 hover:bg-gray-100')}>
+                        <Users className="w-4 h-4 shrink-0" />
+                        Benutzerverwaltung
+                      </NavLink>
+                    )}
+                    {!isAdmin && isGeschaeftsleitung && (
+                      <NavLink to="/admin/log" onClick={() => setAdminOpen(false)}
+                        className={({ isActive }) => cn('flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                          isActive ? 'text-primary-700 bg-primary-50' : 'text-gray-700 hover:bg-gray-100')}>
+                        <ClipboardList className="w-4 h-4 shrink-0" />
+                        Antragsprotokoll
+                      </NavLink>
+                    )}
+                    <NavLink to="/admin/system" onClick={() => setAdminOpen(false)}
+                      className={({ isActive }) => cn('flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                        isActive ? 'text-primary-700 bg-primary-50' : 'text-gray-700 hover:bg-gray-100')}>
+                      <KeyRound className="w-4 h-4 shrink-0" />
+                      System & Export
+                    </NavLink>
+                  </div>
+                )}
+              </div>
             )}
           </nav>
 
@@ -1298,18 +1329,6 @@ export default function AppShell() {
                 SOP
               </NavLink>
             )}
-            {canAccessBenutzerverwaltung && (
-              <NavLink to="/admin/users" className={({ isActive }) => mobileNavLinkClass(isActive)}>
-                <Users className="w-4 h-4 shrink-0" />
-                Benutzerverwaltung
-              </NavLink>
-            )}
-            {!isAdmin && isGeschaeftsleitung && (
-              <NavLink to="/admin/log" className={({ isActive }) => mobileNavLinkClass(isActive)}>
-                <ClipboardList className="w-4 h-4 shrink-0" />
-                Antragsprotokoll
-              </NavLink>
-            )}
             {canAccessAufgaben && (
               <NavLink to="/aufgaben" className={({ isActive }) => mobileNavLinkClass(isActive)}>
                 <LayoutList className="w-4 h-4 shrink-0" />
@@ -1327,6 +1346,29 @@ export default function AppShell() {
                 <ClipboardList className="w-4 h-4 shrink-0" />
                 AKV
               </NavLink>
+            )}
+            {(isAdmin || isGeschaeftsleitung) && (
+              <>
+                <div className="pt-2 pb-1 px-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Administration</p>
+                </div>
+                {canAccessBenutzerverwaltung && (
+                  <NavLink to="/admin/users" className={({ isActive }) => mobileNavLinkClass(isActive)}>
+                    <Users className="w-4 h-4 shrink-0" />
+                    Benutzerverwaltung
+                  </NavLink>
+                )}
+                {!isAdmin && isGeschaeftsleitung && (
+                  <NavLink to="/admin/log" className={({ isActive }) => mobileNavLinkClass(isActive)}>
+                    <ClipboardList className="w-4 h-4 shrink-0" />
+                    Antragsprotokoll
+                  </NavLink>
+                )}
+                <NavLink to="/admin/system" className={({ isActive }) => mobileNavLinkClass(isActive)}>
+                  <KeyRound className="w-4 h-4 shrink-0" />
+                  System & Export
+                </NavLink>
+              </>
             )}
             <div className="pt-2 border-t border-gray-100">
               <button

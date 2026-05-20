@@ -1,5 +1,5 @@
 import {
-  collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, serverTimestamp, deleteField
 } from 'firebase/firestore'
 import { db } from './firebase'
@@ -294,8 +294,17 @@ const DEFAULT_CATEGORIES = ['Medikament', 'Augentropfen', 'Verbrauchsmaterial', 
 
 export async function getCategories(): Promise<{ id: string; name: string }[]> {
   const snap = await getDocs(query(col('categories'), orderBy('name')))
-  if (!snap.empty) return snap.docs.map(d => ({ id: d.id, name: d.data().name as string }))
-  await Promise.all(DEFAULT_CATEGORIES.map(name => addDoc(col('categories'), { name })))
+  if (!snap.empty) {
+    // Deduplizieren nach Name (falls durch Race-Condition Duplikate entstanden sind)
+    const seen = new Set<string>()
+    return snap.docs
+      .map(d => ({ id: d.id, name: d.data().name as string }))
+      .filter(c => seen.has(c.name) ? false : !!seen.add(c.name))
+  }
+  // Seed mit stabilen IDs (name-basiert) → verhindert Duplikate bei parallelen Aufrufen
+  await Promise.all(DEFAULT_CATEGORIES.map(name =>
+    setDoc(doc(db, 'categories', name.toLowerCase().replace(/[^a-z0-9]/g, '-')), { name })
+  ))
   const snap2 = await getDocs(query(col('categories'), orderBy('name')))
   return snap2.docs.map(d => ({ id: d.id, name: d.data().name as string }))
 }
