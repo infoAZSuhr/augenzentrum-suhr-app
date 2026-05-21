@@ -3953,6 +3953,11 @@ export default function RecallPage() {
                             if (v === 'kein Bedarf') setField('patientenStatus', 'kein Aufgebot')
                             if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
                             if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
+                            if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
+                              setField('verlauf', form.verlauf.map(ve =>
+                                ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
+                              ))
+                            }
                           }}
                           className={inputCls}>
                           <option value="">—</option>
@@ -4226,6 +4231,8 @@ export default function RecallPage() {
                                     ? 'text-green-600'
                                     : v.ergebnis === 'noch zu erledigen'
                                     ? 'text-amber-600'
+                                    : v.ergebnis === 'abgebrochen'
+                                    ? 'text-gray-400 line-through'
                                     : v.aktion === 'Reminder'
                                     ? 'text-purple-600'
                                     : 'text-gray-500'
