@@ -3979,8 +3979,8 @@ export default function RecallPage() {
                     <ListChecks className="w-3.5 h-3.5" /> Weiteres Vorgehen
                   </p>
 
-                  {/* Contact method toggles – only when a Stornierungsgrund is set (not when Verstorben) */}
-                  {form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && (
+                  {/* Contact method toggles – only when a Stornierungsgrund is set (not when Verstorben or Arztwechsel) */}
+                  {form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel' && (
                     <>
                       <button type="button"
                         onClick={async () => {
