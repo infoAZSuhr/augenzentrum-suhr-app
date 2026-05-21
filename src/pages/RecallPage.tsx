@@ -3952,6 +3952,7 @@ export default function RecallPage() {
                             else setField('grundStornierung', v)
                             if (v === 'kein Bedarf') setField('patientenStatus', 'kein Aufgebot')
                             if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
+                            if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
                           }}
                           className={inputCls}>
                           <option value="">—</option>
@@ -3978,8 +3979,8 @@ export default function RecallPage() {
                     <ListChecks className="w-3.5 h-3.5" /> Weiteres Vorgehen
                   </p>
 
-                  {/* Contact method toggles – only when a Stornierungsgrund is set */}
-                  {form.grundStornierung !== '' && (
+                  {/* Contact method toggles – only when a Stornierungsgrund is set (not when Verstorben) */}
+                  {form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && (
                     <>
                       <button type="button"
                         onClick={async () => {
