@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { X, Printer, Syringe, Scissors, Stethoscope } from 'lucide-react'
 import { getIviDaysFromPlanung, getPlannedIviDays } from '../../lib/firestorePatients'
 import { loadPlanung, type PlanungData } from '../../lib/firestorePlanung'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 const IVI_DOCTORS_MATCH = ['tschopp', 'trachsler']
 const IVI_WORKING = new Set(['GT', 'VM', 'NM'])
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export default function IviKatOverviewModal({ open, onClose, initialView = 'ivi' }: Props) {
+  useEscapeKey(onClose, open)
   const [activeTab, setActiveTab] = useState<'ivi' | 'kat'>(initialView)
   const [iviDays, setIviDays] = useState<IviDay[]>([])
   const [katDays, setKatDays] = useState<KatDay[]>([])

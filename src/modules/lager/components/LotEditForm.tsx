@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form'
 import { X, Calendar, Hash, GripHorizontal } from 'lucide-react'
 import type { InventoryLot } from '../../../types/inventory.types'
 import { useDraggable } from '../../../hooks/useDraggable'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 interface FormValues {
   lotNumber: string
@@ -20,6 +21,7 @@ interface Props {
 
 export default function LotEditForm({ lot, unit, onClose, onSubmit, isLoading }: Props) {
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  useEscapeKey(onClose)
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
       lotNumber: lot.lotNumber ?? '',

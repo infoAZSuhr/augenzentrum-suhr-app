@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { X, Upload, Camera, Link } from 'lucide-react'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../../lib/firebase'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface Props {
   articleId: string
@@ -12,6 +13,7 @@ interface Props {
 type Tab = 'upload' | 'camera' | 'url'
 
 export default function ImagePicker({ articleId, onImage, onClose }: Props) {
+  useEscapeKey(onClose)
   const [activeTab, setActiveTab] = useState<Tab>('upload')
   const [preview, setPreview] = useState<string | null>(null)
   const [urlInput, setUrlInput] = useState('')

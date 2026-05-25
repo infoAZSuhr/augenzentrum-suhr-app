@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, Plus, ScanLine, ImageIcon, GripHorizontal, ExternalLink } from 'lucide-react'
 import { useDraggable } from '../../../hooks/useDraggable'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { vatRate } from '../../../types/inventory.types'
 import { getUnits, addUnit, deleteUnit, getSuppliers, createSupplier, getQuantityUnits, addQuantityUnit, deleteQuantityUnit, getCategories, addCategory, deleteCategory, findArticleByGtin } from '../../../lib/firestoreLager'
 import { getTreatmentTypes, addTreatmentType } from '../../../lib/firestorePatients'
@@ -157,6 +158,7 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
   const [imageUrl, setImageUrl] = useState<string>(initial?.imageUrl ?? '')
   const qc = useQueryClient()
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  useEscapeKey(onClose)
 
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
   const { data: units = [] } = useQuery({ queryKey: ['units'], queryFn: getUnits })
