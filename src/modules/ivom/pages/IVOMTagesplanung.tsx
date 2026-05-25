@@ -98,7 +98,7 @@ export default function IVOMTagesplanung() {
     onError: (err: any) => alert('Fehler: ' + err.message),
   })
 
-  const { data: iviPlan = [] } = useQuery({
+  const { data: iviPlan = [], isLoading: planLoading } = useQuery({
     queryKey: ['ivi-day-plan'],
     queryFn: getIviDayPlan,
   })
@@ -144,6 +144,15 @@ export default function IVOMTagesplanung() {
       const code = planung.schedule[p]?.[date]
       return code && WORKING_CODES.has(code) ? [{ name: p, code }] : []
     })
+  }
+
+  if (planLoading) {
+    return (
+      <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-400" />
+        <span className="text-sm">IVI-Tagesplan wird geladen…</span>
+      </div>
+    )
   }
 
   if (iviPlan.length === 0) {

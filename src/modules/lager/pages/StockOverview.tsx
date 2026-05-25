@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw } from 'lucide-react'
+import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw, Package } from 'lucide-react'
 import { getArticles, createArticle, getAlerts, getArticle, addLot, addMovement, getCategories } from '../../../lib/firestoreLager'
 import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
+import EmptyState from '../../../components/ui/EmptyState'
+import TableSkeleton from '../../../components/ui/TableSkeleton'
 import { formatDate } from '../../../utils/dateUtils'
 import ArticleForm from '../components/ArticleForm'
 import BookingForm from '../components/BookingForm'
@@ -351,9 +353,20 @@ const { data: bookingData } = useQuery({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Laden…</td></tr>
+                <TableSkeleton columns={7} />
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{search || activeCategory !== 'Alle' ? 'Keine Artikel gefunden.' : 'Noch keine Artikel erfasst.'}</td></tr>
+                <tr><td colSpan={7}>
+                  <EmptyState
+                    icon={Package}
+                    title={search || activeCategory !== 'Alle' ? 'Keine Artikel gefunden' : 'Noch keine Artikel erfasst'}
+                    description={search || activeCategory !== 'Alle' ? 'Versuche, die Suche oder den Kategorie-Filter anzupassen.' : 'Lege deinen ersten Artikel an, um den Bestand zu verwalten.'}
+                    action={!search && activeCategory === 'Alle' && (
+                      <button className="btn-primary" onClick={() => setShowForm(true)}>
+                        <Plus className="w-4 h-4" /> Neuer Artikel
+                      </button>
+                    )}
+                  />
+                </td></tr>
               ) : (
                 filtered.map((a) => {
                   const isManualND = !!a.notDeliverable
