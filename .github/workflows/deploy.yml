@@ -1,0 +1,70 @@
+name: Deploy auf Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+    # Diese Pfade lösen KEIN Deploy aus:
+    # - meta.json: werden von den update-*.yml Workflows committet, die ohnehin schon deployen
+    # - *.md: reine Doku
+    # - scripts/, electron/: nicht im Web-Build enthalten
+    # - update-*.yml: ändert nichts am gebauten App-Output
+    paths-ignore:
+      - 'public/*-meta.json'
+      - '**.md'
+      - 'scripts/**'
+      - 'electron/**'
+      - '.github/workflows/update-*.yml'
+  workflow_dispatch:
+
+# Parallel-Deploys verhindern (auch über Workflow-Grenzen hinweg, falls update-*.yml
+# später denselben Group-Namen verwendet)
+concurrency:
+  group: firebase-hosting-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm ci
+
+      - name: Bestehende Daten-JSONs von Live-Site holen
+        # Die grossen Daten-Dateien sind gitignored und werden nur von den
+        # update-*.yml Cron-Workflows neu generiert. Damit ein Code-Deploy
+        # die Daten nicht "wegdeployed", holen wir die aktuelle Version
+        # vom Live-Hosting in den Build-Output.
+        run: |
+          for f in sl-data refdata-data lieferengpaesse-data zurrose-nota-data recall-data recall-pid-sync recall-zu-bearbeiten; do
+            if curl -fsSL "https://azsdb-999d6.web.app/${f}.json" -o "public/${f}.json"; then
+              echo "  ${f}.json geholt ($(wc -c < "public/${f}.json") bytes)"
+            else
+              echo "  ${f}.json nicht verfügbar — überspringe"
+              rm -f "public/${f}.json"
+            fi
+          done
+
+      - name: App bauen (tsc + vite)
+        run: npm run build
+
+      - name: Firebase Hosting deployen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          npm install -g firebase-tools
+          firebase deploy --only hosting --project azsdb-999d6 --non-interactive
+          rm -f /tmp/sa.json
