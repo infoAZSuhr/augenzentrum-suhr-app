@@ -48,6 +48,27 @@ function isOnline(u: UserProfile): boolean {
   return Date.now() / 1000 - ts < 5 * 60
 }
 
+// Relative time string for lastSeen — "vor 5 Min", "vor 2 Std", "vor 3 Tagen", "noch nie", or a date for old entries
+function formatLastSeen(lastSeen: unknown): string {
+  const ts = (lastSeen as { seconds?: number })?.seconds
+  if (!ts) return 'noch nie'
+  const diffSec = Date.now() / 1000 - ts
+  if (diffSec < 60) return 'gerade eben'
+  if (diffSec < 3600) {
+    const m = Math.floor(diffSec / 60)
+    return `vor ${m} Min`
+  }
+  if (diffSec < 86400) {
+    const h = Math.floor(diffSec / 3600)
+    return `vor ${h} Std`
+  }
+  if (diffSec < 86400 * 7) {
+    const d = Math.floor(diffSec / 86400)
+    return `vor ${d} Tag${d !== 1 ? 'en' : ''}`
+  }
+  return new Date(ts * 1000).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
 const STATUS_STYLE: Record<UserStatus, string> = {
   pending:  'bg-amber-50 text-amber-700 border-amber-200',
   approved: 'bg-green-50 text-green-700 border-green-200',
@@ -864,7 +885,17 @@ export default function UserManagementPage() {
                                 <p className="font-medium text-gray-800 text-sm leading-tight">{u.displayName || u.username}</p>
                                 {isOnline(u) && <span className="text-[9px] font-semibold text-green-600 bg-green-50 border border-green-200 px-1 py-0.5 rounded-full leading-none">Online</span>}
                               </div>
-                              {u.username && <p className="text-xs text-gray-400 leading-tight">{u.username}</p>}
+                              {(u.username || !isOnline(u)) && (
+                                <p className="text-xs text-gray-400 leading-tight">
+                                  {u.username}
+                                  {!isOnline(u) && (
+                                    <>
+                                      {u.username && <span className="mx-1">·</span>}
+                                      <span title="Zuletzt aktiv">zuletzt: {formatLastSeen(u.lastSeen)}</span>
+                                    </>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </td>
