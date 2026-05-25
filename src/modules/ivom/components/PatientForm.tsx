@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form'
 import { X, GripHorizontal } from 'lucide-react'
 import type { Patient } from '../../../types/ivom.types'
 import { useDraggable } from '../../../hooks/useDraggable'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 const DIAGNOSEN = [
   'AMD (Altersbedingte Makuladegeneration)',
@@ -49,6 +50,7 @@ export default function PatientForm({ initial, onClose, onSubmit, isLoading }: P
     defaultValues: { status: 'aktiv', ...initial },
   })
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  useEscapeKey(onClose)
 
   return (
     <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">

@@ -11,6 +11,7 @@ import { db, auth } from '../../lib/firebase'
 import { manageFerienPlan, removePlanEntry, updatePlanComment } from '../../lib/firestorePlanung'
 import { TaskNotification, subscribeTaskNotifications, markTaskNotifRead } from '../../lib/firestoreTasks'
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail } from 'firebase/auth'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface PlanungRequest {
   id: string
@@ -105,6 +106,7 @@ interface FerienEditData {
 
 function FerienAntragModal({ editData, onClose }: { editData: FerienEditData; onClose: () => void }) {
   const { profile } = useAuth()
+  useEscapeKey(onClose)
   const [ferienType, setFerienType] = useState(editData.ferienType ?? 'ferien')
   const [fromDate,   setFromDate]   = useState(editData.fromDate ?? '')
   const [toDate,     setToDate]     = useState(editData.toDate ?? '')

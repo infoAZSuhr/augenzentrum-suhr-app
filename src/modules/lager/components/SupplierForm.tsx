@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form'
 import { X, GripHorizontal } from 'lucide-react'
 import type { Supplier } from '../../../lib/firestoreLager'
 import { useDraggable } from '../../../hooks/useDraggable'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 type FormData = Omit<Supplier, 'id'>
 
@@ -14,6 +15,7 @@ interface Props {
 
 export default function SupplierForm({ initial, onClose, onSubmit, isLoading }: Props) {
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  useEscapeKey(onClose)
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       name: initial?.name ?? '',

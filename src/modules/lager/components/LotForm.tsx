@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { X } from 'lucide-react'
 import { today } from '../../../utils/dateUtils'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 interface FormValues {
   lotNumber: string
@@ -24,6 +25,7 @@ export default function LotForm({ articleName, unit, quantityPerUnit, quantityUn
   const { register, handleSubmit } = useForm<FormValues>({
     defaultValues: { deliveryDate: today(), quantity: quantityPerUnit ?? 1 },
   })
+  useEscapeKey(onClose)
 
   return (
     <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">

@@ -5,6 +5,7 @@ import { X, PackagePlus, PackageMinus, ScanLine, AlertTriangle, Calendar, Hash, 
 import BarcodeScanner from '../../../components/ui/BarcodeScanner'
 import type { InventoryLot } from '../../../types/inventory.types'
 import { useDraggable } from '../../../hooks/useDraggable'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { getPatientNames } from '../../../lib/firestorePatients'
 
 type Modus = 'eingang' | 'ausgang'
@@ -52,6 +53,7 @@ export default function BookingForm({ articleName, unit, quantityPerUnit, quanti
   const [showScanner, setShowScanner] = useState(false)
   const [unitMode, setUnitMode] = useState<UnitMode>('packung')
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  useEscapeKey(onClose)
   const { data: patientNames = [] } = useQuery({ queryKey: ['patient-names'], queryFn: getPatientNames })
 
   // Ob Umschalter angezeigt wird (nur wenn beide Einheiten definiert)

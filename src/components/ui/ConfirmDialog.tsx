@@ -1,5 +1,7 @@
 import { AlertTriangle, X, GripHorizontal } from 'lucide-react'
 import { useDraggable } from '../../hooks/useDraggable'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { useAutoFocus } from '../../hooks/useAutoFocus'
 
 interface Props {
   title: string
@@ -21,6 +23,8 @@ export default function ConfirmDialog({
   onCancel,
 }: Props) {
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  const confirmRef = useAutoFocus<HTMLButtonElement>(!isLoading)
+  useEscapeKey(onCancel, !isLoading)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div
@@ -51,6 +55,7 @@ export default function ConfirmDialog({
             Abbrechen
           </button>
           <button
+            ref={confirmRef}
             onClick={onConfirm}
             disabled={isLoading}
             className={`px-4 py-2 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 ${

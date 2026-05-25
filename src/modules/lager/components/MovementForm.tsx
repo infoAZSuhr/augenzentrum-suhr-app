@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { X } from 'lucide-react'
 import type { InventoryLot } from '../../../types/inventory.types'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 interface FormValues {
   movementType: 'Eingang' | 'Abgang' | 'Korrektur'
@@ -27,6 +28,7 @@ export default function MovementForm({ articleName, unit, lots, onClose, onSubmi
       lotId: lots[0]?.id || '',
     },
   })
+  useEscapeKey(onClose)
 
   const movType = watch('movementType')
 

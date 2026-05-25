@@ -6,6 +6,7 @@ import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung } from '
 import { getArticles, getArticleLots } from '../../../lib/firestoreLager'
 import { today, addWeeks } from '../../../utils/dateUtils'
 import { useDraggable } from '../../../hooks/useDraggable'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 const INTERVALLE = [4, 6, 8, 10, 12, 16, 24]
 
@@ -44,6 +45,7 @@ interface Props {
 export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading, initial, firstTreatmentForEyes }: Props) {
   const [neuerArzt, setNeuerArzt] = useState(false)
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  useEscapeKey(onClose)
   const [neuerArztName, setNeuerArztName] = useState('')
   const qc = useQueryClient()
 
