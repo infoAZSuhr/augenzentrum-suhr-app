@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Users } from 'lucide-react'
 import { getPatients, createPatient, deletePatient } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
+import EmptyState from '../../../components/ui/EmptyState'
+import TableSkeleton from '../../../components/ui/TableSkeleton'
 import { formatDate } from '../../../utils/dateUtils'
 import PatientForm from '../components/PatientForm'
 import type { Patient } from '../../../types/ivom.types'
@@ -133,11 +135,22 @@ export default function PatientList() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isLoading ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">Laden…</td></tr>
+                  <TableSkeleton columns={10} />
                 ) : error ? (
                   <tr><td colSpan={10} className="px-4 py-8 text-center text-red-500">Fehler: {(error as any).message}</td></tr>
                 ) : sortedPatients.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">Keine Patienten gefunden.</td></tr>
+                  <tr><td colSpan={10}>
+                    <EmptyState
+                      icon={Users}
+                      title={search || statusFilter !== 'alle' ? 'Keine Patienten gefunden' : 'Noch keine Patienten erfasst'}
+                      description={search || statusFilter !== 'alle' ? 'Versuche, die Suche oder den Status-Filter anzupassen.' : 'Lege deinen ersten Patienten an, um zu starten.'}
+                      action={!search && statusFilter === 'alle' && (
+                        <button className="btn-primary" onClick={() => setShowForm(true)}>
+                          <Plus className="w-4 h-4" /> Neuer Patient
+                        </button>
+                      )}
+                    />
+                  </td></tr>
                 ) : (
                   sortedPatients.map((p, idx) => (
                     <tr
