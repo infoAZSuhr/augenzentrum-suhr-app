@@ -3442,6 +3442,28 @@ export default function RecallPage() {
                 </div>
               </div>
 
+              {/* Inkonsistenz-Warnung: «Nächste Konst.» und «RC zu erstellen ab» dürfen nie beide gleichzeitig gesetzt sein */}
+              {!!form.naechsteKons && !!form.aufgebotFuer && (
+                <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex flex-col sm:flex-row sm:items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                  <span className="flex-1">
+                    <strong>Inkonsistenz:</strong> «Nächste Konst.» <em>und</em> «RC zu erstellen ab» sind gesetzt. Bitte eines davon entfernen.
+                  </span>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button type="button"
+                      onClick={() => setField('aufgebotFuer', '')}
+                      className="px-2.5 py-1 rounded-md bg-white border border-red-300 text-red-700 hover:bg-red-100 font-medium transition-colors">
+                      Termin behalten
+                    </button>
+                    <button type="button"
+                      onClick={() => { setField('naechsteKons', ''); setField('keinTermin', false) }}
+                      className="px-2.5 py-1 rounded-md bg-white border border-red-300 text-red-700 hover:bg-red-100 font-medium transition-colors">
+                      Recall behalten
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 {/* Letzte Konst. */}
                 <div>
