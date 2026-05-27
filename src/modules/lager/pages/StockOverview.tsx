@@ -21,7 +21,7 @@ export default function StockOverview() {
   const [activeCategory, setActiveCategory] = useState<string>('Alle')
   const [search, setSearch] = useState('')
   const [slBanner, setSlBanner] = useState<{ date: string; stale: boolean } | null>(null)
-  const [zurRoseBanner, setZurRoseBanner] = useState<{ stand: string; stale: boolean } | null>(null)
+  const [zurRoseBanner, setZurRoseBanner] = useState<{ stand: string } | null>(null)
 
   useEffect(() => {
     fetch('/sl-meta.json')
@@ -39,9 +39,12 @@ export default function StockOverview() {
       .then((meta: { extractedAt: string; stand: string }) => {
         if (!meta.extractedAt) return
         const daysOld = Math.floor((Date.now() - new Date(meta.extractedAt).getTime()) / 86400000)
+        // Banner nur zeigen wenn veraltet — analog SL-Banner. Sonst läuft die Liste
+        // ohnehin automatisch via GitHub-Action-Cron und braucht keinen Hinweis.
+        if (daysOld <= 3) return
         const dismissKey = `zurrose-banner-dismissed-${meta.extractedAt}`
         if (localStorage.getItem(dismissKey)) return
-        setZurRoseBanner({ stand: meta.stand || meta.extractedAt, stale: daysOld > 3 })
+        setZurRoseBanner({ stand: meta.stand || meta.extractedAt })
       })
       .catch(() => {})
   }, [])
@@ -267,16 +270,14 @@ const { data: bookingData } = useQuery({
         </div>
       )}
       {zurRoseBanner && (
-        <div className={`mx-6 mt-2 flex items-center gap-3 px-4 py-3 rounded-lg border ${zurRoseBanner.stale ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
-          <RefreshCw className={`w-4 h-4 shrink-0 ${zurRoseBanner.stale ? 'text-amber-600' : 'text-gray-400'}`} />
+        <div className="mx-6 mt-2 flex items-center gap-3 px-4 py-3 rounded-lg border bg-amber-50 border-amber-200">
+          <RefreshCw className="w-4 h-4 text-amber-600 shrink-0" />
           <div className="flex-1 text-sm">
-            {zurRoseBanner.stale
-              ? <><span className="font-medium text-amber-800">Zur Rose Nota-Liste veraltet</span><span className="text-amber-700"> · Stand {zurRoseBanner.stand} · wird automatisch aktualisiert</span></>
-              : <><span className="font-medium text-gray-700">Zur Rose Nota-Liste</span><span className="text-gray-500"> · Stand {zurRoseBanner.stand}</span></>
-            }
+            <span className="font-medium text-amber-800">Zur Rose Nota-Liste veraltet</span>
+            <span className="text-amber-700"> · Stand {zurRoseBanner.stand} · wird automatisch aktualisiert</span>
           </div>
           <button onClick={() => { localStorage.setItem(`zurrose-banner-dismissed-${zurRoseBanner.stand}`, '1'); setZurRoseBanner(null) }}
-            className="text-gray-400 hover:text-gray-600 shrink-0"><X className="w-4 h-4" /></button>
+            className="text-amber-500 hover:text-amber-700 shrink-0"><X className="w-4 h-4" /></button>
         </div>
       )}
 
