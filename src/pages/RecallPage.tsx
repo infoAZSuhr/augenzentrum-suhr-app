@@ -3531,9 +3531,16 @@ export default function RecallPage() {
                         if (val) {
                           // Mit gesetztem Termin braucht es keinen Recall mehr → «RC zu erstellen ab» leeren
                           setField('aufgebotFuer', '')
-                          // Geplante Reminder im Verlauf entfernen — sind durch den Termin obsolet
-                          if (form.verlauf.some(v => v.aktion === 'Reminder')) {
-                            setField('verlauf', form.verlauf.filter(v => v.aktion !== 'Reminder'))
+                          // Aktiv geplante Reminder («Geplant: <Zukunftsdatum>») entfernen,
+                          // historische Reminder-Einträge bleiben als Verlauf erhalten.
+                          const today = new Date().toISOString().slice(0, 10)
+                          const isActivePlannedReminder = (v: { aktion?: string; ergebnis?: string }) => {
+                            if (v.aktion !== 'Reminder') return false
+                            const m = v.ergebnis?.match(/^Geplant:\s*(\d{4}-\d{2}-\d{2})/)
+                            return !!m && m[1] > today
+                          }
+                          if (form.verlauf.some(isActivePlannedReminder)) {
+                            setField('verlauf', form.verlauf.filter(v => !isActivePlannedReminder(v)))
                           }
                         }
                       }} />
