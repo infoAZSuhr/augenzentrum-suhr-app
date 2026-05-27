@@ -3456,7 +3456,10 @@ export default function RecallPage() {
                         if (form.konsInterval && newDate) {
                           const computed = computeNextKons(newDate, form.konsInterval)
                           if (computed) {
-                            // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
+                            // Invariante: entweder Nächste Konst. ODER «RC zu erstellen ab»,
+                            // nie beides. Hier wird aufgebotFuer berechnet → naechsteKons leeren.
+                            setField('naechsteKons', '')
+                            setField('keinTermin', false)
                             const lk2 = new Date(newDate + 'T00:00:00Z')
                             lk2.setUTCMonth(lk2.getUTCMonth() + 2)
                             if (computed <= lk2.toISOString().slice(0, 10)) {
@@ -3487,7 +3490,10 @@ export default function RecallPage() {
                         if (form.letzteKons) {
                           const computed = computeNextKons(form.letzteKons, val)
                           if (computed) {
-                            // naechsteKons bleibt manuell — nur aufgebotFuer berechnen
+                            // Invariante: entweder Nächste Konst. ODER «RC zu erstellen ab»,
+                            // nie beides. Hier wird aufgebotFuer berechnet → naechsteKons leeren.
+                            setField('naechsteKons', '')
+                            setField('keinTermin', false)
                             const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
                             lk2.setUTCMonth(lk2.getUTCMonth() + 2)
                             if (computed <= lk2.toISOString().slice(0, 10)) {
