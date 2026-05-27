@@ -3528,23 +3528,8 @@ export default function RecallPage() {
                       onChange={e => {
                         const val = e.target.value
                         setField('naechsteKons', val)
-                        if (val) {
-                          if (form.letzteKons) {
-                            const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
-                            lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-                            if (val <= lk2.toISOString().slice(0, 10)) {
-                              setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-                            } else {
-                              const d = new Date(val + 'T00:00:00Z')
-                              d.setUTCMonth(d.getUTCMonth() - 2)
-                              setField('aufgebotFuer', d.toISOString().slice(0, 10))
-                            }
-                          } else {
-                            const d = new Date(val + 'T00:00:00Z')
-                            d.setUTCMonth(d.getUTCMonth() - 2)
-                            setField('aufgebotFuer', d.toISOString().slice(0, 10))
-                          }
-                        }
+                        // Mit gesetztem Termin braucht es keinen Recall mehr → «RC zu erstellen ab» leeren
+                        if (val) setField('aufgebotFuer', '')
                       }} />
                     <ClearBtn show={!!form.naechsteKons} onClear={() => {
                       setField('naechsteKons', '')
