@@ -3540,7 +3540,16 @@ export default function RecallPage() {
                             return !!m && m[1] > today
                           }
                           if (form.verlauf.some(isActivePlannedReminder)) {
-                            setField('verlauf', form.verlauf.filter(v => !isActivePlannedReminder(v)))
+                            const cancelEntry = {
+                              datum: today,
+                              aktion: 'Reminder',
+                              ergebnis: `Abgesagt – Termin am ${formatDate(val)} vereinbart`,
+                              von: displayLabel,
+                            }
+                            setField('verlauf', [
+                              ...form.verlauf.filter(v => !isActivePlannedReminder(v)),
+                              cancelEntry,
+                            ])
                           }
                         }
                       }} />
