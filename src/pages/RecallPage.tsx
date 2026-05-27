@@ -4010,14 +4010,17 @@ export default function RecallPage() {
                         >
                           <Mail className="w-4 h-4" /> E-Mail
                         </button>
-                        <button type="button"
-                          onClick={() => { setVorgehenReminderOpen(o => !o); setVorgehenTelOpen(false); setVorgehenEmailOpen(false) }}
-                          className={`flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                            vorgehenReminderOpen ? 'border-purple-400 bg-purple-50 text-purple-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                          }`}
-                        >
-                          <Bell className="w-4 h-4" /> Reminder
-                        </button>
+                        {/* Reminder nur wenn kein Termin gesetzt ist — sonst überflüssig */}
+                        {!form.naechsteKons && (
+                          <button type="button"
+                            onClick={() => { setVorgehenReminderOpen(o => !o); setVorgehenTelOpen(false); setVorgehenEmailOpen(false) }}
+                            className={`flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                              vorgehenReminderOpen ? 'border-purple-400 bg-purple-50 text-purple-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <Bell className="w-4 h-4" /> Reminder
+                          </button>
+                        )}
                       </div>
 
                       {/* Telefon panel */}
@@ -4119,7 +4122,7 @@ export default function RecallPage() {
                       )}
 
                       {/* Reminder panel */}
-                      {vorgehenReminderOpen && (
+                      {vorgehenReminderOpen && !form.naechsteKons && (
                         <div className="mb-3 bg-white rounded-xl border border-purple-200 p-3 space-y-2">
                           <label className="text-xs font-semibold text-gray-600 block">Reminder senden am</label>
                           {/* Quick-select timeframes */}
