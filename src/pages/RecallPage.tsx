@@ -110,8 +110,16 @@ function normalizeLirisAddress(raw: string): string {
 }
 function isStorniert(row: RecallPatient): boolean   { return s(row.storniert).toLowerCase() === 'ja' }
 
+/** True if the patient already has a real next-consult date booked (not «kein Termin», not empty). */
+function hasScheduledNextKons(p: { naechsteKons?: string | null }): boolean {
+  const nk = p.naechsteKons
+  return !!nk && nk !== 'kein Termin'
+}
+
 /** Returns { reminderDate, newDate } if a 2nd reminder is due (6 months without response), else null */
 function getOverdueReminderInfo(p: RecallPatient): { reminderDate: string; newDate: string } | null {
+  // Mit einem terminierten Folgekonsil ist ein Reminder überflüssig — Pille unterdrücken
+  if (hasScheduledNextKons(p)) return null
   const verlauf: VerlaufEntry[] = p.verlauf ?? []
   // Last MANUAL reminder (not System-generated)
   const manualReminders = verlauf.filter(e => e.aktion === 'Reminder' && e.von !== 'System')
@@ -202,6 +210,7 @@ function isWithin7Days(erstelltStamp: string | null | undefined): boolean {
 
 /** Returns the latest planned future reminder date (YYYY-MM-DD), or null if none upcoming */
 function getUpcomingReminderDate(p: RecallPatient): string | null {
+  if (hasScheduledNextKons(p)) return null
   if (!p.verlauf) return null
   const today = new Date().toISOString().slice(0, 10)
   let latest: string | null = null
@@ -216,6 +225,7 @@ function getUpcomingReminderDate(p: RecallPatient): string | null {
 
 /** Returns the due reminder date (YYYY-MM-DD) if any Reminder entry is past-due, else null */
 function getReminderDueDate(p: RecallPatient): string | null {
+  if (hasScheduledNextKons(p)) return null
   if (!p.verlauf) return null
   const today = new Date().toISOString().slice(0, 10)
   let latest: string | null = null
