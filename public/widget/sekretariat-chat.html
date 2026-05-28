@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Sekretariat-Chat – Augenzentrum Suhr</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #f9fafb;
+    --border: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--text); background: white; }
+  body { display: flex; flex-direction: column; height: 100vh; }
+
+  .header {
+    background: var(--primary);
+    color: white;
+    padding: 14px 16px;
+    font-weight: 600;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .header .dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+  .header .dot.closed { background: #f59e0b; }
+  .header .sub { font-weight: 400; font-size: 12px; opacity: 0.85; margin-left: auto; }
+
+  .panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: var(--bg);
+  }
+  .card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 14px; }
+  .card p { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+  .card.warn { background: #fef3c7; border-color: #fcd34d; }
+  .card.warn p { color: #78350f; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input, textarea, button {
+    font-family: inherit; font-size: 14px;
+  }
+  input[type=text], input[type=tel], textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--primary); }
+
+  .checkbox-row { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; font-size: 13px; color: var(--text); }
+  .checkbox-row input { margin-top: 2px; }
+
+  button.primary {
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary:hover:not(:disabled) { background: var(--primary-dark); }
+
+  .messages { display: flex; flex-direction: column; gap: 8px; }
+  .msg {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.visitor { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+  .msg.staff   { align-self: flex-start; background: white; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg .time { font-size: 10px; opacity: 0.7; margin-top: 3px; }
+
+  .composer { padding: 10px; border-top: 1px solid var(--border); background: white; display: flex; gap: 8px; flex-shrink: 0; }
+  .composer textarea { resize: none; height: 44px; max-height: 120px; }
+  .composer button { padding: 0 16px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  .composer button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .center { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
+  .small { font-size: 11px; color: var(--muted); }
+  a { color: var(--primary); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="dot" id="status-dot"></span>
+  <span>Sekretariat Augenzentrum Suhr</span>
+  <span class="sub" id="status-text"></span>
+</div>
+
+<div class="panel" id="panel">
+  <div class="center">Lade…</div>
+</div>
+
+<div class="composer" id="composer" style="display: none;">
+  <textarea id="msg-input" placeholder="Nachricht…" rows="1"></textarea>
+  <button id="send-btn">Senden</button>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js'
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js'
+import {
+  getFirestore, doc, setDoc, getDoc, updateDoc, addDoc, collection,
+  serverTimestamp, query, orderBy, onSnapshot
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js'
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAYRnIZJ46oEPUIZ9uRiLDbTWW0dB93vgQ",
+  authDomain: "azsdb-999d6.firebaseapp.com",
+  projectId: "azsdb-999d6",
+  storageBucket: "azsdb-999d6.firebasestorage.app",
+  messagingSenderId: "782091866487",
+  appId: "1:782091866487:web:4616ff6bf7cce1e15c1172",
+}
+const app = initializeApp(firebaseConfig)
+const auth = getAuth(app)
+const db = getFirestore(app)
+
+// ---- Öffnungszeiten: Mo–Fr 09:00–17:00 Europe/Zurich ----
+function isOpenNow() {
+  const now = new Date()
+  const fmt = new Intl.DateTimeFormat('de-CH', {
+    timeZone: 'Europe/Zurich',
+    weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+  const parts = fmt.formatToParts(now)
+  const wd = parts.find(p => p.type === 'weekday').value // 'Mo','Di',...
+  const hh = parseInt(parts.find(p => p.type === 'hour').value, 10)
+  const isWeekday = ['Mo','Di','Mi','Do','Fr'].includes(wd)
+  return isWeekday && hh >= 9 && hh < 17
+}
+
+// ---- DOM helpers ----
+const panel    = document.getElementById('panel')
+const composer = document.getElementById('composer')
+const msgInput = document.getElementById('msg-input')
+const sendBtn  = document.getElementById('send-btn')
+const statusDot  = document.getElementById('status-dot')
+const statusText = document.getElementById('status-text')
+
+function setStatus(open, assignedName) {
+  statusDot.className = 'dot' + (open ? '' : ' closed')
+  if (!open) {
+    statusText.textContent = 'ausserhalb der Chat-Zeit'
+  } else if (assignedName) {
+    statusText.textContent = 'Sie chatten mit ' + assignedName
+  } else {
+    statusText.textContent = 'verfügbar'
+  }
+}
+
+function renderClosed() {
+  setStatus(false)
+  composer.style.display = 'none'
+  panel.innerHTML = `
+    <div class="card warn">
+      <h3>Chat geschlossen</h3>
+      <p>Unsere Chat-Zeit ist <b>Montag bis Freitag, 09:00–17:00</b>.</p>
+      <p>Für dringende Anliegen rufen Sie uns bitte an. Bei einem <b>medizinischen Notfall</b> wählen Sie die <b>144</b>.</p>
+    </div>
+    <div class="small">Bitte versuchen Sie es während unserer Chat-Zeit erneut.</div>
+  `
+}
+
+function renderConsent() {
+  setStatus(true)
+  composer.style.display = 'none'
+  panel.innerHTML = `
+    <div class="card">
+      <h3>Willkommen 👋</h3>
+      <p>Schreiben Sie uns Ihr Anliegen — unser Sekretariat antwortet so rasch wie möglich.</p>
+    </div>
+    <div class="card warn">
+      <h3>Wichtig</h3>
+      <p>• Bitte <b>keine Gesundheitsdaten</b> oder Diagnosen über den Chat senden.</p>
+      <p>• Wir geben hier <b>keine medizinischen Auskünfte</b>.</p>
+      <p>• <b>Notfälle:</b> 144 (Sanität) – nicht über diesen Chat.</p>
+    </div>
+    <div class="card">
+      <label>Ihr Name *</label>
+      <input id="f-name" type="text" maxlength="80" placeholder="Vor- und Nachname" />
+      <label>Telefon (optional)</label>
+      <input id="f-phone" type="tel" maxlength="40" placeholder="für Rückruf" />
+      <div class="checkbox-row">
+        <input id="f-consent" type="checkbox" />
+        <label for="f-consent">Ich habe die Hinweise gelesen und sende keine Gesundheitsdaten.</label>
+      </div>
+      <button class="primary" id="start-btn" disabled>Chat starten</button>
+    </div>
+  `
+  const nameEl    = document.getElementById('f-name')
+  const phoneEl   = document.getElementById('f-phone')
+  const consentEl = document.getElementById('f-consent')
+  const startBtn  = document.getElementById('start-btn')
+  function refresh() {
+    startBtn.disabled = !(nameEl.value.trim() && consentEl.checked)
+  }
+  nameEl.addEventListener('input', refresh)
+  consentEl.addEventListener('change', refresh)
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true
+    try {
+      await startChat(nameEl.value.trim(), phoneEl.value.trim())
+    } catch (e) {
+      console.error(e)
+      alert('Fehler beim Starten des Chats. Bitte versuchen Sie es erneut.')
+      startBtn.disabled = false
+    }
+  })
+}
+
+async function startChat(name, phone) {
+  const uid = auth.currentUser.uid
+  const ref = doc(db, 'sekretariatChats', uid)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      visitorUid: uid,
+      visitorName: name,
+      visitorPhone: phone,
+      status: 'open',
+      createdAt: serverTimestamp(),
+      lastMessageAt: serverTimestamp(),
+      lastMessagePreview: '',
+      unreadByStaff: false,
+      unreadByVisitor: false,
+    })
+  } else {
+    await updateDoc(ref, { visitorName: name, visitorPhone: phone, status: 'open' })
+  }
+  localStorage.setItem('azs.chat.started', '1')
+  renderChat()
+}
+
+let unsubMessages = null
+let unsubChat = null
+function renderChat() {
+  setStatus(true, null)
+  composer.style.display = 'flex'
+  panel.innerHTML = `
+    <div id="wait-banner" class="card warn" style="display:none">
+      <h3>⏳ Bitte einen Moment Geduld</h3>
+      <p>Alle Mitarbeitenden sind zurzeit besetzt. Ihre Anfrage ist eingegangen — sobald eine MPA frei wird, übernimmt sie den Chat. Sie können bereits jetzt Ihre Nachricht schreiben.</p>
+    </div>
+    <div class="messages" id="messages"></div>
+  `
+  const messagesEl = document.getElementById('messages')
+  const waitBanner = document.getElementById('wait-banner')
+
+  const uid = auth.currentUser.uid
+
+  // Subscribe to conversation doc for assignment status
+  if (unsubChat) unsubChat()
+  unsubChat = onSnapshot(doc(db, 'sekretariatChats', uid), snap => {
+    if (!snap.exists()) return
+    const data = snap.data()
+    const assigned = !!data.assignedToUid
+    if (assigned) {
+      waitBanner.style.display = 'none'
+      setStatus(true, data.assignedToName || 'Sekretariat')
+    } else {
+      waitBanner.style.display = 'block'
+      setStatus(true, null)
+    }
+  })
+
+  if (unsubMessages) unsubMessages()
+  const q = query(collection(db, 'sekretariatChats', uid, 'messages'), orderBy('createdAt', 'asc'))
+  unsubMessages = onSnapshot(q, snap => {
+    messagesEl.innerHTML = ''
+    snap.docs.forEach(d => {
+      const m = d.data()
+      const div = document.createElement('div')
+      div.className = 'msg ' + (m.sender === 'visitor' ? 'visitor' : 'staff')
+      const time = m.createdAt && m.createdAt.toDate
+        ? m.createdAt.toDate().toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
+        : ''
+      div.innerHTML = ''
+      const txt = document.createElement('div')
+      txt.textContent = m.text || ''
+      const t = document.createElement('div')
+      t.className = 'time'
+      t.textContent = (m.sender === 'staff' && m.staffName ? m.staffName + ' · ' : '') + time
+      div.appendChild(txt); div.appendChild(t)
+      messagesEl.appendChild(div)
+    })
+    panel.scrollTop = panel.scrollHeight
+    // mark as read by visitor
+    updateDoc(doc(db, 'sekretariatChats', uid), { unreadByVisitor: false }).catch(() => {})
+  })
+}
+
+sendBtn.addEventListener('click', sendMessage)
+msgInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+})
+
+async function sendMessage() {
+  const text = msgInput.value.trim()
+  if (!text) return
+  const uid = auth.currentUser.uid
+  sendBtn.disabled = true
+  try {
+    await addDoc(collection(db, 'sekretariatChats', uid, 'messages'), {
+      sender: 'visitor',
+      text,
+      createdAt: serverTimestamp(),
+    })
+    await updateDoc(doc(db, 'sekretariatChats', uid), {
+      lastMessageAt: serverTimestamp(),
+      lastMessagePreview: text.slice(0, 120),
+      unreadByStaff: true,
+      unreadByVisitor: false,
+      status: 'open',
+    })
+    msgInput.value = ''
+  } catch (e) {
+    console.error(e)
+    alert('Nachricht konnte nicht gesendet werden.')
+  } finally {
+    sendBtn.disabled = false
+    msgInput.focus()
+  }
+}
+
+// ---- Boot ----
+if (!isOpenNow()) {
+  renderClosed()
+} else {
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      try { await signInAnonymously(auth) } catch (e) {
+        console.error(e)
+        panel.innerHTML = '<div class="card warn"><h3>Verbindung fehlgeschlagen</h3><p>Bitte laden Sie die Seite neu.</p></div>'
+      }
+      return
+    }
+    // bestehender Chat? -> direkt rein
+    const snap = await getDoc(doc(db, 'sekretariatChats', user.uid))
+    if (snap.exists() && localStorage.getItem('azs.chat.started') === '1') {
+      renderChat()
+    } else {
+      renderConsent()
+    }
+  })
+}
+</script>
+</body>
+</html>
