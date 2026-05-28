@@ -691,9 +691,9 @@ export default function AppShell() {
 
             {/* Sekretariat-Chat */}
             {canAccessSekretariatChat && (
-              <NavLink to="/sekretariat-chat" className={({ isActive }) => navLinkClass(isActive)}>
+              <NavLink to="/sekretariat-chat" className={({ isActive }) => navLinkClass(isActive)} title="Chat mit Besuchern der Website (öffentlich)">
                 <MessageSquare className="w-4 h-4 shrink-0" />
-                Chat
+                Web-Chat
                 {chatUnreadCount > 0 && (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">
                     {chatUnreadCount}
@@ -1375,7 +1375,7 @@ export default function AppShell() {
             {canAccessSekretariatChat && (
               <NavLink to="/sekretariat-chat" className={({ isActive }) => mobileNavLinkClass(isActive)}>
                 <MessageSquare className="w-4 h-4 shrink-0" />
-                Chat
+                Web-Chat (Besucher)
                 {chatUnreadCount > 0 && (
                   <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-semibold">
                     {chatUnreadCount}

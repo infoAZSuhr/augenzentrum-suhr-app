@@ -76,10 +76,13 @@ export default function SekretariatChatPage() {
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6">
       <BackButton />
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-1">
         <MessageSquare className="w-6 h-6 text-primary-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Sekretariat-Chat</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Web-Chat – Besucher der Website</h1>
       </div>
+      <p className="text-sm text-gray-500 mb-4 ml-9">
+        Anfragen externer Besucher von augenzentrum-suhr.ch. <strong>Kein interner Mitarbeiter-Chat.</strong>
+      </p>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex h-[calc(100vh-200px)]">
         {/* Sidebar: conversation list */}
