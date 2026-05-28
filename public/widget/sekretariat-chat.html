@@ -143,8 +143,11 @@ const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 const db = getFirestore(app)
 
-// ---- Öffnungszeiten: Mo–Fr 09:00–17:00 Europe/Zurich ----
+// ---- Chat-Zeit: Mo–Fr 09:00–17:00 Europe/Zurich ----
+// Bypass für Tests: ?test=1 an die URL anhängen
 function isOpenNow() {
+  const params = new URLSearchParams(location.search)
+  if (params.get('test') === '1') return true
   const now = new Date()
   const fmt = new Intl.DateTimeFormat('de-CH', {
     timeZone: 'Europe/Zurich',
