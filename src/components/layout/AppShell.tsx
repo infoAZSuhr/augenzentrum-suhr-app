@@ -10,7 +10,6 @@ import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, serverTim
 import { db, auth } from '../../lib/firebase'
 import { manageFerienPlan, removePlanEntry, updatePlanComment } from '../../lib/firestorePlanung'
 import { TaskNotification, subscribeTaskNotifications, markTaskNotifRead } from '../../lib/firestoreTasks'
-import { subscribeAllChats } from '../../lib/firestoreSekretariatChat'
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail } from 'firebase/auth'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 
@@ -291,17 +290,8 @@ export default function AppShell() {
   const headerRef = useRef<HTMLElement>(null)
   const { profile, isAdmin, isArzt, isGuest, isGeschaeftsleitung, logout,
           canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessAufgaben,
-          canAccessRecall, canAccessAkv, canAccessSekretariatChat,
+          canAccessRecall, canAccessAkv,
           canAccessBenutzerverwaltung } = useAuth()
-
-  // Sekretariat-Chat: Anzahl ungelesener Konversationen für Badge
-  const [chatUnreadCount, setChatUnreadCount] = useState(0)
-  useEffect(() => {
-    if (!canAccessSekretariatChat) { setChatUnreadCount(0); return }
-    return subscribeAllChats(chats => {
-      setChatUnreadCount(chats.filter(c => c.unreadByStaff).length)
-    })
-  }, [canAccessSekretariatChat])
 
   // Close mobile menu on route change
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
@@ -689,18 +679,6 @@ export default function AppShell() {
               </NavLink>
             )}
 
-            {/* Sekretariat-Chat */}
-            {canAccessSekretariatChat && (
-              <NavLink to="/sekretariat-chat" className={({ isActive }) => navLinkClass(isActive)} title="Chat mit Besuchern der Website (öffentlich)">
-                <MessageSquare className="w-4 h-4 shrink-0" />
-                Web-Chat
-                {chatUnreadCount > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">
-                    {chatUnreadCount}
-                  </span>
-                )}
-              </NavLink>
-            )}
 
             {/* Admin dropdown — Admin + GL */}
             {(isAdmin || isGeschaeftsleitung) && (
@@ -1370,17 +1348,6 @@ export default function AppShell() {
               <NavLink to="/akv" className={({ isActive }) => mobileNavLinkClass(isActive)}>
                 <ClipboardList className="w-4 h-4 shrink-0" />
                 AKV
-              </NavLink>
-            )}
-            {canAccessSekretariatChat && (
-              <NavLink to="/sekretariat-chat" className={({ isActive }) => mobileNavLinkClass(isActive)}>
-                <MessageSquare className="w-4 h-4 shrink-0" />
-                Web-Chat (Besucher)
-                {chatUnreadCount > 0 && (
-                  <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-semibold">
-                    {chatUnreadCount}
-                  </span>
-                )}
               </NavLink>
             )}
             {(isAdmin || isGeschaeftsleitung) && (
