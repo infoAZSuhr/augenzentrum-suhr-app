@@ -21,7 +21,6 @@ export interface UserPermissions {
   aufgaben?:       boolean
   recall?:         boolean
   akv?:            boolean
-  sekretariatChat?: boolean
 }
 
 export interface UserProfile {
@@ -64,7 +63,6 @@ interface AuthContextType {
   canAccessAufgaben: boolean
   canAccessRecall: boolean
   canAccessAkv: boolean
-  canAccessSekretariatChat: boolean
   canAccessBenutzerverwaltung: boolean
   login:             (email: string, password: string) => Promise<void>
   register:          (email: string, password: string, displayName: string, username: string, role: UserRole) => Promise<void>
@@ -236,8 +234,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (key === 'recall') return isGeschaeftsleitung
     // akv: GL + arzt/mpa by default
     if (key === 'akv') return isGeschaeftsleitung || hasRole('arzt') || hasRole('mpa')
-    // sekretariatChat: MPA + GL by default
-    if (key === 'sekretariatChat') return isGeschaeftsleitung || hasRole('mpa')
     return hasRole('arzt') || hasRole('mpa')
   }
   const canAccessIvom                = permGranted('ivom')
@@ -247,14 +243,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const canAccessAufgaben            = permGranted('aufgaben')
   const canAccessRecall              = permGranted('recall')
   const canAccessAkv                 = permGranted('akv')
-  const canAccessSekretariatChat     = permGranted('sekretariatChat')
   const canAccessBenutzerverwaltung  = isAdmin || isGeschaeftsleitung
 
   return (
     <AuthContext.Provider value={{
       user, profile, loading,
       isAdmin, isArzt, isGuest, isGeschaeftsleitung, isReadOnly, isSuperAdmin,
-      canEditPlanung, canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessAufgaben, canAccessRecall, canAccessAkv, canAccessSekretariatChat, canAccessBenutzerverwaltung,
+      canEditPlanung, canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessAufgaben, canAccessRecall, canAccessAkv, canAccessBenutzerverwaltung,
       login, register, logout, refreshProfile, changePassword, sendResetEmail, sendResetByUsername
     }}>
       {children}

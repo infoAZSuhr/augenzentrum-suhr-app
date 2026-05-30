@@ -20,7 +20,6 @@ import RecallPage from './pages/RecallPage'
 import ZuweisungPage from './pages/ZuweisungPage'
 import AkvPage from './pages/AkvPage'
 import AdminSystemPage from './pages/AdminSystemPage'
-import SekretariatChatPage from './pages/SekretariatChatPage'
 
 const IVOMModule        = lazy(() => import('./modules/ivom'))
 const LagerModule       = lazy(() => import('./modules/lager'))
@@ -138,7 +137,7 @@ function PermissionGate({ allowed, children }: { allowed: boolean; children: Rea
 }
 
 function RoutesWithPermissions() {
-  const { isAdmin, isGeschaeftsleitung, canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessRecall, canAccessAkv, canAccessSekretariatChat, canAccessBenutzerverwaltung } = useAuth()
+  const { isAdmin, isGeschaeftsleitung, canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessRecall, canAccessAkv, canAccessBenutzerverwaltung } = useAuth()
   return (
     <Routes>
       <Route element={<AppShell />}>
@@ -157,7 +156,6 @@ function RoutesWithPermissions() {
         <Route path="recall"        element={<PermissionGate allowed={canAccessRecall}><RecallPage /></PermissionGate>} />
         <Route path="zuweisungen"  element={<PermissionGate allowed={canAccessRecall}><ZuweisungPage /></PermissionGate>} />
         <Route path="akv"          element={<PermissionGate allowed={canAccessAkv}><AkvPage /></PermissionGate>} />
-        <Route path="sekretariat-chat" element={<PermissionGate allowed={canAccessSekretariatChat}><SekretariatChatPage /></PermissionGate>} />
         <Route path="hilfe"        element={<HelpPage />} />
       </Route>
     </Routes>
