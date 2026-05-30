@@ -3,9 +3,8 @@ name: Seed TARDOC-SOPs in Firestore
 # Manueller Trigger über GitHub-UI:
 #   Actions → "Seed TARDOC-SOPs in Firestore" → Run workflow → Branch=main
 #
-# Voraussetzung (einmalig anlegen unter Settings → Secrets and variables → Actions):
-#   - SEED_ADMIN_EMAIL    = die E-Mail eines Admin-Users der App
-#   - SEED_ADMIN_PASSWORD = das Passwort dieses Admin-Users
+# Voraussetzung: nur das bestehende Secret FIREBASE_SERVICE_ACCOUNT
+# (wird bereits von deploy.yml genutzt). Keine zusätzlichen Secrets nötig.
 #
 # Das Skript ist idempotent: Falls die Section "H – TARDOC-Abrechnung & Tarife"
 # bereits existiert, wird sie nicht doppelt angelegt — der Run bricht sauber ab.
@@ -37,20 +36,16 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
-      - name: Prüfen ob Credentials gesetzt sind
-        env:
-          SEED_ADMIN_EMAIL:    ${{ secrets.SEED_ADMIN_EMAIL }}
-          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
-        run: |
-          if [ -z "$SEED_ADMIN_EMAIL" ] || [ -z "$SEED_ADMIN_PASSWORD" ]; then
-            echo "::error::Die Secrets SEED_ADMIN_EMAIL und SEED_ADMIN_PASSWORD sind nicht gesetzt."
-            echo "::error::Anlegen unter: Settings → Secrets and variables → Actions → New repository secret"
-            exit 1
-          fi
-          echo "✓ Credentials sind gesetzt"
-
       - name: Seed-Skript ausführen
         env:
-          SEED_ADMIN_EMAIL:    ${{ secrets.SEED_ADMIN_EMAIL }}
-          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
-        run: node scripts/seed-tardoc-sops.mjs
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT ist nicht gesetzt."
+            echo "::error::Wird vom Auto-Deploy-Workflow auch benötigt — bitte prüfen."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          node scripts/seed-tardoc-sops.mjs
+          rm -f /tmp/sa.json
