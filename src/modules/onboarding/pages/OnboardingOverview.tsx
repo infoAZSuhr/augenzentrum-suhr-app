@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Printer, FileDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download } from 'lucide-react'
 import BackButton from '../../../components/ui/BackButton'
 import {
   getSections, getAllSubsections, getAllPages,
@@ -18,7 +18,7 @@ import { db } from '../../../lib/firebase'
 import RichTextEditor from '../../../components/ui/RichTextEditor'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { cn } from '../../../utils/cn'
-import { exportPagePDF, exportPageDocx } from '../../../lib/sopExport'
+import SOPExportPreview from '../../../components/ui/SOPExportPreview'
 
 type DeleteTarget =
   | { type: 'section';    item: OnboardingSection }
@@ -119,6 +119,7 @@ export default function OnboardingOverview() {
 
   const [sidebarOpen,          setSidebarOpen]          = useState(true)
   const [activePageId,         setActivePageId]         = useState<string | null>(null)
+  const [showExportPreview,    setShowExportPreview]    = useState(false)
   const [expandedSections,     setExpandedSections]     = useState<Set<string>>(new Set())
   const [expandedSubsections,  setExpandedSubsections]  = useState<Set<string>>(new Set())
   const [search,               setSearch]               = useState('')
@@ -959,45 +960,16 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                   </p>
                 </div>
 
-                {/* Export-Buttons — für alle Nutzer sichtbar */}
-                <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => exportPagePDF({
-                      title:         activePage.title,
-                      content:       activePage.content || '',
-                      section:       activeSection?.title,
-                      subsection:    activeSubsection?.title,
-                      version:       activePage.version,
-                      zustaendig:    activePage.zustaendig,
-                      freigabeDurch: activePage.freigabeDurch,
-                      gueltigAb:     activePage.gueltigAb,
-                      status:        activePage.status,
-                    })}
-                    className="p-2 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-white/60 transition-colors"
-                    title="Als PDF drucken / speichern"
-                  >
-                    <Printer className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => exportPageDocx({
-                      title:         activePage.title,
-                      content:       activePage.content || '',
-                      section:       activeSection?.title,
-                      subsection:    activeSubsection?.title,
-                      version:       activePage.version,
-                      zustaendig:    activePage.zustaendig,
-                      freigabeDurch: activePage.freigabeDurch,
-                      gueltigAb:     activePage.gueltigAb,
-                      status:        activePage.status,
-                    })}
-                    className="p-2 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-white/60 transition-colors"
-                    title="Als Word-Datei (.doc) herunterladen"
-                  >
-                    <FileDown className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* Export-Button → öffnet Vorschau-Modal mit PDF-/Word-Option */}
+                <button
+                  type="button"
+                  onClick={() => setShowExportPreview(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-primary-700 bg-white/60 hover:bg-white border border-gray-200 hover:border-primary-200 transition-colors shrink-0 mt-0.5"
+                  title="Vorschau & Export (PDF / Word)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Export</span>
+                </button>
 
                 {/* Metadata — manuell bearbeitbar */}
                 <div className="text-[11px] text-gray-400 text-right leading-relaxed shrink-0 hidden sm:block space-y-1 min-w-[180px]">
@@ -1253,6 +1225,23 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
           isLoading={deleting}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {showExportPreview && activePage && (
+        <SOPExportPreview
+          page={{
+            title:         activePage.title,
+            content:       activePage.content || '',
+            section:       activeSection?.title,
+            subsection:    activeSubsection?.title,
+            version:       activePage.version,
+            zustaendig:    activePage.zustaendig,
+            freigabeDurch: activePage.freigabeDurch,
+            gueltigAb:     activePage.gueltigAb,
+            status:        activePage.status,
+          }}
+          onClose={() => setShowExportPreview(false)}
         />
       )}
     </div>
