@@ -48,7 +48,7 @@ const S_COL  = 'onboarding_sections'
 const SS_COL = 'onboarding_subsections'
 const P_COL  = 'onboarding_pages'
 
-const SECTION_TITLE = 'H – TARDOC-Abrechnung & Tarife'
+const SECTION_TITLE = 'I – TARDOC-Abrechnung & Tarife'
 const SECTION_COLOR = 'cyan'
 const SUBSECTION    = 'TARDOC-Abrechnung & Tarife'
 
@@ -68,7 +68,7 @@ const SOURCES_BLOCK = `
 const PAGES = [
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.1 Standard-Konsultation mit Bildgebung',
+    title: 'I.1 Standard-Konsultation mit Bildgebung',
     content: `
 <h2>Anlass</h2>
 <p>Reguläre ophthalmologische Konsultation mit kompletter Standortbestimmung — z.B. jährliche Diabetes-Kontrolle, Glaukom-Verlauf, AMD-Verlauf.</p>
@@ -101,7 +101,7 @@ ${SOURCES_BLOCK}`,
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.2 OCT / Fundus – Limitationen und Intervalle',
+    title: 'I.2 OCT / Fundus – Limitationen und Intervalle',
     content: `
 <h2>Tarifliche Limitationen pro Sitzung</h2>
 <table>
@@ -150,7 +150,7 @@ ${SOURCES_BLOCK}`,
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.3 Kinder-Zuschläge – was Augenärzte dürfen und was nicht',
+    title: 'I.3 Kinder-Zuschläge – was Augenärzte dürfen und was nicht',
     content: `
 <h2>Achtung: CG.15.0010 ist NICHT für Augenärzte</h2>
 <p><strong>CG.15.0010</strong> (Zuschlag für Leistungen bei Kindern bis 12 Jahren, 13.82 TP) ist tariflich explizit auf folgende drei Qualitative Dignitäten beschränkt:</p>
@@ -193,7 +193,7 @@ ${SOURCES_BLOCK}`,
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.4 Zykloplegie beim Kind – Abrechnung und Wartezeit',
+    title: 'I.4 Zykloplegie beim Kind – Abrechnung und Wartezeit',
     content: `
 <h2>Hauptleistung: RC.00.0090</h2>
 <p><strong>RC.00.0090</strong> – Refraktionsbestimmung mit Cykloplegie, objektiv</p>
@@ -242,7 +242,7 @@ ${SOURCES_BLOCK}`,
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.5 ICD-10-GM Diagnose-Codes für Ophthalmologie',
+    title: 'I.5 ICD-10-GM Diagnose-Codes für Ophthalmologie',
     content: `
 <h2>Pflicht zur Diagnose-Angabe</h2>
 <p>Bei jeder Rechnung muss mindestens <strong>eine</strong> ICD-Diagnose angegeben werden (KVG-Tarifvertrag). In der Schweiz wird <strong>ICD-10-GM</strong> verwendet. Bei ambulanten Pauschalen wird die <strong>Primärdiagnose</strong> (Hauptgrund des Patientenkontakts) erfasst — daraus leitet der Grouper die korrekte Pauschale ab.</p>
@@ -402,7 +402,7 @@ ${SOURCES_BLOCK}`,
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.6 TARDOC Tarifziffern – Übersicht für Augenarztpraxis',
+    title: 'I.6 TARDOC Tarifziffern – Übersicht für Augenarztpraxis',
     content: `
 <h2>Allgemeine Leistungen (AA / AK / AR)</h2>
 <table>
@@ -414,7 +414,7 @@ ${SOURCES_BLOCK}`,
     <tr><td>AA.00.0080</td><td>Ärztliches Konsilium, pro 1 Min.</td></tr>
     <tr><td>AA.10.0010</td><td>Telemedizinische Konsultation, erste 5 Min.</td></tr>
     <tr><td>AA.10.0030</td><td>Telemed. zeitversetzte Konsultation</td></tr>
-    <tr><td>AA.30.*</td><td>Notfall-/Dringlichkeits-Pauschalen (siehe H.8)</td></tr>
+    <tr><td>AA.30.*</td><td>Notfall-/Dringlichkeits-Pauschalen (siehe I.8)</td></tr>
     <tr><td>AK.00.0100</td><td>Nichtärztliche ophth. Leistungen, pro 1 Min. (MPA)</td></tr>
     <tr><td>AR.00.0210</td><td>Wechselzeit Sparte Klin. ophth. Diagnostik</td></tr>
     <tr><td>AR.00.0250</td><td>Wechselzeit Sparte Ophth. Photographie</td></tr>
@@ -474,21 +474,21 @@ ${SOURCES_BLOCK}`,
     <tr><td>RC.45.*</td><td>Therapeutische Diverses (z.B. Laser)</td><td>je nach Untertyp</td></tr>
     <tr><td>RC.50.*</td><td>Lidchirurgie</td><td>je nach Untertyp</td></tr>
     <tr><td>RC.55.*</td><td>Hornhaut-Eingriffe</td><td>je nach Untertyp</td></tr>
-    <tr><td>RC.65.*</td><td>Linsenchirurgie (Katarakt-OP siehe H.7 Pauschalen!)</td><td>je nach Untertyp</td></tr>
+    <tr><td>RC.65.*</td><td>Linsenchirurgie (Katarakt-OP siehe I.7 Pauschalen!)</td><td>je nach Untertyp</td></tr>
     <tr><td>RC.70.0010</td><td>Biomikroskopie zentraler Fundus</td><td>1×</td></tr>
     <tr><td>RC.70.0020</td><td>+ Fundusperipherie, pro Seite</td><td>2×, 1×/Seite</td></tr>
     <tr><td>RC.70.0030</td><td>+ Skleraindentation, pro Seite</td><td>–</td></tr>
   </tbody>
 </table>
 
-<p><strong>Hinweis Kataraktoperation</strong>: Wird nicht mehr via TARDOC RC.65 abgerechnet, sondern als <strong>ambulante Pauschale</strong> (Capitulum C02). Siehe Seite H.7.</p>
+<p><strong>Hinweis Kataraktoperation</strong>: Wird nicht mehr via TARDOC RC.65 abgerechnet, sondern als <strong>ambulante Pauschale</strong> (Capitulum C02). Siehe Seite I.7.</p>
 
 ${SOURCES_BLOCK}`,
   },
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.7 Ambulante Pauschalen (Capitulum C02 Auge)',
+    title: 'I.7 Ambulante Pauschalen (Capitulum C02 Auge)',
     content: `
 <h2>Hintergrund</h2>
 <p>Seit <strong>01.01.2026</strong> funktioniert das ambulante Gesamttarif-System zweigleisig:</p>
@@ -558,7 +558,7 @@ ${SOURCES_BLOCK}`,
 
   // ─────────────────────────────────────────────────────────────────────────
   {
-    title: 'H.8 Notfall vs. Dringlichkeit – wann was abrechnen',
+    title: 'I.8 Notfall vs. Dringlichkeit – wann was abrechnen',
     content: `
 <h2>Begriffsdefinitionen nach TARDOC AA.30</h2>
 <table>
