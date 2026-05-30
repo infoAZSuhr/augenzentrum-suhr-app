@@ -628,15 +628,22 @@ function ask(rl, q) {
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
-const rl = createInterface({ input: process.stdin, output: process.stdout })
-
 console.log('\n╔════════════════════════════════════════════════════╗')
 console.log('║   TARDOC-Abrechnung & Tarife – SOP-Seeding         ║')
 console.log('╚════════════════════════════════════════════════════╝\n')
 
-const email    = await ask(rl, 'Admin E-Mail:    ')
-const password = await ask(rl, 'Admin Passwort:  ')
-rl.close()
+// Credentials: zuerst aus Env-Variablen (für CI / GitHub Actions),
+// sonst interaktive Eingabe (für lokale Ausführung).
+let email    = process.env.SEED_ADMIN_EMAIL || ''
+let password = process.env.SEED_ADMIN_PASSWORD || ''
+if (email && password) {
+  console.log('✓ Credentials aus Umgebungsvariablen übernommen (CI-Modus)\n')
+} else {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  email    = await ask(rl, 'Admin E-Mail:    ')
+  password = await ask(rl, 'Admin Passwort:  ')
+  rl.close()
+}
 
 console.log('\nAnmelden …')
 await setPersistence(auth, inMemoryPersistence)
