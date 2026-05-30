@@ -28,7 +28,8 @@ import {
 import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
 import { collection, getDocs } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { db, storage } from '../lib/firebase'
+import { ref as storageRef, uploadBytes } from 'firebase/storage'
 
 const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
 const ZU_BEARB   = 'Zu bearbeiten'
@@ -788,6 +789,27 @@ export default function RecallPage() {
     setImportingZuBearb(true)
     setSyncMsg('Excel wird eingelesen…')
     try {
+      // 0. Archiv-Upload (parallel, blockiert Import nicht) — Original-Excel in Firebase Storage sichern
+      //    Pfad: recall-uploads/YYYY-MM-DD_HH-MM-SS_originalname.xlsx
+      ;(async () => {
+        try {
+          const now = new Date()
+          const ts =
+            now.toISOString().slice(0, 10) + '_' +
+            String(now.getHours()).padStart(2, '0') + '-' +
+            String(now.getMinutes()).padStart(2, '0') + '-' +
+            String(now.getSeconds()).padStart(2, '0')
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_')
+          const path = `recall-uploads/${ts}_${safeName}`
+          await uploadBytes(storageRef(storage, path), file, {
+            customMetadata: { uploadedBy: username, originalName: file.name },
+          })
+          console.log('[Recall] Excel-Upload archiviert:', path)
+        } catch (err) {
+          console.warn('[Recall] Excel-Archivierung fehlgeschlagen (Import läuft trotzdem weiter):', err)
+        }
+      })()
+
       // 1. Parse Excel
       const buf  = await file.arrayBuffer()
       const wb   = XLSX.read(buf, { type: 'array', cellDates: true })
