@@ -14,6 +14,7 @@ on:
       - 'scripts/**'
       - 'electron/**'
       - '.github/workflows/update-*.yml'
+      - '.github/workflows/seed-*.yml'
   workflow_dispatch:
 
 # Parallel-Deploys verhindern (auch über Workflow-Grenzen hinweg, falls update-*.yml

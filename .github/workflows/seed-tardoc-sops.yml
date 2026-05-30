@@ -1,0 +1,56 @@
+name: Seed TARDOC-SOPs in Firestore
+
+# Manueller Trigger über GitHub-UI:
+#   Actions → "Seed TARDOC-SOPs in Firestore" → Run workflow → Branch=main
+#
+# Voraussetzung (einmalig anlegen unter Settings → Secrets and variables → Actions):
+#   - SEED_ADMIN_EMAIL    = die E-Mail eines Admin-Users der App
+#   - SEED_ADMIN_PASSWORD = das Passwort dieses Admin-Users
+#
+# Das Skript ist idempotent: Falls die Section "H – TARDOC-Abrechnung & Tarife"
+# bereits existiert, wird sie nicht doppelt angelegt — der Run bricht sauber ab.
+# Falls neu geseedet werden soll: vorher in der App die Section löschen.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-tardoc-sops
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm ci
+
+      - name: Prüfen ob Credentials gesetzt sind
+        env:
+          SEED_ADMIN_EMAIL:    ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$SEED_ADMIN_EMAIL" ] || [ -z "$SEED_ADMIN_PASSWORD" ]; then
+            echo "::error::Die Secrets SEED_ADMIN_EMAIL und SEED_ADMIN_PASSWORD sind nicht gesetzt."
+            echo "::error::Anlegen unter: Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "✓ Credentials sind gesetzt"
+
+      - name: Seed-Skript ausführen
+        env:
+          SEED_ADMIN_EMAIL:    ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+        run: node scripts/seed-tardoc-sops.mjs
