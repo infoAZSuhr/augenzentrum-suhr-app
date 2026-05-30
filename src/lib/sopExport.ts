@@ -8,8 +8,10 @@
  *          Word 2007+ öffnet das anstandslos und konvertiert beim Speichern
  *          in echtes .docx.
  *
- * Beide Funktionen akzeptieren rohes TipTap-HTML aus dem RichTextEditor.
+ * Beide Funktionen akzeptieren rohes TipTap-HTML aus dem RichTextEditor und
+ * reichern es vor dem Render mit Abkürzungs-Tooltips an (expandAbbreviations).
  */
+import { expandAbbreviations } from './abbreviationHelper'
 
 export interface ExportPageInput {
   title: string
@@ -101,6 +103,12 @@ const STYLES = `
     color: #78350f;
   }
   a { color: #0369a1; text-decoration: underline; }
+  abbr[title] {
+    text-decoration: underline dotted;
+    text-decoration-color: #06b6d4;
+    text-underline-offset: 2px;
+    cursor: help;
+  }
   .footer {
     margin-top: 28px;
     padding-top: 8px;
@@ -141,6 +149,9 @@ export function buildFullHtml(p: ExportPageInput): string {
     .filter((s): s is string => !!s)
     .map(escapeHtml)
     .join(' &rsaquo; ')
+  // Abkürzungen mit Tooltips anreichern — funktioniert im Browser-Print
+  // (Hover im Preview-Iframe) und in Word (title-Attribut bleibt erhalten).
+  const expandedContent = expandAbbreviations(p.content)
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -155,7 +166,7 @@ export function buildFullHtml(p: ExportPageInput): string {
   </div>
   ${buildMetaBlock(p)}
   <div class="content">
-    ${p.content}
+    ${expandedContent}
   </div>
   <div class="footer">
     Augenzentrum Suhr · SOP-Export · ${new Date().toLocaleDateString('de-CH')}

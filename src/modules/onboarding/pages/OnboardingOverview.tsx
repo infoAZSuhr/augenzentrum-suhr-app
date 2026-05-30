@@ -19,6 +19,7 @@ import RichTextEditor from '../../../components/ui/RichTextEditor'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { cn } from '../../../utils/cn'
 import SOPExportPreview from '../../../components/ui/SOPExportPreview'
+import { expandAbbreviations } from '../../../lib/abbreviationHelper'
 
 type DeleteTarget =
   | { type: 'section';    item: OnboardingSection }
@@ -1110,17 +1111,25 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
               </div>
             )}
 
-            {/* Content – editor fills all remaining height */}
-            <div className="flex-1 overflow-hidden flex flex-col">
-              <RichTextEditor
-                key={activePageId}
-                content={pageContent}
-                editable={isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)}
-                onChange={html => { setPageContent(html); setPageDirty(true) }}
-                placeholder="Inhalt hier eingeben…"
-                className="flex-1"
-              />
-            </div>
+            {/* Content – editor fills all remaining height.
+                Read-Only-Nutzer sehen den Content mit aufgelösten Abkürzungs-Tooltips;
+                im Edit-Modus bleibt der Roh-HTML erhalten, damit TipTap die <abbr>-Tags
+                beim Speichern nicht verliert (sie sind nicht im Editor-Schema). */}
+            {(() => {
+              const editable = isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)
+              return (
+                <div className="flex-1 overflow-hidden flex flex-col">
+                  <RichTextEditor
+                    key={`${activePageId}-${editable ? 'edit' : 'view'}`}
+                    content={editable ? pageContent : expandAbbreviations(pageContent)}
+                    editable={editable}
+                    onChange={html => { setPageContent(html); setPageDirty(true) }}
+                    placeholder="Inhalt hier eingeben…"
+                    className="flex-1"
+                  />
+                </div>
+              )
+            })()}
 
             {/* ── Relevant für + Schulungsnachweis Panels ── */}
             {activePage.status === 'final' || isAdmin || isGeschaeftsleitung ? (
