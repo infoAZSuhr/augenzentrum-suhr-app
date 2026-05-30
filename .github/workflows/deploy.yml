@@ -66,11 +66,18 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
           npm install -g firebase-tools
-          # Storage NICHT mit deployen: der CI-Service-Account hat keine
-          # serviceusage.services.get-Permission, ohne die der Storage-Schritt
-          # mit 403 abbricht (Firebase prüft vor dem Storage-Deploy ob die
-          # firebasestorage.googleapis.com-API aktiviert ist).
-          # Storage-Rules müssen einmalig manuell deployed werden:
-          #   firebase deploy --only storage --project azsdb-999d6
-          firebase deploy --only "hosting,firestore:rules" --project azsdb-999d6 --non-interactive
+          # Nur Hosting deployen. Grund: der CI-Service-Account hat keine
+          # serviceusage.services.get-Permission, ohne die Firebase CLI
+          # seit einer kürzlichen Version *jeden* Deploy-Schritt mit 403
+          # abbricht (Pre-Check ob die jeweilige API aktiviert ist).
+          #
+          # Sobald dem Service-Account die Rolle
+          #   roles/serviceusage.serviceUsageConsumer
+          # in der Google Cloud IAM erteilt wird, können firestore:rules
+          # und storage wieder dazu — siehe Kommentar-Historie dieser Datei.
+          #
+          # Bis dahin: manuell lokal deployen wenn Rules ändern:
+          #   firebase deploy --only firestore:rules --project azsdb-999d6
+          #   firebase deploy --only storage         --project azsdb-999d6
+          firebase deploy --only hosting --project azsdb-999d6 --non-interactive
           rm -f /tmp/sa.json
