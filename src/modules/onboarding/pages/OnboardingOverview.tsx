@@ -20,6 +20,7 @@ import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { cn } from '../../../utils/cn'
 import SOPExportPreview from '../../../components/ui/SOPExportPreview'
 import { expandAbbreviations } from '../../../lib/abbreviationHelper'
+import { useGlossar } from '../../../lib/GlossarContext'
 
 type DeleteTarget =
   | { type: 'section';    item: OnboardingSection }
@@ -103,6 +104,7 @@ function fmtDateStr(s: string | undefined): string {
 
 export default function OnboardingOverview() {
   const { isAdmin, isArzt, isGeschaeftsleitung, isGuest, profile } = useAuth()
+  const { map: glossarMap } = useGlossar()
   const canEdit        = isAdmin || isGeschaeftsleitung  // structural changes (sidebar +/delete/drag)
   const canViewRecords = !isGuest
   const username    = profile?.username    ?? ''
@@ -1159,7 +1161,7 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                 <div
                   className="flex-1 overflow-auto px-6 py-5 prose prose-sm max-w-none prose-headings:text-gray-900 prose-table:text-sm prose-th:bg-gray-50 prose-td:align-top prose-a:text-primary-600"
                   // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: expandAbbreviations(pageContent) }}
+                  dangerouslySetInnerHTML={{ __html: expandAbbreviations(pageContent, glossarMap) }}
                 />
               )
             })()}
@@ -1282,6 +1284,7 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
             freigabeDurch: activePage.freigabeDurch,
             gueltigAb:     activePage.gueltigAb,
             status:        activePage.status,
+            glossar:       glossarMap,
           }}
           onClose={() => setShowExportPreview(false)}
         />

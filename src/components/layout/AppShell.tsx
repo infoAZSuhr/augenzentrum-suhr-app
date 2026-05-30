@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, HelpCircle, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft } from 'lucide-react'
-import { HelpModeOverlay } from '../HelpMode'
-import type { HelpEntry } from '../../lib/helpTexts'
+import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft, Library } from 'lucide-react'
+import GlossarModal from '../ui/GlossarModal'
 import { cn } from '../../utils/cn'
 import { version } from '../../../package.json'
 import { useAuth, UserProfile } from '../../lib/AuthContext'
@@ -279,8 +278,7 @@ export default function AppShell() {
   const [editDraft,           setEditDraft]           = useState<Partial<PlanungRequest>>({})
   const [ferienModal,         setFerienModal]         = useState<FerienEditData|null>(null)
   const [taskNotifications,   setTaskNotifications]   = useState<TaskNotification[]>([])
-  const [helpMode,            setHelpMode]            = useState(false)
-  const [helpTooltip,         setHelpTooltip]         = useState<{entry: HelpEntry; position: {x:number;y:number}}|null>(null)
+  const [glossarOpen,         setGlossarOpen]         = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const userRef   = useRef<HTMLDivElement>(null)
@@ -583,12 +581,7 @@ export default function AppShell() {
 
   return (
     <div className="flex flex-col h-screen h-dvh bg-gray-50 overflow-hidden">
-      <HelpModeOverlay
-        active={helpMode}
-        tooltip={helpTooltip}
-        onTooltipClose={() => setHelpTooltip(null)}
-        onTooltipOpen={(entry, position) => setHelpTooltip({ entry, position })}
-      />
+      {glossarOpen && <GlossarModal onClose={() => setGlossarOpen(false)} />}
       {/* ── Top Navigation Bar ── */}
       <header ref={headerRef} className="bg-white border-b border-gray-200 shrink-0 z-30">
         <div className="flex items-center gap-2 px-4 h-14">
@@ -729,15 +722,14 @@ export default function AppShell() {
 
           {/* Right controls */}
           <div className="flex items-center gap-2">
-            {/* Help button */}
+            {/* Help / Glossar buttons */}
             <div className="flex items-center gap-1">
               <button
-                data-help-toggle
-                onClick={() => { setHelpMode(v => !v); setHelpTooltip(null) }}
-                className={`p-2 rounded-lg transition-colors ${helpMode ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-100'}`}
-                title={helpMode ? 'Hilfe-Modus beenden' : 'Hilfe-Modus'}
+                onClick={() => setGlossarOpen(true)}
+                className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                title="Glossar – Abkürzungen & Legenden"
               >
-                <HelpCircle className="w-5 h-5" />
+                <Library className="w-5 h-5" />
               </button>
               <NavLink to="/hilfe" className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors" title="Benutzerhandbuch">
                 <BookOpen className="w-5 h-5" />
