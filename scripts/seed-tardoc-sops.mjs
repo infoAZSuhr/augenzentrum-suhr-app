@@ -2,34 +2,46 @@
  * Einmaliges (idempotentes) Seed-Skript: Erstellt die SOP-Section
  * "H – TARDOC-Abrechnung & Tarife" mit 8 Pages in Firestore.
  *
- * Ausführen:
- *   node scripts/seed-tardoc-sops.mjs
+ * Ausführen (CI / GitHub Action):
+ *   Wird vom Workflow .github/workflows/seed-tardoc-sops.yml getriggert.
+ *   Nutzt das bestehende FIREBASE_SERVICE_ACCOUNT-Secret via Application
+ *   Default Credentials (GOOGLE_APPLICATION_CREDENTIALS).
  *
- * Voraussetzungen:
- *   - npm install (für firebase-Modul)
- *   - Admin-Login (E-Mail + Passwort) mit Schreibrechten auf onboarding_*
+ * Ausführen (lokal):
+ *   1. Service-Account-JSON von Firebase Console → Project Settings →
+ *      Service Accounts → Generate new private key herunterladen
+ *   2. GOOGLE_APPLICATION_CREDENTIALS=/pfad/zu/sa.json node scripts/seed-tardoc-sops.mjs
  *
  * Idempotenz: Prüft vorher, ob die Section bereits existiert. Falls ja → Abbruch.
  * Bei Bedarf erneut ausführen: vorher die Section in der App löschen.
  *
+ * Admin SDK bypasst die Firestore-Rules (privileged access) — bewusst gewollt
+ * für das Seeding.
+ *
  * Stand: 30.05.2026 · TARDOC 1.4c · Ambulante Pauschalen 1.1c
  */
-import { initializeApp } from 'firebase/app'
-import { getAuth, signInWithEmailAndPassword, inMemoryPersistence, setPersistence } from 'firebase/auth'
-import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
-import { createInterface } from 'readline'
+import admin from 'firebase-admin'
+import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
-// ── Firebase config (gleicher Stand wie src/lib/firebase.ts) ─────────────────
-const app = initializeApp({
-  apiKey:            'AIzaSyAYRnIZJ46oEPUIZ9uRiLDbTWW0dB93vgQ',
-  authDomain:        'azsdb-999d6.firebaseapp.com',
-  projectId:         'azsdb-999d6',
-  storageBucket:     'azsdb-999d6.firebasestorage.app',
-  messagingSenderId: '782091866487',
-  appId:             '1:782091866487:web:4616ff6bf7cce1e15c1172',
-})
-const auth = getAuth(app)
-const db   = getFirestore(app)
+const PROJECT_ID = 'azsdb-999d6'
+
+// Credentials-Quelle bestimmen
+let credential
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  // Standard-Weg: Service-Account-JSON via Datei-Pfad
+  credential = admin.credential.applicationDefault()
+} else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // Fallback: Service-Account-JSON als Inline-String (z.B. direkt im Workflow)
+  credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+} else {
+  console.error('\n❌ Fehler: keine Service-Account-Credentials gefunden.')
+  console.error('   Setze entweder GOOGLE_APPLICATION_CREDENTIALS (Pfad zu sa.json)')
+  console.error('   oder FIREBASE_SERVICE_ACCOUNT (Inline-JSON).\n')
+  process.exit(1)
+}
+
+admin.initializeApp({ credential, projectId: PROJECT_ID })
+const db = getFirestore()
 
 // ── Collection-Namen (identisch mit src/lib/firestoreOnboarding.ts) ──────────
 const S_COL  = 'onboarding_sections'
@@ -622,39 +634,17 @@ ${SOURCES_BLOCK}`,
   },
 ]
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-function ask(rl, q) {
-  return new Promise(res => rl.question(q, res))
-}
-
 // ── Main ────────────────────────────────────────────────────────────────────
 console.log('\n╔════════════════════════════════════════════════════╗')
 console.log('║   TARDOC-Abrechnung & Tarife – SOP-Seeding         ║')
 console.log('╚════════════════════════════════════════════════════╝\n')
 
-// Credentials: zuerst aus Env-Variablen (für CI / GitHub Actions),
-// sonst interaktive Eingabe (für lokale Ausführung).
-let email    = process.env.SEED_ADMIN_EMAIL || ''
-let password = process.env.SEED_ADMIN_PASSWORD || ''
-if (email && password) {
-  console.log('✓ Credentials aus Umgebungsvariablen übernommen (CI-Modus)\n')
-} else {
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  email    = await ask(rl, 'Admin E-Mail:    ')
-  password = await ask(rl, 'Admin Passwort:  ')
-  rl.close()
-}
-
-console.log('\nAnmelden …')
-await setPersistence(auth, inMemoryPersistence)
-await signInWithEmailAndPassword(auth, email.trim(), password.trim())
-console.log('✓ Angemeldet\n')
+console.log(`Projekt: ${PROJECT_ID}`)
+console.log('Authentifizierung: Firebase Admin SDK (Service Account)\n')
 
 // Idempotenz: Section bereits vorhanden? → Abbruch
 console.log(`Prüfe ob Section "${SECTION_TITLE}" bereits existiert …`)
-const existing = await getDocs(
-  query(collection(db, S_COL), where('title', '==', SECTION_TITLE))
-)
+const existing = await db.collection(S_COL).where('title', '==', SECTION_TITLE).get()
 if (!existing.empty) {
   console.log(`\n⚠  Section "${SECTION_TITLE}" existiert bereits (id: ${existing.docs[0].id}).`)
   console.log('   Skript abgebrochen. Falls Neuanlage gewünscht: Section vorher in der App löschen.\n')
@@ -663,7 +653,7 @@ if (!existing.empty) {
 console.log('✓ Noch nicht vorhanden – wird erstellt\n')
 
 // Bestehende Sections lesen, um die nächste freie Order-Nummer zu finden
-const allSections = await getDocs(collection(db, S_COL))
+const allSections = await db.collection(S_COL).get()
 const maxOrder = allSections.docs.reduce((max, d) => {
   const o = d.data().order
   return typeof o === 'number' && o > max ? o : max
@@ -671,34 +661,34 @@ const maxOrder = allSections.docs.reduce((max, d) => {
 const nextOrder = maxOrder + 1
 
 console.log(`Lege Section "${SECTION_TITLE}" an (order=${nextOrder}, color=${SECTION_COLOR}) …`)
-const secRef = await addDoc(collection(db, S_COL), {
+const secRef = await db.collection(S_COL).add({
   title:     SECTION_TITLE,
   color:     SECTION_COLOR,
   order:     nextOrder,
-  createdAt: serverTimestamp(),
+  createdAt: FieldValue.serverTimestamp(),
 })
 console.log(`✓ Section angelegt (id: ${secRef.id})\n`)
 
 console.log(`Lege Subsection "${SUBSECTION}" an …`)
-const ssRef = await addDoc(collection(db, SS_COL), {
+const ssRef = await db.collection(SS_COL).add({
   sectionId: secRef.id,
   title:     SUBSECTION,
   order:     0,
-  createdAt: serverTimestamp(),
+  createdAt: FieldValue.serverTimestamp(),
 })
 console.log(`✓ Subsection angelegt (id: ${ssRef.id})\n`)
 
 console.log(`Lege ${PAGES.length} Pages an …\n`)
 for (let i = 0; i < PAGES.length; i++) {
   const p = PAGES[i]
-  await addDoc(collection(db, P_COL), {
+  await db.collection(P_COL).add({
     sectionId:    secRef.id,
     subsectionId: ssRef.id,
     title:        p.title,
     content:      p.content.trim(),
     order:        i,
-    createdAt:    serverTimestamp(),
-    updatedAt:    serverTimestamp(),
+    createdAt:    FieldValue.serverTimestamp(),
+    updatedAt:    FieldValue.serverTimestamp(),
     createdBy:    'TARDOC-Seed-Skript',
     updatedBy:    'TARDOC-Seed-Skript',
     status:       'final',
