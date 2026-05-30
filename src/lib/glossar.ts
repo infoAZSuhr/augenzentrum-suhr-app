@@ -1,0 +1,93 @@
+/**
+ * Glossar / Abkürzungsverzeichnis
+ *
+ * Wird zur Laufzeit auf SOP-Page-Content angewendet: jede Abkürzung wird
+ * in <abbr title="...">…</abbr> umgewandelt, damit beim Hover ein Tooltip
+ * mit der Erklärung erscheint.
+ *
+ * Bitte case-sensitive eintragen. Wenn ein Begriff in mehreren Varianten
+ * verwendet wird (z.B. IVI / IVT / IVOM), jede Variante einzeln eintragen.
+ */
+
+export const GLOSSAR: Record<string, string> = {
+  // ── Tarifsystem & Recht ───────────────────────────────────────────────────
+  TARDOC:        'Schweizer Einzelleistungstarif für ambulante ärztliche Leistungen (ab 01.01.2026)',
+  TARMED:        'Vorgängertarif von TARDOC (gültig bis 31.12.2025)',
+  APG:           'Ambulante Pauschalen — Fallpauschalen für standardisierbare ambulante Behandlungen',
+  KVG:           'Bundesgesetz über die Krankenversicherung (obligatorische Grundversicherung)',
+  VVG:           'Bundesgesetz über den Versicherungsvertrag (private Zusatzversicherung)',
+  WZW:           'Wirksamkeit, Zweckmässigkeit, Wirtschaftlichkeit (KVG Art. 32)',
+  TP:            'Taxpunkt — Bewertungseinheit im TARDOC',
+  TPW:           'Taxpunktwert in CHF (kantonal verhandelt)',
+  AL:            'Ärztliche Leistung (Anteil der Tarifposition)',
+  TL:            'Technische Leistung (Anteil der Tarifposition für Praxisinfrastruktur)',
+  LKAAT:         'Leistungskatalog ambulante Arzttarife',
+  OAAT:          'Organisation ambulante Arzttarife AG',
+  FMH:           'Verbindung der Schweizer Ärztinnen und Ärzte (Foederatio Medicorum Helveticorum)',
+  BAG:           'Bundesamt für Gesundheit',
+  SOG:           'Schweizerische Ophthalmologische Gesellschaft',
+  SGAO:          'Schweizerische Gesellschaft für Augenheilkunde / -Ophthalmologie',
+  SIWF:          'Schweizerisches Institut für ärztliche Weiter- und Fortbildung',
+  MPA:           'Medizinische Praxisassistentin',
+  GL:            'Geschäftsleitung',
+  PIS:           'Praxis-Informations-System (Praxis-Software)',
+  KIM:           'Kommunikation im Medizinwesen (sichere Datenübertragung)',
+  PG:            'Pauschalengruppe (innerhalb einer Capitulum der ambulanten Pauschalen)',
+  ICD:           'Internationale statistische Klassifikation der Krankheiten (ICD-10)',
+  'ICD-10':      'Internationale statistische Klassifikation der Krankheiten, 10. Revision',
+  'ICD-10-GM':   'ICD-10 German Modification — die in der Schweiz für ambulante Abrechnung verwendete Version',
+  BfArM:         'Bundesinstitut für Arzneimittel und Medizinprodukte (Deutschland) — Herausgeber ICD-10-GM',
+
+  // ── Augenmedizin – Bildgebung & Diagnostik ────────────────────────────────
+  OCT:           'Optische Kohärenztomographie — bildgebende Schnittbilduntersuchung der Retina/Vorderabschnitt',
+  'OCT-A':       'OCT-Angiografie — nicht-invasive Gefässdarstellung der Retina via OCT',
+  SLO:           'Scanning-Laser-Ophthalmoskopie',
+  HRT:           'Heidelberg Retina Tomograph (konfokale Mikroskopie)',
+  GTIN:          'Global Trade Item Number — internationale Artikel-Strichcode-Nummer (z.B. EAN)',
+  RVV:           'Retinaler Venenverschluss',
+  RAV:           'Retinaler Arterienverschluss',
+  AREDS:         'Age-Related Eye Disease Study — Nahrungsergänzungsmittel-Schema bei AMD',
+  CNV:           'Choroidale Neovaskularisation',
+
+  // ── Augenmedizin – Erkrankungen ───────────────────────────────────────────
+  AMD:           'Altersbedingte Makuladegeneration',
+  DR:            'Diabetische Retinopathie',
+  DMÖ:           'Diabetisches Makulaödem',
+  POWG:          'Primäres Offenwinkelglaukom',
+  PEX:           'Pseudoexfoliations-Syndrom (Ursache für Sekundär-Glaukom und Katarakt-Komplikationen)',
+
+  // ── Augenmedizin – Therapie & Eingriffe ───────────────────────────────────
+  IVI:           'Intravitreale Injektion — Medikamenten-Einspritzung in den Glaskörper',
+  IVT:           'Intravitreale Therapie — Behandlungsserie mit IVI',
+  IVOM:          'Intravitreale operative Medikamenten-Eingabe (Synonym für IVI/IVT)',
+  'Anti-VEGF':   'Anti Vascular Endothelial Growth Factor — Medikamentenklasse gegen Gefäss-Neubildung (z.B. Eylea, Lucentis, Vabysmo)',
+  VEGF:          'Vascular Endothelial Growth Factor — gefässbildender Wachstumsfaktor',
+  IOL:           'Intraokularlinse — Kunstlinse, die bei Katarakt-OP implantiert wird',
+  MIGS:          'Minimally Invasive Glaucoma Surgery — minimal-invasive Glaukom-Chirurgie (z.B. iStent, Hydrus)',
+  YAG:           'Yttrium-Aluminium-Granat-Laser (z.B. für Nachstar-Behandlung)',
+  SLT:           'Selektive Lasertrabekuloplastik — Glaukom-Therapie',
+  LASIK:         'Laser-in-situ-Keratomileusis — refraktiver Hornhaut-Eingriff',
+  Phako:         'Phakoemulsifikation — Standard-OP-Verfahren bei Katarakt',
+
+  // ── Untersuchungstechnik ──────────────────────────────────────────────────
+  NCT:           'Non-Contact-Tonometer — kontaktlose Augendruckmessung',
+  iCare:         'Markenname eines kontaktlosen Tonometers (Rebound-Tonometrie)',
+  IOD:           'Intraokulärer Druck (Augeninnendruck)',
+  GAT:           'Goldmann-Applanationstonometrie — Goldstandard der Augendruckmessung',
+
+  // ── Seiten-/Anatomie-Abkürzungen ──────────────────────────────────────────
+  OD:            'Oculus dexter — rechtes Auge',
+  OS:            'Oculus sinister — linkes Auge',
+  OU:            'Oculus uterque — beide Augen',
+
+  // ── Allgemeinmedizin / häufige Codes ──────────────────────────────────────
+  'OP':          'Operation',
+  'IOL-Power':   'Berechnete Brechkraft der zu implantierenden Intraokularlinse (in Dioptrien)',
+  'Visus':       'Sehschärfe',
+  'Refraktion':  'Bestimmung der optischen Brechkraft des Auges (Brillenwerte)',
+  'Akkommodation': 'Aktive Anpassung der Linse zur Naheinstellung',
+  'Zykloplegie': 'Medikamentöse Ausschaltung der Akkommodation (z.B. mit Cyclopentolat) — nötig für objektive Refraktion bei Kindern',
+  'Skiaskopie':  'Objektive Refraktionsbestimmung mittels Lichtstreifen (Retinoskopie)',
+  'Refraktometer': 'Apparat zur automatischen, objektiven Refraktionsbestimmung',
+  'Mydriasis':   'Pupillenerweiterung (z.B. mit Tropicamid)',
+}
