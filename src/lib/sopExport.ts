@@ -11,7 +11,7 @@
  * Beide Funktionen akzeptieren rohes TipTap-HTML aus dem RichTextEditor.
  */
 
-interface ExportPageInput {
+export interface ExportPageInput {
   title: string
   content: string              // HTML (TipTap-Output)
   section?: string             // z.B. "H – TARDOC-Abrechnung & Tarife"
@@ -136,7 +136,7 @@ function escapeHtml(s: string): string {
   )
 }
 
-function buildFullHtml(p: ExportPageInput): string {
+export function buildFullHtml(p: ExportPageInput): string {
   const breadcrumb = [p.section, p.subsection].filter(Boolean).map(escapeHtml).join(' &rsaquo; ')
   return `<!DOCTYPE html>
 <html lang="de">
