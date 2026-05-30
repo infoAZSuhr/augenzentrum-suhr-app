@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Printer, FileDown } from 'lucide-react'
 import BackButton from '../../../components/ui/BackButton'
 import {
   getSections, getAllSubsections, getAllPages,
@@ -18,6 +18,7 @@ import { db } from '../../../lib/firebase'
 import RichTextEditor from '../../../components/ui/RichTextEditor'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { cn } from '../../../utils/cn'
+import { exportPagePDF, exportPageDocx } from '../../../lib/sopExport'
 
 type DeleteTarget =
   | { type: 'section';    item: OnboardingSection }
@@ -956,6 +957,46 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                     {activeSection?.title}
                     {activeSubsection && <> &rsaquo; <span className="text-gray-500">{activeSubsection.title}</span></>}
                   </p>
+                </div>
+
+                {/* Export-Buttons — für alle Nutzer sichtbar */}
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => exportPagePDF({
+                      title:         activePage.title,
+                      content:       activePage.content || '',
+                      section:       activeSection?.title,
+                      subsection:    activeSubsection?.title,
+                      version:       activePage.version,
+                      zustaendig:    activePage.zustaendig,
+                      freigabeDurch: activePage.freigabeDurch,
+                      gueltigAb:     activePage.gueltigAb,
+                      status:        activePage.status,
+                    })}
+                    className="p-2 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-white/60 transition-colors"
+                    title="Als PDF drucken / speichern"
+                  >
+                    <Printer className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportPageDocx({
+                      title:         activePage.title,
+                      content:       activePage.content || '',
+                      section:       activeSection?.title,
+                      subsection:    activeSubsection?.title,
+                      version:       activePage.version,
+                      zustaendig:    activePage.zustaendig,
+                      freigabeDurch: activePage.freigabeDurch,
+                      gueltigAb:     activePage.gueltigAb,
+                      status:        activePage.status,
+                    })}
+                    className="p-2 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-white/60 transition-colors"
+                    title="Als Word-Datei (.doc) herunterladen"
+                  >
+                    <FileDown className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Metadata — manuell bearbeitbar */}
