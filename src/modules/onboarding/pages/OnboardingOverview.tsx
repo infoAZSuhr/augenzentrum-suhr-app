@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download, Eye, EyeOff } from 'lucide-react'
 import BackButton from '../../../components/ui/BackButton'
 import {
   getSections, getAllSubsections, getAllPages,
@@ -121,6 +121,7 @@ export default function OnboardingOverview() {
   const [sidebarOpen,          setSidebarOpen]          = useState(true)
   const [activePageId,         setActivePageId]         = useState<string | null>(null)
   const [showExportPreview,    setShowExportPreview]    = useState(false)
+  const [previewMode,          setPreviewMode]          = useState(false)
   const [expandedSections,     setExpandedSections]     = useState<Set<string>>(new Set())
   const [expandedSubsections,  setExpandedSubsections]  = useState<Set<string>>(new Set())
   const [search,               setSearch]               = useState('')
@@ -961,6 +962,27 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                   </p>
                 </div>
 
+                {/* Toggle Vorschau-Modus — nur für editierende Nutzer relevant;
+                    schaltet zwischen Edit-Modus und Read-Only mit Glossar-Tooltips. */}
+                {(isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)) && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode(v => !v)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 mt-0.5',
+                      previewMode
+                        ? 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100'
+                        : 'bg-white/60 text-gray-600 hover:text-primary-700 hover:bg-white border-gray-200 hover:border-primary-200'
+                    )}
+                    title={previewMode ? 'Edit-Modus wieder einschalten' : 'Vorschau mit Glossar-Tooltips anzeigen'}
+                  >
+                    {previewMode
+                      ? <EyeOff className="w-3.5 h-3.5" />
+                      : <Eye    className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">{previewMode ? 'Bearbeiten' : 'Vorschau'}</span>
+                  </button>
+                )}
+
                 {/* Export-Button → öffnet Vorschau-Modal mit PDF-/Word-Option */}
                 <button
                   type="button"
@@ -1112,11 +1134,13 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
             )}
 
             {/* Content – editor fills all remaining height.
-                Read-Only-Nutzer sehen den Content mit aufgelösten Abkürzungs-Tooltips;
-                im Edit-Modus bleibt der Roh-HTML erhalten, damit TipTap die <abbr>-Tags
-                beim Speichern nicht verliert (sie sind nicht im Editor-Schema). */}
+                Read-Only-Anzeige (entweder User darf nicht editieren ODER Preview-Toggle
+                ist an) bekommt den HTML mit aufgelösten Abkürzungs-Tooltips. Im Edit-Modus
+                bleibt der Roh-HTML, damit TipTap die <abbr>-Tags beim Speichern nicht
+                verliert (sie sind nicht im Editor-Schema). */}
             {(() => {
-              const editable = isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)
+              const canEdit  = isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)
+              const editable = canEdit && !previewMode
               return (
                 <div className="flex-1 overflow-hidden flex flex-col">
                   <RichTextEditor
