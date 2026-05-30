@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { NoticesProvider } from './lib/NoticesContext'
 import { BrowserProvider } from './contexts/BrowserContext'
+import { GlossarProvider } from './lib/GlossarContext'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import LoginPage from './pages/LoginPage'
@@ -199,9 +200,11 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserProvider>
-          <AppRoutes />
-        </BrowserProvider>
+        <GlossarProvider>
+          <BrowserProvider>
+            <AppRoutes />
+          </BrowserProvider>
+        </GlossarProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

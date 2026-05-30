@@ -10,19 +10,21 @@
  *
  * Beide Funktionen akzeptieren rohes TipTap-HTML aus dem RichTextEditor und
  * reichern es vor dem Render mit Abkürzungs-Tooltips an (expandAbbreviations).
+ * Die Aufrufer übergeben dafür die Live-Glossar-Map aus dem GlossarContext.
  */
 import { expandAbbreviations } from './abbreviationHelper'
 
 export interface ExportPageInput {
   title: string
   content: string              // HTML (TipTap-Output)
-  section?: string             // z.B. "H – TARDOC-Abrechnung & Tarife"
+  section?: string             // z.B. "I – TARDOC-Abrechnung & Tarife"
   subsection?: string          // z.B. "TARDOC-Abrechnung & Tarife"
   version?: string | number
   zustaendig?: string
   freigabeDurch?: string
   gueltigAb?: string
   status?: string
+  glossar?: Record<string, string>  // optional: Map für expandAbbreviations
 }
 
 // ── gemeinsame CSS-Vorlage (drucktauglich + Word-tauglich) ───────────────────
@@ -151,7 +153,7 @@ export function buildFullHtml(p: ExportPageInput): string {
     .join(' &rsaquo; ')
   // Abkürzungen mit Tooltips anreichern — funktioniert im Browser-Print
   // (Hover im Preview-Iframe) und in Word (title-Attribut bleibt erhalten).
-  const expandedContent = expandAbbreviations(p.content)
+  const expandedContent = expandAbbreviations(p.content, p.glossar ?? {})
   return `<!DOCTYPE html>
 <html lang="de">
 <head>

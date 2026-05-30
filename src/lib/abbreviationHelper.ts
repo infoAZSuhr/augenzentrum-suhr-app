@@ -1,8 +1,12 @@
 /**
- * Wandelt im gerenderten HTML jede aus GLOSSAR bekannte Abkürzung in einen
+ * Wandelt im gerenderten HTML jede aus dem Glossar bekannte Abkürzung in einen
  * <abbr title="…">…</abbr>-Tag um, damit beim Hover der Browser-Tooltip
  * erscheint. Eine zugehörige Styling-Regel (gepunktete Unterstreichung)
  * lebt in src/index.css.
+ *
+ * Das Glossar wird zur Laufzeit aus Firestore geladen (GlossarContext) und
+ * als 2. Parameter übergeben — so kann die Liste im UI erweitert werden,
+ * ohne dass die App neu deployed werden muss.
  *
  * Sicherheitsmechanismen:
  * - HTML-Tags und deren Attribute werden NICHT angefasst (nur Text-Nodes
@@ -11,7 +15,6 @@
  * - Wort-Grenzen (\b) verhindern, dass z.B. "RC" innerhalb von
  *   "RC.35.0110" matcht.
  */
-import { GLOSSAR } from './glossar'
 
 // Regex, der HTML in "Tags" und "Text" splittet
 const TAG_OR_TEXT = /(<[^>]+>)/g
@@ -19,34 +22,40 @@ const TAG_OR_TEXT = /(<[^>]+>)/g
 // Bereiche, in denen wir NICHT ersetzen sollen
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE', 'ABBR', 'A'])
 
-// Vorbereitung: aus dem Glossar einen einzelnen Regex bauen, sortiert nach
-// Länge (längste zuerst) — damit z.B. "ICD-10-GM" vor "ICD-10" und "ICD"
-// matcht. Special chars werden escaped.
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
-
-const SORTED_TERMS = Object.keys(GLOSSAR)
-  .sort((a, b) => b.length - a.length)
-
-const TERMS_REGEX = new RegExp(
-  // Wort-Grenze davor — danach: Term — gefolgt von Wort-Grenze oder String-Ende.
-  // Für Begriffe mit Bindestrich (z.B. "Anti-VEGF") nutzt \b nicht zuverlässig;
-  // wir akzeptieren als rechte Grenze auch Satzzeichen / Whitespace / EOL.
-  `(?<![A-Za-z0-9_äöüÄÖÜß-])(${SORTED_TERMS.map(escapeRegex).join('|')})(?![A-Za-z0-9_äöüÄÖÜß-])`,
-  'g'
-)
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 }
 
 /**
- * Erweitert einen HTML-String mit <abbr>-Tooltips für alle bekannten
- * Abkürzungen. Idempotent (mehrfacher Aufruf erzeugt keine Verschachtelung).
+ * Baut einen Regex, der alle Glossar-Terme matcht — sortiert nach Länge
+ * (längste zuerst) damit z.B. "ICD-10-GM" vor "ICD-10" und "ICD" matcht.
  */
-export function expandAbbreviations(html: string): string {
+function buildTermsRegex(glossar: Record<string, string>): RegExp | null {
+  const terms = Object.keys(glossar).filter(t => t.length > 0)
+  if (terms.length === 0) return null
+  const sorted = [...terms].sort((a, b) => b.length - a.length)
+  return new RegExp(
+    // linke Grenze: kein Wort-/Bindestrich-Zeichen davor
+    // rechte Grenze: kein Wort-/Bindestrich-Zeichen danach
+    `(?<![A-Za-z0-9_äöüÄÖÜß-])(${sorted.map(escapeRegex).join('|')})(?![A-Za-z0-9_äöüÄÖÜß-])`,
+    'g'
+  )
+}
+
+/**
+ * Erweitert einen HTML-String mit <abbr>-Tooltips. Glossar wird als
+ * Parameter übergeben (Map abbreviation → explanation). Idempotent.
+ */
+export function expandAbbreviations(html: string, glossar: Record<string, string>): string {
   if (!html) return html
+  if (!glossar || Object.keys(glossar).length === 0) return html
+
+  const termsRegex = buildTermsRegex(glossar)
+  if (!termsRegex) return html
 
   // Iteriere über Tag/Text-Segmente, ersetze nur in Text-Segmenten und
   // nicht innerhalb von SKIP_TAGS (geschachtelter Tracker).
@@ -83,8 +92,8 @@ export function expandAbbreviations(html: string): string {
     }
 
     out.push(
-      part.replace(TERMS_REGEX, (_match, term) => {
-        const erklaerung = GLOSSAR[term]
+      part.replace(termsRegex, (_match, term) => {
+        const erklaerung = glossar[term]
         if (!erklaerung) return term
         return `<abbr title="${escapeAttr(erklaerung)}">${term}</abbr>`
       })
