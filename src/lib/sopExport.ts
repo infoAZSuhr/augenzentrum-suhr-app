@@ -137,7 +137,10 @@ function escapeHtml(s: string): string {
 }
 
 export function buildFullHtml(p: ExportPageInput): string {
-  const breadcrumb = [p.section, p.subsection].filter(Boolean).map(escapeHtml).join(' &rsaquo; ')
+  const breadcrumb = [p.section, p.subsection]
+    .filter((s): s is string => !!s)
+    .map(escapeHtml)
+    .join(' &rsaquo; ')
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
