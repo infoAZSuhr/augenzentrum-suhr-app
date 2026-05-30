@@ -1134,24 +1134,33 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
             )}
 
             {/* Content – editor fills all remaining height.
-                Read-Only-Anzeige (entweder User darf nicht editieren ODER Preview-Toggle
-                ist an) bekommt den HTML mit aufgelösten Abkürzungs-Tooltips. Im Edit-Modus
-                bleibt der Roh-HTML, damit TipTap die <abbr>-Tags beim Speichern nicht
-                verliert (sie sind nicht im Editor-Schema). */}
+                Edit-Modus (User darf editieren UND Preview-Toggle aus) → TipTap mit
+                Roh-HTML; Read-Only-Anzeige → eigenes <div> mit prose-Styling und
+                expandAbbreviations, weil TipTap unbekannte Tags (<abbr>) beim Parsen
+                rauswirft. So bleiben die Tooltips garantiert erhalten. */}
             {(() => {
               const canEdit  = isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)
               const editable = canEdit && !previewMode
+              if (editable) {
+                return (
+                  <div className="flex-1 overflow-hidden flex flex-col">
+                    <RichTextEditor
+                      key={`${activePageId}-edit`}
+                      content={pageContent}
+                      editable={true}
+                      onChange={html => { setPageContent(html); setPageDirty(true) }}
+                      placeholder="Inhalt hier eingeben…"
+                      className="flex-1"
+                    />
+                  </div>
+                )
+              }
               return (
-                <div className="flex-1 overflow-hidden flex flex-col">
-                  <RichTextEditor
-                    key={`${activePageId}-${editable ? 'edit' : 'view'}`}
-                    content={editable ? pageContent : expandAbbreviations(pageContent)}
-                    editable={editable}
-                    onChange={html => { setPageContent(html); setPageDirty(true) }}
-                    placeholder="Inhalt hier eingeben…"
-                    className="flex-1"
-                  />
-                </div>
+                <div
+                  className="flex-1 overflow-auto px-6 py-5 prose prose-sm max-w-none prose-headings:text-gray-900 prose-table:text-sm prose-th:bg-gray-50 prose-td:align-top prose-a:text-primary-600"
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: expandAbbreviations(pageContent) }}
+                />
               )
             })()}
 
