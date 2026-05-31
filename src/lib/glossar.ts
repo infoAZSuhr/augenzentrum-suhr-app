@@ -161,7 +161,6 @@ export const GLOSSAR: Record<string, string> = {
   'Uveitis':     'Entzündung der mittleren Augenhaut (Iris, Ziliarkörper, Aderhaut)',
   'Iridozyklitis': 'Uveitis anterior — Entzündung von Iris und Ziliarkörper',
   'Endophthalmitis': 'Schwere Entzündung im Augeninneren (Komplikation z.B. nach IVI oder OP)',
-  'Phako':       'Phakoemulsifikation — Standard-Operationstechnik bei Katarakt',
   'Nachstar':    'Nachtrübung der hinteren Linsenkapsel nach Katarakt-OP — wird mit YAG-Laser behandelt',
   'Charge':      'Lot / Bestand-Charge eines Medikaments oder Materials',
   'Sparte':      'TARDOC-Begriff: zusammengehörige Leistungsbereiche, die einen Raumwechsel auslösen können',
