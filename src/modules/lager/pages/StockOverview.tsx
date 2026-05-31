@@ -7,7 +7,6 @@ import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
 import EmptyState from '../../../components/ui/EmptyState'
 import TableSkeleton from '../../../components/ui/TableSkeleton'
-import { Glossarized } from '../../../components/ui/Glossarized'
 import { formatDate } from '../../../utils/dateUtils'
 import ArticleForm from '../components/ArticleForm'
 import BookingForm from '../components/BookingForm'
@@ -348,7 +347,7 @@ const { data: bookingData } = useQuery({
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Kategorie</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Bestand</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Min.</th>
-                <Glossarized as="th" className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Nächstes MHD</Glossarized>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Nächstes MHD</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Aktion</th>
               </tr>
