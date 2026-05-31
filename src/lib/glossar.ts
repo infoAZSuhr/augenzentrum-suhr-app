@@ -10,6 +10,46 @@
  */
 
 export const GLOSSAR: Record<string, string> = {
+  // ── App- und praxisspezifische Begriffe ───────────────────────────────────
+  AZS:           'Augenzentrum Suhr',
+  AKV:           'Aufgaben-Kompetenzen-Verantwortungen — Modul zur Definition von Zuständigkeiten im Team',
+  SOP:           'Standard Operating Procedure — schriftliche Arbeitsanweisung / interner Standard',
+  KAT:           'Katarakt (Grauer Star) — auch: KAT-OP-Bereich der Praxis',
+  LID:           'Lidchirurgie — operative Eingriffe an den Augenlidern',
+  IVI:           'Intravitreale Injektion — Medikamenten-Einspritzung in den Glaskörper',
+  IVT:           'Intravitreale Therapie — Behandlungsserie mit IVI',
+  IVOM:          'Intravitreale operative Medikamenten-Eingabe (Synonym für IVI/IVT)',
+  PID:           'Patienten-Identifikationsnummer (interne Patientennummer)',
+  KL:            'Kontaktlinse',
+  FK:            'Fremdkörper (z.B. Hornhaut-Fremdkörper)',
+  Liris:         'Liris — extern verwendete Praxis-Software für Patientenverwaltung',
+  Kimenda:       'Kimenda — extern verwendete Software für Patienten-Recall-Listen',
+  PIS:           'Praxis-Informations-System (z.B. Liris, Kimenda)',
+  Recall:        'Patienten-Wiedereinladungs-System für regelmässige Kontrollen',
+  Aufgebot:     'Schriftliche oder telefonische Einladung des Patienten zur nächsten Konsultation',
+
+  // ── Identifikatoren & Versicherung (Schweiz) ──────────────────────────────
+  AHV:           'Alters- und Hinterlassenenversicherung — 13-stellige eindeutige Personennummer',
+  'AHV-Nr':      'AHV-Nummer (Sozialversicherungs-Nummer der Schweiz, 13-stellig)',
+  VEKA:          'Versicherten-Karte — schweizerische Krankenversicherten-Karte mit Chip',
+  ZSR:           'Zahlstellenregister-Nummer — eindeutige Identifikation eines Leistungserbringers gegenüber Krankenversicherern',
+  GLN:           'Global Location Number — internationale Identifikationsnummer für Personen, Standorte, Firmen (in Schweiz vom HCI Solutions vergeben)',
+  IBAN:          'International Bank Account Number — internationale Kontonummer',
+
+  // ── Datenschutz & Recht (zusätzlich) ──────────────────────────────────────
+  DSG:           'Bundesgesetz über den Datenschutz (Schweiz)',
+  DSGVO:         'Datenschutz-Grundverordnung (EU) — zusätzlich relevant bei Auslandsbezug',
+
+  // ── Lager / Inventar ──────────────────────────────────────────────────────
+  MHD:           'Mindesthaltbarkeitsdatum',
+  SL:            'BAG-Spezialitätenliste — Verzeichnis der von der OKP vergüteten Arzneimittel',
+  BWL:           'Bundesamt für wirtschaftliche Landesversorgung — führt die Lieferengpass-Datenbank',
+
+  // ── Andere Spitäler / Institutionen ───────────────────────────────────────
+  KSA:           'Kantonsspital Aarau',
+  KSB:           'Kantonsspital Baden',
+  USZ:           'UniversitätsSpital Zürich',
+
   // ── Tarifsystem & Recht ───────────────────────────────────────────────────
   TARDOC:        'Schweizer Einzelleistungstarif für ambulante ärztliche Leistungen (ab 01.01.2026)',
   TARMED:        'Vorgängertarif von TARDOC (gültig bis 31.12.2025)',
@@ -30,7 +70,6 @@ export const GLOSSAR: Record<string, string> = {
   SIWF:          'Schweizerisches Institut für ärztliche Weiter- und Fortbildung',
   MPA:           'Medizinische Praxisassistentin',
   GL:            'Geschäftsleitung',
-  PIS:           'Praxis-Informations-System (Praxis-Software)',
   KIM:           'Kommunikation im Medizinwesen (sichere Datenübertragung)',
   PG:            'Pauschalengruppe (innerhalb einer Capitulum der ambulanten Pauschalen)',
   ICD:           'Internationale statistische Klassifikation der Krankheiten (ICD-10)',
@@ -57,9 +96,6 @@ export const GLOSSAR: Record<string, string> = {
   PEX:           'Pseudoexfoliations-Syndrom (Ursache für Sekundär-Glaukom und Katarakt-Komplikationen)',
 
   // ── Augenmedizin – Therapie & Eingriffe ───────────────────────────────────
-  IVI:           'Intravitreale Injektion — Medikamenten-Einspritzung in den Glaskörper',
-  IVT:           'Intravitreale Therapie — Behandlungsserie mit IVI',
-  IVOM:          'Intravitreale operative Medikamenten-Eingabe (Synonym für IVI/IVT)',
   'Anti-VEGF':   'Anti Vascular Endothelial Growth Factor — Medikamentenklasse gegen Gefäss-Neubildung (z.B. Eylea, Lucentis, Vabysmo)',
   VEGF:          'Vascular Endothelial Growth Factor — gefässbildender Wachstumsfaktor',
   IOL:           'Intraokularlinse — Kunstlinse, die bei Katarakt-OP implantiert wird',
