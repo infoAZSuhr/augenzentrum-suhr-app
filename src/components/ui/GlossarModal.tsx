@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { X, Plus, Pencil, Trash2, Search, Check, BookOpen } from 'lucide-react'
+import { X, Plus, Pencil, Trash2, Search, Check, BookOpen, RefreshCw } from 'lucide-react'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { useGlossar } from '../../lib/GlossarContext'
 import { useAuth } from '../../lib/AuthContext'
@@ -7,8 +7,10 @@ import {
   addGlossarEntry,
   updateGlossarEntry,
   deleteGlossarEntry,
+  syncMissingDefaults,
   type GlossarEntry,
 } from '../../lib/firestoreGlossar'
+import { GLOSSAR as DEFAULT_GLOSSAR } from '../../lib/glossar'
 
 interface Props {
   onClose: () => void
@@ -42,7 +44,26 @@ export default function GlossarModal({ onClose }: Props) {
     )
   }, [entries, search])
 
+  // Wieviele Default-Einträge fehlen aktuell in Firestore?
+  const missingDefaultsCount = useMemo(() => {
+    const existing = new Set(entries.map(e => e.abbreviation))
+    return Object.keys(DEFAULT_GLOSSAR).filter(k => !existing.has(k)).length
+  }, [entries])
+
   const updatedBy = profile?.displayName || profile?.username || 'unknown'
+
+  async function handleSyncDefaults() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const existing = new Set(entries.map(e => e.abbreviation))
+      const added = await syncMissingDefaults(DEFAULT_GLOSSAR, existing, updatedBy)
+      console.log(`[Glossar] ${added} Default-Einträge synchronisiert`)
+    } catch (err) {
+      console.error('[Glossar] Sync fehlgeschlagen:', err)
+      alert('Synchronisation fehlgeschlagen — siehe Konsole.')
+    } finally { setBusy(false) }
+  }
 
   async function handleSaveNew() {
     if (!draft.abbreviation.trim() || !draft.explanation.trim()) return
@@ -123,6 +144,17 @@ export default function GlossarModal({ onClose }: Props) {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+          {canEdit && !adding && !editingId && missingDefaultsCount > 0 && (
+            <button
+              onClick={handleSyncDefaults}
+              disabled={busy}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-colors shrink-0 disabled:opacity-50"
+              title={`${missingDefaultsCount} Standard-Einträge aus dem Code in Firestore nachtragen (überschreibt keine bestehenden)`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+              {missingDefaultsCount} sync
+            </button>
+          )}
           {canEdit && !adding && !editingId && (
             <button
               onClick={() => { setAdding(true); setDraft({ abbreviation: '', explanation: '' }) }}

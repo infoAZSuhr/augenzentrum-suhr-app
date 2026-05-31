@@ -89,3 +89,34 @@ export async function seedGlossarFromDefaults(defaults: Record<string, string>, 
   }
   return written
 }
+
+/**
+ * Schreibt alle Default-Einträge, die in Firestore noch fehlen, nach.
+ * Bereits vorhandene Abkürzungen werden NICHT überschrieben (Admin-Edits
+ * bleiben intakt). Gibt die Anzahl der hinzugefügten Einträge zurück.
+ */
+export async function syncMissingDefaults(
+  defaults: Record<string, string>,
+  existingAbbreviations: Set<string>,
+  by?: string,
+): Promise<number> {
+  const missing = Object.entries(defaults).filter(([abbr]) => !existingAbbreviations.has(abbr))
+  if (missing.length === 0) return 0
+  let written = 0
+  for (let i = 0; i < missing.length; i += 400) {
+    const batch = writeBatch(db)
+    const chunk = missing.slice(i, i + 400)
+    for (const [abbreviation, explanation] of chunk) {
+      const ref = doc(collection(db, COL))
+      batch.set(ref, {
+        abbreviation,
+        explanation,
+        updatedAt: serverTimestamp(),
+        updatedBy: by ?? 'sync-defaults',
+      })
+      written += 1
+    }
+    await batch.commit()
+  }
+  return written
+}
