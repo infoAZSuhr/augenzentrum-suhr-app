@@ -67,6 +67,7 @@
     "autoprefixer": "^10.4.17",
     "concurrently": "^8.2.2",
     "electron": "^29.1.0",
+    "playwright": "^1.49.0",
     "electron-builder": "^24.13.3",
     "firebase-admin": "^13.9.0",
     "postcss": "^8.4.35",

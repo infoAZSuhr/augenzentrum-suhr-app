@@ -28,6 +28,53 @@ const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/d
 const CLI_CLIENT_ID     = '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com'
 const CLI_CLIENT_SECRET = 'j9iVZfS8xyyrHE-Sg5Vhvtov'
 
+// ── Playwright-basierter Download ────────────────────────────────────────────
+// Cloudflare blockt einfache HTTP-Requests von GitHub-Actions-IPs. Wenn das
+// passiert, starten wir einen echten headless Chrome (über Playwright) und
+// laden die Datei darüber — sieht für Cloudflare aus wie ein normaler Browser.
+// Playwright ist nur in CI installiert (siehe Workflow); lokal ist es optional.
+async function playwrightDownload(url) {
+  let playwright
+  try {
+    playwright = require('playwright')
+  } catch {
+    throw new Error('Playwright nicht installiert — `npm install playwright` und `npx playwright install chromium`')
+  }
+  console.log('[Playwright] Starte headless Chromium …')
+  const browser = await playwright.chromium.launch({ headless: true })
+  try {
+    const ctx = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale: 'de-CH',
+      viewport: { width: 1280, height: 800 },
+    })
+    // Erst zurrose.ch besuchen, damit Cloudflare-Cookies gesetzt werden
+    const page = await ctx.newPage()
+    console.log('[Playwright] Warm-up: lade zurrose.ch …')
+    await page.goto('https://www.zurrose.ch/', { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForTimeout(2000) // Cloudflare-Challenge ggf. abwarten
+    console.log('[Playwright] Lade XLSX:', url)
+    const response = await ctx.request.get(url, {
+      headers: {
+        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+        'Referer': 'https://www.zurrose.ch/',
+      },
+      timeout: 30_000,
+    })
+    if (response.status() !== 200) {
+      throw new Error(`Playwright HTTP ${response.status()} für ${url}`)
+    }
+    const buf = Buffer.from(await response.body())
+    if (buf[0] !== 0x50 || buf[1] !== 0x4B) {
+      const preview = buf.slice(0, 200).toString('utf8')
+      throw new Error(`Playwright: keine XLSX-Datei (${buf.length} Bytes). Anfang: ${preview}`)
+    }
+    return buf
+  } finally {
+    await browser.close().catch(() => {})
+  }
+}
+
 // ── HTTP-Hilfsfunktionen ──────────────────────────────────────────────────────
 
 function httpGet(url, extraHeaders = {}) {
@@ -244,30 +291,49 @@ async function main() {
   }
 
   // ── 1. Excel laden ────────────────────────────────────────────────────────
-  // Priorität: 1. ZURROSE_XLSX_PATH env  2. Download  3. lokale Repo-Kopie
+  // Priorität: 1. ZURROSE_XLSX_PATH env  2. einfacher HTTP-Download
+  //            3. Playwright (umgeht Cloudflare)  4. lokale Repo-Kopie
   let buf
+  let downloadStrategy = 'unknown'
   const xlsxPath = process.env.ZURROSE_XLSX_PATH
   if (xlsxPath && fs.existsSync(xlsxPath)) {
     buf = fs.readFileSync(xlsxPath)
+    downloadStrategy = 'env-path'
     console.log(`Lese Datei von ZURROSE_XLSX_PATH: ${xlsxPath} (${Math.round(buf.length / 1024)} KB)`)
   } else {
+    // Versuch 1: einfacher HTTP-Request
     try {
-      console.log('Lade Zur Rose Nota-Liste herunter...')
+      console.log('Lade Zur Rose Nota-Liste herunter (HTTP)…')
       buf = await httpGet(XLSX_URL)
-      console.log(`Heruntergeladen: ${Math.round(buf.length / 1024)} KB`)
-      // Lokale Kopie für nächste CI-Runs aktualisieren
-      fs.writeFileSync(XLSX_LOCAL_COPY, buf)
-      console.log(`Lokale Kopie aktualisiert: ${XLSX_LOCAL_COPY}`)
-    } catch (e) {
-      console.warn(`⚠ Download fehlgeschlagen: ${e.message}`)
-      if (fs.existsSync(XLSX_LOCAL_COPY)) {
-        buf = fs.readFileSync(XLSX_LOCAL_COPY)
-        console.log(`Verwende lokale Repo-Kopie: ${XLSX_LOCAL_COPY} (${Math.round(buf.length / 1024)} KB)`)
-      } else {
-        throw new Error('Kein XLSX verfügbar: Download fehlgeschlagen und keine lokale Kopie vorhanden.')
+      downloadStrategy = 'http'
+      console.log(`✓ HTTP: ${Math.round(buf.length / 1024)} KB`)
+    } catch (httpErr) {
+      console.warn(`⚠ HTTP-Download fehlgeschlagen: ${httpErr.message}`)
+      // Versuch 2: Playwright (umgeht Cloudflare-IP-Blocks)
+      try {
+        buf = await playwrightDownload(XLSX_URL)
+        downloadStrategy = 'playwright'
+        console.log(`✓ Playwright: ${Math.round(buf.length / 1024)} KB`)
+      } catch (pwErr) {
+        console.warn(`⚠ Playwright-Download fehlgeschlagen: ${pwErr.message}`)
+        // Versuch 3: lokale Repo-Kopie als letzter Fallback
+        if (fs.existsSync(XLSX_LOCAL_COPY)) {
+          buf = fs.readFileSync(XLSX_LOCAL_COPY)
+          downloadStrategy = 'local-fallback'
+          console.warn(`⚠ Verwende veraltete lokale Repo-Kopie: ${XLSX_LOCAL_COPY} (${Math.round(buf.length / 1024)} KB)`)
+          console.warn('  Stand wird sich vermutlich nicht ändern. Bitte XLSX manuell aktualisieren oder Playwright reparieren.')
+        } else {
+          throw new Error('Kein XLSX verfügbar: HTTP & Playwright fehlgeschlagen, keine lokale Kopie vorhanden.')
+        }
       }
     }
+    // Bei erfolgreichem Online-Download lokale Kopie aktualisieren
+    if (downloadStrategy === 'http' || downloadStrategy === 'playwright') {
+      fs.writeFileSync(XLSX_LOCAL_COPY, buf)
+      console.log(`Lokale Kopie aktualisiert: ${XLSX_LOCAL_COPY}`)
+    }
   }
+  console.log(`Download-Strategie: ${downloadStrategy}`)
 
   // ── 2. Excel parsen ───────────────────────────────────────────────────────
   const wb   = xlsx.read(buf, { type: 'buffer' })

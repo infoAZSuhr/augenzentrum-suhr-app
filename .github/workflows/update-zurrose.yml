@@ -26,6 +26,9 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
+      - name: Playwright-Chromium installieren (für Cloudflare-Umgehung)
+        run: npx playwright install --with-deps chromium
+
       - name: Zur Rose Nota-Liste Firestore sync
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
