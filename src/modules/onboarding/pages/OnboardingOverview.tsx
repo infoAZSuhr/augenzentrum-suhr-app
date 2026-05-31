@@ -214,16 +214,10 @@ export default function OnboardingOverview() {
     }
   }, [allPages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sichtbarkeitsfilter: finale SOPs + Zuständige + Freigabe-Person + Admin/GL
-  const visiblePages = useMemo(() =>
-    allPages.filter(p =>
-      p.status === 'final' ||     // freigegeben → für alle sichtbar
-      isZustaendigFor(p) ||       // als Zuständig eingetragen
-      isFreigabeFor(p) ||         // als Freigabe-Person eingetragen
-      isAdmin || isGeschaeftsleitung
-    ),
-    [allPages, username, displayName, isAdmin, isGeschaeftsleitung]
-  )
+  // Navigation: ALLE Pages werden angezeigt — auch Drafts.
+  // Für Drafts wird beim Öffnen statt des Inhalts ein "in Bearbeitung"-Banner
+  // gezeigt (Sichtbarkeitskontrolle erfolgt im Content-Bereich, nicht hier).
+  const visiblePages = allPages
 
 const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId === sId)
   const pagesOf     = (ssId: string)   => visiblePages.filter(p => p.subsectionId === ssId && !p.parentPageId)
@@ -750,7 +744,7 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                           <span className="flex-1 truncate flex items-center gap-1">
                                             {page.title}
                                             {page.status !== 'final' && (
-                                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-600 border border-amber-200 leading-none">E</span>
+                                              <span title="Entwurf — wartet auf Freigabe" className="shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-600 border border-amber-200 leading-none">E</span>
                                             )}
                                           </span>
                                         )}
@@ -793,7 +787,7 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                                 <span className="flex-1 truncate flex items-center gap-1">
                                                   {sub.title}
                                                   {sub.status !== 'final' && (
-                                                    <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-600 border border-amber-200 leading-none">E</span>
+                                                    <span title="Entwurf — wartet auf Freigabe" className="shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-600 border border-amber-200 leading-none">E</span>
                                                   )}
                                                 </span>
                                               )}
@@ -1139,10 +1133,48 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                 Edit-Modus (User darf editieren UND Preview-Toggle aus) → TipTap mit
                 Roh-HTML; Read-Only-Anzeige → eigenes <div> mit prose-Styling und
                 expandAbbreviations, weil TipTap unbekannte Tags (<abbr>) beim Parsen
-                rauswirft. So bleiben die Tooltips garantiert erhalten. */}
+                rauswirft. So bleiben die Tooltips garantiert erhalten.
+                Drafts: für nicht-berechtigte User wird statt Content ein
+                "wartet auf Freigabe"-Hinweis gezeigt. */}
             {(() => {
-              const canEdit  = isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)
-              const editable = canEdit && !previewMode
+              const canEdit     = isAdmin || isGeschaeftsleitung || isZustaendigFor(activePage)
+              const canSeeDraft = canEdit || isFreigabeFor(activePage)
+              const isDraft     = activePage.status !== 'final'
+              const editable    = canEdit && !previewMode
+
+              // Draft-Page für jemanden ohne Bearbeitungs-/Freigabe-Recht
+              if (isDraft && !canSeeDraft) {
+                const heuteIso = new Date().toISOString().slice(0, 10)
+                const wartetAufFreigabe = !!pageGueltigAb && pageGueltigAb >= heuteIso
+                return (
+                  <div className="flex-1 flex items-start justify-center overflow-auto px-6 py-10">
+                    <div className="max-w-md w-full bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 text-center">
+                      <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
+                        <Clock className="w-6 h-6 text-amber-600" />
+                      </div>
+                      <h3 className="text-base font-semibold text-amber-900 mb-1">
+                        {wartetAufFreigabe ? 'Wartet auf Freigabe' : 'In Bearbeitung'}
+                      </h3>
+                      <p className="text-sm text-amber-800 leading-snug mb-3">
+                        Diese SOP-Seite ist noch nicht freigegeben und daher nicht
+                        zur Anwendung bestimmt.
+                      </p>
+                      <div className="text-xs text-amber-700 space-y-0.5">
+                        {pageZustaendig && (
+                          <div><span className="font-semibold">Zuständig:</span> {pageZustaendig}</div>
+                        )}
+                        {pageFreigabeDurch && (
+                          <div><span className="font-semibold">Freigabe durch:</span> {pageFreigabeDurch}</div>
+                        )}
+                        {pageGueltigAb && (
+                          <div><span className="font-semibold">Geplant gültig ab:</span> {fmtDateStr(pageGueltigAb)}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
               if (editable) {
                 return (
                   <div className="flex-1 overflow-hidden flex flex-col">
