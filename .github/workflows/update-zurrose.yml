@@ -26,8 +26,12 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
-      - name: Playwright-Chromium installieren (für Cloudflare-Umgehung)
-        run: npx playwright install --with-deps chromium
+      - name: Playwright installieren (nur CI — gehört nicht zur App)
+        # --no-save + --no-package-lock: package.json und lock bleiben unangetastet.
+        # So muss Playwright nicht in den App-Dependencies geführt werden.
+        run: |
+          npm install playwright@^1.49.0 --no-save --no-package-lock --silent
+          npx playwright install --with-deps chromium
 
       - name: Zur Rose Nota-Liste Firestore sync
         env:
