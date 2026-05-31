@@ -10,6 +10,7 @@ import { useAuth, UserProfile, UserRole, UserStatus, UserPermissions, Arbeitszei
 import { loadPlanung, savePlanung, loadYearListFirestore } from '../lib/firestorePlanung'
 import { Check, X, Users, Shield, ShieldCheck, Clock, UserCheck, UserPlus, Eye, EyeOff, Trash2, Crown, Unlock, Mail, Pencil, Save, Lock, MessageSquare, ClipboardList, Search, ChevronUp, ChevronDown, ChevronsUpDown, Package, CalendarDays, BookOpen, Phone, type LucideIcon } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
+import { formatLastSeen } from '../utils/formatLastSeen'
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYRnIZJ46oEPUIZ9uRiLDbTWW0dB93vgQ",
@@ -48,26 +49,7 @@ function isOnline(u: UserProfile): boolean {
   return Date.now() / 1000 - ts < 5 * 60
 }
 
-// Relative time string for lastSeen — "vor 5 Min", "vor 2 Std", "vor 3 Tagen", "noch nie", or a date for old entries
-function formatLastSeen(lastSeen: unknown): string {
-  const ts = (lastSeen as { seconds?: number })?.seconds
-  if (!ts) return 'noch nie'
-  const diffSec = Date.now() / 1000 - ts
-  if (diffSec < 60) return 'gerade eben'
-  if (diffSec < 3600) {
-    const m = Math.floor(diffSec / 60)
-    return `vor ${m} Min`
-  }
-  if (diffSec < 86400) {
-    const h = Math.floor(diffSec / 3600)
-    return `vor ${h} Std`
-  }
-  if (diffSec < 86400 * 7) {
-    const d = Math.floor(diffSec / 86400)
-    return `vor ${d} Tag${d !== 1 ? 'en' : ''}`
-  }
-  return new Date(ts * 1000).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })
-}
+// formatLastSeen: siehe src/utils/formatLastSeen.ts
 
 const STATUS_STYLE: Record<UserStatus, string> = {
   pending:  'bg-amber-50 text-amber-700 border-amber-200',

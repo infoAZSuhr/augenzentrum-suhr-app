@@ -1,0 +1,54 @@
+name: Tests
+
+# Läuft bei jedem Push auf main + bei Pull Requests.
+# Versagt der Job, bricht der Auto-Deploy NICHT ab (deploy.yml ist separat) —
+# wenn ein Test-Failure den Deploy blockieren soll, sag Bescheid, dann lege
+# ich einen needs-Block an.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'vitest.config.ts'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'vitest.config.ts'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm ci
+
+      - name: Vitest installieren (nur CI — gehört nicht zur App)
+        # --no-save + --no-package-lock: package.json + Lock bleiben unangetastet,
+        # gleiches Muster wie Playwright im update-zurrose-Workflow.
+        run: npm install vitest@^2.1.0 --no-save --no-package-lock --silent
+
+      - name: Tests laufen lassen
+        run: npm test
