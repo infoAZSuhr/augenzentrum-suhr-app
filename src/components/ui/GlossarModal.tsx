@@ -22,7 +22,7 @@ interface DraftEntry {
 export default function GlossarModal({ onClose }: Props) {
   useEscapeKey(onClose)
 
-  const { entries, loading } = useGlossar()
+  const { entries, loading, seeded } = useGlossar()
   const { profile, isAdmin, isGeschaeftsleitung } = useAuth()
   const canEdit = isAdmin || isGeschaeftsleitung
 
@@ -173,8 +173,17 @@ export default function GlossarModal({ onClose }: Props) {
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Lade Glossar…</div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-400">
-              {search ? 'Keine Treffer.' : 'Noch keine Einträge.'}
+            <div className="p-8 text-center text-sm text-gray-400 space-y-2">
+              {search ? (
+                <p>Keine Treffer.</p>
+              ) : !seeded ? (
+                <>
+                  <p>Glossar wird gerade initialisiert …</p>
+                  <p className="text-xs text-gray-400">Tooltips in SOPs sind über die eingebauten Defaults sofort aktiv. Sobald ein Admin die App geöffnet hat, erscheinen die Einträge hier.</p>
+                </>
+              ) : (
+                <p>Noch keine Einträge.</p>
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-gray-100">
