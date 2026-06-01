@@ -1067,6 +1067,24 @@ export default function RecallPage() {
           }))
       )
 
+    // Gruppierte Variante: pro User die Summen über den gewählten Zeitraum.
+    // Wird in der UI bei jeder Filterung außer 'all' statt der per-Tag-Liste
+    // angezeigt — kompakter und besser für "wer hat im Monat wie viel gemacht".
+    const actGroupedMap = new Map<string, { user: string; created: number; updated: number; aufgebote: ReturnType<typeof emptyAufgebote>; days: number }>()
+    const actDaysSeen = new Map<string, Set<string>>()
+    for (const r of actRows) {
+      const k = r.user.trim().toLowerCase()
+      if (!actGroupedMap.has(k)) { actGroupedMap.set(k, { user: r.user, created: 0, updated: 0, aufgebote: emptyAufgebote(), days: 0 }); actDaysSeen.set(k, new Set()) }
+      const e = actGroupedMap.get(k)!
+      e.created += r.created
+      e.updated += r.updated
+      for (const b of ['Brief','Tel','Praxis','Reminder'] as const) e.aufgebote[b] += r.aufgebote[b]
+      actDaysSeen.get(k)!.add(r.iso)
+    }
+    for (const [k, days] of actDaysSeen) actGroupedMap.get(k)!.days = days.size
+    const actRowsGrouped = [...actGroupedMap.values()]
+      .sort((a, b) => (b.created + b.updated) - (a.created + a.updated))   // aktivste oben
+
     // ── Neupatienten ────────────────────────────────────────────────────────
     // Periodengrenzen entsprechen den Card-Labels — Kalenderwoche Mo–Fr
     // (Praxis arbeitet Mo–Fr) / Kalendermonat / Kalenderjahr. Die Grenzen
@@ -1105,6 +1123,20 @@ export default function RecallPage() {
     // Period-Filter analog zu inPeriod() (Activity). Nutzt dieselben *G-Vars
     // via gemeinsamen matchPeriod()-Helper — identische Semantik garantiert.
     const neupatientRows = neupatientRowsAll.filter(r => matchPeriod(new Date(r.isoDate), neuPeriod))
+
+    // Gruppierte Variante nach User über den gewählten Zeitraum (siehe actRowsGrouped).
+    const neuGroupedMap = new Map<string, { user: string; count: number; names: string[]; days: Set<string> }>()
+    for (const r of neupatientRows) {
+      const k = r.user.trim().toLowerCase()
+      if (!neuGroupedMap.has(k)) neuGroupedMap.set(k, { user: r.user, count: 0, names: [], days: new Set() })
+      const e = neuGroupedMap.get(k)!
+      e.count += r.count
+      e.names.push(...r.names)
+      e.days.add(r.isoDate)
+    }
+    const neupatientRowsGrouped = [...neuGroupedMap.values()]
+      .map(e => ({ user: e.user, count: e.count, names: e.names, days: e.days.size }))
+      .sort((a, b) => b.count - a.count)
 
     // ── Per-doctor stats ────────────────────────────────────────────────────
     const docStats = [...doctors, ZU_BEARB].map(doc => {
@@ -1178,7 +1210,7 @@ export default function RecallPage() {
       })
       .sort((a, b) => b.isoDate.localeCompare(a.isoDate))
 
-    return { actRows, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, inaktiveRows, total: all.length }
+    return { actRows, actRowsGrouped, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, total: all.length }
   }, [allData, actPeriod, neuPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
@@ -3306,9 +3338,17 @@ export default function RecallPage() {
                     ))}
                   </div>
                 </div>
-                {auswertungStats.actRows.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-4 text-center">Keine Aktivität im gewählten Zeitraum.</p>
-                ) : (
+                {(() => {
+                  // Wenn ein Period-Filter aktiv ist (alles außer 'Alle'),
+                  // zeige aggregierte Zahlen pro User statt einer Zeile pro
+                  // Tag×User. Erste Spalte wird zum Tage-Counter (z.B. "8 Tage")
+                  // statt einem konkreten Datum.
+                  const actGrouped = actPeriod !== 'all'
+                  const actBodyRows = actGrouped
+                    ? auswertungStats.actRowsGrouped.map((r, i) => ({ key: `g${i}`, leftCol: `${r.days} ${r.days === 1 ? 'Tag' : 'Tage'}`, user: r.user, created: r.created, updated: r.updated, aufgebote: r.aufgebote }))
+                    : auswertungStats.actRows.map(       (r, i) => ({ key: `d${i}`, leftCol: r.dateStr,                                  user: r.user, created: r.created, updated: r.updated, aufgebote: r.aufgebote }))
+                  if (actBodyRows.length === 0) return <p className="text-sm text-gray-400 py-4 text-center">Keine Aktivität im gewählten Zeitraum.</p>
+                  return (
                   // Inline-scrollbar: max-h begrenzt die sichtbare Höhe, lange Listen
                   // scrollen innerhalb des Containers statt das Modal aufzublähen.
                   // sticky thead hält die Spaltenköpfe beim Scrollen am oberen Rand.
@@ -3316,7 +3356,7 @@ export default function RecallPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
                         <tr>
-                          <th className="text-left  px-4 py-2.5">Datum</th>
+                          <th className="text-left  px-4 py-2.5">{actGrouped ? 'Tage' : 'Datum'}</th>
                           <th className="text-left  px-4 py-2.5">Benutzer</th>
                           <th className="text-right px-4 py-2.5">Neu erfasst</th>
                           <th className="text-right px-4 py-2.5">Bearbeitet</th>
@@ -3325,7 +3365,7 @@ export default function RecallPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {auswertungStats.actRows.map((r, i) => {
+                        {actBodyRows.map(r => {
                           const aufgebotTotal = r.aufgebote.Brief + r.aufgebote.Tel + r.aufgebote.Praxis + r.aufgebote.Reminder
                           const badges: Array<{ key: string; count: number; label: string; cls: string }> = [
                             { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',    cls: 'bg-blue-50    text-blue-700    border-blue-200'    },
@@ -3334,8 +3374,8 @@ export default function RecallPage() {
                             { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder', cls: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
                           ].filter(b => b.count > 0)
                           return (
-                            <tr key={i} className="hover:bg-gray-50">
-                              <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr}</td>
+                            <tr key={r.key} className="hover:bg-gray-50">
+                              <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.leftCol}</td>
                               <td className="px-4 py-2.5 font-medium text-gray-800">{r.user.split(' ')[0]}</td>
                               <td className="px-4 py-2.5 text-right tabular-nums">
                                 {r.created > 0 ? <span className="inline-block px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-semibold text-xs">+{r.created}</span> : <span className="text-gray-300">—</span>}
@@ -3367,7 +3407,8 @@ export default function RecallPage() {
                       </tbody>
                     </table>
                   </div>
-                )}
+                  )
+                })()}
               </div>
 
               {/* ── Neupatienten ── */}
@@ -3419,22 +3460,29 @@ export default function RecallPage() {
                    : neuPeriod === 'year'      ? 'Dieses Jahr keine Neupatienten erfasst.'
                                                : 'Letztes Jahr keine Neupatienten erfasst.'}
                   </p>
-                ) : (
+                ) : (() => {
+                  // Bei aktivem Period-Filter: pro User aggregiert (Datums-Spalte
+                  // wird zum Tage-Counter). Bei 'Alle': eine Zeile pro Tag×User.
+                  const neuGrouped = neuPeriod !== 'all'
+                  const neuBodyRows = neuGrouped
+                    ? auswertungStats.neupatientRowsGrouped.map((r, i) => ({ key: `g${i}`, leftCol: `${r.days} ${r.days === 1 ? 'Tag' : 'Tage'}`, user: r.user, count: r.count, names: r.names }))
+                    : auswertungStats.neupatientRows.map(       (r, i) => ({ key: `d${i}`, leftCol: r.dateStr,                                  user: r.user, count: r.count, names: r.names }))
+                  return (
                   // Inline-scrollbar (siehe Aktivitäts-Tabelle oben).
                   <div className="overflow-auto rounded-xl border border-gray-200 max-h-80">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
                         <tr>
-                          <th className="text-left px-4 py-2.5">Erfassungsdatum</th>
+                          <th className="text-left px-4 py-2.5">{neuGrouped ? 'Tage' : 'Erfassungsdatum'}</th>
                           <th className="text-left px-4 py-2.5">Erfasst von</th>
                           <th className="text-right px-4 py-2.5">Anzahl</th>
                           <th className="text-left px-4 py-2.5">Patienten</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {auswertungStats.neupatientRows.map((r, i) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr}</td>
+                        {neuBodyRows.map(r => (
+                          <tr key={r.key} className="hover:bg-gray-50">
+                            <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.leftCol}</td>
                             <td className="px-4 py-2.5 font-medium text-gray-800">{r.user.split(' ')[0]}</td>
                             <td className="px-4 py-2.5 text-right">
                               <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold">{r.count}</span>
@@ -3445,7 +3493,8 @@ export default function RecallPage() {
                       </tbody>
                     </table>
                   </div>
-                )}
+                  )
+                })()}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
