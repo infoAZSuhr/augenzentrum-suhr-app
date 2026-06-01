@@ -13,6 +13,14 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('locked', false) != true;
     }
 
+    // Helper: ist der eingeloggte User ein approved Admin?
+    // Wird für Privilege-kritische Schreiboperationen auf `users/{uid}` genutzt,
+    // damit normale Mitarbeiter sich nicht selbst zu Admin upgraden können.
+    function isAdmin() {
+      return isStaff()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // passwordResetRequests: jeder darf erstellen (ohne Login), nur Staff liest/ändert
     match /passwordResetRequests/{id} {
       allow create: if true;
@@ -30,11 +38,43 @@ service cloud.firestore {
       allow read, update, delete: if isStaff();
     }
 
-    // users: lesbar ohne Login (für Username-Lookup beim Login & Passwort-Reset)
-    // schreibbar nur für eingeloggte Benutzer (eigene Registrierung etc.)
+    // users: lesbar ohne Login (für Username→Email-Lookup beim Login & Passwort-Reset).
+    //
+    // Schreibrechte sind streng abgestuft, damit normale Mitarbeiter sich
+    // NICHT selbst zu Admin upgraden oder die Status-/Rollen-/Permissions-
+    // Felder anderer User manipulieren können:
+    //
+    //  - CREATE: Nur das eigene Dokument (uid == request.auth.uid). Status muss
+    //    'pending' sein und `locked` darf nicht true sein — Admin-Approval ist
+    //    der einzige Weg von 'pending' → 'approved'.
+    //  - UPDATE: Admins dürfen alles. Self-Updates nur auf eine fixe Whitelist
+    //    von unkritischen Profil-Feldern (lastSeen-Heartbeat, Anzeigename,
+    //    mustChangePassword-Flag). Insbesondere `role`, `status`, `permissions`,
+    //    `locked`, `additionalRoles`, `canEditPlanung`, `email`, `arbeitszeit`
+    //    bleiben Admin-only.
+    //  - DELETE: Admin-only.
+    //
+    // Hinweis: Der bestehende Auto-Lock nach zu vielen Fehlversuchen
+    // (lockUserByEmail in AuthContext.tsx) läuft VOR erfolgreichem Login,
+    // hat also keinen Auth-Token — er ist hier wie zuvor blockiert.
     match /users/{uid} {
       allow read: if true;
-      allow write: if request.auth != null;
+
+      // Admin-Create via Secondary-App (UserManagementPage) erstellt User direkt
+      // mit status='approved' — daher zwei alternative create-Pfade.
+      allow create: if isAdmin()
+        || (request.auth != null
+            && request.auth.uid == uid
+            && request.resource.data.status == 'pending'
+            && request.resource.data.get('locked', false) != true);
+
+      allow update: if isAdmin()
+        || (request.auth != null
+            && request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['lastSeen', 'username', 'displayName', 'mustChangePassword']));
+
+      allow delete: if isAdmin();
     }
 
     // sekretariatChats: Besucher-Isolation
