@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './lib/AuthContext'
 import { NoticesProvider } from './lib/NoticesContext'
 import { BrowserProvider } from './contexts/BrowserContext'
 import { GlossarProvider } from './lib/GlossarContext'
+import { ToastProvider } from './lib/ToastContext'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import LoginPage from './pages/LoginPage'
@@ -199,13 +200,15 @@ function AppRoutes() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <GlossarProvider>
-          <BrowserProvider>
-            <AppRoutes />
-          </BrowserProvider>
-        </GlossarProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <GlossarProvider>
+            <BrowserProvider>
+              <AppRoutes />
+            </BrowserProvider>
+          </GlossarProvider>
+        </AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

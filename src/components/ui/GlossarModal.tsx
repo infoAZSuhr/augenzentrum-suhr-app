@@ -11,6 +11,7 @@ import {
   type GlossarEntry,
 } from '../../lib/firestoreGlossar'
 import { GLOSSAR as DEFAULT_GLOSSAR } from '../../lib/glossar'
+import { useToast } from '../../lib/ToastContext'
 
 interface Props {
   onClose: () => void
@@ -27,6 +28,7 @@ export default function GlossarModal({ onClose }: Props) {
   const { entries, loading, seeded } = useGlossar()
   const { profile, isAdmin, isGeschaeftsleitung } = useAuth()
   const canEdit = isAdmin || isGeschaeftsleitung
+  const toast = useToast()
 
   const [search,    setSearch]    = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -59,9 +61,10 @@ export default function GlossarModal({ onClose }: Props) {
       const existing = new Set(entries.map(e => e.abbreviation))
       const added = await syncMissingDefaults(DEFAULT_GLOSSAR, existing, updatedBy)
       console.log(`[Glossar] ${added} Default-Einträge synchronisiert`)
-    } catch (err) {
+      toast.success(`${added} Standard-Einträge hinzugefügt`)
+    } catch (err: any) {
       console.error('[Glossar] Sync fehlgeschlagen:', err)
-      alert('Synchronisation fehlgeschlagen — siehe Konsole.')
+      toast.error('Synchronisation fehlgeschlagen: ' + (err?.message ?? String(err)))
     } finally { setBusy(false) }
   }
 
@@ -70,8 +73,11 @@ export default function GlossarModal({ onClose }: Props) {
     setBusy(true)
     try {
       await addGlossarEntry(draft.abbreviation, draft.explanation, updatedBy)
+      toast.success(`«${draft.abbreviation}» hinzugefügt`)
       setDraft({ abbreviation: '', explanation: '' })
       setAdding(false)
+    } catch (err: any) {
+      toast.error('Speichern fehlgeschlagen: ' + (err?.message ?? String(err)))
     } finally { setBusy(false) }
   }
 
@@ -81,8 +87,11 @@ export default function GlossarModal({ onClose }: Props) {
     setBusy(true)
     try {
       await updateGlossarEntry(editingId, draft.abbreviation, draft.explanation, updatedBy)
+      toast.success(`«${draft.abbreviation}» aktualisiert`)
       setEditingId(null)
       setDraft({ abbreviation: '', explanation: '' })
+    } catch (err: any) {
+      toast.error('Speichern fehlgeschlagen: ' + (err?.message ?? String(err)))
     } finally { setBusy(false) }
   }
 
@@ -90,8 +99,12 @@ export default function GlossarModal({ onClose }: Props) {
     if (!confirmDelete) return
     setBusy(true)
     try {
+      const abbr = confirmDelete.abbreviation
       await deleteGlossarEntry(confirmDelete.id)
+      toast.success(`«${abbr}» entfernt`)
       setConfirmDelete(null)
+    } catch (err: any) {
+      toast.error('Löschen fehlgeschlagen: ' + (err?.message ?? String(err)))
     } finally { setBusy(false) }
   }
 
