@@ -1068,6 +1068,20 @@ export default function RecallPage() {
           }))
       )
 
+    // Totals der Aufgebote über alle actRows (= bereits period-gefiltert via
+    // inPeriod). Wird in der UI als Summary-Cards über der Aktivitäts-Tabelle
+    // angezeigt — analog zu Neupatienten/Inaktive-Cards.
+    const actAufgebotTotals = actRows.reduce(
+      (acc, r) => {
+        acc.Brief    += r.aufgebote.Brief
+        acc.Tel      += r.aufgebote.Tel
+        acc.Praxis   += r.aufgebote.Praxis
+        acc.Reminder += r.aufgebote.Reminder
+        return acc
+      },
+      { Brief: 0, Tel: 0, Praxis: 0, Reminder: 0 }
+    )
+
     // Gruppierte Variante: pro User die Summen über den gewählten Zeitraum.
     // Wird in der UI bei jeder Filterung außer 'all' statt der per-Tag-Liste
     // angezeigt — kompakter und besser für "wer hat im Monat wie viel gemacht".
@@ -1232,7 +1246,7 @@ export default function RecallPage() {
       inaktiv:     inaktiveRows.filter(r => r.kind === 'inaktiv').length,
     }
 
-    return { actRows, actRowsGrouped, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, total: all.length }
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, total: all.length }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
@@ -3359,6 +3373,26 @@ export default function RecallPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+                {/* Aufgebot-Summary-Cards — Totals über den gewählten Zeitraum.
+                    Click filtert die Hauptliste auf die jeweilige Aufgebots-Art
+                    (analog zum bestehenden filterAufgebotArt-Dropdown). */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { art: 'Brief',    label: 'Brief',    value: auswertungStats.actAufgebotTotals.Brief,    color: 'bg-blue-50    text-blue-700    border-blue-200'    },
+                    { art: 'Tel',      label: 'Telefon',  value: auswertungStats.actAufgebotTotals.Tel,      color: 'bg-amber-50   text-amber-700   border-amber-200'   },
+                    { art: 'Praxis',   label: 'Praxis',   value: auswertungStats.actAufgebotTotals.Praxis,   color: 'bg-violet-50  text-violet-700  border-violet-200'  },
+                    { art: 'Reminder', label: 'Reminder', value: auswertungStats.actAufgebotTotals.Reminder, color: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
+                  ].map(({ art, label, value, color }) => (
+                    <button
+                      key={art}
+                      onClick={() => { setFilterAufgebotArt(art); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
+                      className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
+                    >
+                      <span className="text-2xl font-bold tabular-nums">{value}</span>
+                      <span className="text-xs mt-0.5 opacity-75">{label}</span>
+                    </button>
+                  ))}
                 </div>
                 {(() => {
                   // Wenn ein Period-Filter aktiv ist (alles außer 'Alle'),
