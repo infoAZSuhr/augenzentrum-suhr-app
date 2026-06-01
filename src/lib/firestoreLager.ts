@@ -4,6 +4,13 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import type { InventoryArticle, InventoryLot, StockMovement, Order, InventoryAlert } from '../types/inventory.types'
+import {
+  sumActiveLotQuantity,
+  nextExpiryDate as computeNextExpiry,
+  stockStatus as computeStockStatus,
+  matchZurRoseEntry,
+  formatZurRoseAlertDetail,
+} from './inventoryLogic'
 
 const col = (name: string) => collection(db, name)
 
@@ -33,27 +40,13 @@ export async function getArticleStocks(articleIds: string[]): Promise<Map<string
   return result
 }
 
-async function computeStock(articleId: string): Promise<number> {
-  // Nur ein where-Feld → kein Composite-Index nötig
-  const snap = await getDocs(query(col('inventory_lots'), where('articleId', '==', articleId)))
-  return snap.docs.reduce((sum, d) => {
-    const data = d.data()
-    return data.isDepleted ? sum : sum + (data.quantity || 0)
-  }, 0)
-}
-
 async function enrichArticle(article: InventoryArticle): Promise<InventoryArticle> {
-  const currentStock = await computeStock(article.id)
-  // Nur ein where → kein Composite-Index nötig — filtern+sortieren in JS
+  // Ein where-Feld → kein Composite-Index nötig. Pure-Logic in src/lib/inventoryLogic.ts.
   const lotsSnap = await getDocs(query(col('inventory_lots'), where('articleId', '==', article.id)))
-  const lots = lotsSnap.docs.map(d => d.data()).filter(l => !l.isDepleted && l.expiryDate).sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
-  const nextExpiryDate = lots[0]?.expiryDate ?? null
-
-  let stockStatus: InventoryArticle['stockStatus'] = 'ok'
-  if (currentStock === 0) stockStatus = 'out'
-  else if (currentStock <= (article.minStock || 0) * 0.5) stockStatus = 'critical'
-  else if (currentStock < (article.minStock || 0)) stockStatus = 'low'
-
+  const lots = lotsSnap.docs.map(d => d.data() as any)
+  const currentStock   = sumActiveLotQuantity(lots)
+  const nextExpiryDate = computeNextExpiry(lots)
+  const stockStatus    = computeStockStatus(currentStock, article.minStock)
   return { ...article, currentStock, nextExpiryDate, stockStatus }
 }
 
@@ -80,38 +73,18 @@ export async function getZurRoseAlerts(articles: InventoryArticle[]): Promise<In
   } catch { return [] }
   if (!zr?.data?.length) return []
 
-  const safeName = (n: string) => { try { return decodeURIComponent(n).toLowerCase() } catch { return n.toLowerCase() } }
-
+  // Matching + Formatierung sind pure — siehe inventoryLogic.ts
   const alerts: InventoryAlert[] = []
   for (const article of articles) {
     if (article.isActive === false) continue
-    let match: ZurRoseEntry | undefined
-
-    // 1. Pharmacode-Abgleich (exakt, via articleNumber)
-    if (article.articleNumber) {
-      const pc = parseInt(article.articleNumber.trim())
-      if (!isNaN(pc)) match = zr.data.find(e => e.pc === pc)
-    }
-
-    // 2. Name-Abgleich: erstes Wort beidseitig (deckt z.B. Oxybuprocain vs. Oxybuprocaine ab)
-    if (!match) {
-      const artFirst = safeName(article.name).split(/[\s%]/)[0]
-      match = zr.data.find(e => {
-        const zrFirst = e.n.split(/\s/)[0].toLowerCase()
-        return zrFirst.length > 3 && (artFirst.startsWith(zrFirst) || zrFirst.startsWith(artFirst))
-      })
-    }
-
+    const match = matchZurRoseEntry(article, zr.data)
     if (match) {
-      const bis = match.d
-        ? (match.d.startsWith('fehlt') ? 'Auf unbestimmte Zeit' : `Ausstand bis ${new Date(match.d).toLocaleDateString('de-CH')}`)
-        : ''
       alerts.push({
-        type: 'not_deliverable',
-        articleId: article.id,
+        type:        'not_deliverable',
+        articleId:   article.id,
         articleName: article.name,
-        detail: bis || 'Nicht lieferbar (Zur Rose)',
-        severity: 'warning',
+        detail:      formatZurRoseAlertDetail(match),
+        severity:    'warning',
       })
     }
   }
