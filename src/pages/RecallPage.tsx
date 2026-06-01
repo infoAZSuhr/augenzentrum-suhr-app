@@ -1099,7 +1099,30 @@ export default function RecallPage() {
       ohneTermin:activeAll.filter(p => !p.naechsteKons).length,
     }
 
-    return { actRows, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, total: all.length }
+    // ── Inaktive / verstorbene Patienten ────────────────────────────────────
+    // Zeigt "wer hat wen deaktiviert" — nutzt aktualisiert-Stamp als
+    // bestmögliche Annäherung (es gibt aktuell keinen dedizierten verlauf-
+    // Entry für Deaktivierungen, daher kann ein späterer Editor den
+    // ursprünglichen Deaktivierer überschreiben).
+    const inaktiveRows = all
+      .filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben')
+      .map(p => {
+        const ps = parseStamp(p.aktualisiert)
+        return {
+          id:        p.id,
+          pid:       p.pid,
+          vorname:   p.vorname ?? '',
+          doctor:    p.doctor,
+          status:    p.patientenStatus as 'inaktiv' | 'verstorben',
+          grund:     (p.grundStornierung ?? '').trim(),
+          by:        ps?.user.trim() ?? '',
+          isoDate:   ps?.isoDate ?? '',
+          dateStr:   ps?.isoDate ? ps.isoDate.split('-').reverse().join('.') : '',
+        }
+      })
+      .sort((a, b) => b.isoDate.localeCompare(a.isoDate))
+
+    return { actRows, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, inaktiveRows, total: all.length }
   }, [allData, actPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
@@ -3449,6 +3472,60 @@ export default function RecallPage() {
                     </tfoot>
                   </table>
                 </div>
+              </div>
+
+              {/* ── Inaktive / verstorbene Patienten ── */}
+              <div>
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
+                  <MinusCircle className="w-4 h-4 text-gray-400" />
+                  Inaktive / verstorbene Patienten
+                  <span className="text-xs font-normal text-gray-400 ml-1">
+                    ({auswertungStats.inaktiveRows.length})
+                  </span>
+                </h3>
+                {auswertungStats.inaktiveRows.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-3">Keine inaktiven Patienten.</p>
+                ) : (
+                  <div className="overflow-auto rounded-xl border border-gray-200 max-h-80">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
+                        <tr>
+                          <th className="text-left px-4 py-2.5">Datum</th>
+                          <th className="text-left px-4 py-2.5">Patient</th>
+                          <th className="text-left px-4 py-2.5">Arzt</th>
+                          <th className="text-left px-4 py-2.5">Status</th>
+                          <th className="text-left px-4 py-2.5">Grund</th>
+                          <th className="text-left px-4 py-2.5">Deaktiviert von</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {auswertungStats.inaktiveRows.map(r => (
+                          <tr key={r.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr || <span className="text-gray-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-gray-800">
+                              <span className="font-medium">{r.vorname || <span className="text-gray-400 italic">ohne Name</span>}</span>
+                              {r.pid && <span className="ml-2 text-xs text-gray-400 tabular-nums">#{r.pid}</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">{r.doctor}</td>
+                            <td className="px-4 py-2.5">
+                              {r.status === 'verstorben' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold">✝ Verstorben</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 text-xs font-semibold">Inaktiv</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-700 text-xs">{r.grund || <span className="text-gray-300">—</span>}</td>
+                            <td className="px-4 py-2.5 text-gray-700 text-xs">{r.by ? r.by.split(' ')[0] : <span className="text-gray-300">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-400 mt-2">
+                  Hinweis: «Deaktiviert von» basiert auf dem letzten Edit am Patient — falls jemand nach der Deaktivierung
+                  nochmal editiert hat, kann das den ursprünglichen Deaktivierer überdecken.
+                </p>
               </div>
 
             </div>
