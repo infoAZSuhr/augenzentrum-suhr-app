@@ -1100,20 +1100,30 @@ export default function RecallPage() {
     }
 
     // ── Inaktive / verstorbene Patienten ────────────────────────────────────
-    // Zeigt "wer hat wen deaktiviert" — nutzt aktualisiert-Stamp als
-    // bestmögliche Annäherung (es gibt aktuell keinen dedizierten verlauf-
-    // Entry für Deaktivierungen, daher kann ein späterer Editor den
-    // ursprünglichen Deaktivierer überschreiben).
+    // Zeigt "wer hat wen deaktiviert" mit feinem Grund-basiertem Status.
+    // Erfasst auch Alt-Daten, bei denen nur grundStornierung gesetzt ist
+    // ohne automatischen patientenStatus-Sync. "Deaktiviert von" basiert
+    // auf aktualisiert-Stamp (Limitation — siehe Hinweis in UI).
+    type InaktivKind = 'verstorben' | 'arztwechsel' | 'wegzug' | 'inaktiv'
+    function classifyInaktiv(p: RecallPatient): InaktivKind | null {
+      const g = (p.grundStornierung ?? '').trim().toLowerCase()
+      if (p.patientenStatus === 'verstorben' || g === 'verstorben') return 'verstorben'
+      if (g === 'arztwechsel') return 'arztwechsel'
+      if (g === 'wegzug')      return 'wegzug'
+      if (p.patientenStatus === 'inaktiv') return 'inaktiv'
+      return null
+    }
     const inaktiveRows = all
-      .filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben')
-      .map(p => {
+      .map(p => ({ p, kind: classifyInaktiv(p) }))
+      .filter((x): x is { p: RecallPatient; kind: InaktivKind } => x.kind !== null)
+      .map(({ p, kind }) => {
         const ps = parseStamp(p.aktualisiert)
         return {
           id:        p.id,
           pid:       p.pid,
           vorname:   p.vorname ?? '',
           doctor:    p.doctor,
-          status:    p.patientenStatus as 'inaktiv' | 'verstorben',
+          kind,                                                              // präziser als nur 'inaktiv'/'verstorben'
           grund:     (p.grundStornierung ?? '').trim(),
           by:        ps?.user.trim() ?? '',
           isoDate:   ps?.isoDate ?? '',
@@ -3499,25 +3509,32 @@ export default function RecallPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {auswertungStats.inaktiveRows.map(r => (
-                          <tr key={r.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr || <span className="text-gray-300">—</span>}</td>
-                            <td className="px-4 py-2.5 text-gray-800">
-                              <span className="font-medium">{r.vorname || <span className="text-gray-400 italic">ohne Name</span>}</span>
-                              {r.pid && <span className="ml-2 text-xs text-gray-400 tabular-nums">#{r.pid}</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-gray-600 text-xs">{r.doctor}</td>
-                            <td className="px-4 py-2.5">
-                              {r.status === 'verstorben' ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold">✝ Verstorben</span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 text-xs font-semibold">Inaktiv</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2.5 text-gray-700 text-xs">{r.grund || <span className="text-gray-300">—</span>}</td>
-                            <td className="px-4 py-2.5 text-gray-700 text-xs">{r.by ? r.by.split(' ')[0] : <span className="text-gray-300">—</span>}</td>
-                          </tr>
-                        ))}
+                        {auswertungStats.inaktiveRows.map(r => {
+                          // Pill-Farbe + Label pro Grund-Kategorie, damit Arztwechsel/Wegzug/
+                          // Verstorben/generisch-Inaktiv auf einen Blick unterscheidbar sind.
+                          const pill =
+                            r.kind === 'verstorben'  ? { label: '✝ Verstorben', cls: 'bg-gray-100  text-gray-700  border-gray-200'  } :
+                            r.kind === 'arztwechsel' ? { label: 'Arztwechsel',   cls: 'bg-amber-50  text-amber-700  border-amber-200' } :
+                            r.kind === 'wegzug'      ? { label: 'Wegzug',        cls: 'bg-sky-50    text-sky-700    border-sky-200'    } :
+                                                       { label: 'Inaktiv',       cls: 'bg-gray-50   text-gray-600   border-gray-200'   }
+                          return (
+                            <tr key={r.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2.5 text-gray-800">
+                                <span className="font-medium">{r.vorname || <span className="text-gray-400 italic">ohne Name</span>}</span>
+                                {r.pid && <span className="ml-2 text-xs text-gray-400 tabular-nums">#{r.pid}</span>}
+                              </td>
+                              <td className="px-4 py-2.5 text-gray-600 text-xs">{r.doctor}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${pill.cls}`}>
+                                  {pill.label}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-gray-700 text-xs">{r.grund || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2.5 text-gray-700 text-xs">{r.by ? r.by.split(' ')[0] : <span className="text-gray-300">—</span>}</td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
