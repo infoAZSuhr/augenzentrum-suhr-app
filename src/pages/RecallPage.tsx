@@ -112,6 +112,19 @@ function normalizeLirisAddress(raw: string): string {
 }
 function isStorniert(row: RecallPatient): boolean   { return s(row.storniert).toLowerCase() === 'ja' }
 
+/**
+ * Patient gilt als "im Recall" (geplante Recall-Erstellung), wenn:
+ *   - naechsteKons === 'kein Termin' (alter Marker), ODER
+ *   - aufgebotFuer ist gesetzt UND aufgebotErstellt ist NICHT gesetzt
+ *     (Recall ist geplant aber noch nicht erstellt — angezeigt mit "RC")
+ * Active-Filter (nicht storniert/inaktiv) wird vom Caller erwartet.
+ */
+function isInPlanung(p: RecallPatient): boolean {
+  if (p.naechsteKons === 'kein Termin') return true
+  if (p.aufgebotFuer && !p.aufgebotErstellt) return true
+  return false
+}
+
 /** True if the patient already has a real next-consult date booked (not «kein Termin», not empty). */
 function hasScheduledNextKons(p: { naechsteKons?: string | null }): boolean {
   const nk = p.naechsteKons
@@ -1237,7 +1250,7 @@ export default function RecallPage() {
         name:        doc,
         total:       pts.length,
         mitTermin:   active.filter(p => p.naechsteKons && p.naechsteKons !== 'kein Termin' && isFutureDate(p.naechsteKons)).length,
-        inPlanung:   active.filter(p => p.naechsteKons === 'kein Termin').length,
+        inPlanung:   active.filter(isInPlanung).length,
         inaktiv:     pts.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben').length,
         storniert:   pts.filter(isStorniert).length,
         offen:       active.filter(p => !p.naechsteKons).length,
@@ -1264,7 +1277,7 @@ export default function RecallPage() {
       week:      activeAll.filter(p => { const d = new Date(s(p.naechsteKons)); return p.naechsteKons && p.naechsteKons !== 'kein Termin' && d > now && d <= in7 }).length,
       month:     activeAll.filter(p => { const d = new Date(s(p.naechsteKons)); return p.naechsteKons && p.naechsteKons !== 'kein Termin' && d > now && d <= in30 }).length,
       overdue:   activeAll.filter(p => p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons)).length,
-      inPlanung: activeAll.filter(p => p.naechsteKons === 'kein Termin').length,
+      inPlanung: activeAll.filter(isInPlanung).length,
       ohneTermin:activeAll.filter(p => !p.naechsteKons).length,
     }
 
@@ -1373,7 +1386,7 @@ export default function RecallPage() {
           case 'week':       { if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in7 }
           case 'month':      { if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in30 }
           case 'overdue':    return !!(nk && nk !== 'kein Termin' && !isFutureDate(nk))
-          case 'inPlanung':  return nk === 'kein Termin'
+          case 'inPlanung':  return isInPlanung(p)
           case 'ohneTermin': return !nk
         }
       })
@@ -1404,7 +1417,7 @@ export default function RecallPage() {
       week:       active.filter(p => { const nk = p.naechsteKons; if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in7 }).length,
       month:      active.filter(p => { const nk = p.naechsteKons; if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in30 }).length,
       overdue:    active.filter(p => !!(p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons))).length,
-      inPlanung:  active.filter(p => p.naechsteKons === 'kein Termin').length,
+      inPlanung:  active.filter(isInPlanung).length,
       ohneTermin: active.filter(p => !p.naechsteKons).length,
       neupatient:        base.filter(p => p.neupatient === true).length,
       storniert:         base.filter(isStorniert).length,
@@ -2606,6 +2619,9 @@ export default function RecallPage() {
                 {row.neupatient === true && isWithin7Days(row.erstellt) && (
                   <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">Neu</span>
                 )}
+                {row.aufgebotFuer && !row.aufgebotErstellt && (
+                  <span title={`Recall geplant für ${formatDate(row.aufgebotFuer)}`} className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">RC</span>
+                )}
                 {row.verlauf?.some(v => v.ergebnis === 'noch zu erledigen') && (
                   <span title="Kontakt noch zu erledigen" className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">⏳</span>
                 )}
@@ -2725,6 +2741,9 @@ export default function RecallPage() {
                           <span className={isInaktiv ? 'text-gray-400 line-through' : 'text-gray-700'}>{row.vorname || '—'}</span>
                           {row.neupatient === true && isWithin7Days(row.erstellt) && (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 shrink-0">Neu</span>
+                          )}
+                          {row.aufgebotFuer && !row.aufgebotErstellt && (
+                            <span title={`Recall geplant für ${formatDate(row.aufgebotFuer)}`} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shrink-0">RC</span>
                           )}
                           {row.verlauf?.some(v => v.ergebnis === 'noch zu erledigen') && (
                             <span title={pendingVorgehenLabel(row)} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shrink-0">⏳ {pendingVorgehenLabel(row)}</span>
