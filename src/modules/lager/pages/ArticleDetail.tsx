@@ -10,6 +10,7 @@ import { getPatientNames } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { formatDate, daysUntil, formatSwissDate } from '../../../utils/dateUtils'
+import { useToast } from '../../../lib/ToastContext'
 import { vatRate } from '../../../types/inventory.types'
 import BookingForm from '../components/BookingForm'
 import ArticleForm from '../components/ArticleForm'
@@ -204,6 +205,7 @@ export default function ArticleDetail() {
   const [editLotTarget, setEditLotTarget] = useState<any | null>(null)
   const [editMovTarget, setEditMovTarget] = useState<any | null>(null)
   const qc = useQueryClient()
+  const toast = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory-article', id],
@@ -226,9 +228,10 @@ const addLotMut = useMutation({
       qc.invalidateQueries({ queryKey: ['inventory-article', id] })
       qc.invalidateQueries({ queryKey: ['inventory-articles'] })
       setShowEdit(false)
+      toast.success('Artikel gespeichert')
     },
     onError: (e: any) => {
-      alert(`Fehler beim Speichern: ${e?.message || String(e)}`)
+      toast.error(`Fehler beim Speichern: ${e?.message || String(e)}`)
     },
   })
 

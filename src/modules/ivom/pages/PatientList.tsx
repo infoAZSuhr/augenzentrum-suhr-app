@@ -11,6 +11,7 @@ import TableSkeleton from '../../../components/ui/TableSkeleton'
 import { formatDate } from '../../../utils/dateUtils'
 import PatientForm from '../components/PatientForm'
 import type { Patient } from '../../../types/ivom.types'
+import { useToast } from '../../../lib/ToastContext'
 
 type SortKey = 'name' | 'patientNumber' | 'dateOfBirth' | 'lastTreatmentDate' | 'nextAppointmentDate' | 'status'
 
@@ -55,17 +56,26 @@ export default function PatientList() {
   })
 
   const sortedPatients = useMemo(() => sortPatients(patients, sortKey, sortDir), [patients, sortKey, sortDir])
+  const toast = useToast()
 
   const createMut = useMutation({
     mutationFn: (data: Omit<Patient, 'id'>) => createPatient(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); setShowForm(false) },
-    onError: (err: any) => alert('Fehler beim Speichern: ' + err.message),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patients'] })
+      setShowForm(false)
+      toast.success('Patient gespeichert')
+    },
+    onError: (err: any) => toast.error('Fehler beim Speichern: ' + err.message),
   })
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deletePatient(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patients'] }); setDeleteTarget(null) },
-    onError: (err: any) => alert('Fehler beim Löschen: ' + (err as any).message),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patients'] })
+      setDeleteTarget(null)
+      toast.success('Patient gelöscht')
+    },
+    onError: (err: any) => toast.error('Fehler beim Löschen: ' + (err as any).message),
   })
 
   const handleSort = (key: SortKey) => {
