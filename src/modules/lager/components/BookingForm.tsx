@@ -7,6 +7,7 @@ import type { InventoryLot } from '../../../types/inventory.types'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { getPatientNames } from '../../../lib/firestorePatients'
+import { formatSwissDate } from '../../../utils/dateUtils'
 
 type Modus = 'eingang' | 'ausgang'
 
@@ -231,7 +232,7 @@ export default function BookingForm({ articleName, unit, quantityPerUnit, quanti
                       return (
                         <option key={l.id} value={l.id}>
                           {l.lotNumber} — {dispQtyStr} {activeUnit}
-                          {l.expiryDate ? ` · MHD: ${new Date(l.expiryDate).toLocaleDateString('de-CH')}` : ''}
+                          {l.expiryDate ? ` · MHD: ${formatSwissDate(l.expiryDate)}` : ''}
                         </option>
                       )
                     })}
@@ -256,7 +257,7 @@ export default function BookingForm({ articleName, unit, quantityPerUnit, quanti
                         <p className="text-xs text-gray-400">MHD</p>
                         <p className={`font-semibold ${expInfo.color}`}>
                           {selectedLot.expiryDate
-                            ? new Date(selectedLot.expiryDate).toLocaleDateString('de-CH')
+                            ? formatSwissDate(selectedLot.expiryDate)
                             : '—'}
                         </p>
                         {selectedLot.expiryDate && <p className={`text-xs ${expInfo.color}`}>{expInfo.label}</p>}

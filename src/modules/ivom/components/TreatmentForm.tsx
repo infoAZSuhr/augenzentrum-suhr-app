@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, UserPlus, CalendarDays, GripHorizontal } from 'lucide-react'
 import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung } from '../../../lib/firestorePatients'
 import { getArticles, getArticleLots } from '../../../lib/firestoreLager'
-import { today, addWeeks } from '../../../utils/dateUtils'
+import { today, addWeeks, formatSwissDate } from '../../../utils/dateUtils'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
@@ -177,7 +177,7 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
             {lots.map(l => (
               <option key={l.id} value={l.id}>
                 {l.lotNumber}
-                {l.expiryDate ? ` · Ablauf: ${new Date(l.expiryDate).toLocaleDateString('de-CH')}` : ''}
+                {l.expiryDate ? ` · Ablauf: ${formatSwissDate(l.expiryDate)}` : ''}
                 {l.quantity !== undefined ? ` · Bestand: ${l.quantity}` : ''}
               </option>
             ))}
@@ -239,7 +239,7 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
                     <span className="text-xs text-gray-500">ID: <span className="font-medium text-gray-700">{patient.patientNumber}</span></span>
                   )}
                   {patient.dateOfBirth && (
-                    <span className="text-xs text-gray-500">Geb.: <span className="font-medium text-gray-700">{new Date(patient.dateOfBirth).toLocaleDateString('de-CH')}</span></span>
+                    <span className="text-xs text-gray-500">Geb.: <span className="font-medium text-gray-700">{formatSwissDate(patient.dateOfBirth)}</span></span>
                   )}
                 </div>
               </div>

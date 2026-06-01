@@ -3,6 +3,7 @@ import { X, Printer, Syringe, Scissors, Stethoscope } from 'lucide-react'
 import { getIviDaysFromPlanung, getPlannedIviDays } from '../../lib/firestorePatients'
 import { loadPlanung, type PlanungData } from '../../lib/firestorePlanung'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { formatSwissDate } from '../../utils/dateUtils'
 
 const IVI_DOCTORS_MATCH = ['tschopp', 'trachsler']
 const IVI_WORKING = new Set(['GT', 'VM', 'NM'])
@@ -193,7 +194,7 @@ export default function IviKatOverviewModal({ open, onClose, initialView = 'ivi'
               {activeTab === 'ivi' ? 'IVI-Tage — Gesamtübersicht' : 'KAT-Tage (OP KSA) — Gesamtübersicht'}
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Augenzentrum Suhr · Stand: {new Date().toLocaleDateString('de-CH')}
+              Augenzentrum Suhr · Stand: {formatSwissDate(new Date())}
             </p>
           </div>
 

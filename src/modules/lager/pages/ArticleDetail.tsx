@@ -9,7 +9,7 @@ import { getArticle, addLot, addMovement, updateMovement, updateArticle, updateL
 import { getPatientNames } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
-import { formatDate, daysUntil } from '../../../utils/dateUtils'
+import { formatDate, daysUntil, formatSwissDate } from '../../../utils/dateUtils'
 import { vatRate } from '../../../types/inventory.types'
 import BookingForm from '../components/BookingForm'
 import ArticleForm from '../components/ArticleForm'
@@ -451,7 +451,7 @@ const addLotMut = useMutation({
                       <td className="px-4 py-3">
                         {lot.expiryDate
                           ? <span className={days !== null && days <= 90 ? (days <= 30 ? 'text-red-600 font-semibold' : 'text-yellow-700') : 'text-gray-700'}>
-                              {new Date(lot.expiryDate).toLocaleDateString('de-CH')}
+                              {formatSwissDate(lot.expiryDate)}
                             </span>
                           : <span className="text-gray-400">—</span>
                         }
@@ -520,7 +520,7 @@ const addLotMut = useMutation({
                     {lot?.expiryDate && (
                       <span className="text-xs text-gray-500">
                         MHD: <span className={`font-medium ${daysUntil(lot.expiryDate) !== null && daysUntil(lot.expiryDate)! <= 30 ? 'text-red-600' : 'text-gray-700'}`}>
-                          {new Date(lot.expiryDate).toLocaleDateString('de-CH')}
+                          {formatSwissDate(lot.expiryDate)}
                         </span>
                       </span>
                     )}
