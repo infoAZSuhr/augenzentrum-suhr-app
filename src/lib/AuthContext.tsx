@@ -6,22 +6,17 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db } from './firebase'
+import * as perm from './permissions'
 
-export type UserRole   = 'admin' | 'arzt' | 'mpa' | 'gast' | 'geschaeftsleitung'
-export type UserStatus = 'pending' | 'approved' | 'rejected'
+// Re-Exports für Abwärtskompatibilität — die Typen lebten ursprünglich
+// hier. Pure-Logik ist nach src/lib/permissions.ts ausgelagert (testbar
+// ohne React/Firebase).
+export type UserRole         = perm.UserRole
+export type UserStatus       = perm.UserStatus
+export type UserPermissions  = perm.UserPermissions
 
 export interface ArbeitszeitTag { von: string; bis: string }
 export type Arbeitszeit = Partial<Record<'mo' | 'di' | 'mi' | 'do' | 'fr' | 'sa', ArbeitszeitTag | null>>
-
-export interface UserPermissions {
-  ivom?:           boolean
-  lager?:          boolean
-  planung?:        boolean
-  onboarding?:     boolean
-  aufgaben?:       boolean
-  recall?:         boolean
-  akv?:            boolean
-}
 
 export interface UserProfile {
   uid: string
@@ -218,40 +213,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth, email)
   }
 
-  const isApproved = profile?.status === 'approved' && !profile?.locked
-  const hasRole    = (r: UserRole) => isApproved && (profile?.role === r || (profile?.additionalRoles?.includes(r) ?? false))
-  const isAdmin        = hasRole('admin')
-  const isArzt         = hasRole('arzt')
-  const isMpa          = hasRole('mpa')
-  const isGuest        = profile?.role === 'gast' && isApproved
-  const isGeschaeftsleitung = hasRole('geschaeftsleitung')
-  const isReadOnly     = (isGuest || isGeschaeftsleitung) && !isAdmin && !isArzt && !isMpa
-  const isSuperAdmin   = isAdmin && profile?.isSuperAdmin === true
-  const canEditPlanung = isAdmin || isGeschaeftsleitung
-
-  // Module access: unified permissions check for all roles
-  // - Admin: always true
-  // - Users with permissions object set: use it explicitly
-  // - Arzt/MPA without permissions set: default full access (backward compat)
-  // - GL/Gast without permissions set: no access by default
-  const permGranted = (key: keyof UserPermissions): boolean => {
-    if (!isApproved) return false
-    if (isAdmin) return true
-    if (profile?.permissions !== undefined) return profile.permissions?.[key] === true
-    // recall: only GL has access by default; arzt/mpa need explicit grant
-    if (key === 'recall') return isGeschaeftsleitung
-    // akv: GL + arzt/mpa by default
-    if (key === 'akv') return isGeschaeftsleitung || hasRole('arzt') || hasRole('mpa')
-    return hasRole('arzt') || hasRole('mpa')
-  }
-  const canAccessIvom                = permGranted('ivom')
-  const canAccessLager               = permGranted('lager')
-  const canAccessPlanung             = permGranted('planung')
-  const canAccessSOP                 = permGranted('onboarding')
-  const canAccessAufgaben            = permGranted('aufgaben')
-  const canAccessRecall              = permGranted('recall')
-  const canAccessAkv                 = permGranted('akv')
-  const canAccessBenutzerverwaltung  = isAdmin || isGeschaeftsleitung
+  // Alle Permission-Booleans laufen jetzt durch die pure Helpers in
+  // src/lib/permissions.ts — siehe dortige Tests für Verträge & Edge-Cases.
+  const isAdmin                     = perm.isAdmin(profile)
+  const isArzt                      = perm.isArzt(profile)
+  const isGuest                     = perm.isGuest(profile)
+  const isGeschaeftsleitung         = perm.isGeschaeftsleitung(profile)
+  const isReadOnly                  = perm.isReadOnly(profile)
+  const isSuperAdmin                = perm.isSuperAdmin(profile)
+  const canEditPlanung              = perm.canEditPlanung(profile)
+  const canAccessIvom               = perm.permGranted(profile, 'ivom')
+  const canAccessLager              = perm.permGranted(profile, 'lager')
+  const canAccessPlanung            = perm.permGranted(profile, 'planung')
+  const canAccessSOP                = perm.permGranted(profile, 'onboarding')
+  const canAccessAufgaben           = perm.permGranted(profile, 'aufgaben')
+  const canAccessRecall             = perm.permGranted(profile, 'recall')
+  const canAccessAkv                = perm.permGranted(profile, 'akv')
+  const canAccessBenutzerverwaltung = perm.canAccessBenutzerverwaltung(profile)
 
   return (
     <AuthContext.Provider value={{
