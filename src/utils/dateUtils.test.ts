@@ -43,7 +43,10 @@ describe('formatDateTime', () => {
 describe('daysUntil', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-05-31T12:00:00Z'))
+    // Mitternacht UTC — sonst rundet date-fns wegen 12h-Offset
+    // beim Vergleich mit parseISO('YYYY-MM-DD') (interpretiert als 00:00)
+    // einen Tag weniger als gemeint.
+    vi.setSystemTime(new Date('2026-05-31T00:00:00Z'))
   })
   afterEach(() => { vi.useRealTimers() })
 
