@@ -8,6 +8,13 @@ import { useAuth, UserProfile } from '../../lib/AuthContext'
 import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, serverTimestamp, orderBy, deleteField } from 'firebase/firestore'
 import { db, auth } from '../../lib/firebase'
 import { manageFerienPlan, removePlanEntry, updatePlanComment } from '../../lib/firestorePlanung'
+import {
+  buildTauschApproveUpdates,
+  buildTauschRejectPendingUpdates,
+  buildTauschRejectRevokeUpdates,
+  buildTauschWithdrawUpdates,
+  buildAbsageRejectOrWithdrawUpdates,
+} from '../../lib/planungRequestUpdates'
 import { TaskNotification, subscribeTaskNotifications, markTaskNotifRead } from '../../lib/firestoreTasks'
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail } from 'firebase/auth'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
@@ -378,25 +385,10 @@ export default function AppShell() {
       } else if (req.type === 'absage' && req.year && req.myPerson && req.myDate) {
         await updatePlanComment(req.myPerson, [req.myDate], newComment, req.year)
       } else if (req.type === 'tausch' && req.year && req.myPerson && req.myDate) {
-        const planRef = doc(db, 'planung', String(req.year))
-        const update: Record<string, unknown> = {}
-        if (mode === 'approved') {
-          // Definitiv genehmigen: alte Einträge atomisch löschen
-          update[`schedule.${req.myPerson}.${req.myDate}`] = deleteField()
-          update[`comments.${req.myPerson}.${req.myDate}`] = deleteField()
+        const update = buildTauschApproveUpdates(req, mode, newComment, deleteField)
+        if (Object.keys(update).length > 0) {
+          await updateDoc(doc(db, 'planung', String(req.year)), update)
         }
-        // Kommentar auf neuem Eintrag setzen/löschen
-        if (req.theirDate) {
-          update[`comments.${req.myPerson}.${req.theirDate}`] = newComment ?? deleteField()
-        }
-        if (req.theirPerson && req.theirDate) {
-          if (mode === 'approved') {
-            update[`schedule.${req.theirPerson}.${req.theirDate}`] = deleteField()
-            update[`comments.${req.theirPerson}.${req.theirDate}`] = deleteField()
-          }
-          update[`comments.${req.theirPerson}.${req.myDate}`] = newComment ?? deleteField()
-        }
-        if (Object.keys(update).length > 0) await updateDoc(planRef, update)
       }
 
       const actor = profile?.displayName || profile?.username || 'Admin'
@@ -424,16 +416,10 @@ export default function AppShell() {
       } else if (req.type === 'absage' && req.year && req.myPerson && req.myDate) {
         await updatePlanComment(req.myPerson, [req.myDate], 'warten auf Freigabe', req.year)
       } else if (req.type === 'tausch' && req.year && req.myPerson && req.myDate) {
-        // Revoke: restore old entries + reset comments to "warten auf Freigabe" — atomic dot-notation
-        const planRef = doc(db, 'planung', String(req.year))
-        const update: Record<string, unknown> = {}
-        if (req.myCode) update[`schedule.${req.myPerson}.${req.myDate}`] = req.myCode
-        if (req.theirDate) update[`comments.${req.myPerson}.${req.theirDate}`] = 'warten auf Freigabe'
-        if (req.theirPerson && req.theirDate) {
-          if (req.theirCode) update[`schedule.${req.theirPerson}.${req.theirDate}`] = req.theirCode
-          update[`comments.${req.theirPerson}.${req.myDate}`] = 'warten auf Freigabe'
+        const update = buildTauschRejectRevokeUpdates(req)
+        if (Object.keys(update).length > 0) {
+          await updateDoc(doc(db, 'planung', String(req.year)), update)
         }
-        if (Object.keys(update).length > 0) await updateDoc(planRef, update)
       }
       await updateDoc(doc(db, 'planungRequests', req.id), {
         status: 'pending',
@@ -449,27 +435,14 @@ export default function AppShell() {
         await removePlanEntry(req.personName || req.username, req.dates)
       }
       if (req.type === 'absage' && req.year && req.myPerson && req.myDate) {
-        // Atomic dot-notation: restore old code or delete entry, clear comment
-        const planRef = doc(db, 'planung', String(req.year))
-        const update: Record<string, unknown> = {}
-        update[`schedule.${req.myPerson}.${req.myDate}`] = req.myCode ?? deleteField()
-        update[`comments.${req.myPerson}.${req.myDate}`] = deleteField()
-        await updateDoc(planRef, update)
+        const update = buildAbsageRejectOrWithdrawUpdates(req, deleteField)
+        await updateDoc(doc(db, 'planung', String(req.year)), update)
       }
       if (req.type === 'tausch' && req.year && req.myPerson && req.myDate) {
-        // Reject pending: remove only the new entries — old entries were kept and stay
-        const planRef = doc(db, 'planung', String(req.year))
-        const update: Record<string, unknown> = {}
-        if (req.theirDate && req.theirPerson) {
-          update[`schedule.${req.myPerson}.${req.theirDate}`] = deleteField()
-          update[`schedule.${req.theirPerson}.${req.myDate}`] = deleteField()
-          update[`comments.${req.myPerson}.${req.theirDate}`] = deleteField()
-          update[`comments.${req.theirPerson}.${req.myDate}`] = deleteField()
-        } else if (req.theirDate) {
-          update[`schedule.${req.myPerson}.${req.theirDate}`] = deleteField()
-          update[`comments.${req.myPerson}.${req.theirDate}`] = deleteField()
+        const update = buildTauschRejectPendingUpdates(req, deleteField)
+        if (Object.keys(update).length > 0) {
+          await updateDoc(doc(db, 'planung', String(req.year)), update)
         }
-        if (Object.keys(update).length > 0) await updateDoc(planRef, update)
       }
       const actor = profile?.displayName || profile?.username || 'Admin'
       await updateDoc(doc(db, 'planungRequests', req.id), { status: 'rejected', actionBy: actor, actionAt: serverTimestamp(), readByUser: false })
@@ -523,29 +496,15 @@ export default function AppShell() {
     }
     // Absage: restore original code + remove comment — atomic dot-notation
     if (req.type === 'absage' && req.year && req.myPerson && req.myDate) {
-      const planRef = doc(db, 'planung', String(req.year))
-      const update: Record<string, unknown> = {}
-      update[`schedule.${req.myPerson}.${req.myDate}`] = req.myCode ?? deleteField()
-      update[`comments.${req.myPerson}.${req.myDate}`] = deleteField()
-      await updateDoc(planRef, update)
+      const update = buildAbsageRejectOrWithdrawUpdates(req, deleteField)
+      await updateDoc(doc(db, 'planung', String(req.year)), update)
     }
     // Tausch: undo swap + remove comments — atomic dot-notation
     if (req.type === 'tausch' && req.year && req.myPerson && req.myDate) {
-      const planRef = doc(db, 'planung', String(req.year))
-      const update: Record<string, unknown> = {}
-      if (req.theirDate && req.theirPerson) {
-        update[`schedule.${req.myPerson}.${req.myDate}`] = req.myCode ?? deleteField()
-        update[`schedule.${req.theirPerson}.${req.theirDate}`] = req.theirCode ?? deleteField()
-        update[`schedule.${req.myPerson}.${req.theirDate}`] = deleteField()
-        update[`schedule.${req.theirPerson}.${req.myDate}`] = deleteField()
-        update[`comments.${req.myPerson}.${req.theirDate}`] = deleteField()
-        update[`comments.${req.theirPerson}.${req.myDate}`] = deleteField()
-      } else if (req.theirDate) {
-        update[`schedule.${req.myPerson}.${req.myDate}`] = req.myCode ?? deleteField()
-        update[`schedule.${req.myPerson}.${req.theirDate}`] = deleteField()
-        update[`comments.${req.myPerson}.${req.theirDate}`] = deleteField()
+      const update = buildTauschWithdrawUpdates(req, deleteField)
+      if (Object.keys(update).length > 0) {
+        await updateDoc(doc(db, 'planung', String(req.year)), update)
       }
-      if (Object.keys(update).length > 0) await updateDoc(planRef, update)
     }
     await updateDoc(doc(db, 'planungRequests', req.id), { status: 'withdrawn' })
   }
