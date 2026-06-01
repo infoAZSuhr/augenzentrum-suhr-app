@@ -948,12 +948,24 @@ export default function RecallPage() {
 
     // ── Activity log ────────────────────────────────────────────────────────
     const now = new Date()
+
+    // Periodengrenzen — konsistent mit den Neupatienten-Cards weiter unten
+    // (Kalenderwoche Mo–Fr / Kalendermonat). Werden hier deklariert, damit
+    // sowohl inPeriod() als auch der Neupatienten-Block sie nutzen können.
+    const yearStartG  = new Date(now.getFullYear(), 0, 1)
+    const monthStartG = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthEndG   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+    const dowG = now.getDay()                                       // 0=So, 1=Mo, ..., 6=Sa
+    const offsetMoG = dowG === 0 ? -6 : 1 - dowG
+    const weekStartG = new Date(now); weekStartG.setDate(now.getDate() + offsetMoG); weekStartG.setHours(0, 0, 0, 0)
+    const weekEndG   = new Date(weekStartG); weekEndG.setDate(weekStartG.getDate() + 4); weekEndG.setHours(23, 59, 59, 999)
+
     function inPeriod(iso: string): boolean {
       const d = new Date(iso)
       if (actPeriod === 'today') return d.toDateString() === now.toDateString()
-      if (actPeriod === 'week')  { const w = new Date(now); w.setDate(w.getDate() - 7);  return d >= w }
-      if (actPeriod === 'month') { const m = new Date(now); m.setDate(m.getDate() - 30); return d >= m }
-      return true
+      if (actPeriod === 'week')  return d >= weekStartG  && d <= weekEndG
+      if (actPeriod === 'month') return d >= monthStartG && d <= monthEndG
+      return true   // 'all'
     }
     // Aufgebot-Aufschlüsselung aus verlauf: aktion → Art-Bucket.
     // System-generierte Reminder (von === 'System') zählen NICHT — die kommen
@@ -1026,30 +1038,17 @@ export default function RecallPage() {
       )
 
     // ── Neupatienten ────────────────────────────────────────────────────────
-    // Periodengrenzen entsprechen den Card-Labels:
-    //   "Diese Woche"  = aktuelle Kalenderwoche Mo–Fr (Wochenenden ausgeschlossen
-    //                    auf Wunsch — Praxis arbeitet Mo–Fr)
-    //   "Dieser Monat" = aktueller Kalendermonat (1. bis Monatsende)
-    //   "Dieses Jahr"  = aktuelles Kalenderjahr
-    // Vorher: rolling 7/30 days → "Diese Woche" enthielt am Mittwoch auch
-    // Donnerstag/Freitag der Vorwoche.
-    const yearStart  = new Date(now.getFullYear(), 0, 1)
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
-    // Montag der aktuellen Woche (now.getDay(): 0=So, 1=Mo, ..., 6=Sa)
-    const dow = now.getDay()
-    const offsetToMonday = dow === 0 ? -6 : 1 - dow
-    const weekStart = new Date(now); weekStart.setDate(now.getDate() + offsetToMonday); weekStart.setHours(0, 0, 0, 0)
-    const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 4); weekEnd.setHours(23, 59, 59, 999)  // Freitag
-
+    // Periodengrenzen entsprechen den Card-Labels — Kalenderwoche Mo–Fr
+    // (Praxis arbeitet Mo–Fr) / Kalendermonat / Kalenderjahr. Die Grenzen
+    // sind oben als *G-Vars deklariert (geteilt mit inPeriod() für Activity).
     const neuAll = all.filter(p => p.neupatient === true)
     function neupDate(p: RecallPatient): Date | null {
       const ps = parseStamp(p.erstellt); return ps ? new Date(ps.isoDate) : null
     }
     const neupatienten = {
-      week:  neuAll.filter(p => { const d = neupDate(p); return d && d >= weekStart  && d <= weekEnd  }).length,
-      month: neuAll.filter(p => { const d = neupDate(p); return d && d >= monthStart && d <= monthEnd }).length,
-      year:  neuAll.filter(p => { const d = neupDate(p); return d && d >= yearStart  }).length,
+      week:  neuAll.filter(p => { const d = neupDate(p); return d && d >= weekStartG  && d <= weekEndG  }).length,
+      month: neuAll.filter(p => { const d = neupDate(p); return d && d >= monthStartG && d <= monthEndG }).length,
+      year:  neuAll.filter(p => { const d = neupDate(p); return d && d >= yearStartG  }).length,
       total: neuAll.length,
     }
 
@@ -3268,7 +3267,7 @@ export default function RecallPage() {
                     {(['today','week','month','all'] as ActPeriod[]).map((p, i) => (
                       <button key={p} onClick={() => setActPeriod(p)}
                         className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${actPeriod === p ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                        {p === 'today' ? 'Heute' : p === 'week' ? '7 Tage' : p === 'month' ? '30 Tage' : 'Alle'}
+                        {p === 'today' ? 'Heute' : p === 'week' ? 'Diese Woche' : p === 'month' ? 'Dieser Monat' : 'Alle'}
                       </button>
                     ))}
                   </div>
