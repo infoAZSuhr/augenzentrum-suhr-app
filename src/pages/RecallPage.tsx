@@ -1019,15 +1019,44 @@ export default function RecallPage() {
       if (!actMap[isoDate][userKey]) actMap[isoDate][userKey] = { updated: 0, created: 0, displayName, aufgebote: emptyAufgebote() }
       return actMap[isoDate][userKey]
     }
-    function bump(ts: string | null, field: 'created' | 'updated') {
-      const p = parseStamp(ts); if (!p || !inPeriod(p.isoDate)) return
-      ensureCell(p.isoDate, p.user.trim().toLowerCase(), p.user.trim())[field]++
+    function tally(isoDate: string, user: string, field: 'created' | 'updated') {
+      if (!inPeriod(isoDate)) return
+      ensureCell(isoDate, user.trim().toLowerCase(), user.trim())[field]++
     }
     for (const p of all) {
-      bump(p.erstellt,     'created')
       const ce = parseStamp(p.erstellt)
+      if (ce) tally(ce.isoDate, ce.user, 'created')
+
+      // "Bearbeitet" = Anzahl distinct Patienten, die ein User an einem Tag
+      // berührt hat. Quellen:
+      //   1. verlauf-Entries (append-only, behalten jeden User-Eintrag,
+      //      auch wenn später jemand anderes editiert — kein last-write-wins)
+      //   2. aktualisiert-Stamp (Fallback für Edits ohne verlauf-Entry,
+      //      z.B. simple Inline-Toggles wie naechsteKons-Setzen)
+      // Set<`${date}|${userKey}`> verhindert Doppel-Counts wenn dieselbe
+      // Person mehrere verlauf-Entries am selben Tag auf demselben Patient
+      // hatte (z.B. Aufgebot erstellen + zusätzliche Notiz).
+      // Map<`${date}\x00${userKey}`, displayName> — \x00 als Separator vermeidet
+      // Kollision mit irgendwelchen Zeichen in Usernamen.
+      const touches = new Map<string, string>()
+      for (const v of (p.verlauf ?? [])) {
+        if (!v?.datum || !v?.von || v.von === 'System') continue
+        const name = v.von.trim()
+        touches.set(`${v.datum}\x00${name.toLowerCase()}`, name)
+      }
       const cu = parseStamp(p.aktualisiert)
-      if (cu && (cu.isoDate !== ce?.isoDate || cu.user.trim().toLowerCase() !== ce?.user.trim().toLowerCase())) bump(p.aktualisiert, 'updated')
+      if (cu) touches.set(`${cu.isoDate}\x00${cu.user.trim().toLowerCase()}`, cu.user.trim())
+
+      for (const [k, displayName] of touches) {
+        const sep = k.indexOf('\x00')
+        const isoDate = k.slice(0, sep)
+        const userKey = k.slice(sep + 1)
+        // Same-day-Creator nicht doppelt zählen (erscheint schon in 'created')
+        if (ce && ce.isoDate === isoDate && ce.user.trim().toLowerCase() === userKey) continue
+        if (!inPeriod(isoDate)) continue
+        ensureCell(isoDate, userKey, displayName).updated++
+      }
+      // (Aufgebot-Tally läuft im nächsten Block unverändert weiter)
 
       // Aufgebote aus verlauf-Entries des Patienten.
       //
