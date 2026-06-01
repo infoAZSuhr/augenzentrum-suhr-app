@@ -1,0 +1,61 @@
+name: Sync Glossar-Defaults in Firestore
+
+# Synct neue Default-Einträge aus src/lib/glossar.ts in die Firestore-
+# Collection `glossar`. Bestehende Einträge (auch von Admins editierte)
+# werden NICHT überschrieben — nur fehlende Abkürzungen werden angelegt.
+#
+# Trigger:
+#   - Wöchentlich Montag 04:45 UTC (kurz nach den Update-Skripten, eigener Slot)
+#   - Bei Push auf main, wenn src/lib/glossar.ts oder das Sync-Skript
+#     selbst geändert wurde
+#   - Manuell via workflow_dispatch
+#
+# Voraussetzung: bestehendes Secret FIREBASE_SERVICE_ACCOUNT (gleiches wie
+# deploy.yml / seed-tardoc-sops.yml). Keine zusätzlichen Secrets.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 4 * * 1'   # Mo 04:45 UTC
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/glossar.ts'
+      - 'scripts/sync-glossar-defaults.mjs'
+      - '.github/workflows/sync-glossar-defaults.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-glossar-defaults
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm ci
+
+      - name: Sync-Skript ausführen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT ist nicht gesetzt."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          node scripts/sync-glossar-defaults.mjs
+          rm -f /tmp/sa.json
