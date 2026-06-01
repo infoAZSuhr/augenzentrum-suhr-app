@@ -137,13 +137,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(snap.data() as UserProfile)
         setLoading(false)
       } else {
-        // No Firestore profile yet — create a pending placeholder
+        // No Firestore profile yet — create a pending placeholder.
+        //
+        // Default-Rolle bewusst 'gast' (unprivilegiert): dieser Pfad
+        // greift nur wenn ein Firebase-Auth-User existiert, dessen
+        // Firestore-Profil fehlt (z.B. Profil gelöscht oder User direkt
+        // in der Firebase-Console angelegt). Mit role='admin' (vorher)
+        // wäre ein Admin, der bei Approval nur auf den Status schaut,
+        // dem User unbeabsichtigt Admin-Rechte gegeben.
+        // Admin kann die Rolle bei Approval explizit hochstufen.
         const newProfile: UserProfile = {
           uid: user.uid,
           email: user.email ?? '',
           displayName: user.displayName ?? user.email ?? '',
           username: user.displayName ?? user.email?.split('@')[0] ?? '',
-          role: 'admin',
+          role: 'gast',
           status: 'pending',
         }
         await setDoc(profileRef, { ...newProfile, createdAt: serverTimestamp() })
