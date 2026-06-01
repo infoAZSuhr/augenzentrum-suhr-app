@@ -1086,6 +1086,46 @@ export default function RecallPage() {
         const userKey = userName.toLowerCase()
         ensureCell(v.datum, userKey, userName).aufgebote[bucket]++
       }
+
+      // FALLBACK für Aufgebote ohne Verlauf-Entry:
+      // - Alte Inline-Toggle-Klicks (vor der Auto-Verlauf-Logik)
+      // - Edit-Modal-Saves (vor der Auto-Verlauf-Logik)
+      // - User-Browser mit gecachtem alten Code, der noch nicht refresht hat
+      // Wir leiten den Ersteller aus dem aktualisiert-Stamp ab — heuristisch
+      // (kann falschen User zuweisen wenn der Patient nach der Aufgebot-Erstellung
+      // nochmal editiert wurde), aber besser als gar nichts. Skip wenn für
+      // dasselbe (date, user, bucket) bereits ein Verlauf-Entry existiert.
+      if (p.aufgebotErstellt && p.aufgebotArt) {
+        const fallbackBucket: AufgebotBucket | null =
+          p.aufgebotArt === 'Brief'    ? 'Brief'    :
+          p.aufgebotArt === 'Tel'      ? 'Tel'      :
+          p.aufgebotArt === 'Praxis'   ? 'Praxis'   :
+          p.aufgebotArt === 'Reminder' ? 'Reminder' : null
+        const cu = parseStamp(p.aktualisiert)
+        // Nur wenn aufgebotErstellt mit aktualisiert-Datum übereinstimmt (= dieser
+        // Edit war vermutlich die Aufgebot-Erstellung), sonst hat danach jemand
+        // anderes editiert und wir würden ihm das Aufgebot fälschlich zuschreiben.
+        if (fallbackBucket && cu && cu.isoDate === p.aufgebotErstellt && inPeriod(p.aufgebotErstellt)) {
+          const fbUserName = cu.user.trim()
+          const fbUserKey  = fbUserName.toLowerCase()
+          const alreadyInVerlauf = (p.verlauf ?? []).some(v => {
+            if (!v?.aktion || !v?.datum || !v?.von) return false
+            if (VERLAUF_TO_ART[v.aktion] !== fallbackBucket) return false
+            if (v.datum !== p.aufgebotErstellt) return false
+            if (v.von.trim().toLowerCase() !== fbUserKey) return false
+            // gleiche Reminder-Blacklist wie oben (sonst zählt geplanter Reminder mit)
+            if (fallbackBucket === 'Reminder') {
+              const erg = (v.ergebnis ?? '').trim()
+              if (v.von === 'System') return false
+              if (erg.startsWith('Geplant:') || erg.startsWith('Abgesagt') || erg.startsWith('Automatisch')) return false
+            }
+            return true
+          })
+          if (!alreadyInVerlauf) {
+            ensureCell(p.aufgebotErstellt, fbUserKey, fbUserName).aufgebote[fallbackBucket]++
+          }
+        }
+      }
     }
     const actRows = Object.entries(actMap)
       .sort(([a], [b]) => b.localeCompare(a))
