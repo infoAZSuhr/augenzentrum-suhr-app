@@ -939,7 +939,7 @@ export default function RecallPage() {
 
   // ── Auswertung ───────────────────────────────────────────────────────────────
   const [auswertungOpen, setAuswertungOpen] = useState(false)
-  type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'all'
+  type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'year' | 'lastYear' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
   // Zentrale Definition der Period-Buttons (Reihenfolge + Labels) — beide
@@ -950,6 +950,8 @@ export default function RecallPage() {
     { key: 'lastWeek',  label: 'Letzte Woche' },
     { key: 'month',     label: 'Dieser Monat' },
     { key: 'lastMonth', label: 'Letzter Monat' },
+    { key: 'year',      label: 'Dieses Jahr' },
+    { key: 'lastYear',  label: 'Letztes Jahr' },
     { key: 'all',       label: 'Alle' },
   ]
 
@@ -976,6 +978,11 @@ export default function RecallPage() {
     // Letzter Monat: vorheriger Kalendermonat
     const lastMonthStartG = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const lastMonthEndG   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+    // Dieses Jahr: 1.1. — 31.12. des aktuellen Jahres
+    const yearEndG        = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+    // Letztes Jahr: 1.1. — 31.12. des Vorjahres
+    const lastYearStartG  = new Date(now.getFullYear() - 1, 0, 1)
+    const lastYearEndG    = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999)
 
     function matchPeriod(d: Date, period: ActPeriod): boolean {
       if (period === 'today')     return d.toDateString() === now.toDateString()
@@ -983,6 +990,8 @@ export default function RecallPage() {
       if (period === 'lastWeek')  return d >= lastWeekStartG  && d <= lastWeekEndG
       if (period === 'month')     return d >= monthStartG     && d <= monthEndG
       if (period === 'lastMonth') return d >= lastMonthStartG && d <= lastMonthEndG
+      if (period === 'year')      return d >= yearStartG      && d <= yearEndG
+      if (period === 'lastYear')  return d >= lastYearStartG  && d <= lastYearEndG
       return true   // 'all'
     }
     function inPeriod(iso: string): boolean {
@@ -3405,8 +3414,10 @@ export default function RecallPage() {
                    : neuPeriod === 'today'     ? 'Heute keine Neupatienten erfasst.'
                    : neuPeriod === 'week'      ? 'Diese Woche keine Neupatienten erfasst.'
                    : neuPeriod === 'lastWeek'  ? 'Letzte Woche keine Neupatienten erfasst.'
+                   : neuPeriod === 'month'     ? 'Diesen Monat keine Neupatienten erfasst.'
                    : neuPeriod === 'lastMonth' ? 'Letzten Monat keine Neupatienten erfasst.'
-                                               : 'Diesen Monat keine Neupatienten erfasst.'}
+                   : neuPeriod === 'year'      ? 'Dieses Jahr keine Neupatienten erfasst.'
+                                               : 'Letztes Jahr keine Neupatienten erfasst.'}
                   </p>
                 ) : (
                   // Inline-scrollbar (siehe Aktivitäts-Tabelle oben).
