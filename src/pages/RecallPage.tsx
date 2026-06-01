@@ -955,28 +955,56 @@ export default function RecallPage() {
       if (actPeriod === 'month') { const m = new Date(now); m.setDate(m.getDate() - 30); return d >= m }
       return true
     }
-    type UA = { updated: number; created: number; displayName: string }
+    // Aufgebot-Aufschlüsselung aus verlauf: aktion → Art-Bucket.
+    // System-generierte Reminder (von === 'System') zählen NICHT — die kommen
+    // aus Auto-Logik, nicht aus User-Aktion.
+    type AufgebotBucket = 'Brief' | 'Tel' | 'Praxis' | 'Reminder'
+    const VERLAUF_TO_ART: Record<string, AufgebotBucket> = {
+      Briefaufgebot:    'Brief',
+      Telefonaufgebot:  'Tel',
+      Praxisaufgebot:   'Praxis',
+      Reminder:         'Reminder',
+    }
+    function emptyAufgebote() {
+      return { Brief: 0, Tel: 0, Praxis: 0, Reminder: 0 }
+    }
+
+    type UA = { updated: number; created: number; displayName: string; aufgebote: ReturnType<typeof emptyAufgebote> }
     const actMap: Record<string, Record<string, UA>> = {}
+    function ensureCell(isoDate: string, userKey: string, displayName: string): UA {
+      if (!actMap[isoDate]) actMap[isoDate] = {}
+      if (!actMap[isoDate][userKey]) actMap[isoDate][userKey] = { updated: 0, created: 0, displayName, aufgebote: emptyAufgebote() }
+      return actMap[isoDate][userKey]
+    }
     function bump(ts: string | null, field: 'created' | 'updated') {
       const p = parseStamp(ts); if (!p || !inPeriod(p.isoDate)) return
-      const userKey = p.user.trim().toLowerCase()
-      if (!actMap[p.isoDate]) actMap[p.isoDate] = {}
-      if (!actMap[p.isoDate][userKey]) actMap[p.isoDate][userKey] = { updated: 0, created: 0, displayName: p.user.trim() }
-      actMap[p.isoDate][userKey][field]++
+      ensureCell(p.isoDate, p.user.trim().toLowerCase(), p.user.trim())[field]++
     }
     for (const p of all) {
       bump(p.erstellt,     'created')
       const ce = parseStamp(p.erstellt)
       const cu = parseStamp(p.aktualisiert)
       if (cu && (cu.isoDate !== ce?.isoDate || cu.user.trim().toLowerCase() !== ce?.user.trim().toLowerCase())) bump(p.aktualisiert, 'updated')
+
+      // Aufgebote aus verlauf-Entries des Patienten
+      for (const v of (p.verlauf ?? [])) {
+        if (!v?.aktion || !v?.datum || !v?.von) continue
+        const bucket = VERLAUF_TO_ART[v.aktion]
+        if (!bucket) continue
+        if (bucket === 'Reminder' && v.von === 'System') continue   // Auto-Reminder ignorieren
+        if (!inPeriod(v.datum)) continue
+        const userName = v.von.trim()
+        const userKey = userName.toLowerCase()
+        ensureCell(v.datum, userKey, userName).aufgebote[bucket]++
+      }
     }
     const actRows = Object.entries(actMap)
       .sort(([a], [b]) => b.localeCompare(a))
       .flatMap(([iso, users]) =>
         Object.entries(users)
           .sort(([a], [b]) => a.localeCompare(b))
-          .map(([, { updated, created, displayName }]) => ({
-            iso, dateStr: iso.split('-').reverse().join('.'), user: displayName, updated, created,
+          .map(([, { updated, created, displayName, aufgebote }]) => ({
+            iso, dateStr: iso.split('-').reverse().join('.'), user: displayName, updated, created, aufgebote,
           }))
       )
 
@@ -1858,21 +1886,44 @@ export default function RecallPage() {
   }
 
 
-  /** Inline toggle for aufgebotArt — optimistic update, Firestore write in background */
+  /** Inline toggle for aufgebotArt — optimistic update, Firestore write in background.
+   *  Wenn ein Aufgebot NEU gesetzt wird (newValue != null), schreiben wir zusätzlich
+   *  einen verlauf-Eintrag, damit die Auswertung den Ersteller + Art zuordnen kann.
+   *  Beim Entfernen (newValue == null) wird kein Entry erzeugt — der ursprüngliche
+   *  bleibt im verlauf stehen. */
   async function handleInlineAufgebotArt(rowId: string, doctor: string, value: string, current: string | null) {
     const newValue = current === value ? null : value
     const today = new Date().toISOString().slice(0, 10)
     const newErstellt = newValue ? today : null
+
+    // verlauf-Entry nur bei Neusetzen, aktions-Namen analog zu aufgebotConfirm()
+    const existingPatient = (allData.get(doctor) ?? []).find(r => r.id === rowId)
+    const existingVerlauf = existingPatient?.verlauf ?? []
+    const inlineEntry: VerlaufEntry | null = newValue ? {
+      datum: today,
+      aktion: newValue === 'Brief'  ? 'Briefaufgebot'
+            : newValue === 'Tel'    ? 'Telefonaufgebot'
+            : newValue === 'Praxis' ? 'Praxisaufgebot'
+            :                          'Reminder',
+      ergebnis: 'Inline erfasst',
+      von: displayLabel,
+    } : null
+    const newVerlauf = inlineEntry ? [...existingVerlauf, inlineEntry] : existingVerlauf
+
     setAllData(prev => {
       const next = new Map(prev)
       const updated = (next.get(doctor) ?? []).map(r =>
-        r.id === rowId ? { ...r, aufgebotArt: newValue, aufgebotErstellt: newErstellt } : r
+        r.id === rowId
+          ? { ...r, aufgebotArt: newValue, aufgebotErstellt: newErstellt, verlauf: newVerlauf }
+          : r
       )
       next.set(doctor, updated)
       return next
     })
     try {
-      await updateRecallPatient(rowId, { aufgebotArt: newValue, aufgebotErstellt: newErstellt }, displayLabel)
+      const payload: any = { aufgebotArt: newValue, aufgebotErstellt: newErstellt }
+      if (inlineEntry) payload.verlauf = newVerlauf
+      await updateRecallPatient(rowId, payload, displayLabel)
       await reloadTab(doctor)
     } catch {
       await reloadTab(doctor)
@@ -3131,27 +3182,54 @@ export default function RecallPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <tr>
-                          <th className="text-left px-4 py-2.5">Datum</th>
-                          <th className="text-left px-4 py-2.5">Benutzer</th>
+                          <th className="text-left  px-4 py-2.5">Datum</th>
+                          <th className="text-left  px-4 py-2.5">Benutzer</th>
                           <th className="text-right px-4 py-2.5">Neu erfasst</th>
                           <th className="text-right px-4 py-2.5">Bearbeitet</th>
+                          <th className="text-left  px-4 py-2.5">Aufgebote</th>
                           <th className="text-right px-4 py-2.5">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {auswertungStats.actRows.map((r, i) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr}</td>
-                            <td className="px-4 py-2.5 font-medium text-gray-800">{r.user.split(' ')[0]}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">
-                              {r.created > 0 ? <span className="inline-block px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-semibold text-xs">+{r.created}</span> : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">
-                              {r.updated > 0 ? <span className="text-gray-700 font-medium">{r.updated}</span> : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900">{r.created + r.updated}</td>
-                          </tr>
-                        ))}
+                        {auswertungStats.actRows.map((r, i) => {
+                          const aufgebotTotal = r.aufgebote.Brief + r.aufgebote.Tel + r.aufgebote.Praxis + r.aufgebote.Reminder
+                          const badges: Array<{ key: string; count: number; label: string; cls: string }> = [
+                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',    cls: 'bg-blue-50    text-blue-700    border-blue-200'    },
+                            { key: 'T', count: r.aufgebote.Tel,      label: 'Telefon',  cls: 'bg-amber-50   text-amber-700   border-amber-200'   },
+                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',   cls: 'bg-violet-50  text-violet-700  border-violet-200'  },
+                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder', cls: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
+                          ].filter(b => b.count > 0)
+                          return (
+                            <tr key={i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr}</td>
+                              <td className="px-4 py-2.5 font-medium text-gray-800">{r.user.split(' ')[0]}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">
+                                {r.created > 0 ? <span className="inline-block px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-semibold text-xs">+{r.created}</span> : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">
+                                {r.updated > 0 ? <span className="text-gray-700 font-medium">{r.updated}</span> : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {aufgebotTotal === 0 ? (
+                                  <span className="text-gray-300">—</span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1">
+                                    {badges.map(b => (
+                                      <span
+                                        key={b.key}
+                                        title={`${b.count} × ${b.label}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-semibold tabular-nums ${b.cls}`}
+                                      >
+                                        <span className="opacity-70">{b.key}</span>{b.count}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900">{r.created + r.updated}</td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
