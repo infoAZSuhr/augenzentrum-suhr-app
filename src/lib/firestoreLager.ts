@@ -363,7 +363,10 @@ export async function getAlerts(): Promise<InventoryAlert[]> {
         severity: 'warning',
       })
     }
-    const stock = await computeStock(a.id)
+    // Alle Lots einmal holen — Stock-Summe und Ablauf-Filter teilen sich die Query.
+    const lotsSnap = await getDocs(query(col('inventory_lots'), where('articleId', '==', a.id)))
+    const lots = lotsSnap.docs.map(d => d.data() as any)
+    const stock = sumActiveLotQuantity(lots)
     if (stock < (a.minStock || 0)) {
       const qu = a.quantityUnit || a.unit
       alerts.push({
@@ -372,9 +375,9 @@ export async function getAlerts(): Promise<InventoryAlert[]> {
         severity: stock === 0 ? 'critical' : 'warning',
       })
     }
-    // Kein orderBy+where Kombi — in JS filtern/sortieren
-    const expSnap = await getDocs(query(col('inventory_lots'), where('articleId', '==', a.id), where('isDepleted', '==', false)))
-    const expiring = expSnap.docs.map(d => d.data()).filter(l => l.expiryDate && l.expiryDate <= in30Str).sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
+    const expiring = lots
+      .filter(l => !l.isDepleted && l.expiryDate && l.expiryDate <= in30Str)
+      .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
     if (expiring.length > 0) {
       const lot = expiring[0]
       const days = Math.ceil((new Date(lot.expiryDate).getTime() - Date.now()) / 86400000)

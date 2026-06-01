@@ -219,8 +219,12 @@ function buildLegendHTML():string{
   return`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px">${ALL_CODES.map(c=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:8px;background:${CODE_PRINT[c]??'#f3f4f6'};-webkit-print-color-adjust:exact;print-color-adjust:exact"><b>${c}</b> ${CODE_LABELS[c]}</span>`).join('')}</div>`
 }
 function printViaIframe(html:string){
+  // Hinweis: top-level Helfer — kein React-Kontext, daher kein useToast.
+  // Pop-up-Blocker ist ein Edge-Case im direkten User-Klick-Pfad, hier
+  // ist window.alert die robusteste Lösung (Toast-Provider könnte auch
+  // gar nicht montiert sein, z.B. beim Drucken im Sub-Window).
   const w=window.open('','_blank')
-  if(!w){toast.warning('Bitte Pop-up-Blocker für diese Seite deaktivieren');return}
+  if(!w){window.alert('Bitte Pop-up-Blocker für diese Seite deaktivieren');return}
   w.document.write(html)
   w.document.close()
   setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close()},500)
