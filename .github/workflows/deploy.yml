@@ -82,7 +82,7 @@ jobs:
           # und storage wieder dazu — siehe Kommentar-Historie dieser Datei.
           #
           # Bis dahin: manuell lokal deployen wenn Rules ändern:
-          #   firebase deploy --only firestore:rules --project azsdb-999d6
+          #   firebase deploy --only "firestore:rules" --project azsdb-999d6
           #   firebase deploy --only storage         --project azsdb-999d6
           firebase deploy --only hosting --project azsdb-999d6 --non-interactive
           rm -f /tmp/sa.json
