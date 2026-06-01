@@ -301,16 +301,11 @@ export default function AppShell() {
   // Close mobile menu on route change
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
 
-  // Auto-logout after 10 minutes of inactivity
-  useEffect(() => {
-    const TIMEOUT = 10 * 60 * 1000
-    let timer: ReturnType<typeof setTimeout>
-    const reset = () => { clearTimeout(timer); timer = setTimeout(() => logout(), TIMEOUT) }
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
-    events.forEach(e => window.addEventListener(e, reset, { passive: true }))
-    reset()
-    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, reset)) }
-  }, [logout])
+  // Inactivity-logout: bewusst NICHT hier — die Logik lebt in App.tsx
+  // <InactivityLogout/> mit 15 Min Timeout + 2 Min Warn-Countdown (siehe
+  // App.tsx INACTIVITY_MS / WARN_BEFORE_MS). Der frühere 10-Min-Timer an
+  // dieser Stelle war ein Duplikat, der den User unangekündigt 5 Min vor
+  // dem Warn-Modal abmeldete.
 
   // Real-time listener for pending + provisional + approved planungRequests (admin + Geschäftsleitung)
   useEffect(() => {
