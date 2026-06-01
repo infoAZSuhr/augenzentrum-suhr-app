@@ -27,7 +27,11 @@ function escapeRegex(s: string): string {
 }
 
 function escapeAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 /**
@@ -39,9 +43,12 @@ function buildTermsRegex(glossar: Record<string, string>): RegExp | null {
   if (terms.length === 0) return null
   const sorted = [...terms].sort((a, b) => b.length - a.length)
   return new RegExp(
-    // linke Grenze: kein Wort-/Bindestrich-Zeichen davor
+    // linke Grenze:  kein Wort-/Bindestrich-Zeichen davor
     // rechte Grenze: kein Wort-/Bindestrich-Zeichen danach
-    `(?<![A-Za-z0-9_äöüÄÖÜß-])(${sorted.map(escapeRegex).join('|')})(?![A-Za-z0-9_äöüÄÖÜß-])`,
+    // zusätzlich:    kein "." + Ziffer danach — verhindert Match auf
+    //                Abkürzungs-Präfixe in Tarif-Codes wie "RC.35.0110"
+    //                oder "AA.00.0010".
+    `(?<![A-Za-z0-9_äöüÄÖÜß-])(${sorted.map(escapeRegex).join('|')})(?![A-Za-z0-9_äöüÄÖÜß-])(?!\\.\\d)`,
     'g'
   )
 }
