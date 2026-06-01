@@ -186,34 +186,19 @@ export interface IviDayPlan {
 }
 
 // Doctors whose working days define IVI days (partial lowercase name match)
-const IVI_DOCTORS_MATCH = ['tschopp', 'trachsler']
-const IVI_WORKING = new Set(['GT', 'VM', 'NM'])
+// IVI-Logik (Doctor-Filter, Working-Codes, latest-per-patient-eye) ist
+// in src/lib/iviPlanLogic.ts extrahiert — pure & getestet.
+import { extractIviDaysFromPlans, pickLatestPerPatientEye } from './iviPlanLogic'
 
 /** Returns all future dates where Markus Tschopp or Stefan Trachsler are working */
 export async function getIviDaysFromPlanung(): Promise<string[]> {
   const today = new Date().toISOString().slice(0, 10)
   const currentYear = new Date().getFullYear()
-  const [plan1, plan2] = await Promise.all([
+  const plans = await Promise.all([
     loadPlanung(currentYear),
     loadPlanung(currentYear + 1),
   ])
-  const days = new Set<string>()
-  for (const plan of [plan1, plan2]) {
-    if (!plan) continue
-    const persons = plan.sections.flatMap(s => s.persons)
-    const iviPersons = persons.filter(p =>
-      IVI_DOCTORS_MATCH.some(d => p.toLowerCase().includes(d))
-    )
-    for (const person of iviPersons) {
-      const schedule = plan.schedule[person] ?? {}
-      for (const [date, code] of Object.entries(schedule)) {
-        if (date >= today && IVI_WORKING.has(code as string)) {
-          days.add(date)
-        }
-      }
-    }
-  }
-  return [...days].sort()
+  return extractIviDaysFromPlans(plans, today)
 }
 
 /** Real-time subscription — fires whenever planung/{year} changes */
@@ -223,20 +208,7 @@ export function subscribeIviDaysFromPlanung(cb: (days: string[]) => void): () =>
   const plans = new Map<number, PlanungData | null>()
 
   function recompute() {
-    const days = new Set<string>()
-    for (const plan of plans.values()) {
-      if (!plan) continue
-      const persons = plan.sections.flatMap(s => s.persons)
-      const iviPersons = persons.filter(p =>
-        IVI_DOCTORS_MATCH.some(d => p.toLowerCase().includes(d))
-      )
-      for (const person of iviPersons) {
-        for (const [date, code] of Object.entries(plan.schedule[person] ?? {})) {
-          if (date >= today && IVI_WORKING.has(code as string)) days.add(date)
-        }
-      }
-    }
-    cb([...days].sort())
+    cb(extractIviDaysFromPlans([...plans.values()], today))
   }
 
   const unsubs = [currentYear, currentYear + 1].map(year =>
@@ -253,15 +225,8 @@ export async function getIviDayPlan(): Promise<IviDayPlan[]> {
   ])
   const treatments = snap.docs.map(d => fromDoc<Treatment>(d))
 
-  // Per patient+eye: keep only the latest treatment
-  const perPatientEye = new Map<string, Treatment>()
-  for (const t of treatments) {
-    const key = `${t.patientId}:${t.eyeSide}`
-    const existing = perPatientEye.get(key)
-    if (!existing || t.treatmentDate > existing.treatmentDate) {
-      perPatientEye.set(key, t)
-    }
-  }
+  // Per patient+eye: keep only the latest treatment — siehe iviPlanLogic
+  const perPatientEye = pickLatestPerPatientEye(treatments)
 
   // Fetch patient names + allergies (only active patients)
   const patientIds = [...new Set([...perPatientEye.values()].map(t => t.patientId))]
