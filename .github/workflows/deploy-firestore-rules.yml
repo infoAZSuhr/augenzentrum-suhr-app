@@ -1,0 +1,82 @@
+name: Deploy Firestore Rules
+
+# Deployt firestore.rules nach Firebase.
+#
+# AKTUELLER STAND (siehe Kommentar in deploy.yml):
+#   Der CI-Service-Account hat NOCH NICHT die Rolle
+#     roles/serviceusage.serviceUsageConsumer
+#   in Google Cloud IAM. Ohne sie bricht `firebase deploy --only firestore:rules`
+#   mit 403 ab, weil die Firebase CLI seit einer kürzlichen Version vor jedem
+#   Deploy einen API-Aktiv-Pre-Check macht.
+#
+#   Deshalb läuft dieser Workflow NUR auf manuellen Trigger (workflow_dispatch).
+#   Im Fehlerfall druckt er eine klare Anleitung in die Logs.
+#
+# SOBALD IAM-Permission erteilt ist:
+#   1. In der Google-Cloud-Console → IAM für azsdb-999d6
+#      dem Service-Account aus FIREBASE_SERVICE_ACCOUNT die Rolle
+#      "Service Usage Consumer" geben.
+#   2. Den auskommentierten `push`-Block unten aktivieren — dann deployt
+#      jede Änderung an firestore.rules automatisch beim Merge auf main.
+#
+# Bis dahin: Workflow von Hand via GitHub UI triggern, oder lokal:
+#   firebase deploy --only firestore:rules --project azsdb-999d6
+
+on:
+  workflow_dispatch:
+  # Sobald IAM-Permission da ist, diesen Block aktivieren:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'firestore.rules'
+  #     - '.github/workflows/deploy-firestore-rules.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-rules-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Firestore-Rules deployen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT ist nicht gesetzt."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          npm install -g firebase-tools
+
+          if firebase deploy --only firestore:rules --project azsdb-999d6 --non-interactive; then
+            echo "✅ firestore.rules erfolgreich deployt."
+          else
+            EXIT=$?
+            echo ""
+            echo "::error::Deploy fehlgeschlagen (Exit $EXIT)."
+            echo "::error::Vermutlich fehlende IAM-Permission auf dem CI-Service-Account."
+            echo "::error::Fix:"
+            echo "::error::  1. Google-Cloud-Console → IAM für azsdb-999d6"
+            echo "::error::  2. Dem Service-Account die Rolle 'Service Usage Consumer'"
+            echo "::error::     (roles/serviceusage.serviceUsageConsumer) geben."
+            echo "::error::  3. Diesen Workflow erneut triggern."
+            echo "::error::Workaround bis dahin: lokal ausführen mit:"
+            echo "::error::  firebase deploy --only firestore:rules --project azsdb-999d6"
+            rm -f /tmp/sa.json
+            exit $EXIT
+          fi
+          rm -f /tmp/sa.json
