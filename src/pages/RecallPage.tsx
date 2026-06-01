@@ -1831,6 +1831,36 @@ export default function RecallPage() {
     setSaving(true)
     try {
       const naechsteKons = form.naechsteKons || null
+
+      // Auto-verlauf-Entry wenn der User im Edit-Modal aufgebotArt + aufgebotErstellt
+      // setzt/ändert, damit die Auswertung diese Aufgebote auch dem User zuordnen
+      // kann. Doppel-Tracking wird vermieden, falls der User heute schon einen
+      // matching verlauf-Entry manuell hinzugefügt hat.
+      const oldP = (editTarget !== 'new' && editTarget) ? editTarget : null
+      const newArt  = form.aufgebotArt || ''
+      const newDate = form.aufgebotErstellt || ''
+      const oldArt  = oldP?.aufgebotArt      ?? ''
+      const oldDate = oldP?.aufgebotErstellt ?? ''
+      let finalVerlauf = form.verlauf
+      if (newArt && newDate && (newArt !== oldArt || newDate !== oldDate)) {
+        const today  = new Date().toISOString().slice(0, 10)
+        const aktion = newArt === 'Brief'  ? 'Briefaufgebot'
+                     : newArt === 'Tel'    ? 'Telefonaufgebot'
+                     : newArt === 'Praxis' ? 'Praxisaufgebot'
+                     :                        'Reminder'
+        const alreadyPresent = (form.verlauf ?? []).some(v =>
+          v?.datum === today && v?.aktion === aktion && v?.von === displayLabel
+        )
+        if (!alreadyPresent) {
+          finalVerlauf = [...form.verlauf, {
+            datum:    today,
+            aktion,
+            ergebnis: 'Im Edit-Modal erfasst',
+            von:      displayLabel,
+          }]
+        }
+      }
+
       const data = {
         pid:              normalizePid(form.pid) || null,
         name:             null,
@@ -1852,7 +1882,7 @@ export default function RecallPage() {
         patientenStatus:  form.patientenStatus   || null,
         neupatient:       (editTarget !== 'new' && normalizePid(form.pid) && !editTarget?.pid) ? false : (form.neupatient || null),
         rcErstellt:       !!(form.aufgebotArt && form.aufgebotErstellt) || null,
-        verlauf:          form.verlauf.length > 0 ? form.verlauf : null,
+        verlauf:          finalVerlauf.length > 0 ? finalVerlauf : null,
         zuweisung:        form.zuweisungAktiv && form.zuweisungZiel.trim() ? ({
           typ:        form.zuweisungTyp,
           ziel:       form.zuweisungZiel.trim(),
