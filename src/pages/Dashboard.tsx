@@ -305,7 +305,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
         {/* IVI geplante Tage */}
-        {canAccessIvom && <div data-help="dashboard-ivi" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessIvom && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Syringe className="w-4 h-4 text-primary-600" />
@@ -368,7 +368,7 @@ export default function Dashboard() {
         </div>}
 
         {/* KAT / OP-Tage */}
-        {canAccessPlanung && <div data-help="dashboard-kat" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessPlanung && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Scissors className="w-4 h-4 text-purple-600" />
@@ -420,7 +420,7 @@ export default function Dashboard() {
         </div>}
 
         {/* Lager Warnungen */}
-        {canAccessLager && <div data-help="dashboard-lager" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessLager && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Package className={`w-4 h-4 ${criticalAlerts.length > 0 ? 'text-red-600' : stockAlerts.length > 0 ? 'text-amber-500' : 'text-green-600'}`} />
@@ -454,7 +454,7 @@ export default function Dashboard() {
         </div>}
 
         {/* Nicht lieferbar */}
-        {canAccessLager && <div data-help="dashboard-nicht-lieferbar" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessLager && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Ban className={`w-4 h-4 ${notDeliverableAlerts.length > 0 ? 'text-blue-500' : 'text-green-600'}`} />
@@ -491,7 +491,7 @@ export default function Dashboard() {
 
         {/* Recall Übersicht */}
         {!isGuest && (
-          <div data-help="dashboard-recall" className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-primary-600" />
@@ -553,7 +553,7 @@ export default function Dashboard() {
       </div>
 
       {/* Scrollable weekly schedule */}
-      {canAccessPlanung && <div data-help="dashboard-wochen">
+      {canAccessPlanung && <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-gray-400" />

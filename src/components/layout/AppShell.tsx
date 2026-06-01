@@ -556,7 +556,6 @@ export default function AppShell() {
             {/* OP dropdown */}
             {canAccessIvom && <div className="relative" ref={opRef}>
               <button
-                data-help="nav-op"
                 onClick={() => setOpOpen(v => !v)}
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
@@ -583,7 +582,7 @@ export default function AppShell() {
 
             {/* Lager */}
             {canAccessLager && (
-              <NavLink data-help="nav-lager" to="/lager" className={({ isActive }) => navLinkClass(isActive)}>
+              <NavLink to="/lager" className={({ isActive }) => navLinkClass(isActive)}>
                 <Package className="w-4 h-4 shrink-0" />
                 Lager
               </NavLink>
@@ -591,7 +590,7 @@ export default function AppShell() {
 
             {/* Einsatz */}
             {canAccessPlanung && (
-              <NavLink data-help="nav-planung" to="/planung" className={({ isActive }) => navLinkClass(isActive)}>
+              <NavLink to="/planung" className={({ isActive }) => navLinkClass(isActive)}>
                 <CalendarDays className="w-4 h-4 shrink-0" />
                 Einsatz
               </NavLink>
@@ -646,7 +645,7 @@ export default function AppShell() {
                   <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
                     <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">Administration</div>
                     {canAccessBenutzerverwaltung && (
-                      <NavLink data-help="nav-benutzer" to="/admin/users" onClick={() => setAdminOpen(false)}
+                      <NavLink to="/admin/users" onClick={() => setAdminOpen(false)}
                         className={({ isActive }) => cn('flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
                           isActive ? 'text-primary-700 bg-primary-50' : 'text-gray-700 hover:bg-gray-100')}>
                         <Users className="w-4 h-4 shrink-0" />
@@ -919,7 +918,6 @@ export default function AppShell() {
             {(isAdmin || isGeschaeftsleitung) && (
               <div className="relative" ref={bellRef}>
                 <button
-                  data-help="header-bell"
                   onClick={() => {
                     setBellOpen(v => !v)
                     setUserOpen(false)
@@ -1200,7 +1198,6 @@ export default function AppShell() {
             {profile && (
               <div className="relative" ref={userRef}>
                 <button
-                  data-help="header-user"
                   onClick={() => setUserOpen(v => !v)}
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                 >

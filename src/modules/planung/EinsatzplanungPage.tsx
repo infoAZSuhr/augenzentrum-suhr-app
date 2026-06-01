@@ -2044,7 +2044,6 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
         <div className="flex border-b border-gray-200 px-4 pt-2 overflow-x-auto shrink-0">
           {(['ferien','einsaetze','abwesenheiten','antraege'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)}
-              data-help={t==='antraege'?'meinbereich-antraege':undefined}
               className={`px-3 py-2 text-sm font-semibold border-b-2 transition-colors mr-1 whitespace-nowrap
                 ${tab===t?'border-purple-600 text-purple-700':'border-transparent text-gray-400 hover:text-gray-600'}`}>
               {(()=>{
@@ -2072,7 +2071,7 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
 
           {/* ── Absenheitsmeldung ── */}
           {tab==='ferien'&&(
-            <div data-help="meinbereich-ferien" className="space-y-4">
+            <div className="space-y-4">
               {ferienSuccess&&(
                 <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700 font-medium flex items-center gap-2">
                   {activeEditFerien ? '✅ Absenheitsmeldung aktualisiert!' : '✅ Absenheitsmeldung erfolgreich eingereicht!'}
@@ -2222,7 +2221,6 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
                           <span className="text-xs text-teal-600 font-medium">Tausch ausstehend</span>
                         ):(
                           <button
-                            data-help="meinbereich-tauschen"
                             onClick={()=>{
                               setTauschDay(isTauschOpen?null:{key:day.key,code})
                               setAendernDay(null)
@@ -2237,7 +2235,6 @@ function PersonalBereichModal({onClose,isAdmin,data,yearDays,year,requests,editF
                           <span className="text-xs text-orange-600 font-medium">Änderung ausstehend</span>
                         ):(
                           <button
-                            data-help="meinbereich-aendern"
                             onClick={()=>{
                               setAendernDay(isAendernOpen?null:{key:day.key,code})
                               setTauschDay(null)
@@ -3161,10 +3158,10 @@ export default function EinsatzplanungPage(){
 
           {/* View toggle */}
           <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5 text-sm">
-            <button data-help="planung-monatsansicht" onClick={()=>setView('month')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='month'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={()=>setView('month')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='month'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
               <Calendar className="w-4 h-4"/>Monat
             </button>
-            <button data-help="planung-jahresansicht" onClick={()=>setView('year')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='year'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={()=>setView('year')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='year'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
               <CalendarDays className="w-4 h-4"/>Jahr
             </button>
             <button onClick={()=>setView('arbeitstage')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='arbeitstage'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
@@ -3195,7 +3192,7 @@ export default function EinsatzplanungPage(){
           </button>}
 
           {/* Mein Bereich */}
-          {profile&&!isGuest&&<button data-help="planung-meinbereich" onClick={()=>setShowPersonalBereich(true)}
+          {profile&&!isGuest&&<button onClick={()=>setShowPersonalBereich(true)}
             className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-purple-200 bg-purple-50 text-xs sm:text-sm text-purple-700 hover:bg-purple-100 transition-colors font-medium">
             <User className="w-4 h-4 shrink-0"/>
             <span className="hidden sm:inline">Mein Bereich</span>
@@ -3210,7 +3207,7 @@ export default function EinsatzplanungPage(){
           </button>}
 
           {/* Print */}
-          <button data-help="planung-drucken" onClick={()=>setPrintMenu(v=>!v)}
+          <button onClick={()=>setPrintMenu(v=>!v)}
             className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 text-xs sm:text-sm text-gray-600 hover:bg-gray-50 transition-colors">
             <Printer className="w-4 h-4 shrink-0"/>
             <span className="hidden sm:inline">Drucken</span>
@@ -3321,7 +3318,7 @@ export default function EinsatzplanungPage(){
 
       {/* Feiertage (month view only) */}
       {view==='month'&&ftThisMonth.length>0&&(
-        <div data-help="planung-feiertage" className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           {ftThisMonth.map(({d,ftName})=>(
             <span key={d} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-orange-100 text-orange-700 font-medium">
               📅 {d}. {MONTHS_SHORT[month]} — {ftName}
