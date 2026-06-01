@@ -80,3 +80,33 @@ export function nextIVIDays(fromDate: string, iviDays: number[], count: number =
 export const WEEKDAY_LABELS: Record<number, string> = {
   1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So'
 }
+
+/**
+ * Plattform-stabile Schweizer Datumsformatierung — DD.MM.YYYY.
+ *
+ * Hintergrund: Node ICU (Linux) und Windows-ICU geben für
+ * `new Date('2026-06-15').toLocaleDateString('de-CH')` unterschiedliche
+ * Strings ("15.6.2026" vs. "15.06.2026"). Diese Funktion liefert immer
+ * gepaddete Tage und Monate — egal auf welcher Plattform.
+ *
+ * Akzeptiert ISO-Strings (yyyy-MM-dd…), Date-Objekte oder Millisekunden.
+ * Liefert "—" bei ungültiger oder leerer Eingabe.
+ */
+export function formatSwissDate(
+  input: string | Date | number | null | undefined,
+): string {
+  if (input == null || input === '') return '—'
+
+  // ISO-String: regex-basiert für maximale Determinismus (kein Zeitzonen-Drift)
+  if (typeof input === 'string') {
+    const m = input.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (m) return `${m[3]}.${m[2]}.${m[1]}`
+  }
+
+  const d = input instanceof Date ? input : new Date(input as any)
+  if (isNaN(d.getTime())) return '—'
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yy = String(d.getFullYear())
+  return `${dd}.${mm}.${yy}`
+}

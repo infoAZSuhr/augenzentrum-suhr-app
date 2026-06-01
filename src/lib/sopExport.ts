@@ -13,6 +13,7 @@
  * Die Aufrufer übergeben dafür die Live-Glossar-Map aus dem GlossarContext.
  */
 import { expandAbbreviations } from './abbreviationHelper'
+import { formatSwissDate } from '../utils/dateUtils'
 
 export interface ExportPageInput {
   title: string
@@ -126,7 +127,7 @@ const STYLES = `
 `
 
 function buildMetaBlock(p: ExportPageInput): string {
-  const today = new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const today = formatSwissDate(new Date())
   const items: string[] = []
   if (p.version)       items.push(`<span><strong>Version:</strong> ${escapeHtml(String(p.version))}</span>`)
   if (p.gueltigAb)     items.push(`<span><strong>Gültig ab:</strong> ${escapeHtml(p.gueltigAb)}</span>`)
@@ -171,7 +172,7 @@ export function buildFullHtml(p: ExportPageInput): string {
     ${expandedContent}
   </div>
   <div class="footer">
-    Augenzentrum Suhr · SOP-Export · ${new Date().toLocaleDateString('de-CH')}
+    Augenzentrum Suhr · SOP-Export · ${formatSwissDate(new Date())}
   </div>
 </body>
 </html>`

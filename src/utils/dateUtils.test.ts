@@ -8,6 +8,7 @@ import {
   addWeeks,
   nextIVIDay,
   nextIVIDays,
+  formatSwissDate,
   WEEKDAY_LABELS,
 } from './dateUtils'
 
@@ -156,6 +157,36 @@ describe('nextIVIDays', () => {
     // iviDays mit einem nicht-existenten ISO-Wochentag (z.B. 99) → max 60 iterations
     const result = nextIVIDays('2026-06-01', [99], 5)
     expect(result).toEqual([])
+  })
+})
+
+describe('formatSwissDate', () => {
+  it('formatiert ISO-Strings deterministisch mit Zero-Padding', () => {
+    expect(formatSwissDate('2026-06-15')).toBe('15.06.2026')
+    expect(formatSwissDate('2026-01-05')).toBe('05.01.2026')
+    expect(formatSwissDate('2026-12-31')).toBe('31.12.2026')
+  })
+
+  it('akzeptiert ISO-Datetime und ignoriert die Zeitkomponente', () => {
+    expect(formatSwissDate('2026-06-15T14:30:00Z')).toBe('15.06.2026')
+  })
+
+  it('formatiert Date-Objekte plattform-stabil', () => {
+    // explizit gepaddet, auch wenn ICU es nicht wäre
+    expect(formatSwissDate(new Date(2026, 5, 15))).toBe('15.06.2026')   // Juni
+    expect(formatSwissDate(new Date(2026, 0, 5))).toBe('05.01.2026')    // Januar 5.
+  })
+
+  it('akzeptiert Millisekunden-Timestamps', () => {
+    const ms = new Date(2026, 5, 15).getTime()
+    expect(formatSwissDate(ms)).toBe('15.06.2026')
+  })
+
+  it('liefert "—" bei leerer/null/undefined/ungültiger Eingabe', () => {
+    expect(formatSwissDate(null)).toBe('—')
+    expect(formatSwissDate(undefined)).toBe('—')
+    expect(formatSwissDate('')).toBe('—')
+    expect(formatSwissDate('not a date')).toBe('—')
   })
 })
 
