@@ -941,6 +941,7 @@ export default function RecallPage() {
   const [auswertungOpen, setAuswertungOpen] = useState(false)
   type ActPeriod = 'today' | 'week' | 'month' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
+  const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
 
   const auswertungStats = useMemo(() => {
     const all: RecallPatient[] = []
@@ -1064,13 +1065,23 @@ export default function RecallPage() {
       const fullName = p.vorname || ''
       if (fullName) neuHistMap[ps.isoDate][userKey].names.push(fullName)
     }
-    const neupatientRows = Object.entries(neuHistMap)
+    const neupatientRowsAll = Object.entries(neuHistMap)
       .sort(([a], [b]) => b.localeCompare(a))
       .flatMap(([iso, users]) =>
         Object.entries(users).map(([, { count, names, displayName }]) => ({
           dateStr: iso.split('-').reverse().join('.'), isoDate: iso, user: displayName, count, names,
         }))
       )
+
+    // Period-Filter analog zu inPeriod() (Activity). Nutzt dieselben *G-Vars.
+    function neuInPeriod(iso: string): boolean {
+      const d = new Date(iso)
+      if (neuPeriod === 'today') return d.toDateString() === now.toDateString()
+      if (neuPeriod === 'week')  return d >= weekStartG  && d <= weekEndG
+      if (neuPeriod === 'month') return d >= monthStartG && d <= monthEndG
+      return true   // 'all'
+    }
+    const neupatientRows = neupatientRowsAll.filter(r => neuInPeriod(r.isoDate))
 
     // ── Per-doctor stats ────────────────────────────────────────────────────
     const docStats = [...doctors, ZU_BEARB].map(doc => {
@@ -1145,7 +1156,7 @@ export default function RecallPage() {
       .sort((a, b) => b.isoDate.localeCompare(a.isoDate))
 
     return { actRows, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, inaktiveRows, total: all.length }
-  }, [allData, actPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, actPeriod, neuPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
   useEffect(() => {
@@ -3338,11 +3349,23 @@ export default function RecallPage() {
 
               {/* ── Neupatienten ── */}
               <div>
-                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] font-black">N</span>
-                  Neupatienten
-                  <span className="text-xs font-normal text-gray-400 ml-1">(Badge aktiv 7 Tage nach Erfassung)</span>
-                </h3>
+                <div className="flex items-center justify-between mb-3 gap-2">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] font-black">N</span>
+                    Neupatienten
+                    <span className="text-xs font-normal text-gray-400 ml-1 hidden sm:inline">(Badge aktiv 7 Tage nach Erfassung)</span>
+                  </h3>
+                  {/* Period-Filter analog zur Aktivitäts-Section. Filtert die History-
+                      Tabelle drunter rückwirkend; Summary-Cards bleiben unabhängig. */}
+                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                    {(['today','week','month','all'] as ActPeriod[]).map((p, i) => (
+                      <button key={p} onClick={() => setNeuPeriod(p)}
+                        className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${neuPeriod === p ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {p === 'today' ? 'Heute' : p === 'week' ? 'Diese Woche' : p === 'month' ? 'Dieser Monat' : 'Alle'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {/* Summary cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {[
@@ -3363,7 +3386,12 @@ export default function RecallPage() {
                 </div>
                 {/* History table by entry date */}
                 {auswertungStats.neupatientRows.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-3">Noch keine Neupatienten erfasst.</p>
+                  <p className="text-sm text-gray-400 text-center py-3">
+                    {neuPeriod === 'all'   ? 'Noch keine Neupatienten erfasst.'
+                   : neuPeriod === 'today' ? 'Heute keine Neupatienten erfasst.'
+                   : neuPeriod === 'week'  ? 'Diese Woche keine Neupatienten erfasst.'
+                                           : 'Diesen Monat keine Neupatienten erfasst.'}
+                  </p>
                 ) : (
                   // Inline-scrollbar (siehe Aktivitäts-Tabelle oben).
                   <div className="overflow-auto rounded-xl border border-gray-200 max-h-80">
