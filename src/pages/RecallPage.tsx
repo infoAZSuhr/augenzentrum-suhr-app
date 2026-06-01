@@ -986,12 +986,29 @@ export default function RecallPage() {
       const cu = parseStamp(p.aktualisiert)
       if (cu && (cu.isoDate !== ce?.isoDate || cu.user.trim().toLowerCase() !== ce?.user.trim().toLowerCase())) bump(p.aktualisiert, 'updated')
 
-      // Aufgebote aus verlauf-Entries des Patienten
+      // Aufgebote aus verlauf-Entries des Patienten.
+      //
+      // 'Reminder' ist mehrdeutig — es gibt im Code drei Producer-Typen:
+      //   1. Echtes Reminder-Aufgebot (aufgebotConfirm-Modal + Inline-Toggle):
+      //      ergebnis = 'Erstellt' | 'Via {versand}' | 'Inline erfasst'
+      //   2. Geplante Erinnerung (handleInlineVerlauf + 'Reminder geplant'-Btn):
+      //      ergebnis = 'Geplant: <ISO-Datum>'
+      //   3. Stornierung einer geplanten Erinnerung (Edit-Modal terminFixiert):
+      //      ergebnis startswith 'Abgesagt'
+      //   4. System-Auto-Reminder (autoSecondReminder):
+      //      von === 'System'
+      // Nur (1) ist ein echtes Aufgebot — die anderen müssen wir herausfiltern.
       for (const v of (p.verlauf ?? [])) {
         if (!v?.aktion || !v?.datum || !v?.von) continue
         const bucket = VERLAUF_TO_ART[v.aktion]
         if (!bucket) continue
-        if (bucket === 'Reminder' && v.von === 'System') continue   // Auto-Reminder ignorieren
+        if (bucket === 'Reminder') {
+          if (v.von === 'System') continue
+          const erg = (v.ergebnis ?? '').trim()
+          if (erg.startsWith('Geplant:')) continue
+          if (erg.startsWith('Abgesagt')) continue
+          if (erg.startsWith('Automatisch')) continue
+        }
         if (!inPeriod(v.datum)) continue
         const userName = v.von.trim()
         const userKey = userName.toLowerCase()
@@ -1896,9 +1913,9 @@ export default function RecallPage() {
     const today = new Date().toISOString().slice(0, 10)
     const newErstellt = newValue ? today : null
 
-    // verlauf-Entry nur bei Neusetzen, aktions-Namen analog zu aufgebotConfirm()
-    const existingPatient = (allData.get(doctor) ?? []).find(r => r.id === rowId)
-    const existingVerlauf = existingPatient?.verlauf ?? []
+    // verlauf-Entry nur bei Neusetzen, aktions-Namen analog zu aufgebotConfirm().
+    // ergebnis = 'Inline erfasst' wird vom Auswertung-Aggregator als echtes
+    // Aufgebot gewertet (für Reminder: Whitelist gegen 'Geplant:'/'Abgesagt').
     const inlineEntry: VerlaufEntry | null = newValue ? {
       datum: today,
       aktion: newValue === 'Brief'  ? 'Briefaufgebot'
@@ -1908,21 +1925,26 @@ export default function RecallPage() {
       ergebnis: 'Inline erfasst',
       von: displayLabel,
     } : null
-    const newVerlauf = inlineEntry ? [...existingVerlauf, inlineEntry] : existingVerlauf
 
+    // verlauf-Append + Firestore-Payload werden INSIDE setAllData berechnet,
+    // damit bei zwei parallelen Inline-Toggles keine Entries verlorengehen.
+    // Wir merken uns die finale Verlauf-Liste über eine Ref-Variable, damit
+    // der nachfolgende Firestore-Write dieselbe Liste schreibt wie der UI-State.
+    let finalVerlauf: VerlaufEntry[] = []
     setAllData(prev => {
       const next = new Map(prev)
-      const updated = (next.get(doctor) ?? []).map(r =>
-        r.id === rowId
-          ? { ...r, aufgebotArt: newValue, aufgebotErstellt: newErstellt, verlauf: newVerlauf }
-          : r
-      )
+      const updated = (next.get(doctor) ?? []).map(r => {
+        if (r.id !== rowId) return r
+        const verlauf = inlineEntry ? [...(r.verlauf ?? []), inlineEntry] : (r.verlauf ?? [])
+        finalVerlauf = verlauf
+        return { ...r, aufgebotArt: newValue, aufgebotErstellt: newErstellt, verlauf }
+      })
       next.set(doctor, updated)
       return next
     })
     try {
       const payload: any = { aufgebotArt: newValue, aufgebotErstellt: newErstellt }
-      if (inlineEntry) payload.verlauf = newVerlauf
+      if (inlineEntry) payload.verlauf = finalVerlauf
       await updateRecallPatient(rowId, payload, displayLabel)
       await reloadTab(doctor)
     } catch {
