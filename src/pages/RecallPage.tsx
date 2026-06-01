@@ -942,6 +942,7 @@ export default function RecallPage() {
   type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'year' | 'lastYear' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
+  const [inaktivPeriod, setInaktivPeriod] = useState<ActPeriod>('all')
   // Zentrale Definition der Period-Buttons (Reihenfolge + Labels) — beide
   // Filter-Bars (Aktivität + Neupatienten) rendern aus dieser Liste.
   const PERIODS: Array<{ key: ActPeriod; label: string }> = [
@@ -1198,7 +1199,7 @@ export default function RecallPage() {
       if (p.patientenStatus === 'inaktiv') return 'inaktiv'
       return null
     }
-    const inaktiveRows = all
+    const inaktiveRowsAll = all
       .map(p => ({ p, kind: classifyInaktiv(p) }))
       .filter((x): x is { p: RecallPatient; kind: InaktivKind } => x.kind !== null)
       .map(({ p, kind }) => {
@@ -1216,9 +1217,23 @@ export default function RecallPage() {
         }
       })
       .sort((a, b) => b.isoDate.localeCompare(a.isoDate))
+    // Period-Filter analog zu Activity/Neupatienten. Rows ohne isoDate
+    // (kein aktualisiert-Stamp) werden in Vergangenheits-Filtern ausgeblendet,
+    // bleiben aber bei 'Alle' sichtbar.
+    const inaktiveRows = inaktivPeriod === 'all'
+      ? inaktiveRowsAll
+      : inaktiveRowsAll.filter(r => r.isoDate && matchPeriod(new Date(r.isoDate), inaktivPeriod))
 
-    return { actRows, actRowsGrouped, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, total: all.length }
-  }, [allData, actPeriod, neuPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Counts pro Grund-Kategorie für die Summary-Cards (filterbasiert).
+    const inaktivCounts = {
+      verstorben:  inaktiveRows.filter(r => r.kind === 'verstorben').length,
+      arztwechsel: inaktiveRows.filter(r => r.kind === 'arztwechsel').length,
+      wegzug:      inaktiveRows.filter(r => r.kind === 'wegzug').length,
+      inaktiv:     inaktiveRows.filter(r => r.kind === 'inaktiv').length,
+    }
+
+    return { actRows, actRowsGrouped, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, total: all.length }
+  }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
   useEffect(() => {
@@ -3625,39 +3640,59 @@ export default function RecallPage() {
 
               {/* ── Inaktive / verstorbene Patienten ── */}
               <div>
-                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
-                  <MinusCircle className="w-4 h-4 text-gray-400" />
-                  Inaktive / verstorbene Patienten
-                  <span className="text-xs font-normal text-gray-400 ml-1">
-                    ({auswertungStats.inaktiveRows.length})
-                  </span>
-                </h3>
-                {/* Summary cards pro Grund-Kategorie. Click filtert die Hauptliste
-                    auf Status "Inaktiv/✝" (ungeachtet des spezifischen Grunds —
-                    Granularität nach Grund hat das Filter-Modell aktuell nicht). */}
+                <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <MinusCircle className="w-4 h-4 text-gray-400" />
+                    Inaktive / verstorbene Patienten
+                    <span className="text-xs font-normal text-gray-400 ml-1">
+                      ({auswertungStats.inaktiveRows.length})
+                    </span>
+                  </h3>
+                  {/* Period-Filter analog zu Aktivität + Neupatienten. Filtert
+                      Tabelle UND Summary-Cards rückwirkend — Kind-Counts
+                      reflektieren den gewählten Zeitraum. */}
+                  <div className="flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                    {PERIODS.map(({ key, label }, i) => (
+                      <button key={key} onClick={() => setInaktivPeriod(key)}
+                        className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${inaktivPeriod === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Summary cards pro Grund-Kategorie. Counts reflektieren den
+                    gewählten Period-Filter (z.B. "Letzter Monat" → wie viele
+                    Verstorbene/Arztwechsel/... in diesem Zeitraum). Click filtert
+                    die Hauptliste auf Status "Inaktiv/✝" (alle, ungeachtet Grund). */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {[
-                    { kind: 'verstorben'  as const, label: '✝ Verstorben', color: 'bg-gray-50  text-gray-700  border-gray-200'  },
-                    { kind: 'arztwechsel' as const, label: 'Arztwechsel',   color: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    { kind: 'wegzug'      as const, label: 'Wegzug',        color: 'bg-sky-50   text-sky-700   border-sky-200'   },
-                    { kind: 'inaktiv'     as const, label: 'Sonstige',      color: 'bg-gray-50  text-gray-600  border-gray-200'  },
-                  ].map(({ kind, label, color }) => {
-                    const value = auswertungStats.inaktiveRows.filter(r => r.kind === kind).length
-                    return (
-                      <button
-                        key={kind}
-                        onClick={() => { setFilterStatus('inaktiv'); setFilterTermin(null); setFilterNeupatient(false); setAuswertungOpen(false); setPage(1) }}
-                        className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
-                      >
-                        <span className="text-2xl font-bold tabular-nums">{value}</span>
-                        <span className="text-xs mt-0.5 opacity-75">{label}</span>
-                      </button>
-                    )
-                  })}
+                    { kind: 'verstorben'  as const, label: '✝ Verstorben', value: auswertungStats.inaktivCounts.verstorben,  color: 'bg-gray-50  text-gray-700  border-gray-200'  },
+                    { kind: 'arztwechsel' as const, label: 'Arztwechsel',   value: auswertungStats.inaktivCounts.arztwechsel, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    { kind: 'wegzug'      as const, label: 'Wegzug',        value: auswertungStats.inaktivCounts.wegzug,      color: 'bg-sky-50   text-sky-700   border-sky-200'   },
+                    { kind: 'inaktiv'     as const, label: 'Sonstige',      value: auswertungStats.inaktivCounts.inaktiv,     color: 'bg-gray-50  text-gray-600  border-gray-200'  },
+                  ].map(({ kind, label, value, color }) => (
+                    <button
+                      key={kind}
+                      onClick={() => { setFilterStatus('inaktiv'); setFilterTermin(null); setFilterNeupatient(false); setAuswertungOpen(false); setPage(1) }}
+                      className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
+                    >
+                      <span className="text-2xl font-bold tabular-nums">{value}</span>
+                      <span className="text-xs mt-0.5 opacity-75">{label}</span>
+                    </button>
+                  ))}
                 </div>
                 {/* History table */}
                 {auswertungStats.inaktiveRows.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-3">Keine inaktiven Patienten.</p>
+                  <p className="text-sm text-gray-400 text-center py-3">
+                    {inaktivPeriod === 'all'       ? 'Keine inaktiven Patienten.'
+                   : inaktivPeriod === 'today'     ? 'Heute keine Deaktivierungen.'
+                   : inaktivPeriod === 'week'      ? 'Diese Woche keine Deaktivierungen.'
+                   : inaktivPeriod === 'lastWeek'  ? 'Letzte Woche keine Deaktivierungen.'
+                   : inaktivPeriod === 'month'     ? 'Diesen Monat keine Deaktivierungen.'
+                   : inaktivPeriod === 'lastMonth' ? 'Letzten Monat keine Deaktivierungen.'
+                   : inaktivPeriod === 'year'      ? 'Dieses Jahr keine Deaktivierungen.'
+                                                   : 'Letztes Jahr keine Deaktivierungen.'}
+                  </p>
                 ) : (
                   <div className="overflow-auto rounded-xl border border-gray-200 max-h-80">
                     <table className="w-full text-sm">
