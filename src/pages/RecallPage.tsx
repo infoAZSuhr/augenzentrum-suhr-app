@@ -2111,17 +2111,17 @@ export default function RecallPage() {
           von:        displayLabel,
         } as Zuweisung) : null,
       }
-      // switchTab() macht setPage(1) + Filter-Reset + Sortierungs-Reset.
-      // Daher rufen wir es nach dem Speichern NUR auf, wenn der Doctor-Tab
-      // sich tatsächlich ändert (Neuanlage in anderem Tab, oder Umhängen
-      // via assignDoctor). Beim normalen Bearbeiten auf demselben Tab bleibt
-      // die Ansicht unverändert — Seite, Filter, Sortierung intakt.
+      // Nach dem Speichern bleibt der User IMMER auf der aktuellen Tab/Liste.
+      // Auch bei Patient-Umhängung (assignDoctor) oder Neuanlage in einem
+      // anderen Tab springt die Ansicht NICHT auf den Ziel-Tab — User möchte
+      // auf der gerade bearbeiteten Liste weiterarbeiten.
+      // reloadTab() für die betroffenen Tabs läuft trotzdem, damit beim
+      // späteren Wechsel die Daten aktuell sind.
       if (editTarget === 'new') {
         const targetTab = assignDoctor || activeTab
         await createRecallPatient(targetTab, data, displayLabel)
         await reloadTab(targetTab)
         closeEdit()
-        if (targetTab !== activeTab) switchTab(targetTab)
       } else if (editTarget) {
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
         fetch('http://localhost:9731/sync', { method: 'POST' }).catch(() => {})
@@ -2129,16 +2129,9 @@ export default function RecallPage() {
           await assignRecallPatient(editTarget.id, assignDoctor, displayLabel)
           await Promise.all([reloadTab(editTarget.doctor), reloadTab(assignDoctor)])
           closeEdit()
-          // assignDoctor heisst: Patient wurde umgehängt → echter Tab-Wechsel ist gewollt.
-          if (assignDoctor !== activeTab) switchTab(assignDoctor)
         } else {
           await reloadTab(editTarget.doctor)
           closeEdit()
-          // Reines Bearbeiten ohne Umhängen — auf dem aktiven Tab bleiben.
-          // Falls aus irgendwelchen Gründen der Edit-Target-Doctor anders
-          // ist als der aktive Tab (Race-Condition mit Tab-Wechsel während
-          // Edit-Modal offen), trotzdem zum richtigen Tab springen.
-          if (editTarget.doctor !== activeTab) switchTab(editTarget.doctor)
         }
       }
     } catch {
