@@ -9,6 +9,7 @@ import type { IviDayPlanEntry, IviDayPlan } from '../../../lib/firestorePatients
 import TreatmentForm, { type TreatmentFormValues } from '../components/TreatmentForm'
 import IVIOverlayModal from '../components/IVIOverlayModal'
 import type { Treatment } from '../../../types/ivom.types'
+import { useToast } from '../../../lib/ToastContext'
 
 const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'W', 'NFD'])
 const CODE_LABEL: Record<string, string> = {
@@ -74,6 +75,7 @@ export default function IVOMTagesplanung() {
   const [showOverlay, setShowOverlay] = useState(false)
   const year = new Date().getFullYear()
   const qc = useQueryClient()
+  const toast = useToast()
 
   useEffect(() => {
     const unsub1 = subscribePlanung(year, data => {
@@ -95,7 +97,7 @@ export default function IVOMTagesplanung() {
       qc.invalidateQueries({ queryKey: ['patients'] })
       setFormEntry(null)
     },
-    onError: (err: any) => alert('Fehler: ' + err.message),
+    onError: (err: any) => toast.error('Fehler: ' + err.message),
   })
 
   const { data: iviPlan = [], isLoading: planLoading } = useQuery({

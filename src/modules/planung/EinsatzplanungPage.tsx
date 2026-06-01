@@ -8,6 +8,7 @@ import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestor
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { manageFerienPlan, writePlanEntry, removePlanEntry } from '../../lib/firestorePlanung'
+import { useToast } from '../../lib/ToastContext'
 
 const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
 const MONTHS_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']
@@ -219,7 +220,7 @@ function buildLegendHTML():string{
 }
 function printViaIframe(html:string){
   const w=window.open('','_blank')
-  if(!w){alert('Bitte Pop-up-Blocker für diese Seite deaktivieren.');return}
+  if(!w){toast.warning('Bitte Pop-up-Blocker für diese Seite deaktivieren');return}
   w.document.write(html)
   w.document.close()
   setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close()},500)
@@ -803,6 +804,7 @@ function LirisModal({data,yearDays,year,feiertage,onClose}:{
   data:PlanungData;yearDays:DayInfo[];year:number;feiertage:Record<string,string>;onClose:()=>void
 }){
   const allPersons=data.sections.flatMap(s=>s.persons)
+  const toast = useToast()
   const [person,setPerson]=useState(allPersons[0]??'')
   const [fromMonth,setFromMonth]=useState(new Date().getMonth())
   const [toMonth,setToMonth]=useState(new Date().getMonth())
@@ -856,7 +858,7 @@ function LirisModal({data,yearDays,year,feiertage,onClose}:{
     const api=(window as any).electronApp
     if(api?.openIcs){
       const res=await api.openIcs(content,icsFilename)
-      if(!res?.ok)alert('Fehler: '+res?.error)
+      if(!res?.ok)toast.error('Fehler: '+res?.error)
     } else { downloadIcs() }
   }
 
@@ -2718,6 +2720,7 @@ type ViewMode='month'|'year'|'arbeitstage'
 export default function EinsatzplanungPage(){
   const { canEditPlanung, profile, isAdmin, isArzt, isGeschaeftsleitung, isGuest } = useAuth()
   const isReadOnly = !canEditPlanung
+  const toast = useToast()
   const today=new Date()
   const [yearList,setYearListRaw]=useState<number[]>(loadYearListLocal)
   const setYearList=(list:number[])=>{setYearListRaw(list);saveYearListFirestore(list)}

@@ -27,6 +27,7 @@ import {
 } from '../lib/firestoreRecall'
 import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
+import { useToast } from '../lib/ToastContext'
 import { collection, getDocs } from 'firebase/firestore'
 import { db, storage } from '../lib/firebase'
 import { ref as storageRef, uploadBytes } from 'firebase/storage'
@@ -398,6 +399,7 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 
 export default function RecallPage() {
   const { profile } = useAuth()
+  const toast = useToast()
   const navigate     = useNavigate()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
@@ -777,7 +779,7 @@ export default function RecallPage() {
       await importRecallData(json, displayLabel)
       await loadAll()
     } catch {
-      alert('Import fehlgeschlagen. Bitte erneut versuchen.')
+      toast.error('Import fehlgeschlagen. Bitte erneut versuchen.')
     } finally {
       setImporting(false)
     }
@@ -1704,7 +1706,7 @@ export default function RecallPage() {
       await reloadTab(aufgebotTarget.patient.doctor)
       setAufgebotTarget(null)
     } catch {
-      alert('Fehler beim Speichern. Bitte erneut versuchen.')
+      toast.error('Fehler beim Speichern. Bitte erneut versuchen.')
     } finally {
       setAufgebotSaving(false)
     }
@@ -1839,7 +1841,7 @@ export default function RecallPage() {
         }
       }
     } catch {
-      alert('Speichern fehlgeschlagen.')
+      toast.error('Speichern fehlgeschlagen.')
     } finally {
       setSaving(false)
     }
@@ -1936,7 +1938,7 @@ export default function RecallPage() {
       await reloadTab(editTarget.doctor)
       closeEdit()
     } catch {
-      alert('Löschen fehlgeschlagen.')
+      toast.error('Löschen fehlgeschlagen.')
     } finally {
       setSaving(false)
     }

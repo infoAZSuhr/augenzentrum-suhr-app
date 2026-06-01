@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/AuthContext'
 import { uploadNoticeAttachment } from '../../lib/firestoreNotices'
 import type { NoticeType, NoticeBoard, NoticeAttachment } from '../../lib/firestoreNotices'
 import { BOARD_LABEL } from '../../lib/firestoreNotices'
+import { useToast } from '../../lib/ToastContext'
 
 const TYPE_CONFIG = {
   info:    { border: 'border-l-blue-500',  bg: 'bg-blue-50',   badge: 'bg-blue-100 text-blue-700',   label: 'Info',    dot: 'bg-blue-500'   },
@@ -91,10 +92,11 @@ function NewNoticeForm({ onClose, defaultBoard }: NewNoticeFormProps) {
   const [progress, setProgress] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const cancelUpload = useRef<(() => void) | null>(null)
+  const toast = useToast()
 
   function handleFile(f: File) {
-    if (f.type !== 'application/pdf') { alert('Nur PDF-Dateien erlaubt.'); return }
-    if (f.size > 20 * 1024 * 1024)   { alert('Maximale Dateigrösse: 20 MB'); return }
+    if (f.type !== 'application/pdf') { toast.warning('Nur PDF-Dateien erlaubt'); return }
+    if (f.size > 20 * 1024 * 1024)   { toast.warning('Maximale Dateigrösse: 20 MB'); return }
     setFile(f)
   }
 
@@ -123,7 +125,7 @@ function NewNoticeForm({ onClose, defaultBoard }: NewNoticeFormProps) {
       onClose()
     } catch (e) {
       console.error(e)
-      alert('Fehler beim Speichern.')
+      toast.error('Fehler beim Speichern.')
     } finally { setSaving(false); setProgress(null) }
   }
 

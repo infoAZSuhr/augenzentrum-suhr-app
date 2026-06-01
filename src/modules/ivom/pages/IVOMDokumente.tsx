@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../../lib/AuthContext'
 import PageHeader from '../../../components/ui/PageHeader'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
+import { useToast } from '../../../lib/ToastContext'
 
 const MODULE = 'ivom'
 
@@ -82,6 +83,7 @@ function PreviewModal({ doc, onClose }: { doc: AppDocument; onClose: () => void 
 export default function IVOMDokumente() {
   const { profile } = useAuth()
   const qc = useQueryClient()
+  const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [uploads, setUploads] = useState<UploadEntry[]>([])
@@ -134,7 +136,7 @@ export default function IVOMDokumente() {
       await deleteDocument(deleteTarget)
       qc.invalidateQueries({ queryKey: ['documents', MODULE] })
     } catch (e: any) {
-      alert('Fehler beim Löschen: ' + e.message)
+      toast.error('Fehler beim Löschen: ' + e.message)
     } finally {
       setDeleting(false)
       setDeleteTarget(null)

@@ -18,6 +18,7 @@ import {
 import { MermaidBlock } from './MermaidBlock'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../../lib/firebase'
+import { useToast } from '../../lib/ToastContext'
 
 interface Props {
   content: string
@@ -247,6 +248,7 @@ export default function RichTextEditor({ content, onChange, editable = true, pla
   const [uploading,      setUploading]      = useState(false)
   const [showLinkInput,  setShowLinkInput]  = useState(false)
   const [linkUrl,        setLinkUrl]        = useState('')
+  const toast = useToast()
 
   const insertImage = useCallback((src: string) => {
     if (!src.trim()) return
@@ -259,11 +261,11 @@ export default function RichTextEditor({ content, onChange, editable = true, pla
       const url = await uploadImage(file)
       editorRef.current?.chain().focus().setImage({ src: url }).run()
     } catch {
-      alert('Bild konnte nicht hochgeladen werden.')
+      toast.error('Bild konnte nicht hochgeladen werden.')
     } finally {
       setUploading(false)
     }
-  }, [])
+  }, [toast])
 
   const handleImageConfirm = () => {
     insertImage(imageUrl)

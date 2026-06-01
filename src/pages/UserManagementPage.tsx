@@ -11,6 +11,7 @@ import { loadPlanung, savePlanung, loadYearListFirestore } from '../lib/firestor
 import { Check, X, Users, Shield, ShieldCheck, Clock, UserCheck, UserPlus, Eye, EyeOff, Trash2, Crown, Unlock, Mail, Pencil, Save, Lock, MessageSquare, ClipboardList, Search, ChevronUp, ChevronDown, ChevronsUpDown, Package, CalendarDays, BookOpen, Phone, type LucideIcon } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import { formatLastSeen } from '../utils/formatLastSeen'
+import { useToast } from '../lib/ToastContext'
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYRnIZJ46oEPUIZ9uRiLDbTWW0dB93vgQ",
@@ -67,6 +68,7 @@ interface LoginRequest { id: string; senderName?: string; email?: string; note?:
 export default function UserManagementPage() {
   const { profile: me, isSuperAdmin, isAdmin, isGeschaeftsleitung, canAccessBenutzerverwaltung, sendResetEmail } = useAuth()
   const canManageUsers = isAdmin || canAccessBenutzerverwaltung
+  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [users,   setUsers]   = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
@@ -216,9 +218,9 @@ export default function UserManagementPage() {
     try {
       await sendResetEmail(email)
       await updateDoc(doc(db, 'users', uid), { mustChangePassword: true })
-      alert(`Passwort-Reset E-Mail wurde an ${email} gesendet.`)
+      toast.success(`Passwort-Reset E-Mail an ${email} gesendet`)
     } catch {
-      alert('Fehler beim Senden der E-Mail.')
+      toast.error('Fehler beim Senden der E-Mail')
     }
   }
 

@@ -8,6 +8,7 @@ import StatusBadge from '../../../components/ui/StatusBadge'
 import EmptyState from '../../../components/ui/EmptyState'
 import TableSkeleton from '../../../components/ui/TableSkeleton'
 import { formatDate } from '../../../utils/dateUtils'
+import { useToast } from '../../../lib/ToastContext'
 import ArticleForm from '../components/ArticleForm'
 import BookingForm from '../components/BookingForm'
 import { vatRate } from '../../../types/inventory.types'
@@ -50,6 +51,7 @@ export default function StockOverview() {
   }, [])
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const toast = useToast()
 
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ['inventory-articles'],
@@ -223,7 +225,7 @@ const { data: bookingData } = useQuery({
 </table>
 </body></html>`
     const w = window.open('', '_blank', 'width=1200,height=750')
-    if (!w) { alert('Popup blockiert – bitte Popups erlauben.'); return }
+    if (!w) { toast.warning('Popup blockiert – bitte Popups erlauben'); return }
     w.document.write(html)
     w.document.close()
     w.focus()

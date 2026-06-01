@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
 import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft, Library } from 'lucide-react'
 import GlossarModal from '../ui/GlossarModal'
+import { useToast } from '../../lib/ToastContext'
 import { cn } from '../../utils/cn'
 import { version } from '../../../package.json'
 import { useAuth, UserProfile } from '../../lib/AuthContext'
@@ -297,6 +298,7 @@ export default function AppShell() {
           canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessAufgaben,
           canAccessRecall, canAccessAkv,
           canAccessBenutzerverwaltung } = useAuth()
+  const toast = useToast()
 
   // Close mobile menu on route change
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
@@ -460,7 +462,7 @@ export default function AppShell() {
       }
       await updateDoc(doc(db, 'passwordResetRequests', req.id), { status: 'approved', approvedAt: serverTimestamp() })
     } catch {
-      alert('Fehler beim Senden der Reset-E-Mail.')
+      toast.error('Fehler beim Senden der Reset-E-Mail')
     }
   }
 

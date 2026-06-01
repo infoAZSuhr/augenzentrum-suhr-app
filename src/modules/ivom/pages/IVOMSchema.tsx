@@ -4,9 +4,11 @@ import { Save, Pencil, X } from 'lucide-react'
 import { getIVOMSchema, updateIVOMSchema } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import RichTextEditor from '../../../components/ui/RichTextEditor'
+import { useToast } from '../../../lib/ToastContext'
 
 export default function IVOMSchema() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saved, setSaved] = useState(false)
@@ -28,7 +30,7 @@ export default function IVOMSchema() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
-    onError: (err: any) => alert('Fehler: ' + err.message),
+    onError: (err: any) => toast.error('Fehler: ' + err.message),
   })
 
   const handleCancel = () => {
