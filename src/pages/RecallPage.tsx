@@ -3230,9 +3230,12 @@ export default function RecallPage() {
                 {auswertungStats.actRows.length === 0 ? (
                   <p className="text-sm text-gray-400 py-4 text-center">Keine Aktivität im gewählten Zeitraum.</p>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  // Inline-scrollbar: max-h begrenzt die sichtbare Höhe, lange Listen
+                  // scrollen innerhalb des Containers statt das Modal aufzublähen.
+                  // sticky thead hält die Spaltenköpfe beim Scrollen am oberen Rand.
+                  <div className="overflow-auto rounded-xl border border-gray-200 max-h-80">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
                         <tr>
                           <th className="text-left  px-4 py-2.5">Datum</th>
                           <th className="text-left  px-4 py-2.5">Benutzer</th>
@@ -3317,9 +3320,10 @@ export default function RecallPage() {
                 {auswertungStats.neupatientRows.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-3">Noch keine Neupatienten erfasst.</p>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  // Inline-scrollbar (siehe Aktivitäts-Tabelle oben).
+                  <div className="overflow-auto rounded-xl border border-gray-200 max-h-80">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
                         <tr>
                           <th className="text-left px-4 py-2.5">Erfassungsdatum</th>
                           <th className="text-left px-4 py-2.5">Erfasst von</th>
