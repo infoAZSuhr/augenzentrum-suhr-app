@@ -1026,16 +1026,29 @@ export default function RecallPage() {
       )
 
     // ── Neupatienten ────────────────────────────────────────────────────────
+    // Periodengrenzen entsprechen den Card-Labels:
+    //   "Diese Woche"  = aktuelle Kalenderwoche Mo–Fr (Wochenenden ausgeschlossen
+    //                    auf Wunsch — Praxis arbeitet Mo–Fr)
+    //   "Dieser Monat" = aktueller Kalendermonat (1. bis Monatsende)
+    //   "Dieses Jahr"  = aktuelles Kalenderjahr
+    // Vorher: rolling 7/30 days → "Diese Woche" enthielt am Mittwoch auch
+    // Donnerstag/Freitag der Vorwoche.
     const yearStart  = new Date(now.getFullYear(), 0, 1)
-    const monthStart = new Date(now); monthStart.setDate(now.getDate() - 30)
-    const weekStart  = new Date(now); weekStart.setDate(now.getDate() - 7)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+    // Montag der aktuellen Woche (now.getDay(): 0=So, 1=Mo, ..., 6=Sa)
+    const dow = now.getDay()
+    const offsetToMonday = dow === 0 ? -6 : 1 - dow
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() + offsetToMonday); weekStart.setHours(0, 0, 0, 0)
+    const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 4); weekEnd.setHours(23, 59, 59, 999)  // Freitag
+
     const neuAll = all.filter(p => p.neupatient === true)
     function neupDate(p: RecallPatient): Date | null {
       const ps = parseStamp(p.erstellt); return ps ? new Date(ps.isoDate) : null
     }
     const neupatienten = {
-      week:  neuAll.filter(p => { const d = neupDate(p); return d && d >= weekStart  }).length,
-      month: neuAll.filter(p => { const d = neupDate(p); return d && d >= monthStart }).length,
+      week:  neuAll.filter(p => { const d = neupDate(p); return d && d >= weekStart  && d <= weekEnd  }).length,
+      month: neuAll.filter(p => { const d = neupDate(p); return d && d >= monthStart && d <= monthEnd }).length,
       year:  neuAll.filter(p => { const d = neupDate(p); return d && d >= yearStart  }).length,
       total: neuAll.length,
     }
