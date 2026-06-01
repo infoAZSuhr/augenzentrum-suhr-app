@@ -939,9 +939,19 @@ export default function RecallPage() {
 
   // ── Auswertung ───────────────────────────────────────────────────────────────
   const [auswertungOpen, setAuswertungOpen] = useState(false)
-  type ActPeriod = 'today' | 'week' | 'month' | 'all'
+  type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
+  // Zentrale Definition der Period-Buttons (Reihenfolge + Labels) — beide
+  // Filter-Bars (Aktivität + Neupatienten) rendern aus dieser Liste.
+  const PERIODS: Array<{ key: ActPeriod; label: string }> = [
+    { key: 'today',     label: 'Heute' },
+    { key: 'week',      label: 'Diese Woche' },
+    { key: 'lastWeek',  label: 'Letzte Woche' },
+    { key: 'month',     label: 'Dieser Monat' },
+    { key: 'lastMonth', label: 'Letzter Monat' },
+    { key: 'all',       label: 'Alle' },
+  ]
 
   const auswertungStats = useMemo(() => {
     const all: RecallPatient[] = []
@@ -960,13 +970,23 @@ export default function RecallPage() {
     const offsetMoG = dowG === 0 ? -6 : 1 - dowG
     const weekStartG = new Date(now); weekStartG.setDate(now.getDate() + offsetMoG); weekStartG.setHours(0, 0, 0, 0)
     const weekEndG   = new Date(weekStartG); weekEndG.setDate(weekStartG.getDate() + 4); weekEndG.setHours(23, 59, 59, 999)
+    // Letzte Woche: Mo–Fr der Vorwoche (weekStartG − 7 / weekEndG − 7, aber neu instanziieren)
+    const lastWeekStartG = new Date(weekStartG); lastWeekStartG.setDate(weekStartG.getDate() - 7)
+    const lastWeekEndG   = new Date(weekEndG);   lastWeekEndG.setDate(weekEndG.getDate() - 7)
+    // Letzter Monat: vorheriger Kalendermonat
+    const lastMonthStartG = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const lastMonthEndG   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
 
-    function inPeriod(iso: string): boolean {
-      const d = new Date(iso)
-      if (actPeriod === 'today') return d.toDateString() === now.toDateString()
-      if (actPeriod === 'week')  return d >= weekStartG  && d <= weekEndG
-      if (actPeriod === 'month') return d >= monthStartG && d <= monthEndG
+    function matchPeriod(d: Date, period: ActPeriod): boolean {
+      if (period === 'today')     return d.toDateString() === now.toDateString()
+      if (period === 'week')      return d >= weekStartG      && d <= weekEndG
+      if (period === 'lastWeek')  return d >= lastWeekStartG  && d <= lastWeekEndG
+      if (period === 'month')     return d >= monthStartG     && d <= monthEndG
+      if (period === 'lastMonth') return d >= lastMonthStartG && d <= lastMonthEndG
       return true   // 'all'
+    }
+    function inPeriod(iso: string): boolean {
+      return matchPeriod(new Date(iso), actPeriod)
     }
     // Aufgebot-Aufschlüsselung aus verlauf: aktion → Art-Bucket.
     // System-generierte Reminder (von === 'System') zählen NICHT — die kommen
@@ -1073,15 +1093,9 @@ export default function RecallPage() {
         }))
       )
 
-    // Period-Filter analog zu inPeriod() (Activity). Nutzt dieselben *G-Vars.
-    function neuInPeriod(iso: string): boolean {
-      const d = new Date(iso)
-      if (neuPeriod === 'today') return d.toDateString() === now.toDateString()
-      if (neuPeriod === 'week')  return d >= weekStartG  && d <= weekEndG
-      if (neuPeriod === 'month') return d >= monthStartG && d <= monthEndG
-      return true   // 'all'
-    }
-    const neupatientRows = neupatientRowsAll.filter(r => neuInPeriod(r.isoDate))
+    // Period-Filter analog zu inPeriod() (Activity). Nutzt dieselben *G-Vars
+    // via gemeinsamen matchPeriod()-Helper — identische Semantik garantiert.
+    const neupatientRows = neupatientRowsAll.filter(r => matchPeriod(new Date(r.isoDate), neuPeriod))
 
     // ── Per-doctor stats ────────────────────────────────────────────────────
     const docStats = [...doctors, ZU_BEARB].map(doc => {
@@ -3274,11 +3288,11 @@ export default function RecallPage() {
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-primary-500" /> Aktivität
                   </h3>
-                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
-                    {(['today','week','month','all'] as ActPeriod[]).map((p, i) => (
-                      <button key={p} onClick={() => setActPeriod(p)}
-                        className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${actPeriod === p ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                        {p === 'today' ? 'Heute' : p === 'week' ? 'Diese Woche' : p === 'month' ? 'Dieser Monat' : 'Alle'}
+                  <div className="flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                    {PERIODS.map(({ key, label }, i) => (
+                      <button key={key} onClick={() => setActPeriod(key)}
+                        className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${actPeriod === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {label}
                       </button>
                     ))}
                   </div>
@@ -3357,11 +3371,11 @@ export default function RecallPage() {
                   </h3>
                   {/* Period-Filter analog zur Aktivitäts-Section. Filtert die History-
                       Tabelle drunter rückwirkend; Summary-Cards bleiben unabhängig. */}
-                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
-                    {(['today','week','month','all'] as ActPeriod[]).map((p, i) => (
-                      <button key={p} onClick={() => setNeuPeriod(p)}
-                        className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${neuPeriod === p ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                        {p === 'today' ? 'Heute' : p === 'week' ? 'Diese Woche' : p === 'month' ? 'Dieser Monat' : 'Alle'}
+                  <div className="flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                    {PERIODS.map(({ key, label }, i) => (
+                      <button key={key} onClick={() => setNeuPeriod(key)}
+                        className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${neuPeriod === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {label}
                       </button>
                     ))}
                   </div>
@@ -3387,10 +3401,12 @@ export default function RecallPage() {
                 {/* History table by entry date */}
                 {auswertungStats.neupatientRows.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-3">
-                    {neuPeriod === 'all'   ? 'Noch keine Neupatienten erfasst.'
-                   : neuPeriod === 'today' ? 'Heute keine Neupatienten erfasst.'
-                   : neuPeriod === 'week'  ? 'Diese Woche keine Neupatienten erfasst.'
-                                           : 'Diesen Monat keine Neupatienten erfasst.'}
+                    {neuPeriod === 'all'       ? 'Noch keine Neupatienten erfasst.'
+                   : neuPeriod === 'today'     ? 'Heute keine Neupatienten erfasst.'
+                   : neuPeriod === 'week'      ? 'Diese Woche keine Neupatienten erfasst.'
+                   : neuPeriod === 'lastWeek'  ? 'Letzte Woche keine Neupatienten erfasst.'
+                   : neuPeriod === 'lastMonth' ? 'Letzten Monat keine Neupatienten erfasst.'
+                                               : 'Diesen Monat keine Neupatienten erfasst.'}
                   </p>
                 ) : (
                   // Inline-scrollbar (siehe Aktivitäts-Tabelle oben).
