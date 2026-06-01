@@ -45,10 +45,17 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
-      - name: Vitest installieren (nur CI — gehört nicht zur App)
+      - name: Vitest + Testing-Library installieren (nur CI — gehört nicht zur App)
         # --no-save + --no-package-lock: package.json + Lock bleiben unangetastet,
         # gleiches Muster wie Playwright im update-zurrose-Workflow.
-        run: npm install vitest@^2.1.0 --no-save --no-package-lock --silent
+        run: |
+          npm install \
+            vitest@^2.1.0 \
+            jsdom@^25 \
+            @testing-library/react@^16 \
+            @testing-library/jest-dom@^6 \
+            @testing-library/user-event@^14 \
+            --no-save --no-package-lock --silent
 
       - name: Tests laufen lassen
         run: npm test
