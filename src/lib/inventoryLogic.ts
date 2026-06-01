@@ -101,6 +101,18 @@ export function matchZurRoseEntry(
 }
 
 /**
+ * Formatiert ein ISO-Datum als DD.MM.YYYY — explizit gepaddet, damit die
+ * Anzeige plattform-unabhängig ist. (Node ICU auf Linux gibt z.B. "15.6.2026"
+ * für toLocaleDateString('de-CH'), Windows "15.06.2026" — wir wollen immer
+ * die gepaddete Variante.)
+ */
+function isoToSwissDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return iso
+  return `${m[3]}.${m[2]}.${m[1]}`
+}
+
+/**
  * Formatiert den Anzeige-Text für einen Zur-Rose-Alarm:
  *   d="2026-06-15"  → "Ausstand bis 15.06.2026"
  *   d="fehlt seit…" → "Auf unbestimmte Zeit"
@@ -109,5 +121,5 @@ export function matchZurRoseEntry(
 export function formatZurRoseAlertDetail(entry: ZurRoseEntryLike): string {
   if (!entry.d) return 'Nicht lieferbar (Zur Rose)'
   if (entry.d.startsWith('fehlt')) return 'Auf unbestimmte Zeit'
-  return `Ausstand bis ${new Date(entry.d).toLocaleDateString('de-CH')}`
+  return `Ausstand bis ${isoToSwissDate(entry.d)}`
 }
