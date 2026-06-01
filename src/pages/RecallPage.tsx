@@ -1094,10 +1094,17 @@ export default function RecallPage() {
       const ps = parseStamp(p.erstellt); return ps ? new Date(ps.isoDate) : null
     }
     const neupatienten = {
-      week:  neuAll.filter(p => { const d = neupDate(p); return d && d >= weekStartG  && d <= weekEndG  }).length,
-      month: neuAll.filter(p => { const d = neupDate(p); return d && d >= monthStartG && d <= monthEndG }).length,
-      year:  neuAll.filter(p => { const d = neupDate(p); return d && d >= yearStartG  }).length,
-      total: neuAll.length,
+      week:      neuAll.filter(p => { const d = neupDate(p); return d && d >= weekStartG      && d <= weekEndG      }).length,
+      lastWeek:  neuAll.filter(p => { const d = neupDate(p); return d && d >= lastWeekStartG  && d <= lastWeekEndG  }).length,
+      month:     neuAll.filter(p => { const d = neupDate(p); return d && d >= monthStartG     && d <= monthEndG     }).length,
+      lastMonth: neuAll.filter(p => { const d = neupDate(p); return d && d >= lastMonthStartG && d <= lastMonthEndG }).length,
+      year:      neuAll.filter(p => { const d = neupDate(p); return d && d >= yearStartG      && d <= yearEndG      }).length,
+      lastYear:  neuAll.filter(p => { const d = neupDate(p); return d && d >= lastYearStartG  && d <= lastYearEndG  }).length,
+      total:     neuAll.length,
+      // Kumulativer Stand am Jahres-Ende: alle Neupatienten, die VOR dem
+      // Beginn des aktuellen Jahres erfasst wurden — "wie viele hatten wir
+      // bis Ende letztes Jahr insgesamt".
+      totalEndLastYear: neuAll.filter(p => { const d = neupDate(p); return d && d < yearStartG }).length,
     }
 
     // Neupatient detail rows — grouped by creation date + user for history table
@@ -3430,23 +3437,39 @@ export default function RecallPage() {
                     ))}
                   </div>
                 </div>
-                {/* Summary cards */}
+                {/* Summary cards — passen sich an den Period-Filter an:
+                    bei Vergangenheits-Filter (Letzte Woche / Letzter Monat /
+                    Letztes Jahr) zeigen sie die Vergangenheits-Pendants statt
+                    Gegenwart, Gesamt-Card wird zum kumulativen Stand am Ende
+                    des Vorjahres ("wo standen wir letztes Jahr Silvester"). */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                  {[
-                    { label: 'Diese Woche',  value: auswertungStats.neupatienten.week,  color: 'bg-green-50 text-green-700 border-green-100' },
-                    { label: 'Dieser Monat', value: auswertungStats.neupatienten.month, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-                    { label: 'Dieses Jahr',  value: auswertungStats.neupatienten.year,  color: 'bg-teal-50 text-teal-700 border-teal-100' },
-                    { label: 'Gesamt',       value: auswertungStats.neupatienten.total, color: 'bg-gray-50 text-gray-700 border-gray-200' },
-                  ].map(({ label, value, color }) => (
-                    <button
-                      key={label}
-                      onClick={() => { setFilterNeupatient(true); setFilterTermin(null); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
-                      className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 ${color}`}
-                    >
-                      <span className="text-2xl font-bold tabular-nums">{value}</span>
-                      <span className="text-xs mt-0.5 opacity-75">{label}</span>
-                    </button>
-                  ))}
+                  {(() => {
+                    const isPast = neuPeriod === 'lastWeek' || neuPeriod === 'lastMonth' || neuPeriod === 'lastYear'
+                    const n = auswertungStats.neupatienten
+                    const cards = isPast
+                      ? [
+                          { label: 'Letzte Woche',          value: n.lastWeek,         color: 'bg-green-50    text-green-700    border-green-100'    },
+                          { label: 'Letzter Monat',         value: n.lastMonth,        color: 'bg-emerald-50  text-emerald-700  border-emerald-100'  },
+                          { label: 'Letztes Jahr',          value: n.lastYear,         color: 'bg-teal-50     text-teal-700     border-teal-100'     },
+                          { label: 'Bis Ende letztes Jahr', value: n.totalEndLastYear, color: 'bg-gray-50     text-gray-700     border-gray-200'     },
+                        ]
+                      : [
+                          { label: 'Diese Woche',           value: n.week,             color: 'bg-green-50    text-green-700    border-green-100'    },
+                          { label: 'Dieser Monat',          value: n.month,            color: 'bg-emerald-50  text-emerald-700  border-emerald-100'  },
+                          { label: 'Dieses Jahr',           value: n.year,             color: 'bg-teal-50     text-teal-700     border-teal-100'     },
+                          { label: 'Gesamt',                value: n.total,            color: 'bg-gray-50     text-gray-700     border-gray-200'     },
+                        ]
+                    return cards.map(({ label, value, color }) => (
+                      <button
+                        key={label}
+                        onClick={() => { setFilterNeupatient(true); setFilterTermin(null); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
+                        className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 ${color}`}
+                      >
+                        <span className="text-2xl font-bold tabular-nums">{value}</span>
+                        <span className="text-xs mt-0.5 opacity-75">{label}</span>
+                      </button>
+                    ))
+                  })()}
                 </div>
                 {/* History table by entry date */}
                 {auswertungStats.neupatientRows.length === 0 ? (
