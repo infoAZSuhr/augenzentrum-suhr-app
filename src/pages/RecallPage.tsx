@@ -3493,6 +3493,30 @@ export default function RecallPage() {
                     ({auswertungStats.inaktiveRows.length})
                   </span>
                 </h3>
+                {/* Summary cards pro Grund-Kategorie. Click filtert die Hauptliste
+                    auf Status "Inaktiv/✝" (ungeachtet des spezifischen Grunds —
+                    Granularität nach Grund hat das Filter-Modell aktuell nicht). */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { kind: 'verstorben'  as const, label: '✝ Verstorben', color: 'bg-gray-50  text-gray-700  border-gray-200'  },
+                    { kind: 'arztwechsel' as const, label: 'Arztwechsel',   color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                    { kind: 'wegzug'      as const, label: 'Wegzug',        color: 'bg-sky-50   text-sky-700   border-sky-200'   },
+                    { kind: 'inaktiv'     as const, label: 'Sonstige',      color: 'bg-gray-50  text-gray-600  border-gray-200'  },
+                  ].map(({ kind, label, color }) => {
+                    const value = auswertungStats.inaktiveRows.filter(r => r.kind === kind).length
+                    return (
+                      <button
+                        key={kind}
+                        onClick={() => { setFilterStatus('inaktiv'); setFilterTermin(null); setFilterNeupatient(false); setAuswertungOpen(false); setPage(1) }}
+                        className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
+                      >
+                        <span className="text-2xl font-bold tabular-nums">{value}</span>
+                        <span className="text-xs mt-0.5 opacity-75">{label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* History table */}
                 {auswertungStats.inaktiveRows.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-3">Keine inaktiven Patienten.</p>
                 ) : (
