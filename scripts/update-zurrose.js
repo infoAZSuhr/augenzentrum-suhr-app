@@ -28,11 +28,74 @@ const FS_BASE    = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/d
 const CLI_CLIENT_ID     = '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com'
 const CLI_CLIENT_SECRET = 'j9iVZfS8xyyrHE-Sg5Vhvtov'
 
-// ── Playwright-basierter Download ────────────────────────────────────────────
-// Cloudflare blockt einfache HTTP-Requests von GitHub-Actions-IPs. Wenn das
-// passiert, starten wir einen echten headless Chrome (über Playwright) und
-// laden die Datei darüber — sieht für Cloudflare aus wie ein normaler Browser.
-// Playwright ist nur in CI installiert (siehe Workflow); lokal ist es optional.
+// ── Browser-basierter Download (mit Cloudflare-Bypass) ───────────────────────
+//
+// Zur Rose ist hinter Cloudflare. Einfache HTTP-Requests von GitHub-Actions-IPs
+// werden 403/blockiert. Wir versuchen zwei Browser-Strategien:
+//
+//  1. STEALTH (preferred): playwright-extra + puppeteer-extra-plugin-stealth
+//     patcht alle WebDriver/Headless-Fingerprints, die Cloudflare zur Bot-
+//     Erkennung nutzt. Download via echter Browser-Navigation + 'download'-
+//     Event — für Cloudflare nicht von einem User unterscheidbar.
+//
+//  2. PLAIN-PLAYWRIGHT (legacy fallback): wie vorher, ohne Stealth. Bleibt
+//     drin falls playwright-extra mal Probleme macht — manchmal ist plain
+//     gut genug.
+//
+// Beide laden im headless Mode mit deutschem Locale + Zurich-Timezone und
+// machen vorher einen Warm-up-Besuch auf zurrose.ch, damit Cloudflare-
+// Cookies gesetzt sind.
+
+async function stealthDownload(url) {
+  let chromium, stealthPlugin
+  try {
+    ({ chromium } = require('playwright-extra'))
+    stealthPlugin = require('puppeteer-extra-plugin-stealth')()
+  } catch {
+    throw new Error('playwright-extra nicht installiert — siehe Workflow YAML')
+  }
+  chromium.use(stealthPlugin)
+
+  console.log('[Stealth] Starte stealthed Chromium …')
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  })
+  try {
+    const ctx = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale: 'de-CH',
+      viewport: { width: 1920, height: 1080 },
+      timezoneId: 'Europe/Zurich',
+      acceptDownloads: true,
+    })
+    const page = await ctx.newPage()
+    console.log('[Stealth] Warm-up: zurrose.ch …')
+    await page.goto('https://www.zurrose.ch/', { waitUntil: 'networkidle', timeout: 60_000 })
+    await page.waitForTimeout(5000)   // Cloudflare-Challenge gemütlich abwarten
+
+    console.log('[Stealth] Navigiere zu XLSX (download via browser-event):', url)
+    const downloadPromise = page.waitForEvent('download', { timeout: 60_000 })
+    page.goto(url).catch(() => {})    // Navigation triggert Download — der goto selbst wird 'cancelled'
+    const download = await downloadPromise
+    const tmpPath = path.join(os.tmpdir(), `nota-${Date.now()}.xlsx`)
+    await download.saveAs(tmpPath)
+    const buf = fs.readFileSync(tmpPath)
+    try { fs.unlinkSync(tmpPath) } catch {}
+
+    if (buf[0] !== 0x50 || buf[1] !== 0x4B) {
+      throw new Error(`Stealth: keine XLSX-Datei (${buf.length} Bytes)`)
+    }
+    return buf
+  } finally {
+    await browser.close().catch(() => {})
+  }
+}
+
 async function playwrightDownload(url) {
   let playwright
   try {
@@ -48,11 +111,10 @@ async function playwrightDownload(url) {
       locale: 'de-CH',
       viewport: { width: 1280, height: 800 },
     })
-    // Erst zurrose.ch besuchen, damit Cloudflare-Cookies gesetzt werden
     const page = await ctx.newPage()
     console.log('[Playwright] Warm-up: lade zurrose.ch …')
     await page.goto('https://www.zurrose.ch/', { waitUntil: 'domcontentloaded', timeout: 30_000 })
-    await page.waitForTimeout(2000) // Cloudflare-Challenge ggf. abwarten
+    await page.waitForTimeout(2000)
     console.log('[Playwright] Lade XLSX:', url)
     const response = await ctx.request.get(url, {
       headers: {
@@ -301,7 +363,10 @@ async function main() {
     downloadStrategy = 'env-path'
     console.log(`Lese Datei von ZURROSE_XLSX_PATH: ${xlsxPath} (${Math.round(buf.length / 1024)} KB)`)
   } else {
-    // Versuch 1: einfacher HTTP-Request
+    // Fallback-Kette: HTTP → Stealth → Plain-Playwright → Local-Repo-Kopie.
+    // Jede Strategie ist langsamer/schwerer als die vorherige, aber dafür
+    // robuster gegen Cloudflare. Stealth ist seit dem Wechsel der primäre
+    // Pfad (Plain-Playwright wird inzwischen oft 403'd).
     try {
       console.log('Lade Zur Rose Nota-Liste herunter (HTTP)…')
       buf = await httpGet(XLSX_URL)
@@ -309,26 +374,31 @@ async function main() {
       console.log(`✓ HTTP: ${Math.round(buf.length / 1024)} KB`)
     } catch (httpErr) {
       console.warn(`⚠ HTTP-Download fehlgeschlagen: ${httpErr.message}`)
-      // Versuch 2: Playwright (umgeht Cloudflare-IP-Blocks)
       try {
-        buf = await playwrightDownload(XLSX_URL)
-        downloadStrategy = 'playwright'
-        console.log(`✓ Playwright: ${Math.round(buf.length / 1024)} KB`)
-      } catch (pwErr) {
-        console.warn(`⚠ Playwright-Download fehlgeschlagen: ${pwErr.message}`)
-        // Versuch 3: lokale Repo-Kopie als letzter Fallback
-        if (fs.existsSync(XLSX_LOCAL_COPY)) {
-          buf = fs.readFileSync(XLSX_LOCAL_COPY)
-          downloadStrategy = 'local-fallback'
-          console.warn(`⚠ Verwende veraltete lokale Repo-Kopie: ${XLSX_LOCAL_COPY} (${Math.round(buf.length / 1024)} KB)`)
-          console.warn('  Stand wird sich vermutlich nicht ändern. Bitte XLSX manuell aktualisieren oder Playwright reparieren.')
-        } else {
-          throw new Error('Kein XLSX verfügbar: HTTP & Playwright fehlgeschlagen, keine lokale Kopie vorhanden.')
+        buf = await stealthDownload(XLSX_URL)
+        downloadStrategy = 'stealth'
+        console.log(`✓ Stealth: ${Math.round(buf.length / 1024)} KB`)
+      } catch (stErr) {
+        console.warn(`⚠ Stealth-Download fehlgeschlagen: ${stErr.message}`)
+        try {
+          buf = await playwrightDownload(XLSX_URL)
+          downloadStrategy = 'playwright'
+          console.log(`✓ Plain-Playwright: ${Math.round(buf.length / 1024)} KB`)
+        } catch (pwErr) {
+          console.warn(`⚠ Plain-Playwright fehlgeschlagen: ${pwErr.message}`)
+          if (fs.existsSync(XLSX_LOCAL_COPY)) {
+            buf = fs.readFileSync(XLSX_LOCAL_COPY)
+            downloadStrategy = 'local-fallback'
+            console.warn(`⚠ Verwende veraltete lokale Repo-Kopie: ${XLSX_LOCAL_COPY} (${Math.round(buf.length / 1024)} KB)`)
+            console.warn('  Alle drei Online-Strategien fehlgeschlagen — Cloudflare-Setup hat sich evtl. geändert.')
+          } else {
+            throw new Error('Kein XLSX verfügbar: HTTP, Stealth & Plain-Playwright fehlgeschlagen, keine lokale Kopie vorhanden.')
+          }
         }
       }
     }
-    // Bei erfolgreichem Online-Download lokale Kopie aktualisieren
-    if (downloadStrategy === 'http' || downloadStrategy === 'playwright') {
+    // Bei erfolgreichem Online-Download die lokale Kopie als Backup aktualisieren
+    if (downloadStrategy === 'http' || downloadStrategy === 'stealth' || downloadStrategy === 'playwright') {
       fs.writeFileSync(XLSX_LOCAL_COPY, buf)
       console.log(`Lokale Kopie aktualisiert: ${XLSX_LOCAL_COPY}`)
     }

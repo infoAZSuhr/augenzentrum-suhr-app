@@ -28,11 +28,14 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
-      - name: Playwright installieren (nur CI — gehört nicht zur App)
+      - name: Playwright + Stealth installieren (nur CI — gehört nicht zur App)
         # --no-save + --no-package-lock: package.json und lock bleiben unangetastet.
-        # So muss Playwright nicht in den App-Dependencies geführt werden.
+        # playwright-extra + stealth-plugin patcht WebDriver-Fingerprints, damit
+        # Cloudflare den headless Chrome nicht als Bot erkennt. Ohne Stealth
+        # bekamen wir seit Ende Mai 2026 dauerhaft local-fallback statt frischer
+        # Daten — siehe scripts/update-zurrose.js Kommentar.
         run: |
-          npm install playwright@^1.49.0 --no-save --no-package-lock --silent
+          npm install playwright@^1.49.0 playwright-extra@^4.3.6 puppeteer-extra-plugin-stealth@^2.11.2 --no-save --no-package-lock --silent
           npx playwright install --with-deps chromium
 
       - name: Zur Rose Nota-Liste Firestore sync
