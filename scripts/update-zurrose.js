@@ -417,9 +417,30 @@ async function main() {
   console.log(`✓ ${matched} Artikel als "nicht lieferbar" markiert, ${cleared} zurückgesetzt`)
 
   // ── 6. Meta-Datei speichern ───────────────────────────────────────────────
+  // Wichtig: wenn nur local-fallback genutzt wurde UND die Quellen-XLSX seit
+  // dem letzten Run unverändert ist, schreiben wir die Meta NICHT neu. Sonst
+  // committet der Workflow täglich ein Meta-Update mit neuem extractedAt —
+  // sieht aus, als wären die Daten frisch, in Wahrheit sind sie alt.
+  let existingMeta = null
+  if (fs.existsSync(META_FILE)) {
+    try { existingMeta = JSON.parse(fs.readFileSync(META_FILE, 'utf8')) } catch {}
+  }
+  const contentUnchanged = existingMeta
+    && existingMeta.stand === standRaw
+    && existingMeta.entries === notaEntries.length
+  if (downloadStrategy === 'local-fallback' && contentUnchanged) {
+    console.log('')
+    console.log('::warning::Zur Rose Nota-Liste: HTTP + Playwright fehlgeschlagen, lokale Fallback-XLSX unverändert.')
+    console.log('::warning::Meta NICHT aktualisiert — Stand bleibt ' + (existingMeta?.stand ?? '?') + '.')
+    console.log('::warning::Fix: scripts/Nota-Liste.xlsx von zurrose.ch nachpflegen ODER Playwright-Pfad reparieren.')
+    return
+  }
   const meta = { extractedAt: new Date().toISOString().slice(0, 10), stand: standRaw, entries: notaEntries.length }
   fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2))
   console.log(`✓ Meta gespeichert → public/zurrose-nota-meta.json`)
+  if (downloadStrategy === 'local-fallback') {
+    console.log('::warning::Zur Rose: nur local-fallback verfügbar, aber Inhalt hat sich geändert — committet.')
+  }
   console.log('')
   console.log('Nächster Schritt: App neu deployen')
   console.log('  npm run build && firebase deploy --only hosting --project azsdb-999d6')
