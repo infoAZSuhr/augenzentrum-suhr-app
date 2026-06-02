@@ -342,35 +342,81 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
             )}
           </div>
 
-          {/* Attachment popup */}
-          {lightboxAtt && (
-            <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
-              onClick={() => setLightboxAtt(null)}>
-              <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
-                onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                  <span className="text-sm font-medium text-gray-800 truncate max-w-[340px]">{lightboxAtt.name}</span>
-                  <button onClick={() => setLightboxAtt(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                {lightboxAtt.type.startsWith('image/') ? (
-                  <img src={lightboxAtt.url} alt={lightboxAtt.name} className="w-full max-h-[60vh] object-contain bg-gray-50" />
-                ) : (
-                  <div className="flex flex-col items-center gap-3 py-10 px-6 bg-gray-50">
-                    <Paperclip className="w-10 h-10 text-gray-300" />
-                    <p className="text-sm text-gray-500 text-center break-all">{lightboxAtt.name}</p>
+          {/* Attachment popup mit Inline-Vorschau für unterstützte Typen.
+              Browser-native: image, pdf, video, audio, text.
+              Office-Docs (.docx/.xlsx/.pptx) via Google Docs Viewer.
+              Fallback: Datei-Icon mit Hinweis + Öffnen/Herunterladen-Button. */}
+          {lightboxAtt && (() => {
+            const t       = lightboxAtt.type
+            const url     = lightboxAtt.url
+            const nameL   = lightboxAtt.name.toLowerCase()
+            const isImg   = t.startsWith('image/')
+            const isPdf   = t === 'application/pdf' || nameL.endsWith('.pdf')
+            const isVideo = t.startsWith('video/')
+            const isAudio = t.startsWith('audio/')
+            const isText  = t.startsWith('text/') || /\.(txt|csv|log|md|json|xml|yaml|yml)$/i.test(nameL)
+            const isOffice = /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i.test(nameL)
+            const hasInlinePreview = isImg || isPdf || isVideo || isAudio || isText || isOffice
+            // Schmal für Bilder, breit für Dokumente/Video
+            const widthCls = isImg || isAudio ? 'max-w-2xl' : 'max-w-5xl'
+            return (
+              <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+                onClick={() => setLightboxAtt(null)}>
+                <div className={`bg-white rounded-2xl shadow-2xl ${widthCls} w-full max-h-[90vh] flex flex-col overflow-hidden`}
+                  onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
+                    <span className="text-sm font-medium text-gray-800 truncate max-w-[420px]">{lightboxAtt.name}</span>
+                    <button onClick={() => setLightboxAtt(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                )}
-                <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
-                  <a href={lightboxAtt.url} target="_blank" rel="noopener noreferrer" download={lightboxAtt.name}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                    Öffnen / Herunterladen
-                  </a>
+                  <div className="flex-1 min-h-0 bg-gray-50 overflow-auto">
+                    {isImg && (
+                      <img src={url} alt={lightboxAtt.name} className="w-full max-h-[75vh] object-contain" />
+                    )}
+                    {isPdf && (
+                      <iframe src={url} title={lightboxAtt.name} className="w-full h-[75vh] border-0 bg-white" />
+                    )}
+                    {isVideo && (
+                      <video src={url} controls className="w-full max-h-[75vh] bg-black" />
+                    )}
+                    {isAudio && (
+                      <div className="p-6"><audio src={url} controls className="w-full" /></div>
+                    )}
+                    {isText && (
+                      <iframe src={url} title={lightboxAtt.name} className="w-full h-[75vh] border-0 bg-white" />
+                    )}
+                    {isOffice && (
+                      // Google Docs Viewer rendert Office-Dokumente — funktioniert nur mit
+                      // öffentlich zugänglichen URLs (Firebase-Storage-Download-URLs sind das).
+                      <iframe
+                        src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+                        title={lightboxAtt.name}
+                        className="w-full h-[75vh] border-0 bg-white"
+                      />
+                    )}
+                    {!hasInlinePreview && (
+                      <div className="flex flex-col items-center gap-3 py-12 px-6">
+                        <Paperclip className="w-10 h-10 text-gray-300" />
+                        <p className="text-sm text-gray-500 text-center break-all">{lightboxAtt.name}</p>
+                        <p className="text-xs text-gray-400 text-center">Keine Inline-Vorschau verfügbar — bitte herunterladen.</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium rounded-xl transition-colors">
+                      In neuem Tab öffnen
+                    </a>
+                    <a href={url} target="_blank" rel="noopener noreferrer" download={lightboxAtt.name}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                      Herunterladen
+                    </a>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Checklist */}
           <div>
