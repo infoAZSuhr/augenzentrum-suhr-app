@@ -65,6 +65,22 @@ async function stealthDownload(url) {
       '--disable-blink-features=AutomationControlled',
     ],
   })
+
+  // Hilfs-Funktion: download-Event abwarten + Buffer zurückgeben
+  async function captureDownload(page, navUrl) {
+    const downloadPromise = page.waitForEvent('download', { timeout: 60_000 })
+    page.goto(navUrl).catch(() => {})   // Navigation triggert Download — goto wird 'cancelled'
+    const download = await downloadPromise
+    const tmpPath = path.join(os.tmpdir(), `nota-${Date.now()}.xlsx`)
+    await download.saveAs(tmpPath)
+    const buf = fs.readFileSync(tmpPath)
+    try { fs.unlinkSync(tmpPath) } catch {}
+    if (buf[0] !== 0x50 || buf[1] !== 0x4B) {
+      throw new Error(`keine XLSX (${buf.length} Bytes)`)
+    }
+    return buf
+  }
+
   try {
     const ctx = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -74,22 +90,27 @@ async function stealthDownload(url) {
       acceptDownloads: true,
     })
     const page = await ctx.newPage()
-    console.log('[Stealth] Warm-up: zurrose.ch …')
-    await page.goto('https://www.zurrose.ch/', { waitUntil: 'networkidle', timeout: 60_000 })
-    await page.waitForTimeout(5000)   // Cloudflare-Challenge gemütlich abwarten
 
-    console.log('[Stealth] Navigiere zu XLSX (download via browser-event):', url)
-    const downloadPromise = page.waitForEvent('download', { timeout: 60_000 })
-    page.goto(url).catch(() => {})    // Navigation triggert Download — der goto selbst wird 'cancelled'
-    const download = await downloadPromise
-    const tmpPath = path.join(os.tmpdir(), `nota-${Date.now()}.xlsx`)
-    await download.saveAs(tmpPath)
-    const buf = fs.readFileSync(tmpPath)
-    try { fs.unlinkSync(tmpPath) } catch {}
-
-    if (buf[0] !== 0x50 || buf[1] !== 0x4B) {
-      throw new Error(`Stealth: keine XLSX-Datei (${buf.length} Bytes)`)
+    // VERSUCH 1: Direkt-Download ohne Warm-up. Cloudflare lässt manchmal
+    // statische File-Requests durch ohne Challenge.
+    try {
+      console.log('[Stealth] Direkt-Download (ohne Warm-up) …')
+      const buf = await captureDownload(page, url)
+      console.log(`[Stealth] ✓ Direkt: ${Math.round(buf.length / 1024)} KB`)
+      return buf
+    } catch (directErr) {
+      console.warn(`[Stealth] Direkt fehlgeschlagen: ${directErr.message}`)
     }
+
+    // VERSUCH 2: Warm-up mit domcontentloaded (NICHT networkidle — Cloudflare
+    // hält Verbindungen offen → networkidle würde immer ins Timeout laufen).
+    // Danach 10s warten für JS-Challenge, dann erneut versuchen.
+    console.log('[Stealth] Warm-up: zurrose.ch (domcontentloaded) …')
+    await page.goto('https://www.zurrose.ch/', { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForTimeout(10_000)
+    console.log('[Stealth] Download nach Warm-up …')
+    const buf = await captureDownload(page, url)
+    console.log(`[Stealth] ✓ Nach-Warm-up: ${Math.round(buf.length / 1024)} KB`)
     return buf
   } finally {
     await browser.close().catch(() => {})
