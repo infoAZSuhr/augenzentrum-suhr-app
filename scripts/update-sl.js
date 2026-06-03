@@ -13,16 +13,23 @@ const fs = require('fs')
 const path = require('path')
 const xlsx = require('../node_modules/xlsx')
 
-const SL_URL = 'https://www.xn--spezialittenliste-yqb.ch/File.axd?file=Publications.xlsx'
-const OUT_FILE = path.join(__dirname, '..', 'public', 'sl-data.json')
+const SL_URL    = 'https://www.xn--spezialittenliste-yqb.ch/File.axd?file=Publications.xlsx'
+// Cloudflare-Worker-Fallback (umgeht Cloudflare/Bot-Block auf CI-IPs).
+// Setup-Detail siehe cloudflare-worker/wrangler.toml.
+const SL_PROXY  = 'https://azs-zurrose-proxy.zurrose-update.workers.dev/sl-publications.xlsx'
+const OUT_FILE  = path.join(__dirname, '..', 'public', 'sl-data.json')
 const META_FILE = path.join(__dirname, '..', 'public', 'sl-meta.json')
 
-function download(url) {
+function download(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (redirectCount > 5) return reject(new Error('Zu viele Redirects'))
     console.log('Downloading', url, '...')
     https.get(url, res => {
       if (res.statusCode === 301 || res.statusCode === 302) {
-        return download(res.headers.location).then(resolve).catch(reject)
+        return download(res.headers.location, redirectCount + 1).then(resolve).catch(reject)
+      }
+      if (res.statusCode !== 200) {
+        return reject(new Error(`HTTP ${res.statusCode} für ${url}`))
       }
       const chunks = []
       let size = 0
@@ -36,6 +43,35 @@ function download(url) {
       res.on('error', reject)
     }).on('error', reject)
   })
+}
+
+/** XLSX = ZIP-Container, beginnt mit Magic-Bytes PK (0x50 0x4B).
+ *  Plus Sanity-Check Mindestgrösse 500 KB — typisch BAG-SL hat 8+ MB. */
+function isValidXLSX(buf) {
+  if (!buf || buf.length < 500_000) return false
+  return buf[0] === 0x50 && buf[1] === 0x4B
+}
+
+/** Download mit Validierung — Online zuerst, Worker-Proxy als Fallback. */
+async function downloadValidated() {
+  // Versuch 1: direkter HTTP-Download von BAG
+  try {
+    const r = await download(SL_URL)
+    if (isValidXLSX(r.buf)) {
+      console.log(`✓ HTTP-Direct: ${Math.round(r.contentLength / 1024)} KB`)
+      return r
+    }
+    console.warn(`⚠ HTTP-Direct lieferte kein gültiges XLSX (${Math.round(r.buf.length / 1024)} KB) — versuche Worker-Proxy`)
+  } catch (e) {
+    console.warn(`⚠ HTTP-Direct fehlgeschlagen: ${e.message} — versuche Worker-Proxy`)
+  }
+  // Versuch 2: Cloudflare-Worker als Proxy
+  const r = await download(SL_PROXY)
+  if (!isValidXLSX(r.buf)) {
+    throw new Error(`Worker-Proxy lieferte auch kein gültiges XLSX (${r.buf.length} Bytes). Anfang: ${r.buf.slice(0, 200).toString('utf8')}`)
+  }
+  console.log(`✓ Worker-Proxy: ${Math.round(r.contentLength / 1024)} KB`)
+  return r
 }
 
 async function checkForUpdate() {
@@ -56,12 +92,25 @@ async function main() {
     try { existingMeta = JSON.parse(fs.readFileSync(OUT_FILE, 'utf8')).meta } catch {}
   }
 
-  // Prüfen ob Update vorhanden
+  // Prüfen ob Update vorhanden — HEAD-Request für content-length-Vergleich.
+  // ABER: gibt currentSize=0 zurück wenn BAG hinter Cloudflare den HEAD-
+  // Request blockt → das ist KEIN Signal für "neue Version", sondern für
+  // "konnte nicht prüfen". Vorher hat der Script daraus fälschlich
+  // "0 !== 8 MB → neue Version" abgeleitet und massive HTML-Error-Pages
+  // gedownloadet die der xlsx-Parser nicht verarbeiten konnte.
   const currentSize = await checkForUpdate()
   console.log(`Aktuelle Dateigrösse BAG: ${Math.round(currentSize / 1024)} KB`)
   if (existingMeta?.sourceSize) {
     console.log(`Gespeicherte Dateigrösse:  ${Math.round(existingMeta.sourceSize / 1024)} KB`)
-    if (currentSize === existingMeta.sourceSize) {
+    if (currentSize === 0) {
+      console.log('⚠ HEAD-Request blockiert (Cloudflare?) — kann Update-Status nicht prüfen.')
+      if (process.argv.includes('--force')) {
+        console.log('  --force gesetzt, lade XLSX trotzdem herunter und prüfe Inhalt.')
+      } else {
+        console.log('  Skip — kein --force gesetzt. Erzwinge mit `npm run update-sl:force`.')
+        return
+      }
+    } else if (currentSize === existingMeta.sourceSize) {
       console.log('✓ Keine Änderung erkannt – Update nicht nötig.')
       console.log(`  Letzte Aktualisierung: ${existingMeta.extractedAt}`)
       if (process.argv.includes('--force')) {
@@ -74,9 +123,8 @@ async function main() {
     }
   }
 
-  // Download
-  const { buf, contentLength } = await download(SL_URL)
-  console.log(`Heruntergeladen: ${Math.round(contentLength / 1024)} KB`)
+  // Download mit Validierung (HTTP-Direct → Worker-Proxy Fallback)
+  const { buf, contentLength } = await downloadValidated()
 
   // Parsen
   console.log('Verarbeite Excel...')
