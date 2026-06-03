@@ -87,10 +87,19 @@ async function playwrightDownloadSL() {
       acceptDownloads: true,
     })
     const page = await ctx.newPage()
-    console.log('[Stealth] Lade BAG-SPA: https://sl.bag.admin.ch/sl …')
-    await page.goto('https://sl.bag.admin.ch/sl', { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    // SPA braucht Zeit für OAuth-Flow + Datenladung. 8s als Buffer.
-    await page.waitForTimeout(8_000)
+    // Direkt zur Excel-Download-Route, nicht zur Landing-Page (die hat keine
+    // Excel-Karten). Aus der JS-Bundle-Route-Config: 'current-and-archived-data'.
+    const targetUrl = 'https://sl.bag.admin.ch/sl/current-and-archived-data'
+    console.log('[Stealth] Lade BAG-SPA-Route:', targetUrl)
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    // SPA braucht Zeit für OAuth-Flow + Datenladung. 15s als Buffer (länger
+    // als vorher 8s — die Karten brauchen API-Roundtrips für die metadata).
+    await page.waitForTimeout(15_000)
+    // Diagnose: was sehen wir auf der Seite? hilft bei Selector-Anpassung.
+    const buttonTexts = await page.locator('button').allTextContents().catch(() => [])
+    const trimmedTexts = buttonTexts.map(t => t.trim()).filter(t => t.length > 0 && t.length < 80)
+    console.log(`[Stealth] ${trimmedTexts.length} Buttons im DOM. Samples:`,
+      trimmedTexts.slice(0, 10).map(t => JSON.stringify(t)).join(', '))
 
     // Aus der BAG-i18n (assets/i18n/de.json):
     //   excel.publicationCard.title       = "Aktueller Datenstamm (SL/GGSL)"
@@ -104,7 +113,11 @@ async function playwrightDownloadSL() {
     // Variante 2: Fallback "Alles herunterladen" — lädt ZIP mit allen Files
     // Variante 3: ersten "Als Excel herunterladen"-Button als letzter Fallback
     let clicked = false
-    const downloadPromise = page.waitForEvent('download', { timeout: 90_000 })
+    // Promise mit catch damit ein dangling Promise (z.B. nach allen
+    // failing Variants → browser.close) keine UnhandledPromiseRejection
+    // triggert die das ganze Node prozessbeenden würde.
+    const downloadPromise = page.waitForEvent('download', { timeout: 90_000 }).catch(err => { throw err })
+    downloadPromise.catch(() => {})  // silence unhandled rejection — wir await es später falls clicked, sonst ist der Browser zu
     const variants = [
       {
         name: 'Card "Aktueller Datenstamm" > Als Excel herunterladen',
@@ -141,7 +154,11 @@ async function playwrightDownloadSL() {
         console.log(`[Stealth] Variante fehlgeschlagen: ${e?.message ?? e}`)
       }
     }
-    if (!clicked) throw new Error(`Kein Excel-Button klickbar — letzter Fehler: ${lastErr?.message ?? lastErr}`)
+    if (!clicked) {
+      // Diagnose-Screenshot in der Action-Artifact für visuelle Inspektion
+      try { await page.screenshot({ path: '/tmp/bag-sl-fail.png', fullPage: true }) } catch {}
+      throw new Error(`Kein Excel-Button klickbar — letzter Fehler: ${lastErr?.message ?? lastErr}`)
+    }
     const download = await downloadPromise
     const tmpPath = path.join(os.tmpdir(), `sl-${Date.now()}.xlsx`)
     await download.saveAs(tmpPath)
