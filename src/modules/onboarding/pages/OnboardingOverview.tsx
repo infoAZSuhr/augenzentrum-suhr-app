@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download, Eye, EyeOff, History, GitCompare } from 'lucide-react'
 import BackButton from '../../../components/ui/BackButton'
 import {
   getSections, getAllSubsections, getAllPages,
@@ -9,9 +9,11 @@ import {
   addSubsection, updateSubsection, deleteSubsection,
   addPage, updatePage, updatePageMeta, deletePage, reorderPages, releasePage, setPageToDraft, initPageVersions,
   recordPageView, getPageViews, clearPageViews,
+  getPageVersions, getPageVersion,
   SECTION_COLORS, getColor,
-  type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView,
+  type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView, type PageVersion,
 } from '../../../lib/firestoreOnboarding'
+import { diffSopContent, diffSummary, type DiffPart } from '../../../lib/sopDiff'
 import { useAuth } from '../../../lib/AuthContext'
 import { collection, getDocs, query as fsQuery, where } from 'firebase/firestore'
 import { db } from '../../../lib/firebase'
@@ -182,6 +184,15 @@ export default function OnboardingOverview() {
   const [showRelevantFuer, setShowRelevantFuer] = useState(false)
   const [showNachweis,     setShowNachweis]     = useState(false)
   const [pageRelevantFuer, setPageRelevantFuer] = useState<string[]>([])
+
+  // Versionshistorie pro Page (lazy gefetcht beim ersten Öffnen der Sektion)
+  const [pageVersions,      setPageVersions]      = useState<PageVersion[]>([])
+  const [versionsLoading,   setVersionsLoading]   = useState(false)
+  const [showVersionen,     setShowVersionen]     = useState(false)
+  // Version die im Modal angeschaut wird (null = Modal zu)
+  const [openVersion,       setOpenVersion]       = useState<PageVersion | null>(null)
+  // Toggle im Modal: 'snapshot' = nur die alte Version zeigen, 'diff' = Vergleich zur aktuellen
+  const [versionView,       setVersionView]       = useState<'snapshot' | 'diff'>('diff')
   const [confirming,       setConfirming]       = useState(false)
   const viewersPanelRef = useRef<HTMLDivElement>(null)
 
@@ -273,10 +284,29 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     setPageRelevantFuer(p.relevantFuer ?? [])
     setShowRelevantFuer(false)
     setShowNachweis(false)
+    setShowVersionen(false)
+    setPageVersions([])
     navigate(`/sop/page/${p.id}`)
     // Load confirmations
     if (canViewRecords) setTimeout(() => loadPageViews(p.id), 300)
   }
+
+  // Versionshistorie laden — lazy beim ersten Aufklappen, oder beim Page-Switch
+  // wenn die Sektion offen war (kann je nach UX preference invalidiert werden).
+  const loadPageVersions = useCallback(async (id: string) => {
+    setVersionsLoading(true)
+    try {
+      const list = await getPageVersions(id)
+      setPageVersions(list)
+    } finally {
+      setVersionsLoading(false)
+    }
+  }, [])
+  useEffect(() => {
+    if (showVersionen && activePageId && pageVersions.length === 0 && !versionsLoading) {
+      loadPageVersions(activePageId)
+    }
+  }, [showVersionen, activePageId])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync URL → state: direkter Aufruf via Link oder Browser-Zurück
   useEffect(() => {
@@ -367,10 +397,20 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     setReleasing(true)
     try {
       const newVersion = incrementVersion(pageVersionRef.current)
-      await releasePage(activePageId, pageGueltigAbRef.current || undefined, newVersion)
-      await clearPageViews(activePageId)
+      // releasePage archiviert automatisch den bisherigen final-Stand
+      // (falls die Page schon mal released war). resetViews:true heisst:
+      // Schulungsnachweise werden bei jedem Release zurückgesetzt — alle
+      // Relevanten müssen die neue Version explizit nochmal bestätigen.
+      await releasePage(activePageId, pageGueltigAbRef.current || undefined, newVersion, {
+        archivedBy:    displayName,
+        archiveReason: 'new-version-released',
+        resetViews:    true,
+      })
       setPageVersion(newVersion)
       setPageViews([])
+      // Versionshistorie ggf. neu laden (falls die Sektion offen ist)
+      setPageVersions([])
+      if (showVersionen) loadPageVersions(activePageId)
       refresh()
     } finally {
       setReleasing(false)
@@ -1372,6 +1412,58 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                 </div>
               </div>
             ) : null}
+
+            {/* ── Versionshistorie ── */}
+            {(activePage.status === 'final' || isAdmin || isGeschaeftsleitung) ? (
+              <div className="shrink-0 border-t border-gray-100">
+                <button
+                  onClick={() => setShowVersionen(v => !v)}
+                  className="w-full flex items-center justify-between px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                  <span className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-purple-500" />
+                    Versionshistorie
+                    <span className="text-xs font-normal text-gray-400">
+                      {versionsLoading ? '(lädt…)' : pageVersions.length > 0 ? `(${pageVersions.length} archivierte Version${pageVersions.length === 1 ? '' : 'en'})` : '(noch keine)'}
+                    </span>
+                  </span>
+                  {showVersionen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                </button>
+                {showVersionen && (
+                  <div className="px-5 pb-4">
+                    {versionsLoading ? (
+                      <p className="text-xs text-gray-400">Lädt…</p>
+                    ) : pageVersions.length === 0 ? (
+                      <p className="text-xs text-gray-400">Noch keine archivierten Versionen. Bei der nächsten Freigabe wird der jetzige Stand archiviert.</p>
+                    ) : (
+                      <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+                        {pageVersions.map(v => (
+                          <li key={v.id}>
+                            <button
+                              onClick={() => { setOpenVersion(v); setVersionView('diff') }}
+                              className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors text-left">
+                              <span className="flex items-center gap-3 min-w-0">
+                                <span className="text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
+                                  v{v.version ?? '?'}
+                                </span>
+                                <span className="text-xs text-gray-500 tabular-nums">
+                                  {fmtTs(v.snapshotAt)}
+                                </span>
+                                {v.freigabeDurch && (
+                                  <span className="text-xs text-gray-400 truncate">freigegeben durch {v.freigabeDurch}</span>
+                                )}
+                              </span>
+                              <span className="flex items-center gap-1 text-xs text-primary-600 shrink-0">
+                                <GitCompare className="w-3.5 h-3.5" /> Vergleichen
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -1404,6 +1496,128 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
           onClose={() => setShowExportPreview(false)}
         />
       )}
+
+      {/* Versions-Vergleichs-Modal */}
+      {openVersion && activePage && (
+        <SopVersionModal
+          version={openVersion}
+          currentContent={activePage.content ?? ''}
+          currentTitle={activePage.title ?? ''}
+          view={versionView}
+          onViewChange={setVersionView}
+          onClose={() => setOpenVersion(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Versions-Modal-Komponente ─────────────────────────────────────────────
+function SopVersionModal({
+  version, currentContent, currentTitle, view, onViewChange, onClose,
+}: {
+  version:         PageVersion
+  currentContent:  string
+  currentTitle:    string
+  view:            'snapshot' | 'diff'
+  onViewChange:    (v: 'snapshot' | 'diff') => void
+  onClose:         () => void
+}) {
+  const diffParts: DiffPart[] = useMemo(
+    () => diffSopContent(version.content ?? '', currentContent ?? ''),
+    [version.content, currentContent],
+  )
+  const summary = useMemo(() => diffSummary(diffParts), [diffParts])
+  const titleChanged = version.title !== currentTitle
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <History className="w-5 h-5 text-purple-500 shrink-0" />
+            <span className="font-bold text-gray-900 truncate">
+              Version v{version.version ?? '?'}
+            </span>
+            <span className="text-xs text-gray-400 shrink-0">archiviert {fmtTs(version.snapshotAt)}</span>
+            {(summary.added > 0 || summary.removed > 0) && view === 'diff' && (
+              <span className="text-xs font-medium shrink-0">
+                {summary.added  > 0 && <span className="text-green-700">+{summary.added}</span>}
+                {summary.added > 0 && summary.removed > 0 && <span className="text-gray-400"> / </span>}
+                {summary.removed > 0 && <span className="text-red-700">−{summary.removed}</span>}
+                <span className="text-gray-400"> Wörter</span>
+              </span>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* View toggle */}
+        <div className="px-5 py-2 border-b border-gray-100 shrink-0 flex items-center gap-2">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+            <button
+              onClick={() => onViewChange('diff')}
+              className={`px-3 py-1.5 transition-colors ${view === 'diff' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              Vergleich zur aktuellen Version
+            </button>
+            <button
+              onClick={() => onViewChange('snapshot')}
+              className={`px-3 py-1.5 border-l border-gray-200 transition-colors ${view === 'snapshot' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              Nur diese Version (Snapshot)
+            </button>
+          </div>
+          {titleChanged && view === 'diff' && (
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+              Titel geändert: «{version.title}» → «{currentTitle}»
+            </span>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 bg-gray-50">
+          {view === 'snapshot' ? (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">{version.title}</h3>
+              <div
+                className="tiptap-content prose prose-sm max-w-none"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: version.content ?? '' }}
+              />
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-xs text-gray-400 mb-3">
+                <span className="inline-block px-1.5 py-0.5 rounded bg-green-100 text-green-800 mr-1">grün</span>
+                = neu hinzugekommen.
+                <span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700 line-through ml-2 mr-1">rot</span>
+                = aus dieser Version entfernt.
+              </p>
+              <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                {diffParts.map((p, i) => {
+                  if (p.kind === 'added') {
+                    return <span key={i} className="bg-green-100 text-green-900 rounded px-0.5">{p.text}</span>
+                  }
+                  if (p.kind === 'removed') {
+                    return <span key={i} className="bg-red-50 text-red-700 line-through rounded px-0.5">{p.text}</span>
+                  }
+                  return <span key={i}>{p.text}</span>
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            Schliessen
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

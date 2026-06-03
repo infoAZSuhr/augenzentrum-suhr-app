@@ -106,14 +106,43 @@ export async function addPage(subsectionId: string, sectionId: string, title: st
   return ref.id
 }
 
-/** Gibt eine SOP-Seite frei (setzt status auf 'final'). Nur von einer zweiten Person ausführbar. */
-export async function releasePage(id: string, gueltigAb?: string, version?: string): Promise<void> {
+/** Gibt eine SOP-Seite frei (setzt status auf 'final'). Nur von einer zweiten Person ausführbar.
+ *
+ *  Wenn die Seite VORHER schon mal freigegeben war (hat freigabeDatum),
+ *  wird der bisherige Stand vor dem neuen Release archiviert — damit ist
+ *  jede freigegebene Version nachvollziehbar (Versionshistorie unten in
+ *  der SOP-Detail-Ansicht).
+ *
+ *  opts.resetViews=true löscht zusätzlich alle Schulungsnachweise dieser
+ *  Seite (relevant bei Major-Update wo alle nochmal lesen + bestätigen
+ *  sollen).
+ */
+export async function releasePage(
+  id: string,
+  gueltigAb?: string,
+  version?: string,
+  opts?: { archivedBy?: string; archiveReason?: string; resetViews?: boolean },
+): Promise<void> {
+  // Vorherigen final-Stand archivieren, falls die Seite schon mal released war.
+  const snap = await getDoc(doc(db, P_COL, id))
+  if (snap.exists()) {
+    const data = snap.data() as OnboardingPage
+    if (data.freigabeDatum && (data.status === 'final' || data.status === undefined)) {
+      await archivePageVersion(id, data, {
+        archivedBy: opts?.archivedBy,
+        reason:     opts?.archiveReason ?? 'new-version-released',
+      })
+    }
+  }
   await updateDoc(doc(db, P_COL, id), {
     status: 'final',
     freigabeDatum: serverTimestamp(),
     ...(gueltigAb ? { gueltigAb } : {}),
     ...(version   ? { version   } : {}),
   })
+  if (opts?.resetViews) {
+    await clearPageViews(id)
+  }
 }
 
 /** Setzt eine freigegebene Seite zurück auf Entwurf und löscht alle Schulungsnachweis-Einträge. */
@@ -348,6 +377,73 @@ export async function seedSOPStructure(createdBy?: string): Promise<void> {
       })
     }
   }
+}
+
+// ── Versionshistorie ──────────────────────────────────────────────────────────
+//
+// Bei jedem Re-Release einer schon mal freigegebenen SOP wird der bisherige
+// Stand hier abgelegt — kompletter Snapshot inkl. Title, Content, Meta-Felder
+// und relevantFuer. Lesbar via getPageVersions(pageId).
+
+export interface PageVersion {
+  id:              string        // Doc-ID = `${pageId}_${randomSuffix}`
+  pageId:          string
+  version:         string | number | null
+  title:           string
+  content:         string
+  zustaendig?:     string
+  freigabeDurch?:  string
+  freigabeDatum?:  any            // Firestore-Timestamp des damaligen Releases
+  gueltigAb?:      string
+  relevantFuer?:   string[]
+  snapshotAt:      any            // serverTimestamp wann archiviert
+  archivedBy?:     string         // User der das Re-Release ausgelöst hat
+  reason?:         string         // 'new-version-released' | 'manual-archive' | ...
+}
+
+const PVER_COL = 'onboarding_page_versions'
+
+/** Erstellt einen Snapshot des aktuellen Page-Standes in der Versionshistorie. */
+export async function archivePageVersion(
+  pageId: string,
+  page: OnboardingPage,
+  opts?: { archivedBy?: string; reason?: string },
+): Promise<string> {
+  const payload: Omit<PageVersion, 'id'> = {
+    pageId,
+    version:        page.version ?? null,
+    title:          page.title ?? '',
+    content:        page.content ?? '',
+    ...(page.zustaendig    ? { zustaendig:    page.zustaendig    } : {}),
+    ...(page.freigabeDurch ? { freigabeDurch: page.freigabeDurch } : {}),
+    ...(page.freigabeDatum ? { freigabeDatum: page.freigabeDatum } : {}),
+    ...(page.gueltigAb     ? { gueltigAb:     page.gueltigAb     } : {}),
+    ...(page.relevantFuer  ? { relevantFuer:  page.relevantFuer  } : {}),
+    snapshotAt: serverTimestamp(),
+    ...(opts?.archivedBy ? { archivedBy: opts.archivedBy } : {}),
+    ...(opts?.reason     ? { reason:     opts.reason     } : {}),
+  }
+  const ref = await addDoc(collection(db, PVER_COL), payload as any)
+  return ref.id
+}
+
+/** Liefert alle archivierten Versionen einer Seite — neueste zuerst. */
+export async function getPageVersions(pageId: string): Promise<PageVersion[]> {
+  const snap = await getDocs(query(collection(db, PVER_COL), where('pageId', '==', pageId)))
+  const versions = snap.docs.map(d => ({ id: d.id, ...d.data() } as PageVersion))
+  // Sort in JS — vermeidet Composite-Index-Bedarf
+  return versions.sort((a, b) => {
+    const ta = (a.snapshotAt as any)?.seconds ?? 0
+    const tb = (b.snapshotAt as any)?.seconds ?? 0
+    return tb - ta
+  })
+}
+
+/** Holt eine einzelne archivierte Version (für Detail-Anzeige). */
+export async function getPageVersion(versionId: string): Promise<PageVersion | null> {
+  const snap = await getDoc(doc(db, PVER_COL, versionId))
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() } as PageVersion
 }
 
 // ── Colors ────────────────────────────────────────────────────────────────────
