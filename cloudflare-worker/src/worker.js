@@ -21,6 +21,7 @@
  */
 
 const ZURROSE_URL = 'https://www.zurrose.ch/sites/default/files/media/downloads/Nota-Liste.xlsx'
+const SL_URL      = 'https://www.xn--spezialittenliste-yqb.ch/File.axd?file=Publications.xlsx'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -41,6 +42,19 @@ async function fetchZurRose() {
   })
 }
 
+async function fetchSL() {
+  return fetch(SL_URL, {
+    headers: {
+      'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept':           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+      'Accept-Language':  'de-CH,de;q=0.9,en;q=0.5',
+      'Referer':          'https://www.xn--spezialittenliste-yqb.ch/',
+    },
+    // Aggressives Caching — BAG aktualisiert nur monatlich (~27.)
+    cf: { cacheTtl: 3600, cacheEverything: true },
+  })
+}
+
 export default {
   async fetch(request, _env, _ctx) {
     const url = new URL(request.url)
@@ -54,30 +68,10 @@ export default {
     }
 
     if (url.pathname === '/nota-liste.xlsx') {
-      try {
-        const upstream = await fetchZurRose()
-        if (!upstream.ok) {
-          return jsonError(`Zur Rose HTTP ${upstream.status}`, 502)
-        }
-        const body = await upstream.arrayBuffer()
-        // ZIP-Magic-Bytes prüfen (XLSX = ZIP-Container)
-        const head = new Uint8Array(body, 0, 2)
-        if (head[0] !== 0x50 || head[1] !== 0x4B) {
-          return jsonError(`Upstream lieferte keine XLSX-Datei (${body.byteLength} Bytes)`, 502)
-        }
-        return new Response(body, {
-          status: 200,
-          headers: {
-            ...CORS_HEADERS,
-            'Content-Type':   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Length': String(body.byteLength),
-            'X-Source':       'cloudflare-worker',
-            'Cache-Control':  'public, max-age=300',
-          },
-        })
-      } catch (e) {
-        return jsonError(String(e?.message ?? e), 502)
-      }
+      return proxyXLSX(await fetchZurRose(), 'zur-rose')
+    }
+    if (url.pathname === '/sl-publications.xlsx') {
+      return proxyXLSX(await fetchSL(), 'bag-sl')
     }
 
     if (url.pathname === '/status') {
@@ -101,10 +95,39 @@ export default {
   },
 
   async scheduled(_event, _env, ctx) {
-    // Cron: warmt den cf-cache für /nota-liste.xlsx, damit die App den
-    // ersten Treffer schnell bekommt. Kein KV-Write nötig.
+    // Cron: warmt den cf-cache für beide XLSX-Endpoints (Zur Rose + BAG-SL).
+    // Erste App-Anfrage am Morgen wird damit unter ~200ms beantwortet.
     ctx.waitUntil(fetchZurRose().catch(() => {}))
+    ctx.waitUntil(fetchSL().catch(() => {}))
   },
+}
+
+/** Gemeinsamer XLSX-Proxy: prüft HTTP-Status, ZIP-Magic-Bytes, gibt
+ *  CORS-aware Response zurück oder JSON-Error. source = Label für
+ *  X-Source-Header (Debug). */
+async function proxyXLSX(upstream, source) {
+  try {
+    if (!upstream.ok) {
+      return jsonError(`Upstream HTTP ${upstream.status} (${source})`, 502)
+    }
+    const body = await upstream.arrayBuffer()
+    const head = new Uint8Array(body, 0, 2)
+    if (head[0] !== 0x50 || head[1] !== 0x4B) {
+      return jsonError(`Upstream lieferte keine XLSX-Datei (${body.byteLength} Bytes, ${source})`, 502)
+    }
+    return new Response(body, {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type':   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Length': String(body.byteLength),
+        'X-Source':       `cloudflare-worker:${source}`,
+        'Cache-Control':  'public, max-age=300',
+      },
+    })
+  } catch (e) {
+    return jsonError(String(e?.message ?? e), 502)
+  }
 }
 
 function jsonOk(data)            { return jsonResponse(data, 200) }
