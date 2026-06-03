@@ -87,19 +87,63 @@ async function playwrightDownloadSL() {
       acceptDownloads: true,
     })
     const page = await ctx.newPage()
-    // Direkt zur Excel-Download-Route, nicht zur Landing-Page (die hat keine
-    // Excel-Karten). Aus der JS-Bundle-Route-Config: 'current-and-archived-data'.
-    const targetUrl = 'https://sl.bag.admin.ch/sl/current-and-archived-data'
-    console.log('[Stealth] Lade BAG-SPA-Route:', targetUrl)
-    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    // SPA braucht Zeit für OAuth-Flow + Datenladung. 15s als Buffer (länger
-    // als vorher 8s — die Karten brauchen API-Roundtrips für die metadata).
-    await page.waitForTimeout(15_000)
-    // Diagnose: was sehen wir auf der Seite? hilft bei Selector-Anpassung.
+    // Aus der JS-Bundle-Route-Config sind die Routen flach (path: 'current-
+    // and-archived-data') und scheinen direkt unter / zu liegen — wir
+    // probieren beide URLs.
+    const candidateUrls = [
+      'https://sl.bag.admin.ch/current-and-archived-data',
+      'https://sl.bag.admin.ch/sl/current-and-archived-data',
+      'https://sl.bag.admin.ch/sl',
+    ]
+    // Erste URL laden — wenn die Excel-Buttons da nicht da sind,
+    // versuchen wir später Navigation via Menü.
+    let loaded = false
+    let lastGotoErr = null
+    for (const url of candidateUrls) {
+      try {
+        console.log('[Stealth] Lade:', url)
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        loaded = true
+        // Wait for content + check ob Excel-Buttons da sind. Wenn ja, fertig.
+        await page.waitForTimeout(12_000)
+        const hasExcel = await page.locator('button:has-text("Als Excel herunterladen")').count() > 0
+        if (hasExcel) { console.log(`[Stealth] Excel-Buttons auf URL ${url} gefunden — verbleibe hier`); break }
+        console.log(`[Stealth] Keine Excel-Buttons auf ${url} — probiere nächste URL`)
+      } catch (e) {
+        lastGotoErr = e
+        console.warn(`[Stealth] goto failed: ${e?.message ?? e}`)
+      }
+    }
+    if (!loaded) throw new Error(`Keine SPA-URL ladbar — letzter Fehler: ${lastGotoErr?.message ?? lastGotoErr}`)
+
+    // Cookie-Banner / Welcome-Modal schliessen falls vorhanden — sonst
+    // überlagern sie den eigentlichen Content und blockieren Click-Events.
+    // Mehrere bekannte Button-Texte probieren.
+    for (const closeBtn of ['Schliessen', 'Akzeptieren', 'Alle akzeptieren', 'Verstanden', 'Annehmen', 'OK', 'Weiter']) {
+      try {
+        const btn = page.locator(`button:has-text("${closeBtn}")`).first()
+        if (await btn.isVisible({ timeout: 1500 })) {
+          console.log(`[Stealth] Modal-Schliessen-Button "${closeBtn}" geklickt`)
+          await btn.click({ timeout: 3000 })
+          await page.waitForTimeout(1500)
+          break
+        }
+      } catch {}
+    }
+
+    // Diagnose nach Modal-Close: jetzt sollten die echten Content-Buttons da sein.
     const buttonTexts = await page.locator('button').allTextContents().catch(() => [])
     const trimmedTexts = buttonTexts.map(t => t.trim()).filter(t => t.length > 0 && t.length < 80)
-    console.log(`[Stealth] ${trimmedTexts.length} Buttons im DOM. Samples:`,
-      trimmedTexts.slice(0, 10).map(t => JSON.stringify(t)).join(', '))
+    console.log(`[Stealth] ${trimmedTexts.length} Buttons im DOM:`,
+      trimmedTexts.slice(0, 20).map(t => JSON.stringify(t)).join(', '))
+    // Plus: alle Links (manche Downloads sind <a> mit download-Attribut)
+    const links = await page.locator('a').evaluateAll(els => els
+      .map(el => ({ text: el.textContent?.trim(), href: el.getAttribute('href'), download: el.hasAttribute('download') }))
+      .filter(l => l.text && l.text.length > 2 && l.text.length < 80)
+      .slice(0, 15)
+    ).catch(() => [])
+    console.log(`[Stealth] ${links.length} relevante Links:`,
+      JSON.stringify(links).slice(0, 800))
 
     // Aus der BAG-i18n (assets/i18n/de.json):
     //   excel.publicationCard.title       = "Aktueller Datenstamm (SL/GGSL)"
