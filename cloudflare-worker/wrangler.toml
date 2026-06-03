@@ -1,0 +1,22 @@
+# Wrangler-Config für den Zur-Rose-Proxy-Worker.
+# Deployment läuft via .github/workflows/deploy-cloudflare-worker.yml mit
+# den Secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
+#
+# Nach erstem Deploy erreichbar unter:
+#   https://azs-zurrose-proxy.<dein-cloudflare-subdomain>.workers.dev/
+# Den genauen Subdomain-Teil siehst du in der Cloudflare-Dashboard
+# (Workers & Pages → dieser Worker → Settings → Triggers / Routes)
+# oder im Deploy-Output der GitHub-Action.
+
+name                = "azs-zurrose-proxy"
+main                = "src/worker.js"
+compatibility_date  = "2025-01-01"
+
+# Daily cron 06:15 UTC — warmt den Cloudflare-CDN-Cache, damit der erste
+# App-Request schnell ist. Kein KV/R2 nötig, läuft auch ohne Cron.
+[triggers]
+crons = ["15 6 * * *"]
+
+# Optional: Logging in Cloudflare-Dashboard aktivieren (Workers → Logs)
+[observability]
+enabled = true

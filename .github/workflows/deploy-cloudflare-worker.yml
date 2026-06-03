@@ -1,0 +1,64 @@
+name: Deploy Cloudflare Worker (Zur Rose Proxy)
+
+# Deployt den Worker unter cloudflare-worker/ bei jedem Push auf main,
+# wenn sich der Worker-Code oder die Wrangler-Config geändert hat.
+# Auch manuell triggerbar via workflow_dispatch.
+#
+# Voraussetzung (einmaliges Setup):
+#   Repo-Secrets:
+#     CLOUDFLARE_API_TOKEN   — API-Token mit "Edit Cloudflare Workers"
+#     CLOUDFLARE_ACCOUNT_ID  — Account-ID aus Cloudflare-Dashboard
+#
+# Nach erstem erfolgreichen Deploy ist der Worker erreichbar unter
+#   https://azs-zurrose-proxy.<subdomain>.workers.dev/
+# Den genauen Subdomain-Teil findest du im Deploy-Log oder im
+# Cloudflare-Dashboard.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare-worker/**'
+      - '.github/workflows/deploy-cloudflare-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-worker-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Wrangler installieren (ad-hoc, nicht in package.json)
+        run: npm install -g wrangler@^3
+
+      - name: Worker deployen
+        working-directory: cloudflare-worker
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Secrets CLOUDFLARE_API_TOKEN und/oder CLOUDFLARE_ACCOUNT_ID fehlen."
+            echo "::error::Anlegen unter Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          wrangler deploy
+          echo ""
+          echo "::notice::Worker URL: https://azs-zurrose-proxy.<dein-subdomain>.workers.dev/"
+          echo "::notice::Health-Check: curl https://azs-zurrose-proxy.<dein-subdomain>.workers.dev/"
+          echo "::notice::Den genauen Subdomain siehst du in der Cloudflare-Dashboard."
