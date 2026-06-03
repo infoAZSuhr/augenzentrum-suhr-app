@@ -1,6 +1,6 @@
 import {
   collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
-  query, where, orderBy, serverTimestamp, deleteField
+  query, where, orderBy, serverTimestamp, deleteField, onSnapshot,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import type { InventoryArticle, InventoryLot, StockMovement, Order, InventoryAlert } from '../types/inventory.types'
@@ -342,6 +342,27 @@ export async function updateMovement(
 }
 
 // ─── Alerts ──────────────────────────────────────────────────────────────────
+
+/** Live-Subscription auf alle Changes die einen Alert-Recompute triggern könnten:
+ *  Artikel-Felder (notDeliverable, minStock, zurRoseNota...) UND Lots
+ *  (Bestand, Ablaufdatum, isDepleted). Caller-Pattern: Subscribe → bei jedem
+ *  Snapshot invalidateQueries(['inventory-alerts']).
+ *
+ *  Debounce auf 800ms damit z.B. 20 Lots in einer Batch-Buchung nicht 20×
+ *  triggern. */
+export function subscribeAlertSources(cb: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const fire = () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(cb, 800)
+  }
+  const u1 = onSnapshot(col('inventory_articles'), fire)
+  const u2 = onSnapshot(col('inventory_lots'),     fire)
+  return () => {
+    if (timer) clearTimeout(timer)
+    u1(); u2()
+  }
+}
 
 export async function getAlerts(): Promise<InventoryAlert[]> {
   const snap = await getDocs(col('inventory_articles'))

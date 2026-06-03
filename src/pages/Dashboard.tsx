@@ -4,7 +4,7 @@ import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCh
 import Pinnwand from '../components/ui/Pinnwand'
 import IviKatOverviewModal from '../components/ui/IviKatOverviewModal'
 import { Link } from 'react-router-dom'
-import { getAlerts, getZurRoseMeta } from '../lib/firestoreLager'
+import { getAlerts, getZurRoseMeta, subscribeAlertSources } from '../lib/firestoreLager'
 import { getPlannedIviDays, getUpcomingAppointments } from '../lib/firestorePatients'
 import { loadPlanung, type PlanungData } from '../lib/firestorePlanung'
 import { getRecallSummary, type RecallSummary } from '../lib/firestoreRecall'
@@ -245,6 +245,16 @@ export default function Dashboard() {
     queryFn: getAlerts,
     enabled: canAccessLager,
   })
+
+  // Live-Updates: bei jeder Artikel- oder Lot-Änderung (irgendwo in der
+  // Praxis) invalidate die Alerts-Query → recompute. Debounce auf 800ms
+  // im Helper, damit Batch-Buchungen nicht 20 Refetches triggern.
+  useEffect(() => {
+    if (!canAccessLager) return
+    return subscribeAlertSources(() => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-alerts'] })
+    })
+  }, [canAccessLager, queryClient])
 
   // IVI days from treatment nextAppointment fields
   const { data: iviDays = [] } = useQuery({

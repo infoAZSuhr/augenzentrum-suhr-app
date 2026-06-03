@@ -12,6 +12,7 @@ import {
   getPageVersions, getPageVersion,
   notifySopRelevanceBulk,
   getMyConfirmedPageIds,
+  subscribeSections, subscribeSubsections, subscribePages, subscribePageViews,
   SECTION_COLORS, getColor,
   type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView, type PageVersion,
 } from '../../../lib/firestoreOnboarding'
@@ -258,6 +259,26 @@ export default function OnboardingOverview() {
   const { data: sections    = [], isLoading: sectionsLoading } = useQuery({ queryKey: ['ob-sections'],    queryFn: getSections })
   const { data: subsections = [] }                            = useQuery({ queryKey: ['ob-subsections'], queryFn: getAllSubsections })
   const { data: allPages    = [] }                            = useQuery({ queryKey: ['ob-pages'],       queryFn: getAllPages })
+
+  // Live-Subscriptions auf die drei SOP-Collections — sobald jemand
+  // (Admin, GL, anderer Editor) eine Sektion/Subsection/Page ändert, wird
+  // der TanStack-Query-Cache mit dem frischen Snapshot überschrieben.
+  // Vorteil ggü. polling: keine Latenz, kein wasted-bandwidth bei Inaktivität.
+  useEffect(() => {
+    const u1 = subscribeSections   (data => qc.setQueryData(['ob-sections'],    data))
+    const u2 = subscribeSubsections(data => qc.setQueryData(['ob-subsections'], data))
+    const u3 = subscribePages      (data => qc.setQueryData(['ob-pages'],       data))
+    return () => { u1(); u2(); u3() }
+  }, [qc])
+
+  // Live-Schulungsnachweise für die gerade offene Page — Admin/GL sieht
+  // den Counter "X / Y Bestätigungen" tickern während Mitarbeiter
+  // bestätigen, ohne dass der Schulungsnachweis-Panel manuell
+  // neu geladen werden muss.
+  useEffect(() => {
+    if (!activePageId || !canViewRecords) return
+    return subscribePageViews(activePageId, setPageViews)
+  }, [activePageId, canViewRecords])
 
   // Einmalig: alle Seiten ohne Version auf 1.0 setzen
   useEffect(() => {
