@@ -89,31 +89,59 @@ async function playwrightDownloadSL() {
     const page = await ctx.newPage()
     console.log('[Stealth] Lade BAG-SPA: https://sl.bag.admin.ch/sl …')
     await page.goto('https://sl.bag.admin.ch/sl', { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    // SPA braucht Zeit für OAuth-Flow + Datenladung. Wir warten auf den
-    // Excel-Download-Button (oder einen Button der "Excel" im Text hat).
-    console.log('[Stealth] Warte auf Excel-Download-Button (max 60s) …')
-    const buttonSelectors = [
-      'button:has-text("Alle Excel")',
-      'button:has-text("Excel")',
-      'button:has-text("Publications")',
-      'a:has-text("Excel")',
-      'a[href*="Publications.xlsx"]',
-    ]
-    let buttonHandle = null
-    for (const sel of buttonSelectors) {
-      try {
-        buttonHandle = await page.waitForSelector(sel, { timeout: 12_000, state: 'visible' })
-        if (buttonHandle) {
-          console.log(`[Stealth] Excel-Button gefunden: ${sel}`)
-          break
-        }
-      } catch { /* try next */ }
-    }
-    if (!buttonHandle) throw new Error('Excel-Download-Button nicht in der SPA gefunden — Selectors veraltet?')
+    // SPA braucht Zeit für OAuth-Flow + Datenladung. 8s als Buffer.
+    await page.waitForTimeout(8_000)
 
-    console.log('[Stealth] Click + waitForEvent(download) …')
+    // Aus der BAG-i18n (assets/i18n/de.json):
+    //   excel.publicationCard.title       = "Aktueller Datenstamm (SL/GGSL)"
+    //   excel.publicationCard.downloadButton = "Als Excel herunterladen"
+    //   excel.downloadAllButton           = "Alles herunterladen"
+    // "Als Excel herunterladen" kommt mehrfach vor (Datenstamm + Änderungen);
+    // wir zielen via Locator-Chain auf den im "Datenstamm"-Card.
+    console.log('[Stealth] Warte auf "Als Excel herunterladen"-Button (max 60s) …')
+
+    // Variante 1: scoped via Karte mit Datenstamm-Titel
+    // Variante 2: Fallback "Alles herunterladen" — lädt ZIP mit allen Files
+    // Variante 3: ersten "Als Excel herunterladen"-Button als letzter Fallback
+    let clicked = false
     const downloadPromise = page.waitForEvent('download', { timeout: 90_000 })
-    await buttonHandle.click()
+    const variants = [
+      {
+        name: 'Card "Aktueller Datenstamm" > Als Excel herunterladen',
+        click: async () => {
+          // Card-Container der "Aktueller Datenstamm"-Section
+          const card = page.locator('text=/Aktueller Datenstamm/i').first().locator('xpath=ancestor::*[self::div or self::section or self::article][1]')
+          await card.waitFor({ state: 'visible', timeout: 30_000 })
+          await card.locator('button:has-text("Als Excel herunterladen")').first().click({ timeout: 10_000 })
+        },
+      },
+      {
+        name: 'Erster "Als Excel herunterladen"-Button',
+        click: async () => {
+          await page.locator('button:has-text("Als Excel herunterladen")').first().click({ timeout: 10_000 })
+        },
+      },
+      {
+        name: '"Alles herunterladen"-Button (ZIP-Fallback)',
+        click: async () => {
+          await page.locator('button:has-text("Alles herunterladen")').first().click({ timeout: 10_000 })
+        },
+      },
+    ]
+    let lastErr = null
+    for (const v of variants) {
+      try {
+        console.log(`[Stealth] Versuche: ${v.name}`)
+        await v.click()
+        console.log('[Stealth] Click erfolgreich, warte auf Download …')
+        clicked = true
+        break
+      } catch (e) {
+        lastErr = e
+        console.log(`[Stealth] Variante fehlgeschlagen: ${e?.message ?? e}`)
+      }
+    }
+    if (!clicked) throw new Error(`Kein Excel-Button klickbar — letzter Fehler: ${lastErr?.message ?? lastErr}`)
     const download = await downloadPromise
     const tmpPath = path.join(os.tmpdir(), `sl-${Date.now()}.xlsx`)
     await download.saveAs(tmpPath)
