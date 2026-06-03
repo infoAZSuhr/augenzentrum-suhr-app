@@ -1,6 +1,7 @@
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc, setDoc,
+  collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
   getDocs, query, where, orderBy, serverTimestamp, writeBatch,
+  onSnapshot, type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from './firebase'
 
@@ -385,6 +386,39 @@ export async function seedSOPStructure(createdBy?: string): Promise<void> {
       })
     }
   }
+}
+
+// ── Live-Subscriptions (für Real-time UI) ────────────────────────────────────
+// Pendant zu getSections/getAllSubsections/getAllPages, aber als
+// Firestore onSnapshot — UI-Konsumenten bekommen Änderungen sofort ohne
+// Refetch-Poll. Sortierung und Mapping bleiben identisch zur ein-shot-API
+// damit Konsumenten ohne weitere Anpassung umsteigen können.
+
+export function subscribeSections(cb: (sections: OnboardingSection[]) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, S_COL), orderBy('order', 'asc')), snap => {
+    cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingSection)))
+  })
+}
+
+export function subscribeSubsections(cb: (subsections: OnboardingSubsection[]) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, SS_COL), orderBy('order', 'asc')), snap => {
+    cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingSubsection)))
+  })
+}
+
+export function subscribePages(cb: (pages: OnboardingPage[]) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, P_COL), orderBy('order', 'asc')), snap => {
+    cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as OnboardingPage)))
+  })
+}
+
+/** Live-Subscription für die Schulungsnachweise einer einzelnen Page. */
+export function subscribePageViews(pageId: string, cb: (views: PageView[]) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, PV_COL), where('pageId', '==', pageId)), snap => {
+    const views = snap.docs.map(d => ({ id: d.id, ...d.data() } as PageView))
+    views.sort((a, b) => ((b.viewedAt as any)?.seconds ?? 0) - ((a.viewedAt as any)?.seconds ?? 0))
+    cb(views)
+  })
 }
 
 // ── SOP-Benachrichtigungen ────────────────────────────────────────────────────
