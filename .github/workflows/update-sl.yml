@@ -28,6 +28,16 @@ jobs:
       - name: Dependencies installieren
         run: npm ci
 
+      - name: Playwright + Stealth installieren (nur CI — BAG ist SPA)
+        # BAG-SL ist eine OAuth-geschützte Angular-SPA, kein direkter XLSX-
+        # Download mehr verfügbar. Wir navigieren mit Headless Chrome durch
+        # die SPA und klicken den Excel-Download-Button — analog zur Zur-
+        # Rose-Lösung. --no-save + --no-package-lock damit Playwright nicht
+        # in die App-Dependencies wandert.
+        run: |
+          npm install playwright@^1.49.0 playwright-extra@^4.3.6 puppeteer-extra-plugin-stealth@^2.11.2 --no-save --no-package-lock --silent
+          npx playwright install --with-deps chromium
+
       - name: BAG Spezialitätenliste herunterladen
         run: node scripts/update-sl.js --force
 
