@@ -993,6 +993,15 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                         className={cn(
                                           'group flex items-center gap-1.5 px-2 py-1 cursor-pointer hover:bg-gray-100 rounded-sm text-xs transition-colors',
                                           activePageId === page.id ? cn('font-semibold', color.light) : 'text-gray-600',
+                                          // Subtle Highlight für SOPs die für mich relevant sind. Unbestätigte
+                                          // bekommen einen amber Left-Border + leichten Hintergrund, bestätigte
+                                          // nur eine schwache grüne Markierung. Greift nicht bei Admins/GL und
+                                          // nicht bei der aktiven Page (die hat ja schon ihr Section-Color).
+                                          !isAdmin && !isGeschaeftsleitung && activePageId !== page.id && isPageForMe(page) && page.status === 'final' && (
+                                            myConfirmedIds.has(page.id)
+                                              ? 'border-l-2 border-l-green-300/60'
+                                              : 'border-l-2 border-l-amber-400 bg-amber-50/60 font-medium text-amber-900'
+                                          ),
                                           draggedPageId === page.id && 'opacity-40',
                                           dragOverPageId === page.id && draggedPageId !== page.id && 'border-t-2 border-primary-400',
                                         )}
@@ -1054,6 +1063,12 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                               className={cn(
                                                 'group flex items-center gap-1.5 px-2 py-1 cursor-pointer hover:bg-gray-100 rounded-sm text-xs transition-colors',
                                                 activePageId === sub.id ? cn('font-semibold', color.light) : 'text-gray-500',
+                                                // Highlight für mich relevante Sub-Pages (siehe Top-Level-Page-Variante oben)
+                                                !isAdmin && !isGeschaeftsleitung && activePageId !== sub.id && isPageForMe(sub) && sub.status === 'final' && (
+                                                  myConfirmedIds.has(sub.id)
+                                                    ? 'border-l-2 border-l-green-300/60'
+                                                    : 'border-l-2 border-l-amber-400 bg-amber-50/60 font-medium text-amber-900'
+                                                ),
                                                 draggedPageId === sub.id && 'opacity-40',
                                                 dragOverPageId === sub.id && draggedPageId !== sub.id && 'border-t-2 border-primary-400',
                                               )}
