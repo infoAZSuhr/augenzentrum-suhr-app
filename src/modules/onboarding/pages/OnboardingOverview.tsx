@@ -185,6 +185,15 @@ export default function OnboardingOverview() {
   const [showRelevantFuer, setShowRelevantFuer] = useState(false)
   const [showNachweis,     setShowNachweis]     = useState(false)
   const [pageRelevantFuer, setPageRelevantFuer] = useState<string[]>([])
+  // Filter "Nur für mich relevant" — blendet alle SOPs aus, in denen der
+  // eingeloggte User nicht in relevantFuer steht. Status wird in localStorage
+  // gespeichert damit der User die Einstellung über Sessions hinweg behält.
+  const [onlyMine, setOnlyMine] = useState<boolean>(() => {
+    try { return localStorage.getItem('sop-only-mine') === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('sop-only-mine', onlyMine ? '1' : '0') } catch {}
+  }, [onlyMine])
 
   // Versionshistorie pro Page (lazy gefetcht beim ersten Öffnen der Sektion)
   const [pageVersions,      setPageVersions]      = useState<PageVersion[]>([])
@@ -243,7 +252,22 @@ export default function OnboardingOverview() {
   // Navigation: ALLE Pages werden angezeigt — auch Drafts.
   // Für Drafts wird beim Öffnen statt des Inhalts ein "in Bearbeitung"-Banner
   // gezeigt (Sichtbarkeitskontrolle erfolgt im Content-Bereich, nicht hier).
-  const visiblePages = allPages
+  //
+  // onlyMine-Filter: Page ist sichtbar wenn ICH (displayName oder username)
+  // in relevantFuer stehe, ODER mein Parent-Page für mich relevant ist
+  // (sonst würden Sub-Pages den Kontext verlieren). Admins/GL sehen
+  // weiterhin alles — diese Rolle braucht Übersicht ohne Filter.
+  const isPageForMe = (p: OnboardingPage): boolean =>
+    (p.relevantFuer ?? []).some(n => n === displayName || n === username)
+  const visiblePages = useMemo(() => {
+    if (!onlyMine || isAdmin || isGeschaeftsleitung) return allPages
+    const directHits = new Set(allPages.filter(isPageForMe).map(p => p.id))
+    return allPages.filter(p => directHits.has(p.id) || (p.parentPageId && directHits.has(p.parentPageId)))
+  }, [allPages, onlyMine, displayName, username, isAdmin, isGeschaeftsleitung])
+  const myRelevantCount = useMemo(
+    () => allPages.filter(isPageForMe).length,
+    [allPages, displayName, username],
+  )
 
 const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId === sId)
   const pagesOf     = (ssId: string)   => visiblePages.filter(p => p.subsectionId === ssId && !p.parentPageId)
@@ -681,6 +705,26 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
             <p className="text-[10px] text-gray-400 mt-1 px-0.5">
               {searchResults.length === 0 ? 'Keine Ergebnisse' : `${searchResults.length} Ergebnis${searchResults.length === 1 ? '' : 'se'}`}
             </p>
+          )}
+          {/* "Nur für mich relevant"-Toggle. Für Admins/GL eingegraut + deaktiviert
+              (sie sehen sowieso alles, Filter würde sie irritieren). */}
+          {!isAdmin && !isGeschaeftsleitung && (
+            <button
+              onClick={() => setOnlyMine(v => !v)}
+              title={myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : ''}
+              disabled={myRelevantCount === 0}
+              className={`mt-1.5 w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                ${onlyMine
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50'}`}>
+              <span className="flex items-center gap-1.5">
+                <Users className="w-3 h-3" />
+                {onlyMine ? 'Nur meine SOPs' : 'Nur meine SOPs anzeigen'}
+              </span>
+              <span className={`text-[10px] tabular-nums ${onlyMine ? 'opacity-90' : 'text-gray-500'}`}>
+                {myRelevantCount}
+              </span>
+            </button>
           )}
         </div>
 
