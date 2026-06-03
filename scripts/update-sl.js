@@ -9,9 +9,10 @@
  */
 
 const https = require('https')
-const fs = require('fs')
-const path = require('path')
-const xlsx = require('../node_modules/xlsx')
+const fs    = require('fs')
+const path  = require('path')
+const os    = require('os')
+const xlsx  = require('../node_modules/xlsx')
 
 const SL_URL    = 'https://www.xn--spezialittenliste-yqb.ch/File.axd?file=Publications.xlsx'
 // Cloudflare-Worker-Fallback (umgeht Cloudflare/Bot-Block auf CI-IPs).
@@ -52,9 +53,88 @@ function isValidXLSX(buf) {
   return buf[0] === 0x50 && buf[1] === 0x4B
 }
 
-/** Download mit Validierung — Online zuerst, Worker-Proxy als Fallback. */
+/** Playwright-Stealth: BAG ist eine SPA, der "alte" XLSX-URL redirected
+ *  zur React-App. Wir starten einen Headless Chrome mit Stealth-Patches,
+ *  navigieren zur Publications-Seite, warten bis JS gerendert + Daten
+ *  geladen sind, klicken den Excel-Download-Button und fangen das
+ *  Download-Event ab.
+ *
+ *  Stealth-Plugin patcht WebDriver/Headless-Fingerprints (Cloudflare /
+ *  BAG-WAF erkennt Headless sonst). Plus Locale + Timezone DE-CH damit
+ *  die Page direkt die richtige Sprache rendert.
+ */
+async function playwrightDownloadSL() {
+  let chromium, stealthPlugin
+  try {
+    ({ chromium } = require('playwright-extra'))
+    stealthPlugin = require('puppeteer-extra-plugin-stealth')()
+  } catch {
+    throw new Error('playwright-extra nicht installiert (siehe Workflow YAML)')
+  }
+  chromium.use(stealthPlugin)
+
+  console.log('[Stealth] Starte Headless Chromium für BAG-SPA …')
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'],
+  })
+  try {
+    const ctx = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale:    'de-CH',
+      timezoneId: 'Europe/Zurich',
+      viewport: { width: 1920, height: 1080 },
+      acceptDownloads: true,
+    })
+    const page = await ctx.newPage()
+    console.log('[Stealth] Lade BAG-SPA: https://sl.bag.admin.ch/sl …')
+    await page.goto('https://sl.bag.admin.ch/sl', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    // SPA braucht Zeit für OAuth-Flow + Datenladung. Wir warten auf den
+    // Excel-Download-Button (oder einen Button der "Excel" im Text hat).
+    console.log('[Stealth] Warte auf Excel-Download-Button (max 60s) …')
+    const buttonSelectors = [
+      'button:has-text("Alle Excel")',
+      'button:has-text("Excel")',
+      'button:has-text("Publications")',
+      'a:has-text("Excel")',
+      'a[href*="Publications.xlsx"]',
+    ]
+    let buttonHandle = null
+    for (const sel of buttonSelectors) {
+      try {
+        buttonHandle = await page.waitForSelector(sel, { timeout: 12_000, state: 'visible' })
+        if (buttonHandle) {
+          console.log(`[Stealth] Excel-Button gefunden: ${sel}`)
+          break
+        }
+      } catch { /* try next */ }
+    }
+    if (!buttonHandle) throw new Error('Excel-Download-Button nicht in der SPA gefunden — Selectors veraltet?')
+
+    console.log('[Stealth] Click + waitForEvent(download) …')
+    const downloadPromise = page.waitForEvent('download', { timeout: 90_000 })
+    await buttonHandle.click()
+    const download = await downloadPromise
+    const tmpPath = path.join(os.tmpdir(), `sl-${Date.now()}.xlsx`)
+    await download.saveAs(tmpPath)
+    const buf = fs.readFileSync(tmpPath)
+    try { fs.unlinkSync(tmpPath) } catch {}
+    if (!isValidXLSX(buf)) throw new Error(`Stealth: geladene Datei ist kein gültiges XLSX (${buf.length} Bytes)`)
+    return { buf, contentLength: buf.length }
+  } finally {
+    await browser.close().catch(() => {})
+  }
+}
+
+/** Download mit Validierung. Drei-stufige Fallback-Kette:
+ *    1. HTTP-Direct an BAG-URL (geht nicht mehr seit BAG die SPA hat —
+ *       liefert nur die SPA-HTML, ZIP-Check schlägt fehl).
+ *    2. Cloudflare-Worker-Proxy (auch blockiert weil BAG OAuth verlangt).
+ *    3. Playwright-Stealth: Headless Chrome navigiert zur SPA, wartet auf
+ *       JS-Render, klickt Excel-Button. Aktuell einziger Pfad der wirklich
+ *       Daten bringt. Etwa 30–60s pro Run.
+ */
 async function downloadValidated() {
-  // Versuch 1: direkter HTTP-Download von BAG
   try {
     const r = await download(SL_URL)
     if (isValidXLSX(r.buf)) {
@@ -65,12 +145,19 @@ async function downloadValidated() {
   } catch (e) {
     console.warn(`⚠ HTTP-Direct fehlgeschlagen: ${e.message} — versuche Worker-Proxy`)
   }
-  // Versuch 2: Cloudflare-Worker als Proxy
-  const r = await download(SL_PROXY)
-  if (!isValidXLSX(r.buf)) {
-    throw new Error(`Worker-Proxy lieferte auch kein gültiges XLSX (${r.buf.length} Bytes). Anfang: ${r.buf.slice(0, 200).toString('utf8')}`)
+  try {
+    const r = await download(SL_PROXY)
+    if (isValidXLSX(r.buf)) {
+      console.log(`✓ Worker-Proxy: ${Math.round(r.contentLength / 1024)} KB`)
+      return r
+    }
+    console.warn(`⚠ Worker-Proxy lieferte kein gültiges XLSX (${Math.round(r.buf.length / 1024)} KB) — versuche Playwright-Stealth`)
+  } catch (e) {
+    console.warn(`⚠ Worker-Proxy fehlgeschlagen: ${e.message} — versuche Playwright-Stealth`)
   }
-  console.log(`✓ Worker-Proxy: ${Math.round(r.contentLength / 1024)} KB`)
+  // Letzter Pfad: Headless Chrome durch die SPA navigieren (langsam, aber robust).
+  const r = await playwrightDownloadSL()
+  console.log(`✓ Playwright-Stealth: ${Math.round(r.contentLength / 1024)} KB`)
   return r
 }
 
