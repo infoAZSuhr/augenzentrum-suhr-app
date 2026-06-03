@@ -721,17 +721,24 @@ export default function AppShell() {
                         </div>
                         <div className="divide-y divide-gray-100">
                           {taskNotifications.filter(n => !n.read).map(n => {
-                            const isSop = n.type === 'sop_relevance' || n.type === 'sop_release'
+                            // Defensiv: SOP-Notification erkennen auch wenn type-Feld fehlt
+                            // (Backward-Compat für Notifications die vor dem Feature-Deploy
+                            // angelegt wurden, oder bei denen Firestore-Schema-Drift den
+                            // type-String verloren hat). boardName='SOP' setzen wir IMMER
+                            // in notifySopRelevance() — und es kollidiert nicht mit echten
+                            // Task-Board-Namen weil 'SOP' kein Board-Name sein darf
+                            // (Board-Erstellung erfordert non-empty title via UI).
+                            const isSop = n.type === 'sop_relevance' || n.type === 'sop_release' || n.boardName === 'SOP'
                             const target = isSop
                               ? (n.pageId ? `/sop/page/${n.pageId}` : '/sop')
                               : n.type === 'poll_assignment'  ? '/aufgaben'
                               : n.type === 'board_assignment' ? `/aufgaben/${n.boardId}`
                                                               : `/aufgaben/${n.boardId}?card=${n.cardId}`
-                            const title = n.type === 'comment'          ? `${n.assignerName} hat kommentiert`
-                                        : n.type === 'board_assignment' ? n.boardName
-                                        : n.type === 'sop_relevance'    ? `Neue SOP für Sie zur Kenntnisnahme`
-                                        : n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
-                                        :                                  n.cardTitle
+                            const title = n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
+                                        : isSop                          ? `Neue SOP für Sie zur Kenntnisnahme`
+                                        : n.type === 'comment'           ? `${n.assignerName} hat kommentiert`
+                                        : n.type === 'board_assignment'  ? n.boardName
+                                        :                                   n.cardTitle
                             const subtitle = n.type === 'comment'          ? n.cardTitle
                                            : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}`
                                            : n.type === 'poll_assignment'  ? `Umfrage freigegeben · von ${n.assignerName}`
@@ -959,17 +966,24 @@ export default function AppShell() {
                         </div>
                         <div className="divide-y divide-gray-100">
                           {taskNotifications.filter(n => !n.read).map(n => {
-                            const isSop = n.type === 'sop_relevance' || n.type === 'sop_release'
+                            // Defensiv: SOP-Notification erkennen auch wenn type-Feld fehlt
+                            // (Backward-Compat für Notifications die vor dem Feature-Deploy
+                            // angelegt wurden, oder bei denen Firestore-Schema-Drift den
+                            // type-String verloren hat). boardName='SOP' setzen wir IMMER
+                            // in notifySopRelevance() — und es kollidiert nicht mit echten
+                            // Task-Board-Namen weil 'SOP' kein Board-Name sein darf
+                            // (Board-Erstellung erfordert non-empty title via UI).
+                            const isSop = n.type === 'sop_relevance' || n.type === 'sop_release' || n.boardName === 'SOP'
                             const target = isSop
                               ? (n.pageId ? `/sop/page/${n.pageId}` : '/sop')
                               : n.type === 'poll_assignment'  ? '/aufgaben'
                               : n.type === 'board_assignment' ? `/aufgaben/${n.boardId}`
                                                               : `/aufgaben/${n.boardId}?card=${n.cardId}`
-                            const title = n.type === 'comment'          ? `${n.assignerName} hat kommentiert`
-                                        : n.type === 'board_assignment' ? n.boardName
-                                        : n.type === 'sop_relevance'    ? `Neue SOP für Sie zur Kenntnisnahme`
-                                        : n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
-                                        :                                  n.cardTitle
+                            const title = n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
+                                        : isSop                          ? `Neue SOP für Sie zur Kenntnisnahme`
+                                        : n.type === 'comment'           ? `${n.assignerName} hat kommentiert`
+                                        : n.type === 'board_assignment'  ? n.boardName
+                                        :                                   n.cardTitle
                             const subtitle = n.type === 'comment'          ? n.cardTitle
                                            : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}`
                                            : n.type === 'poll_assignment'  ? `Umfrage freigegeben · von ${n.assignerName}`
