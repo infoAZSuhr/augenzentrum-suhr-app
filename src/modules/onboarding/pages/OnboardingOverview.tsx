@@ -853,69 +853,79 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
               {searchResults.length === 0 ? 'Keine Ergebnisse' : `${searchResults.length} Ergebnis${searchResults.length === 1 ? '' : 'se'}`}
             </p>
           )}
-          {/* Filter-Toggles.
-              Drei Stufen:
-                "Nur meine SOPs"         (Mitarbeiter-Filter, nicht für Admin/GL)
-                "Nur unbestätigte"       (Schulungs-Filter,   nicht für Admin/GL)
-                "Meine offenen Prüfungen" (Zuständig/Freigabe, FÜR ALLE — Admin/GL
-                                          sind oft selbst Zuständig/Freigabe). */}
-          <div className="mt-1.5 space-y-1">
-            {!isAdmin && !isGeschaeftsleitung && (
-              <>
-                <button
-                  onClick={() => setOnlyMine(v => !v)}
-                  title={myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : ''}
-                  disabled={myRelevantCount === 0}
-                  className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
-                    ${onlyMine
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50'}`}>
-                  <span className="flex items-center gap-1.5">
-                    <Users className="w-3 h-3" />
-                    {onlyMine ? 'Nur meine SOPs' : 'Nur meine SOPs anzeigen'}
-                  </span>
-                  <span className={`text-[10px] tabular-nums ${onlyMine ? 'opacity-90' : 'text-gray-500'}`}>
-                    {myRelevantCount}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setOnlyUnconfirmed(v => !v)}
-                  title={myUnconfirmedCount === 0 ? 'Sie haben alle Ihnen zugewiesenen SOPs bereits bestätigt' : ''}
-                  disabled={myUnconfirmedCount === 0}
-                  className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
-                    ${onlyUnconfirmed
-                      ? 'bg-amber-600 text-white hover:bg-amber-700'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-50'}`}>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" />
-                    {onlyUnconfirmed ? 'Nur unbestätigte' : 'Nur unbestätigte anzeigen'}
-                  </span>
-                  <span className={`text-[10px] tabular-nums ${onlyUnconfirmed ? 'opacity-90' : 'text-gray-500'}`}>
-                    {myUnconfirmedCount}
-                  </span>
-                </button>
-              </>
-            )}
-            {/* "Meine offenen Prüfungen": Drafts wo ich Zuständig oder Freigabe bin */}
-            <button
-              onClick={() => setOnlyMyReviews(v => !v)}
-              title={myReviewsCount === 0
-                ? 'Sie sind aktuell für keine SOP-Entwurf als Zuständig oder Freigabe eingetragen'
-                : 'Drafts, die auf Ihre Überprüfung warten. Im Modal "Export" lassen sich alle auf einen Schlag ausdrucken.'}
-              disabled={myReviewsCount === 0}
-              className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
-                ${onlyMyReviews
-                  ? 'bg-violet-600 text-white hover:bg-violet-700'
-                  : 'bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-50'}`}>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3 h-3" />
-                {onlyMyReviews ? 'Meine Prüfungen' : 'Meine offenen Prüfungen'}
-              </span>
-              <span className={`text-[10px] tabular-nums ${onlyMyReviews ? 'opacity-90' : 'text-gray-500'}`}>
-                {myReviewsCount}
-              </span>
-            </button>
-          </div>
+          {/* Kompakte Filter-Pills in einer Zeile.
+              Icon + Count immer sichtbar, Label nur wenn aktiv (sonst nimmts
+              zu viel Platz). Tooltip beim Hover erklärt was der Filter macht.
+              Reset-X rechts wenn mindestens ein Filter aktiv ist. */}
+          {(() => {
+            type Pill = {
+              key: string; active: boolean; count: number; disabled: boolean
+              Icon: typeof Users; label: string; tooltip: string
+              activeBg: string; inactiveBg: string; inactiveText: string; inactiveBorder: string
+              onClick: () => void; visible: boolean
+            }
+            const allPills: Pill[] = [
+              {
+                key: 'mine', active: onlyMine, count: myRelevantCount, disabled: myRelevantCount === 0,
+                Icon: Users, label: 'Meine',
+                tooltip: myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : 'SOPs in denen Sie als "Relevant für" stehen',
+                activeBg: 'bg-blue-600',    inactiveBg: 'bg-blue-50',   inactiveText: 'text-blue-700',   inactiveBorder: 'border-blue-200',
+                onClick: () => setOnlyMine(v => !v),
+                visible: !isAdmin && !isGeschaeftsleitung,
+              },
+              {
+                key: 'unconfirmed', active: onlyUnconfirmed, count: myUnconfirmedCount, disabled: myUnconfirmedCount === 0,
+                Icon: Clock, label: 'Offen',
+                tooltip: myUnconfirmedCount === 0 ? 'Sie haben alle Ihnen zugewiesenen SOPs bereits bestätigt' : 'Noch nicht bestätigte SOPs',
+                activeBg: 'bg-amber-600',   inactiveBg: 'bg-amber-50',  inactiveText: 'text-amber-700',  inactiveBorder: 'border-amber-200',
+                onClick: () => setOnlyUnconfirmed(v => !v),
+                visible: !isAdmin && !isGeschaeftsleitung,
+              },
+              {
+                key: 'reviews', active: onlyMyReviews, count: myReviewsCount, disabled: myReviewsCount === 0,
+                Icon: CheckCircle2, label: 'Prüfung',
+                tooltip: myReviewsCount === 0
+                  ? 'Sie sind aktuell für keine SOP-Entwürfe als Zuständig oder Freigabe eingetragen'
+                  : 'Entwürfe die auf Ihre Prüfung warten (Sie sind Zuständig oder Freigabe)',
+                activeBg: 'bg-violet-600',  inactiveBg: 'bg-violet-50', inactiveText: 'text-violet-700', inactiveBorder: 'border-violet-200',
+                onClick: () => setOnlyMyReviews(v => !v),
+                visible: true,
+              },
+            ]
+            const pills = allPills.filter(p => p.visible)
+            if (pills.length === 0) return null
+            const anyActive = pills.some(p => p.active)
+            return (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                {pills.map(p => (
+                  <button
+                    key={p.key}
+                    onClick={p.onClick}
+                    title={p.tooltip}
+                    disabled={p.disabled}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium border transition-colors
+                      ${p.active
+                        ? `${p.activeBg} text-white border-transparent`
+                        : `${p.inactiveBg} ${p.inactiveText} ${p.inactiveBorder} hover:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed`}`}>
+                    <p.Icon className="w-3 h-3 shrink-0" />
+                    {p.active && <span>{p.label}</span>}
+                    <span className={`tabular-nums px-1 rounded text-[10px]
+                      ${p.active ? 'bg-white/25' : 'bg-white/70 text-gray-700'}`}>
+                      {p.count}
+                    </span>
+                  </button>
+                ))}
+                {anyActive && (
+                  <button
+                    onClick={() => { setOnlyMine(false); setOnlyUnconfirmed(false); setOnlyMyReviews(false) }}
+                    title="Alle Filter zurücksetzen"
+                    className="inline-flex items-center justify-center p-1 ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* ── Search results ── */}
