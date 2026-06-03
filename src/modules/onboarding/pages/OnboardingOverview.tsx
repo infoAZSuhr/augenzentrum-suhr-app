@@ -1707,23 +1707,72 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
         />
       )}
 
-      {showExportPreview && activePage && (
-        <SOPExportPreview
-          page={{
-            title:         activePage.title,
-            content:       activePage.content || '',
-            section:       activeSection?.title,
-            subsection:    activeSubsection?.title,
-            version:       activePage.version,
-            zustaendig:    activePage.zustaendig,
-            freigabeDurch: activePage.freigabeDurch,
-            gueltigAb:     activePage.gueltigAb,
-            status:        activePage.status,
+      {showExportPreview && activePage && (() => {
+        // Helper: OnboardingPage → ExportPageInput (für Multi-Export)
+        const pageToInput = (p: typeof activePage) => {
+          const ss = subsections.find(s => s.id === p.subsectionId)
+          const sec = sections.find(s => s.id === p.sectionId)
+          return {
+            title:         p.title,
+            content:       p.content || '',
+            section:       sec?.title,
+            subsection:    ss?.title,
+            version:       p.version,
+            zustaendig:    p.zustaendig,
+            freigabeDurch: p.freigabeDurch,
+            gueltigAb:     p.gueltigAb,
+            status:        p.status,
             glossar:       glossarMap,
-          }}
-          onClose={() => setShowExportPreview(false)}
-        />
-      )}
+          }
+        }
+        // Pages der Subsection: Top-Level + zugehörige Sub-Pages, sortiert nach
+        // order. Sub-Pages werden direkt unter ihren Parents eingeordnet.
+        const subsectionPages = (() => {
+          const tops = allPages
+            .filter(p => p.subsectionId === activePage.subsectionId && !p.parentPageId && p.status === 'final')
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          const result: typeof allPages = []
+          for (const top of tops) {
+            result.push(top)
+            const subs = allPages
+              .filter(p => p.parentPageId === top.id && p.status === 'final')
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            result.push(...subs)
+          }
+          return result.map(pageToInput)
+        })()
+        // Pages der gesamten Section: alle Subsections der Section in Reihenfolge,
+        // pro Subsection Tops + ihre Sub-Pages.
+        const sectionPages = (() => {
+          const sectionSubs = subsections
+            .filter(s => s.sectionId === activePage.sectionId)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          const result: typeof allPages = []
+          for (const ss of sectionSubs) {
+            const tops = allPages
+              .filter(p => p.subsectionId === ss.id && !p.parentPageId && p.status === 'final')
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            for (const top of tops) {
+              result.push(top)
+              const subs = allPages
+                .filter(p => p.parentPageId === top.id && p.status === 'final')
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              result.push(...subs)
+            }
+          }
+          return result.map(pageToInput)
+        })()
+        return (
+          <SOPExportPreview
+            page={pageToInput(activePage)}
+            subsectionPages={subsectionPages}
+            subsectionTitle={`${activeSubsection?.title ?? 'Subsection'} (${subsectionPages.length} SOPs)`}
+            sectionPages={sectionPages}
+            sectionTitle={`${activeSection?.title ?? 'Section'} (${sectionPages.length} SOPs)`}
+            onClose={() => setShowExportPreview(false)}
+          />
+        )
+      })()}
 
       {/* Versions-Vergleichs-Modal */}
       {openVersion && activePage && (
