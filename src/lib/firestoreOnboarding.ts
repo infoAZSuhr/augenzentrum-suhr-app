@@ -379,6 +379,52 @@ export async function seedSOPStructure(createdBy?: string): Promise<void> {
   }
 }
 
+// ── SOP-Benachrichtigungen ────────────────────────────────────────────────────
+//
+// Re-use der bestehenden 'taskNotifications'-Collection (siehe firestoreTasks.ts).
+// Schema ist erweitert um type 'sop_relevance' + 'sop_release' und optionales
+// pageId-Feld. Bell-Menü in AppShell rendert sie schon mit dem erweiterten
+// Navigate-Pfad → /sop/page/{pageId}.
+
+/** Eine SOP-Notification erstellen. Default-Modus 'sop_relevance' = User wurde
+ *  als "Relevant für" hinzugefügt. 'sop_release' = neue Version freigegeben. */
+export async function notifySopRelevance(
+  recipientUid: string,
+  pageId:       string,
+  pageTitle:    string,
+  assignerName: string,
+  mode: 'sop_relevance' | 'sop_release' = 'sop_relevance',
+): Promise<void> {
+  if (!recipientUid || !pageId) return
+  await addDoc(collection(db, 'taskNotifications'), {
+    type:         mode,
+    recipientUid,
+    cardId:       '',
+    boardId:      '',
+    cardTitle:    pageTitle,
+    boardName:    'SOP',
+    assignerName,
+    pageId,
+    read:         false,
+    createdAt:    serverTimestamp(),
+  })
+}
+
+/** Bulk-Helper: an mehrere User auf einmal (z.B. nach addToRelevantFuer
+ *  oder bei einem Release an alle relevantFuer). Eigene Notification an
+ *  sich selbst wird übersprungen. */
+export async function notifySopRelevanceBulk(
+  recipientUids: string[],
+  pageId:        string,
+  pageTitle:     string,
+  assignerName:  string,
+  assignerUid:   string,
+  mode:          'sop_relevance' | 'sop_release' = 'sop_relevance',
+): Promise<void> {
+  const targets = recipientUids.filter(uid => uid && uid !== assignerUid)
+  await Promise.all(targets.map(uid => notifySopRelevance(uid, pageId, pageTitle, assignerName, mode)))
+}
+
 // ── Versionshistorie ──────────────────────────────────────────────────────────
 //
 // Bei jedem Re-Release einer schon mal freigegebenen SOP wird der bisherige
