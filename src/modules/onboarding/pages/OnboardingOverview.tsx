@@ -11,6 +11,7 @@ import {
   recordPageView, getPageViews, clearPageViews,
   getPageVersions, getPageVersion,
   notifySopRelevanceBulk,
+  getMyConfirmedPageIds,
   SECTION_COLORS, getColor,
   type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView, type PageVersion,
 } from '../../../lib/firestoreOnboarding'
@@ -194,6 +195,23 @@ export default function OnboardingOverview() {
   useEffect(() => {
     try { localStorage.setItem('sop-only-mine', onlyMine ? '1' : '0') } catch {}
   }, [onlyMine])
+  // Zweiter Filter: "Nur unbestätigte" — versteckt SOPs die ich schon
+  // gelesen + bestätigt habe. Nur in Kombination mit onlyMine sinnvoll
+  // (UI-Logik weiter unten).
+  const [onlyUnconfirmed, setOnlyUnconfirmed] = useState<boolean>(() => {
+    try { return localStorage.getItem('sop-only-unconfirmed') === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('sop-only-unconfirmed', onlyUnconfirmed ? '1' : '0') } catch {}
+  }, [onlyUnconfirmed])
+
+  // Set der Page-IDs die ich schon bestätigt habe — wird einmal beim Mount
+  // geladen und nach handleConfirm aktualisiert (lokal optimistic).
+  const [myConfirmedIds, setMyConfirmedIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (!username) return
+    getMyConfirmedPageIds(username).then(setMyConfirmedIds).catch(() => {})
+  }, [username])
 
   // Versionshistorie pro Page (lazy gefetcht beim ersten Öffnen der Sektion)
   const [pageVersions,      setPageVersions]      = useState<PageVersion[]>([])
@@ -260,13 +278,31 @@ export default function OnboardingOverview() {
   const isPageForMe = (p: OnboardingPage): boolean =>
     (p.relevantFuer ?? []).some(n => n === displayName || n === username)
   const visiblePages = useMemo(() => {
-    if (!onlyMine || isAdmin || isGeschaeftsleitung) return allPages
-    const directHits = new Set(allPages.filter(isPageForMe).map(p => p.id))
+    if (isAdmin || isGeschaeftsleitung) return allPages
+    if (!onlyMine && !onlyUnconfirmed) return allPages
+    // Schritt 1: "Direkt-Treffer" sammeln. Eine Page ist Direkt-Treffer wenn
+    //   - onlyMine aktiv: ich in relevantFuer
+    //   - onlyUnconfirmed aktiv (Solo): ich in relevantFuer UND nicht bestätigt
+    //   - beide aktiv: ich in relevantFuer UND nicht bestätigt
+    const directHits = new Set(
+      allPages.filter(p => {
+        const forMe = isPageForMe(p)
+        if (onlyMine && !forMe) return false
+        if (!onlyMine && onlyUnconfirmed && !forMe) return false  // Solo-Unconfirmed = nur meine SOPs die ich nicht bestätigt habe
+        if (onlyUnconfirmed && myConfirmedIds.has(p.id)) return false
+        return forMe || !onlyMine   // bei !onlyMine kommt jede Page durch außer den oben gefilterten
+      }).map(p => p.id),
+    )
     return allPages.filter(p => directHits.has(p.id) || (p.parentPageId && directHits.has(p.parentPageId)))
-  }, [allPages, onlyMine, displayName, username, isAdmin, isGeschaeftsleitung])
+  }, [allPages, onlyMine, onlyUnconfirmed, myConfirmedIds, displayName, username, isAdmin, isGeschaeftsleitung])
+
   const myRelevantCount = useMemo(
     () => allPages.filter(isPageForMe).length,
     [allPages, displayName, username],
+  )
+  const myUnconfirmedCount = useMemo(
+    () => allPages.filter(p => isPageForMe(p) && !myConfirmedIds.has(p.id) && p.status === 'final').length,
+    [allPages, myConfirmedIds, displayName, username],
   )
 
 const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId === sId)
@@ -475,6 +511,9 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     try {
       await recordPageView(activePageId, username, displayName)
       await loadPageViews(activePageId)
+      // Optimistic update — Confirmed-Set gleich erweitern damit der Filter
+      // "Nur unbestätigte" sofort die SOP aus der Sidebar nimmt.
+      setMyConfirmedIds(prev => new Set([...prev, activePageId]))
     } finally {
       setConfirming(false)
     }
@@ -706,25 +745,43 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
               {searchResults.length === 0 ? 'Keine Ergebnisse' : `${searchResults.length} Ergebnis${searchResults.length === 1 ? '' : 'se'}`}
             </p>
           )}
-          {/* "Nur für mich relevant"-Toggle. Für Admins/GL eingegraut + deaktiviert
-              (sie sehen sowieso alles, Filter würde sie irritieren). */}
+          {/* Filter-Toggles für normale User (Admins/GL sehen sie nicht).
+              Zwei Stufen: "Nur meine SOPs" und darunter "Nur unbestätigte". */}
           {!isAdmin && !isGeschaeftsleitung && (
-            <button
-              onClick={() => setOnlyMine(v => !v)}
-              title={myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : ''}
-              disabled={myRelevantCount === 0}
-              className={`mt-1.5 w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
-                ${onlyMine
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50'}`}>
-              <span className="flex items-center gap-1.5">
-                <Users className="w-3 h-3" />
-                {onlyMine ? 'Nur meine SOPs' : 'Nur meine SOPs anzeigen'}
-              </span>
-              <span className={`text-[10px] tabular-nums ${onlyMine ? 'opacity-90' : 'text-gray-500'}`}>
-                {myRelevantCount}
-              </span>
-            </button>
+            <div className="mt-1.5 space-y-1">
+              <button
+                onClick={() => setOnlyMine(v => !v)}
+                title={myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : ''}
+                disabled={myRelevantCount === 0}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                  ${onlyMine
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50'}`}>
+                <span className="flex items-center gap-1.5">
+                  <Users className="w-3 h-3" />
+                  {onlyMine ? 'Nur meine SOPs' : 'Nur meine SOPs anzeigen'}
+                </span>
+                <span className={`text-[10px] tabular-nums ${onlyMine ? 'opacity-90' : 'text-gray-500'}`}>
+                  {myRelevantCount}
+                </span>
+              </button>
+              <button
+                onClick={() => setOnlyUnconfirmed(v => !v)}
+                title={myUnconfirmedCount === 0 ? 'Sie haben alle Ihnen zugewiesenen SOPs bereits bestätigt' : ''}
+                disabled={myUnconfirmedCount === 0}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                  ${onlyUnconfirmed
+                    ? 'bg-amber-600 text-white hover:bg-amber-700'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-50'}`}>
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3" />
+                  {onlyUnconfirmed ? 'Nur unbestätigte' : 'Nur unbestätigte anzeigen'}
+                </span>
+                <span className={`text-[10px] tabular-nums ${onlyUnconfirmed ? 'opacity-90' : 'text-gray-500'}`}>
+                  {myUnconfirmedCount}
+                </span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -890,6 +947,11 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                             {page.title}
                                             {page.status !== 'final' && (
                                               <span title="Entwurf — wartet auf Freigabe" className="shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-600 border border-amber-200 leading-none">E</span>
+                                            )}
+                                            {!isAdmin && !isGeschaeftsleitung && isPageForMe(page) && page.status === 'final' && (
+                                              myConfirmedIds.has(page.id)
+                                                ? <Check title="Sie haben diese SOP bereits bestätigt" className="w-3 h-3 text-green-600 shrink-0" />
+                                                : <span title="Noch nicht bestätigt — bitte lesen und bestätigen" className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500" />
                                             )}
                                           </span>
                                         )}

@@ -240,6 +240,14 @@ export async function clearPageViews(pageId: string): Promise<void> {
   await batch.commit()
 }
 
+/** Holt alle Page-IDs die der eingeloggte User bereits bestätigt hat.
+ *  Für den Schulungsnachweis-Status in der SOP-Navigation. */
+export async function getMyConfirmedPageIds(username: string): Promise<Set<string>> {
+  if (!username) return new Set()
+  const snap = await getDocs(query(collection(db, PV_COL), where('username', '==', username)))
+  return new Set(snap.docs.map(d => (d.data() as any).pageId).filter(Boolean))
+}
+
 /** Fetch all viewers for a page, sorted newest first. */
 export async function getPageViews(pageId: string): Promise<PageView[]> {
   const snap = await getDocs(query(collection(db, PV_COL), where('pageId', '==', pageId)))
