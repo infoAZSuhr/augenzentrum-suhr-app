@@ -13,7 +13,7 @@ import {
   notifySopRelevanceBulk,
   getMyConfirmedPageIds,
   subscribeSections, subscribeSubsections, subscribePages, subscribePageViews,
-  movePage,
+  movePage, moveSubsection, reorderSections, reorderSubsections,
   SECTION_COLORS, getColor,
   type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView, type PageVersion,
 } from '../../../lib/firestoreOnboarding'
@@ -180,6 +180,16 @@ export default function OnboardingOverview() {
   // Page drag-and-drop reorder
   const [draggedPageId, setDraggedPageId] = useState<string | null>(null)
   const [dragOverPageId, setDragOverPageId] = useState<string | null>(null)
+  // Drag-State für Section + Subsection Reordering (jeweils mit Typ-Prefix
+  // damit ein Section-Drag nicht versehentlich auf einer Subsection landet).
+  const [draggedSectionId,    setDraggedSectionId]    = useState<string | null>(null)
+  const [dragOverSectionId,   setDragOverSectionId]   = useState<string | null>(null)
+  const [draggedSubsectionId, setDraggedSubsectionId] = useState<string | null>(null)
+  const [dragOverSubsectionId, setDragOverSubsectionId] = useState<string | null>(null)
+  // Move-Subsection-Modal (Subsection in andere Section verschieben)
+  const [movingSubsection, setMovingSubsection] = useState<OnboardingSubsection | null>(null)
+  const [moveSubsectionTarget, setMoveSubsectionTarget] = useState<string>('')
+  const [moveSubsectionSaving, setMoveSubsectionSaving] = useState(false)
 
   // Schulungsnachweis – page confirmation tracking
   const [pageViews,        setPageViews]        = useState<PageView[]>([])
@@ -789,6 +799,55 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     refresh()
   }
 
+  // Section drag-and-drop: Reordering innerhalb der Top-Ebene.
+  const handleSectionDrop = async (targetSectionId: string) => {
+    if (!draggedSectionId || draggedSectionId === targetSectionId) return
+    const ordered = [...sections]
+    const from = ordered.findIndex(s => s.id === draggedSectionId)
+    const to   = ordered.findIndex(s => s.id === targetSectionId)
+    if (from === -1 || to === -1) return
+    const [moved] = ordered.splice(from, 1)
+    ordered.splice(to, 0, moved)
+    setDraggedSectionId(null)
+    setDragOverSectionId(null)
+    await reorderSections(ordered.map((s, i) => ({ id: s.id, order: i })))
+    refresh()
+  }
+
+  // Subsection drag-and-drop: Reordering innerhalb derselben Section.
+  // Cross-Section-Moves laufen über das Move-Modal (Drag-Drop wäre verwirrend,
+  // weil die Drop-Target-Section möglicherweise zugeklappt ist).
+  const handleSubsectionDrop = async (sectionId: string, targetSubsectionId: string) => {
+    if (!draggedSubsectionId || draggedSubsectionId === targetSubsectionId) return
+    const ordered = subsections.filter(ss => ss.sectionId === sectionId)
+    const from = ordered.findIndex(s => s.id === draggedSubsectionId)
+    const to   = ordered.findIndex(s => s.id === targetSubsectionId)
+    if (from === -1 || to === -1) return
+    const [moved] = ordered.splice(from, 1)
+    ordered.splice(to, 0, moved)
+    setDraggedSubsectionId(null)
+    setDragOverSubsectionId(null)
+    await reorderSubsections(ordered.map((s, i) => ({ id: s.id, order: i })))
+    refresh()
+  }
+
+  // Subsection in andere Section verschieben (via Modal)
+  const openMoveSubsection = (ss: OnboardingSubsection) => {
+    setMovingSubsection(ss)
+    setMoveSubsectionTarget(ss.sectionId)
+  }
+  const handleMoveSubsectionSave = async () => {
+    if (!movingSubsection || !moveSubsectionTarget || moveSubsectionTarget === movingSubsection.sectionId) return
+    setMoveSubsectionSaving(true)
+    try {
+      const siblings = subsections.filter(s => s.sectionId === moveSubsectionTarget)
+      const nextOrder = siblings.reduce((m, s) => Math.max(m, s.order ?? 0), -1) + 1
+      await moveSubsection(movingSubsection.id, moveSubsectionTarget, nextOrder)
+      setMovingSubsection(null)
+      refresh()
+    } finally { setMoveSubsectionSaving(false) }
+  }
+
   const isSearching = search.trim().length > 0
 
   return (
@@ -989,8 +1048,22 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
               return (
                 <div key={section.id}>
                   {/* ── Section row ── */}
-                  <div className="group flex items-center gap-1.5 px-2 py-1.5 cursor-pointer hover:bg-gray-100"
+                  <div
+                    draggable={canEdit && !editingSection}
+                    onDragStart={e => { e.stopPropagation(); setDraggedSectionId(section.id) }}
+                    onDragOver={e => { if (draggedSectionId) { e.preventDefault(); e.stopPropagation(); setDragOverSectionId(section.id) } }}
+                    onDragLeave={() => setDragOverSectionId(null)}
+                    onDrop={e => { if (draggedSectionId) { e.preventDefault(); e.stopPropagation(); handleSectionDrop(section.id) } }}
+                    onDragEnd={() => { setDraggedSectionId(null); setDragOverSectionId(null) }}
+                    className={cn(
+                      'group flex items-center gap-1.5 px-2 py-1.5 cursor-pointer hover:bg-gray-100',
+                      draggedSectionId === section.id && 'opacity-40',
+                      dragOverSectionId === section.id && draggedSectionId !== section.id && 'border-t-2 border-primary-400',
+                    )}
                     onClick={() => toggleSection(section.id)}>
+                    {canEdit && !editingSection && (
+                      <GripVertical className="w-3 h-3 text-gray-300 group-hover:text-gray-500 shrink-0 cursor-grab active:cursor-grabbing" />
+                    )}
                     {sExpanded ? <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" /> : <ChevronRight className="w-3 h-3 text-gray-400 shrink-0" />}
                     <span className={cn('w-3 h-3 rounded-sm shrink-0', color.bg)} />
                     {editingSection?.id === section.id ? (
@@ -1003,8 +1076,8 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                     )}
                     {canEdit && !editingSection && (
                       <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                        <button onClick={e => { e.stopPropagation(); setEditingSection(section) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
-                        <button onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'section', item: section }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                        <button title="Umbenennen" onClick={e => { e.stopPropagation(); setEditingSection(section) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
+                        <button title="Löschen" onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'section', item: section }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                       </div>
                     )}
                   </div>
@@ -1019,8 +1092,22 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                         return (
                           <div key={ss.id}>
                             {/* Subsection row */}
-                            <div className="group flex items-center gap-1.5 px-2 py-1 cursor-pointer hover:bg-gray-100"
+                            <div
+                              draggable={canEdit && !editingSubsection}
+                              onDragStart={e => { e.stopPropagation(); setDraggedSubsectionId(ss.id) }}
+                              onDragOver={e => { if (draggedSubsectionId) { e.preventDefault(); e.stopPropagation(); setDragOverSubsectionId(ss.id) } }}
+                              onDragLeave={() => setDragOverSubsectionId(null)}
+                              onDrop={e => { if (draggedSubsectionId) { e.preventDefault(); e.stopPropagation(); handleSubsectionDrop(section.id, ss.id) } }}
+                              onDragEnd={() => { setDraggedSubsectionId(null); setDragOverSubsectionId(null) }}
+                              className={cn(
+                                'group flex items-center gap-1.5 px-2 py-1 cursor-pointer hover:bg-gray-100',
+                                draggedSubsectionId === ss.id && 'opacity-40',
+                                dragOverSubsectionId === ss.id && draggedSubsectionId !== ss.id && 'border-t-2 border-primary-400',
+                              )}
                               onClick={() => toggleSubsection(ss.id)}>
+                              {canEdit && !editingSubsection && (
+                                <GripVertical className="w-3 h-3 text-gray-300 group-hover:text-gray-500 shrink-0 cursor-grab active:cursor-grabbing" />
+                              )}
                               {ssExpanded ? <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" /> : <ChevronRight className="w-3 h-3 text-gray-400 shrink-0" />}
                               <FolderOpen className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                               {editingSubsection?.id === ss.id ? (
@@ -1033,8 +1120,9 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                               )}
                               {canEdit && !editingSubsection && (
                                 <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                                  <button onClick={e => { e.stopPropagation(); setEditingSubsection(ss) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
-                                  <button onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'subsection', item: ss }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                                  <button title="Umbenennen" onClick={e => { e.stopPropagation(); setEditingSubsection(ss) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
+                                  <button title="In andere Section verschieben" onClick={e => { e.stopPropagation(); openMoveSubsection(ss) }} className="p-0.5 text-gray-400 hover:text-amber-600"><ArrowRightLeft className="w-3 h-3" /></button>
+                                  <button title="Löschen" onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'subsection', item: ss }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                                 </div>
                               )}
                             </div>
@@ -1936,6 +2024,56 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                     || (movingPage.subsectionId === moveTargetSubsection && (movingPage.parentPageId ?? '') === moveTargetParentPage)}
                   className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
                   {moveSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                  Verschieben
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Subsection-Verschieben-Modal */}
+      {movingSubsection && (() => {
+        const currentSection = sections.find(s => s.id === movingSubsection.sectionId)
+        return (
+          <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !moveSubsectionSaving && setMovingSubsection(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ArrowRightLeft className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-bold text-gray-900 truncate">«{movingSubsection.title}» verschieben</span>
+                </div>
+                <button onClick={() => setMovingSubsection(null)} disabled={moveSubsectionSaving} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0 disabled:opacity-40">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs text-gray-500">
+                  Aktuell in Section: <span className="font-medium text-gray-700">{currentSection?.title ?? '?'}</span>
+                  <br />
+                  Alle Pages dieser Subsection wandern mit.
+                </p>
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Ziel-Section</span>
+                  <select value={moveSubsectionTarget}
+                    onChange={e => setMoveSubsectionTarget(e.target.value)}
+                    className="mt-1 w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400">
+                    {sections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                </label>
+                {moveSubsectionTarget === movingSubsection.sectionId && (
+                  <p className="text-xs text-gray-400">Identisch zum aktuellen Standort — keine Änderung.</p>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+                <button onClick={() => setMovingSubsection(null)} disabled={moveSubsectionSaving}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
+                  Abbrechen
+                </button>
+                <button onClick={handleMoveSubsectionSave}
+                  disabled={moveSubsectionSaving || moveSubsectionTarget === movingSubsection.sectionId}
+                  className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                  {moveSubsectionSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
                   Verschieben
                 </button>
               </div>

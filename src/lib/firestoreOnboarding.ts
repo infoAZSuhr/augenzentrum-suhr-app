@@ -58,6 +58,12 @@ export async function addSection(title: string, color: string, order: number): P
 export async function updateSection(id: string, title: string, color: string): Promise<void> {
   await updateDoc(doc(db, S_COL, id), { title, color })
 }
+/** Section-Reihenfolge in einem Batch updaten. */
+export async function reorderSections(items: { id: string; order: number }[]): Promise<void> {
+  const batch = writeBatch(db)
+  items.forEach(({ id, order }) => batch.update(doc(db, S_COL, id), { order }))
+  await batch.commit()
+}
 export async function deleteSection(id: string): Promise<void> {
   const [subs, pages] = await Promise.all([
     getDocs(query(collection(db, SS_COL), where('sectionId', '==', id))),
@@ -82,6 +88,29 @@ export async function addSubsection(sectionId: string, title: string, order: num
 export async function updateSubsection(id: string, title: string): Promise<void> {
   await updateDoc(doc(db, SS_COL, id), { title })
 }
+/** Subsection-Reihenfolge in einem Batch updaten. */
+export async function reorderSubsections(items: { id: string; order: number }[]): Promise<void> {
+  const batch = writeBatch(db)
+  items.forEach(({ id, order }) => batch.update(doc(db, SS_COL, id), { order }))
+  await batch.commit()
+}
+
+/** Subsection in eine andere Section verschieben. Alle Pages der Subsection
+ *  erben den neuen sectionId (sonst Inkonsistenz im Tree). order = ans Ende
+ *  der Ziel-Liste. */
+export async function moveSubsection(
+  subsectionId:   string,
+  newSectionId:   string,
+  endOfListOrder: number,
+): Promise<void> {
+  const batch = writeBatch(db)
+  batch.update(doc(db, SS_COL, subsectionId), { sectionId: newSectionId, order: endOfListOrder })
+  // Alle Pages dieser Subsection auch updaten — sectionId muss konsistent sein
+  const pagesSnap = await getDocs(query(collection(db, P_COL), where('subsectionId', '==', subsectionId)))
+  pagesSnap.docs.forEach(d => batch.update(d.ref, { sectionId: newSectionId }))
+  await batch.commit()
+}
+
 export async function deleteSubsection(id: string, sectionId: string): Promise<void> {
   const pages = await getDocs(query(collection(db, P_COL), where('subsectionId', '==', id)))
   const batch = writeBatch(db)
