@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
+  collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc, deleteField,
   getDocs, query, where, orderBy, serverTimestamp, writeBatch,
   onSnapshot, type Unsubscribe,
 } from 'firebase/firestore'
@@ -193,6 +193,44 @@ export async function deletePage(id: string): Promise<void> {
     subPages.docs.forEach(d => batch.delete(d.ref))
     batch.delete(doc(db, P_COL, id))
     await batch.commit()
+  }
+}
+
+/** Verschiebt eine Page in eine andere Section/Subsection — entweder als
+ *  Top-Level-Page der Ziel-Subsection ODER als Sub-Page eines anderen
+ *  Parents. Sub-Pages einer verschobenen Page (deren parentPageId auf die
+ *  bewegte zeigt) wandern automatisch mit, weil ihre parentPageId-Referenz
+ *  intakt bleibt — sie folgen Page X auch in Subsection Y.
+ *
+ *  Order = order am Ende der Ziel-Liste (älteste oben, neue unten),
+ *  damit keine bestehende Reihenfolge durcheinander kommt.
+ */
+export async function movePage(
+  pageId:     string,
+  target: { type: 'subsection'; sectionId: string; subsectionId: string }
+       | { type: 'subpage';     parentPageId: string },
+  endOfListOrder: number,
+): Promise<void> {
+  if (target.type === 'subsection') {
+    await updateDoc(doc(db, P_COL, pageId), {
+      sectionId:    target.sectionId,
+      subsectionId: target.subsectionId,
+      parentPageId: deleteField(),
+      order:        endOfListOrder,
+      updatedAt:    serverTimestamp(),
+    })
+  } else {
+    // Sub-Page: parentPageId setzen, section/subsection aus dem Parent ableiten
+    const parentSnap = await getDoc(doc(db, P_COL, target.parentPageId))
+    if (!parentSnap.exists()) throw new Error('Parent-Page nicht gefunden')
+    const parent = parentSnap.data() as OnboardingPage
+    await updateDoc(doc(db, P_COL, pageId), {
+      parentPageId: target.parentPageId,
+      sectionId:    parent.sectionId,
+      subsectionId: parent.subsectionId,
+      order:        endOfListOrder,
+      updatedAt:    serverTimestamp(),
+    })
   }
 }
 
