@@ -333,6 +333,26 @@ export default function OnboardingOverview() {
     [allPages, myConfirmedIds, displayName, username],
   )
 
+  // Wenn Filter aktiv ist, klappen wir alle Sections + Subsections + Parent-
+  // Pages mit sichtbaren Treffern automatisch auf. Sonst sieht der User bei
+  // zugeklapptem Baum kein einziges Filter-Ergebnis und denkt der Filter
+  // wäre kaputt. Wir adden nur, entfernen nichts — User-eigene Aufklapp-
+  // Aktionen bleiben respektiert beim Filter-Ausschalten.
+  useEffect(() => {
+    if (!onlyMine && !onlyUnconfirmed) return
+    const sectionIds    = new Set<string>()
+    const subsectionIds = new Set<string>()
+    const parentIds     = new Set<string>()
+    for (const p of visiblePages) {
+      if (p.sectionId)    sectionIds.add(p.sectionId)
+      if (p.subsectionId) subsectionIds.add(p.subsectionId)
+      if (p.parentPageId) parentIds.add(p.parentPageId)
+    }
+    setExpandedSections   (prev => new Set([...prev, ...sectionIds]))
+    setExpandedSubsections(prev => new Set([...prev, ...subsectionIds]))
+    setExpandedPages      (prev => new Set([...prev, ...parentIds]))
+  }, [onlyMine, onlyUnconfirmed, visiblePages])
+
 const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId === sId)
   const pagesOf     = (ssId: string)   => visiblePages.filter(p => p.subsectionId === ssId && !p.parentPageId)
   const subPagesOf  = (pageId: string) => visiblePages.filter(p => p.parentPageId === pageId)
