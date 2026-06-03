@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, Ban } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, Ban, RefreshCw, Loader2 } from 'lucide-react'
 import Pinnwand from '../components/ui/Pinnwand'
 import IviKatOverviewModal from '../components/ui/IviKatOverviewModal'
 import { Link } from 'react-router-dom'
@@ -9,6 +9,8 @@ import { getPlannedIviDays, getUpcomingAppointments } from '../lib/firestorePati
 import { loadPlanung, type PlanungData } from '../lib/firestorePlanung'
 import { getRecallSummary, type RecallSummary } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
+import { useToast } from '../lib/ToastContext'
+import { syncZurRoseFromWorker, getNotaListeMetaFromFirestore } from '../lib/zurroseUpdate'
 import type { Appointment } from '../types/ivom.types'
 
 const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'OP', 'W', 'NFD'])
@@ -226,9 +228,12 @@ function getUpcomingOpDays(planung: PlanungData, daysAhead = 90): { date: string
 
 export default function Dashboard() {
   const { profile, canAccessIvom, canAccessLager, canAccessPlanung, isGuest } = useAuth()
+  const toast = useToast()
+  const queryClient = useQueryClient()
   const [planung, setPlanung] = useState<PlanungData | null>(null)
   const [visibleWeeks, setVisibleWeeks] = useState(8)
   const [showOverview, setShowOverview] = useState<'ivi' | 'kat' | null>(null)
+  const [zurroseUpdating, setZurroseUpdating] = useState(false)
   const year = new Date().getFullYear()
 
   useEffect(() => {
@@ -264,9 +269,30 @@ export default function Dashboard() {
 
   const { data: zurRoseMeta } = useQuery({
     queryKey: ['zurrose-meta'],
-    queryFn: getZurRoseMeta,
+    // Firestore-Doc bevorzugen (vom User-Click oder Worker-Cron geschrieben),
+    // Fallback auf das alte public/-JSON aus dem CI-Bundle.
+    queryFn: async () => (await getNotaListeMetaFromFirestore()) ?? (await getZurRoseMeta()),
     enabled: canAccessLager,
+    staleTime: 1000 * 60,
   })
+
+  async function handleZurroseUpdate() {
+    if (zurroseUpdating) return
+    setZurroseUpdating(true)
+    try {
+      const result = await syncZurRoseFromWorker(profile?.displayName ?? profile?.username ?? 'Unbekannt')
+      toast.success(`Nota-Liste aktualisiert · Stand ${result.stand} · ${result.articlesMatched} Artikel als nicht lieferbar markiert`)
+      // Caches invalidieren damit Meta + Alerts neu geladen werden
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['zurrose-meta'] }),
+        queryClient.invalidateQueries({ queryKey: ['inventory-alerts'] }),
+      ])
+    } catch (e) {
+      toast.error(`Aktualisierung fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setZurroseUpdating(false)
+    }
+  }
 
   const criticalAlerts = alerts.filter(a => a.severity === 'critical')
   const stockAlerts = alerts.filter(a => a.type !== 'not_deliverable')
@@ -466,9 +492,34 @@ export default function Dashboard() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              {zurRoseMeta?.stand && (
-                <span className="text-[10px] text-gray-400">Zur Rose {zurRoseMeta.stand}</span>
-              )}
+              {zurRoseMeta?.stand && (() => {
+                // "Veraltet"-Marker wenn der Stand älter als 7 Tage ist.
+                // Format kann "DD.MM.YYYY" sein → parsen für age-check.
+                let isStale = false
+                const m = zurRoseMeta.stand.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+                if (m) {
+                  const standDate = new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00Z`)
+                  if (!isNaN(standDate.getTime())) {
+                    isStale = (Date.now() - standDate.getTime()) / 86400000 > 7
+                  }
+                }
+                return (
+                  <span className={`text-[10px] ${isStale ? 'text-amber-600 font-medium' : 'text-gray-400'}`}
+                    title={isStale ? 'Stand älter als 7 Tage — Klick auf "Aktualisieren" lädt die aktuelle Nota-Liste' : 'Aktueller Zur-Rose-Stand'}>
+                    Zur Rose {zurRoseMeta.stand}{isStale ? ' ⚠' : ''}
+                  </span>
+                )
+              })()}
+              <button
+                onClick={handleZurroseUpdate}
+                disabled={zurroseUpdating}
+                title="Nota-Liste manuell aktualisieren (umgeht Cloudflare via Cloudflare-Worker-Proxy)"
+                className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50 disabled:cursor-wait"
+              >
+                {zurroseUpdating
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Lädt…</>
+                  : <><RefreshCw className="w-3 h-3" /> Aktualisieren</>}
+              </button>
               <Link to="/lager" className="text-xs text-primary-600 hover:text-primary-700 font-medium">Lager →</Link>
             </div>
           </div>
