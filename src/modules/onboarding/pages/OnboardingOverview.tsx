@@ -971,7 +971,7 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                             )}
                                             {!isAdmin && !isGeschaeftsleitung && isPageForMe(page) && page.status === 'final' && (
                                               myConfirmedIds.has(page.id)
-                                                ? <Check title="Sie haben diese SOP bereits bestätigt" className="w-3 h-3 text-green-600 shrink-0" />
+                                                ? <span title="Sie haben diese SOP bereits bestätigt" className="shrink-0 inline-flex"><Check className="w-3 h-3 text-green-600" /></span>
                                                 : <span title="Noch nicht bestätigt — bitte lesen und bestätigen" className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500" />
                                             )}
                                           </span>
