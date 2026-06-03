@@ -188,19 +188,33 @@ export default function OnboardingOverview() {
   // Freigabe-Panel
   const [releasing, setReleasing] = useState(false)
 
-  // Approved users for Zuständig / Freigabe dropdowns
-  const [sopUsers, setSopUsers] = useState<{ uid: string; displayName: string }[]>([])
+  // Approved users for Zuständig / Freigabe dropdowns + Relevant-für-Gruppen
+  type SopUser = { uid: string; displayName: string; role: string; additionalRoles: string[] }
+  const [sopUsers, setSopUsers] = useState<SopUser[]>([])
   useEffect(() => {
     getDocs(fsQuery(collection(db, 'users'), where('status', '==', 'approved')))
       .then(snap => {
-        const list = snap.docs
-          .map(d => { const u = d.data() as any; return { uid: u.uid, displayName: u.displayName || u.username || '' } })
+        const list: SopUser[] = snap.docs
+          .map(d => {
+            const u = d.data() as any
+            return {
+              uid:             u.uid,
+              displayName:     u.displayName || u.username || '',
+              role:            u.role || '',
+              additionalRoles: Array.isArray(u.additionalRoles) ? u.additionalRoles : [],
+            }
+          })
           .filter(u => u.displayName)
           .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de'))
         setSopUsers(list)
       })
       .catch(() => {})
   }, [])
+
+  // Hat User eine bestimmte Rolle (primär ODER als additional)? Genutzt für Gruppen-Selektion.
+  function userHasRole(u: SopUser, role: string): boolean {
+    return u.role === role || u.additionalRoles.includes(role)
+  }
 
   const { data: sections    = [], isLoading: sectionsLoading } = useQuery({ queryKey: ['ob-sections'],    queryFn: getSections })
   const { data: subsections = [] }                            = useQuery({ queryKey: ['ob-subsections'], queryFn: getAllSubsections })
@@ -400,6 +414,24 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
       : [...pageRelevantFuer, name]
     setPageRelevantFuer(next)
     await updatePageMeta(activePageId, { relevantFuer: next })
+  }
+
+  /** Setzt die Liste auf den exakten Inhalt (ohne Toggle-Logik). Genutzt von
+   *  den Gruppen-Buttons unten. */
+  const replaceRelevantFuer = async (names: string[]) => {
+    if (!activePageId) return
+    // Dedupliziere und sortiere defensiv
+    const next = Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'de'))
+    setPageRelevantFuer(next)
+    await updatePageMeta(activePageId, { relevantFuer: next })
+  }
+  /** Fügt alle übergebenen Namen zur Liste hinzu (Union ohne Duplikate). */
+  const addToRelevantFuer = (names: string[]) =>
+    replaceRelevantFuer([...pageRelevantFuer, ...names])
+  /** Entfernt alle übergebenen Namen aus der Liste. */
+  const removeFromRelevantFuer = (names: string[]) => {
+    const remove = new Set(names)
+    return replaceRelevantFuer(pageRelevantFuer.filter(n => !remove.has(n)))
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -1215,7 +1247,54 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                     {showRelevantFuer ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
                   </button>
                   {showRelevantFuer && (
-                    <div className="px-5 pb-4 space-y-1.5">
+                    <div className="px-5 pb-4 space-y-3">
+                      {(isAdmin || isGeschaeftsleitung) && (() => {
+                        // Gruppen-Definitionen — primäre + additionalRoles werden beide
+                        // gezählt (so wie permGranted intern). Jede Gruppe bekommt zwei
+                        // Quick-Aktionen: hinzufügen (alle Gruppen-Mitglieder zur Liste)
+                        // und entfernen (alle aus der Liste raus).
+                        const groups: Array<{ key: string; label: string; role: string }> = [
+                          { key: 'arzt',              label: 'Ärzte',           role: 'arzt' },
+                          { key: 'mpa',               label: 'MPAs',            role: 'mpa' },
+                          { key: 'geschaeftsleitung', label: 'Geschäftsleitung', role: 'geschaeftsleitung' },
+                          { key: 'admin',             label: 'Admins',          role: 'admin' },
+                        ]
+                        const allNames = sopUsers.map(u => u.displayName)
+                        const allInList = allNames.length > 0 && allNames.every(n => pageRelevantFuer.includes(n))
+                        return (
+                          <div className="flex flex-wrap gap-1.5 pb-2 border-b border-gray-100">
+                            <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide w-full mb-0.5">Schnellauswahl</span>
+                            {groups.map(g => {
+                              const groupMembers = sopUsers.filter(u => userHasRole(u, g.role)).map(u => u.displayName)
+                              if (groupMembers.length === 0) return null
+                              const allIncluded = groupMembers.every(n => pageRelevantFuer.includes(n))
+                              return (
+                                <button
+                                  key={g.key}
+                                  onClick={() => allIncluded ? removeFromRelevantFuer(groupMembers) : addToRelevantFuer(groupMembers)}
+                                  title={`${groupMembers.length} ${g.label} ${allIncluded ? 'entfernen' : 'hinzufügen'}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold border transition-colors
+                                    ${allIncluded
+                                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'}`}>
+                                  {allIncluded ? '✓' : '+'} {g.label}
+                                  <span className="opacity-70">({groupMembers.length})</span>
+                                </button>
+                              )
+                            })}
+                            <button
+                              onClick={() => allInList ? replaceRelevantFuer([]) : replaceRelevantFuer(allNames)}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold border transition-colors
+                                ${allInList
+                                  ? 'bg-gray-600 text-white border-gray-600 hover:bg-gray-700'
+                                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'}`}>
+                              {allInList ? 'Alle abwählen' : 'Alle auswählen'}
+                              <span className="opacity-70">({allNames.length})</span>
+                            </button>
+                          </div>
+                        )
+                      })()}
+                      <div className="space-y-1.5">
                       {(isAdmin || isGeschaeftsleitung)
                         ? sopUsers.map(u => {
                             const checked = pageRelevantFuer.includes(u.displayName)
@@ -1225,6 +1304,9 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                   onChange={() => handleToggleRelevantFuer(u.displayName)}
                                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-400 cursor-pointer" />
                                 <span className="text-sm text-gray-700 group-hover:text-gray-900">{u.displayName}</span>
+                                {u.role && (
+                                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">{u.role}</span>
+                                )}
                               </label>
                             )
                           })
@@ -1234,6 +1316,7 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                             <div key={name} className="text-sm text-gray-700">{name}</div>
                           ))
                       }
+                      </div>
                     </div>
                   )}
                 </div>
