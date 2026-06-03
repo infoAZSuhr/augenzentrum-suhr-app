@@ -20,7 +20,6 @@
     "update-all:deploy": "node scripts/update-sl.js && node scripts/update-refdata.js && node scripts/update-zurrose.js && npm run build && firebase deploy --only hosting --project azsdb-999d6",
     "update-sl:deploy": "node scripts/update-sl.js && npm run build && firebase deploy --only hosting --project azsdb-999d6",
     "task:register": "powershell -ExecutionPolicy Bypass -File scripts/register-task.ps1",
-    "seed-tardoc-sops": "node scripts/seed-tardoc-sops.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
