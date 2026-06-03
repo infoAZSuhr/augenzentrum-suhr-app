@@ -195,6 +195,148 @@ export function exportPagePDF(p: ExportPageInput): void {
   }, 400)
 }
 
+// ── Multi-Page-Export (ganze Subsection / Section) ──────────────────────────
+
+export interface MultiExportInput {
+  /** Sammlung von Pages in Reihenfolge */
+  pages:       ExportPageInput[]
+  /** Übergeordneter Titel — z.B. "Section A – Allgemeines" oder
+   *  "Sprechstunde (Subsection)". Erscheint als Deckblatt + im
+   *  Datei-/Browser-Titel. */
+  title:       string
+  /** Optionaler Untertitel im Deckblatt (z.B. "5 SOPs") */
+  subtitle?:   string
+  /** Falls true: ein Inhaltsverzeichnis vor den Pages */
+  withToc?:    boolean
+  /** Optionale Glossar-Map die an alle Pages durchgereicht wird (überschreibt
+   *  einzelne Page-Werte falls dort nicht gesetzt). */
+  glossar?:    Record<string, string>
+}
+
+/** Baut eine Multi-Page-HTML mit Page-Breaks zwischen den Pages, optionalem
+ *  Deckblatt und Inhaltsverzeichnis. Jede Page kriegt einen <h1>-Trenner
+ *  und einen kleinen Breadcrumb. */
+export function buildMultiHtml(input: MultiExportInput): string {
+  const today = formatSwissDate(new Date())
+  const pageCount = input.pages.length
+
+  // Cover-Page
+  const cover = `
+    <div class="cover">
+      <h1 class="cover-title">${escapeHtml(input.title)}</h1>
+      ${input.subtitle ? `<p class="cover-sub">${escapeHtml(input.subtitle)}</p>` : ''}
+      <p class="cover-count">${pageCount} SOP${pageCount === 1 ? '' : 's'}</p>
+      <p class="cover-date">Exportiert: ${today}</p>
+    </div>
+  `
+
+  // Optionales Inhaltsverzeichnis
+  const toc = input.withToc && pageCount > 1 ? `
+    <div class="toc">
+      <h2>Inhaltsverzeichnis</h2>
+      <ol class="toc-list">
+        ${input.pages.map((p, i) => `
+          <li>
+            <span class="toc-num">${i + 1}.</span>
+            <span class="toc-title">${escapeHtml(p.title)}</span>
+            ${p.version ? `<span class="toc-ver">v${escapeHtml(String(p.version))}</span>` : ''}
+          </li>
+        `).join('')}
+      </ol>
+    </div>
+  ` : ''
+
+  // Pages mit Page-Breaks dazwischen
+  const pagesHtml = input.pages.map((p, i) => {
+    const expandedContent = expandAbbreviations(p.content, p.glossar ?? input.glossar ?? {})
+    const breadcrumb = [p.section, p.subsection].filter((s): s is string => !!s).map(escapeHtml).join(' &rsaquo; ')
+    return `
+      <section class="page ${i > 0 ? 'page-break' : ''}">
+        <div class="header">
+          <h1>${escapeHtml(p.title)}</h1>
+          ${breadcrumb ? `<p class="breadcrumb">${breadcrumb}</p>` : ''}
+        </div>
+        ${buildMetaBlock(p)}
+        <div class="content">${expandedContent}</div>
+      </section>
+    `
+  }).join('')
+
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <title>${escapeHtml(input.title)}</title>
+  <style>
+    ${STYLES}
+    .cover { text-align: center; padding: 50mm 0 0 0; page-break-after: always; }
+    .cover-title { font-size: 28pt; color: #0c4a6e; margin: 0 0 8px 0; border: none; padding: 0; }
+    .cover-sub { font-size: 14pt; color: #4b5563; margin: 0 0 24px 0; }
+    .cover-count { font-size: 12pt; color: #6b7280; margin: 0 0 4px 0; font-weight: 600; }
+    .cover-date { font-size: 10pt; color: #9ca3af; margin: 4px 0 0 0; }
+    .toc { page-break-after: always; }
+    .toc h2 { font-size: 16pt; color: #0c4a6e; margin: 0 0 16px 0; }
+    .toc-list { list-style: none; padding: 0; margin: 0; }
+    .toc-list li { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px dotted #e5e7eb; align-items: baseline; font-size: 11pt; }
+    .toc-num { font-weight: 600; color: #6b7280; min-width: 28px; }
+    .toc-title { flex: 1; }
+    .toc-ver { font-size: 9pt; color: #9ca3af; }
+    .page-break { page-break-before: always; }
+    .page section.header { border-bottom: 2px solid #0c4a6e; padding-bottom: 10px; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  ${cover}
+  ${toc}
+  ${pagesHtml}
+  <div class="footer">
+    Augenzentrum Suhr · SOP-Export · ${today}
+  </div>
+</body>
+</html>`
+}
+
+/** PDF-Export für mehrere Pages — öffnet Print-Dialog mit allen Pages
+ *  hintereinander, Page-Breaks dazwischen, optionalem TOC. */
+export function exportMultiplePDF(input: MultiExportInput): void {
+  const html = buildMultiHtml(input)
+  const w = window.open('', '_blank', 'width=900,height=1100')
+  if (!w) {
+    alert('Popup blockiert – bitte Popups für diese Seite erlauben und erneut versuchen.')
+    return
+  }
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+  setTimeout(() => { try { w.print() } catch {} }, 600)
+}
+
+/** Word-Export für mehrere Pages — als .doc downloadbar. */
+export function exportMultipleDocx(input: MultiExportInput): void {
+  const html = buildMultiHtml(input)
+  const wordHtml = `MIME-Version: 1.0
+Content-Type: multipart/related; boundary="----=_NextPart_SOP"
+
+------=_NextPart_SOP
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Location: file:///C:/sop.htm
+
+${html}
+
+------=_NextPart_SOP--`
+  const blob = new Blob([wordHtml], { type: 'application/msword' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  const safeTitle = input.title.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 80)
+  a.href     = url
+  a.download = `SOP_${safeTitle}.doc`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 // ── Word-Export (Word-kompatibles HTML mit .doc-Endung) ──────────────────────
 // Word 2007+ öffnet HTML-Dateien problemlos und konvertiert sie beim Speichern
 // in echtes .docx. Vorteil: keine Library nötig, alle Formatierungen (Tabellen,
