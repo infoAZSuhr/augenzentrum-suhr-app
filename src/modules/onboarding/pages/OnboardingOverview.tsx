@@ -212,6 +212,15 @@ export default function OnboardingOverview() {
   useEffect(() => {
     try { localStorage.setItem('sop-only-unconfirmed', onlyUnconfirmed ? '1' : '0') } catch {}
   }, [onlyUnconfirmed])
+  // Filter "Meine offenen Prüfungen" — zeigt nur Drafts wo ich als Zuständig
+  // oder Freigabe-Person eingetragen bin. Hilft Reviewern ihre offene
+  // Genehmigungs-Pipeline auf einen Blick zu sehen + per Bulk-Export zu drucken.
+  const [onlyMyReviews, setOnlyMyReviews] = useState<boolean>(() => {
+    try { return localStorage.getItem('sop-only-myreviews') === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('sop-only-myreviews', onlyMyReviews ? '1' : '0') } catch {}
+  }, [onlyMyReviews])
 
   // Set der Page-IDs die ich schon bestätigt habe — wird einmal beim Mount
   // geladen und nach handleConfirm aktualisiert (lokal optimistic).
@@ -306,23 +315,42 @@ export default function OnboardingOverview() {
   const isPageForMe = (p: OnboardingPage): boolean =>
     (p.relevantFuer ?? []).some(n => n === displayName || n === username)
   const visiblePages = useMemo(() => {
-    if (isAdmin || isGeschaeftsleitung) return allPages
-    if (!onlyMine && !onlyUnconfirmed) return allPages
-    // Schritt 1: "Direkt-Treffer" sammeln. Eine Page ist Direkt-Treffer wenn
-    //   - onlyMine aktiv: ich in relevantFuer
-    //   - onlyUnconfirmed aktiv (Solo): ich in relevantFuer UND nicht bestätigt
-    //   - beide aktiv: ich in relevantFuer UND nicht bestätigt
+    if (isAdmin || isGeschaeftsleitung) {
+      // Auch Admin/GL sollen den "Meine Prüfungen"-Filter nutzen können
+      // (sind oft auch Zuständig/Freigabe), aber haben keine RelevantFür-
+      // Pflicht. Daher hier nur onlyMyReviews als Filter.
+      if (!onlyMyReviews) return allPages
+      const reviewHits = new Set(
+        allPages.filter(p => p.status !== 'final' && (isZustaendigFor(p) || isFreigabeFor(p))).map(p => p.id),
+      )
+      return allPages.filter(p => reviewHits.has(p.id) || (p.parentPageId && reviewHits.has(p.parentPageId)))
+    }
+    if (!onlyMine && !onlyUnconfirmed && !onlyMyReviews) return allPages
+    // Schritt 1: "Direkt-Treffer" sammeln nach den drei möglichen Filtern
+    //   - onlyMine: ich in relevantFuer
+    //   - onlyUnconfirmed: ich in relevantFuer UND nicht bestätigt
+    //   - onlyMyReviews: status !== 'final' UND ich bin Zuständig oder Freigabe
+    // Mehrere aktive Filter = ODER (Union, nicht UND). Sinnvoll weil Reviews
+    // logisch eine andere Liste sind als "meine Schulungen".
     const directHits = new Set(
       allPages.filter(p => {
         const forMe = isPageForMe(p)
-        if (onlyMine && !forMe) return false
-        if (!onlyMine && onlyUnconfirmed && !forMe) return false  // Solo-Unconfirmed = nur meine SOPs die ich nicht bestätigt habe
-        if (onlyUnconfirmed && myConfirmedIds.has(p.id)) return false
-        return forMe || !onlyMine   // bei !onlyMine kommt jede Page durch außer den oben gefilterten
+        const isMyReview = p.status !== 'final' && (isZustaendigFor(p) || isFreigabeFor(p))
+        if (onlyMyReviews && isMyReview) return true
+        if (onlyMine && forMe) {
+          if (onlyUnconfirmed && myConfirmedIds.has(p.id)) return false
+          return true
+        }
+        if (!onlyMine && onlyUnconfirmed) {
+          if (!forMe) return false
+          if (myConfirmedIds.has(p.id)) return false
+          return true
+        }
+        return false
       }).map(p => p.id),
     )
     return allPages.filter(p => directHits.has(p.id) || (p.parentPageId && directHits.has(p.parentPageId)))
-  }, [allPages, onlyMine, onlyUnconfirmed, myConfirmedIds, displayName, username, isAdmin, isGeschaeftsleitung])
+  }, [allPages, onlyMine, onlyUnconfirmed, onlyMyReviews, myConfirmedIds, displayName, username, isAdmin, isGeschaeftsleitung])
 
   const myRelevantCount = useMemo(
     () => allPages.filter(isPageForMe).length,
@@ -332,6 +360,10 @@ export default function OnboardingOverview() {
     () => allPages.filter(p => isPageForMe(p) && !myConfirmedIds.has(p.id) && p.status === 'final').length,
     [allPages, myConfirmedIds, displayName, username],
   )
+  const myReviewsCount = useMemo(
+    () => allPages.filter(p => p.status !== 'final' && (isZustaendigFor(p) || isFreigabeFor(p))).length,
+    [allPages, displayName, username],
+  )
 
   // Wenn Filter aktiv ist, klappen wir alle Sections + Subsections + Parent-
   // Pages mit sichtbaren Treffern automatisch auf. Sonst sieht der User bei
@@ -339,7 +371,7 @@ export default function OnboardingOverview() {
   // wäre kaputt. Wir adden nur, entfernen nichts — User-eigene Aufklapp-
   // Aktionen bleiben respektiert beim Filter-Ausschalten.
   useEffect(() => {
-    if (!onlyMine && !onlyUnconfirmed) return
+    if (!onlyMine && !onlyUnconfirmed && !onlyMyReviews) return
     const sectionIds    = new Set<string>()
     const subsectionIds = new Set<string>()
     const parentIds     = new Set<string>()
@@ -351,7 +383,7 @@ export default function OnboardingOverview() {
     setExpandedSections   (prev => new Set([...prev, ...sectionIds]))
     setExpandedSubsections(prev => new Set([...prev, ...subsectionIds]))
     setExpandedPages      (prev => new Set([...prev, ...parentIds]))
-  }, [onlyMine, onlyUnconfirmed, visiblePages])
+  }, [onlyMine, onlyUnconfirmed, onlyMyReviews, visiblePages])
 
 const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId === sId)
   const pagesOf     = (ssId: string)   => visiblePages.filter(p => p.subsectionId === ssId && !p.parentPageId)
@@ -821,44 +853,69 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
               {searchResults.length === 0 ? 'Keine Ergebnisse' : `${searchResults.length} Ergebnis${searchResults.length === 1 ? '' : 'se'}`}
             </p>
           )}
-          {/* Filter-Toggles für normale User (Admins/GL sehen sie nicht).
-              Zwei Stufen: "Nur meine SOPs" und darunter "Nur unbestätigte". */}
-          {!isAdmin && !isGeschaeftsleitung && (
-            <div className="mt-1.5 space-y-1">
-              <button
-                onClick={() => setOnlyMine(v => !v)}
-                title={myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : ''}
-                disabled={myRelevantCount === 0}
-                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
-                  ${onlyMine
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50'}`}>
-                <span className="flex items-center gap-1.5">
-                  <Users className="w-3 h-3" />
-                  {onlyMine ? 'Nur meine SOPs' : 'Nur meine SOPs anzeigen'}
-                </span>
-                <span className={`text-[10px] tabular-nums ${onlyMine ? 'opacity-90' : 'text-gray-500'}`}>
-                  {myRelevantCount}
-                </span>
-              </button>
-              <button
-                onClick={() => setOnlyUnconfirmed(v => !v)}
-                title={myUnconfirmedCount === 0 ? 'Sie haben alle Ihnen zugewiesenen SOPs bereits bestätigt' : ''}
-                disabled={myUnconfirmedCount === 0}
-                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
-                  ${onlyUnconfirmed
-                    ? 'bg-amber-600 text-white hover:bg-amber-700'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-50'}`}>
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-3 h-3" />
-                  {onlyUnconfirmed ? 'Nur unbestätigte' : 'Nur unbestätigte anzeigen'}
-                </span>
-                <span className={`text-[10px] tabular-nums ${onlyUnconfirmed ? 'opacity-90' : 'text-gray-500'}`}>
-                  {myUnconfirmedCount}
-                </span>
-              </button>
-            </div>
-          )}
+          {/* Filter-Toggles.
+              Drei Stufen:
+                "Nur meine SOPs"         (Mitarbeiter-Filter, nicht für Admin/GL)
+                "Nur unbestätigte"       (Schulungs-Filter,   nicht für Admin/GL)
+                "Meine offenen Prüfungen" (Zuständig/Freigabe, FÜR ALLE — Admin/GL
+                                          sind oft selbst Zuständig/Freigabe). */}
+          <div className="mt-1.5 space-y-1">
+            {!isAdmin && !isGeschaeftsleitung && (
+              <>
+                <button
+                  onClick={() => setOnlyMine(v => !v)}
+                  title={myRelevantCount === 0 ? 'Sie sind aktuell für keine SOP als "Relevant für" eingetragen' : ''}
+                  disabled={myRelevantCount === 0}
+                  className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                    ${onlyMine
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-50'}`}>
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3 h-3" />
+                    {onlyMine ? 'Nur meine SOPs' : 'Nur meine SOPs anzeigen'}
+                  </span>
+                  <span className={`text-[10px] tabular-nums ${onlyMine ? 'opacity-90' : 'text-gray-500'}`}>
+                    {myRelevantCount}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setOnlyUnconfirmed(v => !v)}
+                  title={myUnconfirmedCount === 0 ? 'Sie haben alle Ihnen zugewiesenen SOPs bereits bestätigt' : ''}
+                  disabled={myUnconfirmedCount === 0}
+                  className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                    ${onlyUnconfirmed
+                      ? 'bg-amber-600 text-white hover:bg-amber-700'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-50'}`}>
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" />
+                    {onlyUnconfirmed ? 'Nur unbestätigte' : 'Nur unbestätigte anzeigen'}
+                  </span>
+                  <span className={`text-[10px] tabular-nums ${onlyUnconfirmed ? 'opacity-90' : 'text-gray-500'}`}>
+                    {myUnconfirmedCount}
+                  </span>
+                </button>
+              </>
+            )}
+            {/* "Meine offenen Prüfungen": Drafts wo ich Zuständig oder Freigabe bin */}
+            <button
+              onClick={() => setOnlyMyReviews(v => !v)}
+              title={myReviewsCount === 0
+                ? 'Sie sind aktuell für keine SOP-Entwurf als Zuständig oder Freigabe eingetragen'
+                : 'Drafts, die auf Ihre Überprüfung warten. Im Modal "Export" lassen sich alle auf einen Schlag ausdrucken.'}
+              disabled={myReviewsCount === 0}
+              className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                ${onlyMyReviews
+                  ? 'bg-violet-600 text-white hover:bg-violet-700'
+                  : 'bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-50'}`}>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3 h-3" />
+                {onlyMyReviews ? 'Meine Prüfungen' : 'Meine offenen Prüfungen'}
+              </span>
+              <span className={`text-[10px] tabular-nums ${onlyMyReviews ? 'opacity-90' : 'text-gray-500'}`}>
+                {myReviewsCount}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* ── Search results ── */}
