@@ -12,12 +12,17 @@ export type ExportScope = 'page' | 'subsection' | 'section'
 interface Props {
   /** Hauptseite die im 'page'-Scope exportiert wird */
   page: ExportPageInput
-  /** Alle Pages der enthaltenden Subsection (sortiert, inkl. der aktiven). */
+  /** Alle FINALEN Pages der enthaltenden Subsection (sortiert, inkl. der aktiven). */
   subsectionPages?:  ExportPageInput[]
   subsectionTitle?:  string
-  /** Alle Pages der enthaltenden Section (sortiert). */
+  /** Alle FINALEN Pages der enthaltenden Section (sortiert). */
   sectionPages?:     ExportPageInput[]
   sectionTitle?:     string
+  /** Zusätzlich: die Drafts der Subsection (nicht freigegeben). Werden NUR
+   *  beim "Drafts einschliessen"-Toggle in den Bulk-Export mitgenommen.
+   *  Macht den Selector auch dann sinnvoll wenn noch nichts final ist. */
+  subsectionDrafts?: ExportPageInput[]
+  sectionDrafts?:    ExportPageInput[]
   defaultScope?:     ExportScope
   onClose: () => void
 }
@@ -26,16 +31,24 @@ export default function SOPExportPreview({
   page,
   subsectionPages, subsectionTitle,
   sectionPages,    sectionTitle,
+  subsectionDrafts, sectionDrafts,
   defaultScope = 'page',
   onClose,
 }: Props) {
   useEscapeKey(onClose)
   const [scope, setScope] = useState<ExportScope>(defaultScope)
+  const [includeDrafts, setIncludeDrafts] = useState(false)
 
-  // Pages + Titel je nach gewähltem Scope
-  const activeBulk = scope === 'subsection' ? subsectionPages
-                    : scope === 'section'    ? sectionPages
-                    :                          undefined
+  // Pages je nach Scope, plus optionale Drafts beim Bulk-Modus
+  const finalsForScope = scope === 'subsection' ? (subsectionPages ?? [])
+                       : scope === 'section'    ? (sectionPages    ?? [])
+                       :                          []
+  const draftsForScope = scope === 'subsection' ? (subsectionDrafts ?? [])
+                       : scope === 'section'    ? (sectionDrafts    ?? [])
+                       :                          []
+  const activeBulk = scope === 'page'
+                   ? undefined
+                   : includeDrafts ? [...finalsForScope, ...draftsForScope] : finalsForScope
   const activeBulkTitle = scope === 'subsection' ? (subsectionTitle ?? 'Subsection-Export')
                        : scope === 'section'     ? (sectionTitle    ?? 'Section-Export')
                        :                            page.title
@@ -83,7 +96,16 @@ export default function SOPExportPreview({
     }
   }
 
-  const bulkAvailable = (subsectionPages?.length ?? 0) > 1 || (sectionPages?.length ?? 0) > 1
+  // Counts pro Scope für die Pills (final + draft)
+  const subsectionFinalN = subsectionPages?.length  ?? 0
+  const subsectionDraftN = subsectionDrafts?.length ?? 0
+  const sectionFinalN    = sectionPages?.length     ?? 0
+  const sectionDraftN    = sectionDrafts?.length    ?? 0
+  // Selector zeigen wir IMMER — auch wenn der Bulk-Modus für eine SOP nicht
+  // mehr exportieren würde als die einzelne Page, soll der User das selbst
+  // sehen können (statt zu glauben das Feature fehlt).
+  const hasAnyBulkData = subsectionFinalN + subsectionDraftN > 1 || sectionFinalN + sectionDraftN > 1
+  const draftsAvailable = subsectionDraftN > 0 || sectionDraftN > 0
   const pageCount = isMulti ? activeBulk!.length : 1
 
   return (
@@ -122,37 +144,64 @@ export default function SOPExportPreview({
           </button>
         </div>
 
-        {/* Scope-Auswahl — nur wenn Bulk-Pages verfügbar sind. Bei einzelner
-            Page-Export-Aktion zeigen wir keine Auswahl (verwirrend). */}
-        {bulkAvailable && (
-          <div className="px-5 py-2.5 border-b border-gray-100 shrink-0 bg-gray-50/60">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mr-1">Umfang:</span>
-              {[
-                { key: 'page',       label: 'Nur diese Seite', Icon: FileText },
-                { key: 'subsection', label: 'Ganze Subsection', Icon: Folder },
-                { key: 'section',    label: 'Ganze Section',    Icon: FolderOpen },
-              ].map(({ key, label, Icon }) => (
+        {/* Scope-Auswahl — IMMER sichtbar damit der User die Option kennt.
+            Pills zeigen die Anzahl finaler SOPs (rot wenn nichts da). Drafts-
+            Toggle erscheint nur wenn überhaupt Drafts existieren. */}
+        <div className="px-5 py-2.5 border-b border-gray-100 shrink-0 bg-gray-50/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mr-1">Umfang:</span>
+            {[
+              { key: 'page',       label: 'Nur diese Seite', Icon: FileText,   count: 1,                                                  effective: 1 },
+              { key: 'subsection', label: 'Subsection',      Icon: Folder,     count: subsectionFinalN,  draftCount: subsectionDraftN,    effective: subsectionFinalN + (includeDrafts ? subsectionDraftN : 0) },
+              { key: 'section',    label: 'Section',         Icon: FolderOpen, count: sectionFinalN,     draftCount: sectionDraftN,       effective: sectionFinalN    + (includeDrafts ? sectionDraftN    : 0) },
+            ].map(({ key, label, Icon, count, draftCount, effective }) => {
+              const isActive = scope === key
+              const isDisabled = key !== 'page' && effective === 0
+              const title = key === 'page'
+                ? 'Nur die aktuell offene SOP'
+                : isDisabled
+                  ? `Keine finalen SOPs in dieser ${key === 'subsection' ? 'Subsection' : 'Section'}${draftCount ? ` (${draftCount} Entwurf-Status — "Drafts einschliessen" aktivieren)` : ''}`
+                  : `${count} finale${count === 1 ? '' : ''}${draftCount && includeDrafts ? ` + ${draftCount} Entwurf` : ''}`
+              return (
                 <button
                   key={key}
-                  onClick={() => setScope(key as ExportScope)}
+                  onClick={() => !isDisabled && setScope(key as ExportScope)}
+                  disabled={isDisabled}
+                  title={title}
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors
-                    ${scope === key
+                    ${isActive
                       ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'}`}>
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white'}`}>
                   <Icon className="w-3.5 h-3.5" />
                   {label}
+                  {key !== 'page' && (
+                    <span className={`text-[10px] tabular-nums px-1 rounded ${isActive ? 'bg-white/25' : 'bg-gray-100 text-gray-500'}`}>
+                      {effective}
+                    </span>
+                  )}
                 </button>
-              ))}
-              {isMulti && (
-                <span className="text-[11px] text-gray-500 ml-auto">
-                  {pageCount} SOPs werden zusammen exportiert
-                  {pageCount > 2 && ' · mit Inhaltsverzeichnis'}
-                </span>
-              )}
-            </div>
+              )
+            })}
+            {draftsAvailable && scope !== 'page' && (
+              <label className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] text-gray-600 cursor-pointer select-none ml-1">
+                <input type="checkbox" checked={includeDrafts} onChange={e => setIncludeDrafts(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-400" />
+                Entwürfe einschliessen ({(scope === 'subsection' ? subsectionDraftN : sectionDraftN)})
+              </label>
+            )}
+            {isMulti && (
+              <span className="text-[11px] text-gray-500 ml-auto">
+                {pageCount} SOPs werden zusammen exportiert
+                {pageCount > 2 && ' · mit Inhaltsverzeichnis'}
+              </span>
+            )}
+            {!hasAnyBulkData && scope === 'page' && (
+              <span className="text-[11px] text-gray-400 ml-auto italic">
+                Subsection/Section enthalten nur diese eine SOP.
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Iframe-Vorschau */}
         <div className="flex-1 overflow-hidden bg-gray-100 p-2 sm:p-4">

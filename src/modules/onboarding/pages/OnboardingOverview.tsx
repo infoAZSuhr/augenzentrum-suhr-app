@@ -1725,50 +1725,43 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
             glossar:       glossarMap,
           }
         }
-        // Pages der Subsection: Top-Level + zugehörige Sub-Pages, sortiert nach
-        // order. Sub-Pages werden direkt unter ihren Parents eingeordnet.
-        const subsectionPages = (() => {
+        // Pages-Sammler — pro Subsection in der Reihenfolge: Top, dann seine
+        // Sub-Pages. statusFilter steuert ob final-only oder draft-only.
+        const collectSubsectionPages = (ssId: string, statusFilter: 'final' | 'draft') => {
+          const matches = (p: typeof activePage) =>
+            statusFilter === 'final' ? p.status === 'final' : p.status !== 'final'
           const tops = allPages
-            .filter(p => p.subsectionId === activePage.subsectionId && !p.parentPageId && p.status === 'final')
+            .filter(p => p.subsectionId === ssId && !p.parentPageId && matches(p))
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
           const result: typeof allPages = []
           for (const top of tops) {
             result.push(top)
             const subs = allPages
-              .filter(p => p.parentPageId === top.id && p.status === 'final')
+              .filter(p => p.parentPageId === top.id && matches(p))
               .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
             result.push(...subs)
           }
           return result.map(pageToInput)
-        })()
-        // Pages der gesamten Section: alle Subsections der Section in Reihenfolge,
-        // pro Subsection Tops + ihre Sub-Pages.
-        const sectionPages = (() => {
+        }
+        const collectSectionPages = (sectionId: string, statusFilter: 'final' | 'draft') => {
           const sectionSubs = subsections
-            .filter(s => s.sectionId === activePage.sectionId)
+            .filter(s => s.sectionId === sectionId)
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-          const result: typeof allPages = []
-          for (const ss of sectionSubs) {
-            const tops = allPages
-              .filter(p => p.subsectionId === ss.id && !p.parentPageId && p.status === 'final')
-              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-            for (const top of tops) {
-              result.push(top)
-              const subs = allPages
-                .filter(p => p.parentPageId === top.id && p.status === 'final')
-                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-              result.push(...subs)
-            }
-          }
-          return result.map(pageToInput)
-        })()
+          return sectionSubs.flatMap(ss => collectSubsectionPages(ss.id, statusFilter))
+        }
+        const subsectionPages  = collectSubsectionPages(activePage.subsectionId, 'final')
+        const subsectionDrafts = collectSubsectionPages(activePage.subsectionId, 'draft')
+        const sectionPages     = collectSectionPages(activePage.sectionId, 'final')
+        const sectionDrafts    = collectSectionPages(activePage.sectionId, 'draft')
         return (
           <SOPExportPreview
             page={pageToInput(activePage)}
             subsectionPages={subsectionPages}
-            subsectionTitle={`${activeSubsection?.title ?? 'Subsection'} (${subsectionPages.length} SOPs)`}
+            subsectionDrafts={subsectionDrafts}
+            subsectionTitle={`${activeSubsection?.title ?? 'Subsection'}`}
             sectionPages={sectionPages}
-            sectionTitle={`${activeSection?.title ?? 'Section'} (${sectionPages.length} SOPs)`}
+            sectionDrafts={sectionDrafts}
+            sectionTitle={`${activeSection?.title ?? 'Section'}`}
             onClose={() => setShowExportPreview(false)}
           />
         )
