@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download, Eye, EyeOff, History, GitCompare } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download, Eye, EyeOff, History, GitCompare, ArrowRightLeft } from 'lucide-react'
 import BackButton from '../../../components/ui/BackButton'
 import {
   getSections, getAllSubsections, getAllPages,
@@ -13,6 +13,7 @@ import {
   notifySopRelevanceBulk,
   getMyConfirmedPageIds,
   subscribeSections, subscribeSubsections, subscribePages, subscribePageViews,
+  movePage,
   SECTION_COLORS, getColor,
   type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView, type PageVersion,
 } from '../../../lib/firestoreOnboarding'
@@ -187,6 +188,12 @@ export default function OnboardingOverview() {
   const [showRelevantFuer, setShowRelevantFuer] = useState(false)
   const [showNachweis,     setShowNachweis]     = useState(false)
   const [pageRelevantFuer, setPageRelevantFuer] = useState<string[]>([])
+  // Move-Modal: welche Page wird gerade verschoben + Ziel-Auswahl
+  const [movingPage, setMovingPage] = useState<OnboardingPage | null>(null)
+  const [moveTargetSection,    setMoveTargetSection]    = useState<string>('')
+  const [moveTargetSubsection, setMoveTargetSubsection] = useState<string>('')
+  const [moveTargetParentPage, setMoveTargetParentPage] = useState<string>('') // leer = Top-Level
+  const [moveSaving, setMoveSaving] = useState(false)
   // Filter "Nur für mich relevant" — blendet alle SOPs aus, in denen der
   // eingeloggte User nicht in relevantFuer steht. Status wird in localStorage
   // gespeichert damit der User die Einstellung über Sessions hinweg behält.
@@ -687,6 +694,34 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     refresh()
   }
 
+  /** Move-Modal initialisieren: Zielsection/-subsection auf den aktuellen
+   *  Standort vorbelegen, Parent-Page leer (= zur Top-Level). */
+  const openMoveModal = (page: OnboardingPage) => {
+    setMovingPage(page)
+    setMoveTargetSection(page.sectionId)
+    setMoveTargetSubsection(page.subsectionId)
+    setMoveTargetParentPage(page.parentPageId ?? '')
+  }
+  const handleMoveSave = async () => {
+    if (!movingPage) return
+    setMoveSaving(true)
+    try {
+      // Order = ans Ende der Ziel-Liste (max+1)
+      const siblingsInTarget = moveTargetParentPage
+        ? allPages.filter(p => p.parentPageId === moveTargetParentPage)
+        : allPages.filter(p => p.subsectionId === moveTargetSubsection && !p.parentPageId)
+      const nextOrder = siblingsInTarget.reduce((m, p) => Math.max(m, p.order ?? 0), -1) + 1
+
+      if (moveTargetParentPage) {
+        await movePage(movingPage.id, { type: 'subpage', parentPageId: moveTargetParentPage }, nextOrder)
+      } else {
+        await movePage(movingPage.id, { type: 'subsection', sectionId: moveTargetSection, subsectionId: moveTargetSubsection }, nextOrder)
+      }
+      setMovingPage(null)
+      refresh()
+    } finally { setMoveSaving(false) }
+  }
+
   const handleSubPageDrop = async (parentPageId: string, targetSubPageId: string) => {
     if (!draggedPageId || draggedPageId === targetSubPageId) return
     const subs = subPagesOf(parentPageId)
@@ -978,8 +1013,9 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                         )}
                                         {canEdit && !editingPage && (
                                           <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                                            <button onClick={e => { e.stopPropagation(); setEditingPage(page) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
-                                            <button onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'page', item: page }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                                            <button title="Umbenennen" onClick={e => { e.stopPropagation(); setEditingPage(page) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
+                                            <button title="In andere Kategorie verschieben" onClick={e => { e.stopPropagation(); openMoveModal(page) }} className="p-0.5 text-gray-400 hover:text-amber-600"><ArrowRightLeft className="w-3 h-3" /></button>
+                                            <button title="Löschen" onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'page', item: page }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                                           </div>
                                         )}
                                       </div>
@@ -1021,8 +1057,9 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
                                               )}
                                               {canEdit && !editingPage && (
                                                 <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                                                  <button onClick={e => { e.stopPropagation(); setEditingPage(sub) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
-                                                  <button onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'page', item: sub }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                                                  <button title="Umbenennen" onClick={e => { e.stopPropagation(); setEditingPage(sub) }} className="p-0.5 text-gray-400 hover:text-primary-600"><Pencil className="w-3 h-3" /></button>
+                                                  <button title="Verschieben (zu anderer Sektion oder anderer Hauptseite)" onClick={e => { e.stopPropagation(); openMoveModal(sub) }} className="p-0.5 text-gray-400 hover:text-amber-600"><ArrowRightLeft className="w-3 h-3" /></button>
+                                                  <button title="Löschen" onClick={e => { e.stopPropagation(); setDeleteTarget({ type: 'page', item: sub }) }} className="p-0.5 text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                                                 </div>
                                               )}
                                             </div>
@@ -1664,6 +1701,104 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
           onClose={() => setOpenVersion(null)}
         />
       )}
+
+      {/* Page-Verschieben-Modal */}
+      {movingPage && (() => {
+        const possibleSubsections = subsections.filter(s => s.sectionId === moveTargetSection)
+        // Mögliche Parent-Pages = Top-Level-Pages der Ziel-Subsection (kein
+        // parentPageId). Sich selbst + alle eigenen Sub-Pages ausschließen, damit
+        // man keine Schleifen baut.
+        const ownSubPageIds = new Set(allPages.filter(p => p.parentPageId === movingPage.id).map(p => p.id))
+        const possibleParents = allPages.filter(p =>
+          p.subsectionId === moveTargetSubsection
+          && !p.parentPageId
+          && p.id !== movingPage.id
+          && !ownSubPageIds.has(p.id),
+        )
+        const currentSection = sections.find(s => s.id === movingPage.sectionId)
+        const currentSubsec  = subsections.find(s => s.id === movingPage.subsectionId)
+        return (
+          <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !moveSaving && setMovingPage(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ArrowRightLeft className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-bold text-gray-900 truncate">«{movingPage.title}» verschieben</span>
+                </div>
+                <button onClick={() => setMovingPage(null)} disabled={moveSaving} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0 disabled:opacity-40">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs text-gray-500">
+                  Aktueller Standort: <span className="font-medium text-gray-700">{currentSection?.title ?? '?'}</span>
+                  {' · '}<span className="text-gray-600">{currentSubsec?.title ?? '?'}</span>
+                  {movingPage.parentPageId && (() => {
+                    const parent = allPages.find(p => p.id === movingPage.parentPageId)
+                    return <> · <span className="text-gray-600">Unterseite von «{parent?.title ?? '?'}»</span></>
+                  })()}
+                </p>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Section</span>
+                  <select value={moveTargetSection}
+                    onChange={e => { setMoveTargetSection(e.target.value); setMoveTargetSubsection(''); setMoveTargetParentPage('') }}
+                    className="mt-1 w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400">
+                    {sections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Subsection</span>
+                  <select value={moveTargetSubsection}
+                    onChange={e => { setMoveTargetSubsection(e.target.value); setMoveTargetParentPage('') }}
+                    className="mt-1 w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400">
+                    <option value="">— wählen —</option>
+                    {possibleSubsections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                </label>
+
+                {moveTargetSubsection && (
+                  <label className="block">
+                    <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Als …</span>
+                    <select value={moveTargetParentPage}
+                      onChange={e => setMoveTargetParentPage(e.target.value)}
+                      className="mt-1 w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-400">
+                      <option value="">📄 Top-Level-Seite</option>
+                      {possibleParents.map(p => (
+                        <option key={p.id} value={p.id}>↳ Unterseite von «{p.title}»</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {/* Hinweise */}
+                {moveTargetSubsection && movingPage.subsectionId === moveTargetSubsection && movingPage.parentPageId === (moveTargetParentPage || undefined) && (
+                  <p className="text-xs text-gray-400">Identisch zum aktuellen Standort — keine Änderung.</p>
+                )}
+                {ownSubPageIds.size > 0 && !movingPage.parentPageId && (
+                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5">
+                    {ownSubPageIds.size} Unterseite{ownSubPageIds.size === 1 ? '' : 'n'} wandert mit (bleibt {ownSubPageIds.size === 1 ? '' : 'bleiben'} verknüpft).
+                  </p>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+                <button onClick={() => setMovingPage(null)} disabled={moveSaving}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
+                  Abbrechen
+                </button>
+                <button onClick={handleMoveSave}
+                  disabled={moveSaving || !moveTargetSubsection
+                    || (movingPage.subsectionId === moveTargetSubsection && (movingPage.parentPageId ?? '') === moveTargetParentPage)}
+                  className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                  {moveSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                  Verschieben
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
