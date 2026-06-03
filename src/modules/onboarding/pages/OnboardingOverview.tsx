@@ -10,6 +10,7 @@ import {
   addPage, updatePage, updatePageMeta, deletePage, reorderPages, releasePage, setPageToDraft, initPageVersions,
   recordPageView, getPageViews, clearPageViews,
   getPageVersions, getPageVersion,
+  notifySopRelevanceBulk,
   SECTION_COLORS, getColor,
   type OnboardingSection, type OnboardingSubsection, type OnboardingPage, type PageView, type PageVersion,
 } from '../../../lib/firestoreOnboarding'
@@ -411,6 +412,14 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
       // Versionshistorie ggf. neu laden (falls die Sektion offen ist)
       setPageVersions([])
       if (showVersionen) loadPageVersions(activePageId)
+      // Alle "Relevant für"-User über neue Version informieren (außer den Releaser
+      // selbst; eigene UID-Filter macht notifySopRelevanceBulk).
+      const recipientUids = namesToUids(pageRelevantFuer)
+      if (recipientUids.length > 0 && activePage) {
+        await notifySopRelevanceBulk(
+          recipientUids, activePageId, activePage.title || pageTitle, displayName, profile?.uid ?? '', 'sop_release',
+        )
+      }
       refresh()
     } finally {
       setReleasing(false)
@@ -447,13 +456,29 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     }
   }
 
+  /** Resolve displayName → uid via sopUsers. Notify nur User die wir kennen. */
+  const namesToUids = (names: string[]): string[] => {
+    const lookup = new Map(sopUsers.map(u => [u.displayName, u.uid]))
+    return names.map(n => lookup.get(n) || '').filter(Boolean)
+  }
+  /** Benachrichtigt alle frisch hinzugefügten User über ihre neue SOP-Relevanz.
+   *  Aktive Page wird vorausgesetzt (Title/Id aus activePage). */
+  const notifyNewlyRelevant = async (addedNames: string[]) => {
+    if (!activePageId || !activePage || addedNames.length === 0) return
+    const uids = namesToUids(addedNames)
+    if (uids.length === 0) return
+    await notifySopRelevanceBulk(uids, activePageId, activePage.title || pageTitle, displayName, profile?.uid ?? '', 'sop_relevance')
+  }
+
   const handleToggleRelevantFuer = async (name: string) => {
     if (!activePageId) return
-    const next = pageRelevantFuer.includes(name)
+    const wasIncluded = pageRelevantFuer.includes(name)
+    const next = wasIncluded
       ? pageRelevantFuer.filter(n => n !== name)
       : [...pageRelevantFuer, name]
     setPageRelevantFuer(next)
     await updatePageMeta(activePageId, { relevantFuer: next })
+    if (!wasIncluded) await notifyNewlyRelevant([name])
   }
 
   /** Setzt die Liste auf den exakten Inhalt (ohne Toggle-Logik). Genutzt von
@@ -462,8 +487,12 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
     if (!activePageId) return
     // Dedupliziere und sortiere defensiv
     const next = Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'de'))
+    // Diff zur vorigen Liste — Notify nur die NEU dazugekommenen
+    const previousSet = new Set(pageRelevantFuer)
+    const newlyAdded  = next.filter(n => !previousSet.has(n))
     setPageRelevantFuer(next)
     await updatePageMeta(activePageId, { relevantFuer: next })
+    if (newlyAdded.length > 0) await notifyNewlyRelevant(newlyAdded)
   }
   /** Fügt alle übergebenen Namen zur Liste hinzu (Union ohne Duplikate). */
   const addToRelevantFuer = (names: string[]) =>

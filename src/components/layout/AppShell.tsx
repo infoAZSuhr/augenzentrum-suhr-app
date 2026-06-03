@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft, Library } from 'lucide-react'
+import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft, Library, FileText } from 'lucide-react'
 import GlossarModal from '../ui/GlossarModal'
 import { useToast } from '../../lib/ToastContext'
 import { cn } from '../../utils/cn'
@@ -720,32 +720,49 @@ export default function AppShell() {
                           <span className="text-xs text-gray-400">{taskNotifications.filter(n => !n.read).length} neu</span>
                         </div>
                         <div className="divide-y divide-gray-100">
-                          {taskNotifications.filter(n => !n.read).map(n => (
-                            <div key={n.id} className="px-4 py-3 bg-blue-50/50 border-l-2 border-blue-400">
-                              <div className="flex items-start gap-3">
-                                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0 mt-0.5">
-                                  <LayoutList className="w-4 h-4 text-primary-600" />
+                          {taskNotifications.filter(n => !n.read).map(n => {
+                            const isSop = n.type === 'sop_relevance' || n.type === 'sop_release'
+                            const target = isSop
+                              ? (n.pageId ? `/sop/page/${n.pageId}` : '/sop')
+                              : n.type === 'poll_assignment'  ? '/aufgaben'
+                              : n.type === 'board_assignment' ? `/aufgaben/${n.boardId}`
+                                                              : `/aufgaben/${n.boardId}?card=${n.cardId}`
+                            const title = n.type === 'comment'          ? `${n.assignerName} hat kommentiert`
+                                        : n.type === 'board_assignment' ? n.boardName
+                                        : n.type === 'sop_relevance'    ? `Neue SOP für Sie zur Kenntnisnahme`
+                                        : n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
+                                        :                                  n.cardTitle
+                            const subtitle = n.type === 'comment'          ? n.cardTitle
+                                           : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}`
+                                           : n.type === 'poll_assignment'  ? `Umfrage freigegeben · von ${n.assignerName}`
+                                           : n.type === 'sop_relevance'    ? `${n.cardTitle} · von ${n.assignerName}`
+                                           : n.type === 'sop_release'      ? `${n.cardTitle} · freigegeben von ${n.assignerName}`
+                                           :                                  `Zugewiesen · von ${n.assignerName}`
+                            return (
+                              <div key={n.id} className={`px-4 py-3 border-l-2 ${isSop ? 'bg-purple-50/50 border-purple-400' : 'bg-blue-50/50 border-blue-400'}`}>
+                                <div className="flex items-start gap-3">
+                                  <div className={`w-8 h-8 rounded-full ${isSop ? 'bg-purple-100' : 'bg-primary-100'} flex items-center justify-center shrink-0 mt-0.5`}>
+                                    {isSop
+                                      ? <FileText className="w-4 h-4 text-purple-600" />
+                                      : <LayoutList className="w-4 h-4 text-primary-600" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-900 truncate">{title}</p>
+                                    <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                                    {!!(n.createdAt) && (
+                                      <p className="text-[10px] text-gray-400">
+                                        {new Date(((n.createdAt as { seconds: number }).seconds) * 1000).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button onClick={() => { markTaskNotifRead(n.id); setBellOpen(false); navigate(target) }}
+                                    className={`text-xs ${isSop ? 'text-purple-700 hover:text-purple-900' : 'text-primary-600 hover:text-primary-700'} font-medium shrink-0 whitespace-nowrap`}>
+                                    Öffnen →
+                                  </button>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold text-gray-900 truncate">
-                                    {n.type === 'comment' ? `${n.assignerName} hat kommentiert` : n.type === 'board_assignment' ? n.boardName : n.type === 'poll_assignment' ? n.cardTitle : n.cardTitle}
-                                  </p>
-                                  <p className="text-xs text-gray-500 truncate">
-                                    {n.type === 'comment' ? n.cardTitle : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}` : n.type === 'poll_assignment' ? `Umfrage freigegeben · von ${n.assignerName}` : `Zugewiesen · von ${n.assignerName}`}
-                                  </p>
-                                  {!!(n.createdAt) && (
-                                    <p className="text-[10px] text-gray-400">
-                                      {new Date(((n.createdAt as { seconds: number }).seconds) * 1000).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                  )}
-                                </div>
-                                <button onClick={() => { markTaskNotifRead(n.id); setBellOpen(false); navigate(n.type === 'poll_assignment' ? '/aufgaben' : n.type === 'board_assignment' ? `/aufgaben/${n.boardId}` : `/aufgaben/${n.boardId}?card=${n.cardId}`) }}
-                                  className="text-xs text-primary-600 hover:text-primary-700 font-medium shrink-0 whitespace-nowrap">
-                                  Öffnen →
-                                </button>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </>
                     )}
@@ -941,27 +958,44 @@ export default function AppShell() {
                           <span className="text-xs text-gray-400">{taskNotifications.filter(n => !n.read).length} neu</span>
                         </div>
                         <div className="divide-y divide-gray-100">
-                          {taskNotifications.filter(n => !n.read).map(n => (
-                            <div key={n.id} className="px-4 py-3 bg-blue-50/50 border-l-2 border-blue-400">
-                              <div className="flex items-start gap-3">
-                                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0 mt-0.5">
-                                  <LayoutList className="w-4 h-4 text-primary-600" />
+                          {taskNotifications.filter(n => !n.read).map(n => {
+                            const isSop = n.type === 'sop_relevance' || n.type === 'sop_release'
+                            const target = isSop
+                              ? (n.pageId ? `/sop/page/${n.pageId}` : '/sop')
+                              : n.type === 'poll_assignment'  ? '/aufgaben'
+                              : n.type === 'board_assignment' ? `/aufgaben/${n.boardId}`
+                                                              : `/aufgaben/${n.boardId}?card=${n.cardId}`
+                            const title = n.type === 'comment'          ? `${n.assignerName} hat kommentiert`
+                                        : n.type === 'board_assignment' ? n.boardName
+                                        : n.type === 'sop_relevance'    ? `Neue SOP für Sie zur Kenntnisnahme`
+                                        : n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
+                                        :                                  n.cardTitle
+                            const subtitle = n.type === 'comment'          ? n.cardTitle
+                                           : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}`
+                                           : n.type === 'poll_assignment'  ? `Umfrage freigegeben · von ${n.assignerName}`
+                                           : n.type === 'sop_relevance'    ? `${n.cardTitle} · von ${n.assignerName}`
+                                           : n.type === 'sop_release'      ? `${n.cardTitle} · freigegeben von ${n.assignerName}`
+                                           :                                  `von ${n.assignerName}`
+                            return (
+                              <div key={n.id} className={`px-4 py-3 border-l-2 ${isSop ? 'bg-purple-50/50 border-purple-400' : 'bg-blue-50/50 border-blue-400'}`}>
+                                <div className="flex items-start gap-3">
+                                  <div className={`w-8 h-8 rounded-full ${isSop ? 'bg-purple-100' : 'bg-primary-100'} flex items-center justify-center shrink-0 mt-0.5`}>
+                                    {isSop
+                                      ? <FileText className="w-4 h-4 text-purple-600" />
+                                      : <LayoutList className="w-4 h-4 text-primary-600" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-900 truncate">{title}</p>
+                                    <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                                  </div>
+                                  <button onClick={() => { markTaskNotifRead(n.id); setBellOpen(false); navigate(target) }}
+                                    className={`text-xs ${isSop ? 'text-purple-700 hover:text-purple-900' : 'text-primary-600 hover:text-primary-700'} font-medium shrink-0 whitespace-nowrap`}>
+                                    Öffnen →
+                                  </button>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold text-gray-900 truncate">
-                                    {n.type === 'comment' ? `${n.assignerName} hat kommentiert` : n.type === 'board_assignment' ? n.boardName : n.type === 'poll_assignment' ? n.cardTitle : n.cardTitle}
-                                  </p>
-                                  <p className="text-xs text-gray-500 truncate">
-                                    {n.type === 'comment' ? n.cardTitle : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}` : n.type === 'poll_assignment' ? `Umfrage freigegeben · von ${n.assignerName}` : `von ${n.assignerName}`}
-                                  </p>
-                                </div>
-                                <button onClick={() => { markTaskNotifRead(n.id); setBellOpen(false); navigate(n.type === 'poll_assignment' ? '/aufgaben' : n.type === 'board_assignment' ? `/aufgaben/${n.boardId}` : `/aufgaben/${n.boardId}?card=${n.cardId}`) }}
-                                  className="text-xs text-primary-600 hover:text-primary-700 font-medium shrink-0 whitespace-nowrap">
-                                  Öffnen →
-                                </button>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </>
                     )}
