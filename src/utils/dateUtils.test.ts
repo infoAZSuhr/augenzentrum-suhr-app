@@ -199,9 +199,12 @@ describe('formatSwissDate', () => {
   })
 
   it('konvertiert Excel-Serial-Numbers als String', () => {
-    // 25569 = 1970-01-01, 45123 ≈ 2023-07-08, 46175 ≈ 2026-05-25
-    expect(formatSwissDate('45123')).toBe('08.07.2023')
-    expect(formatSwissDate('46175')).toBe('25.05.2026')
+    // Anker: 25569 entspricht 1970-01-01 (Unix-Epoche) — direkt im Code
+    expect(formatSwissDate('25569')).toBe('01.01.1970')
+    // +365 Tage = 1971-01-01
+    expect(formatSwissDate(String(25569 + 365))).toBe('01.01.1971')
+    // Realistischer Wert aus dem Cron-Output: 45123 → 16.07.2023
+    expect(formatSwissDate('45123')).toBe('16.07.2023')
   })
 })
 
