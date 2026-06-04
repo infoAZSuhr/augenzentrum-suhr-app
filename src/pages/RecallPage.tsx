@@ -904,18 +904,33 @@ export default function RecallPage() {
       const ws   = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: null })
 
-      // 2. Build set of PIDs already assigned to a doctor (exclude Zu bearbeiten)
-      const assignedPids = new Set<string>()
-      for (const [tabDoc, pts] of allData.entries()) {
-        if (tabDoc === ZU_BEARB) continue
-        for (const p of pts) { if (p.pid) assignedPids.add(p.pid) }
+      // 2. Build dedup-Set über ALLE Recall-Einträge (inkl. Zu bearbeiten).
+      //    Signatur = pid | vornameLower | gebDatumISO. Eine Übereinstimmung
+      //    in ALLEN drei Feldern gilt als Duplikat und wird übersprungen.
+      //    Wenn ein Feld fehlt, wird darauf reduziert verglichen (pid only,
+      //    bzw. vorname+gebDatum) — verhindert dass Datenlücken Duplikate
+      //    durchschlüpfen lassen.
+      const norm = (s: string | null | undefined) =>
+        (s ?? '').toString().trim().toLowerCase()
+      const sigPid    = (pid: string | null, vn: string | null, gd: string | null) =>
+        pid ? `p:${pid}|v:${norm(vn)}|g:${gd ?? ''}` : null
+      const sigNoPid  = (vn: string | null, gd: string | null) =>
+        vn && gd ? `v:${norm(vn)}|g:${gd}` : null
+
+      const existingSigs = new Set<string>()
+      for (const pts of allData.values()) {
+        for (const p of pts) {
+          const s1 = sigPid(p.pid, p.vorname, p.gebDatum); if (s1) existingSigs.add(s1)
+          const s2 = sigNoPid(p.vorname, p.gebDatum);       if (s2) existingSigs.add(s2)
+        }
       }
 
-      // 3. Map Excel rows → RecallPatient shape, skip already-assigned
+      // 3. Map Excel rows → RecallPatient shape, skip wenn Signatur bereits existiert
+      let skippedCount = 0
       const toImport: Omit<RecallPatient, 'id' | 'doctor'>[] = []
       for (const r of rows) {
-        const pid = r['#'] ? String(r['#']).trim() : null
-        if (pid && assignedPids.has(pid)) continue
+        const pid     = r['#'] ? String(r['#']).trim() : null
+        const vorname = r['Vorname'] ? String(r['Vorname']).trim() : null
 
         let gebDatum: string | null = null
         const raw = r['Geburtsdatum']
@@ -925,12 +940,23 @@ export default function RecallPage() {
           gebDatum = raw.slice(0, 10)
         }
 
+        const s1 = sigPid(pid, vorname, gebDatum)
+        const s2 = sigNoPid(vorname, gebDatum)
+        if ((s1 && existingSigs.has(s1)) || (s2 && existingSigs.has(s2))) {
+          skippedCount++
+          continue
+        }
+        // Sofort registrieren — verhindert dass dieselbe Person doppelt
+        // in der Excel-Liste beide Mal importiert wird.
+        if (s1) existingSigs.add(s1)
+        if (s2) existingSigs.add(s2)
+
         const verstorben = r['Verstorben'] === true || r['Verstorben'] === 'True'
         const inaktiv    = r['Inaktiv']    === true || r['Inaktiv']    === 'True'
 
         toImport.push({
           pid,
-          vorname:          r['Vorname'] ? String(r['Vorname']).trim() : null,
+          vorname,
           gebDatum,
           letzteKons:       null,
           naechsteKons:     null,
@@ -954,12 +980,12 @@ export default function RecallPage() {
       }
 
       if (toImport.length === 0) {
-        setSyncMsg('Keine neuen Patienten gefunden (alle bereits zugewiesen)')
+        setSyncMsg(`Keine neuen Patienten — alle ${rows.length} sind bereits in der Recall-Liste vorhanden`)
         return
       }
 
       // 4. Write to Firestore with progress feedback
-      setSyncMsg(`${toImport.length} Patienten werden in Datenbank geschrieben…`)
+      setSyncMsg(`${toImport.length} neue Patienten werden geschrieben (${skippedCount} Duplikate übersprungen)…`)
       await importUnmatched(toImport, username)
 
       // 5. Verify by reading back from Firestore (source: server)
@@ -969,7 +995,7 @@ export default function RecallPage() {
       if (fresh.length > 0) {
         // Firestore confirmed — use server data as source of truth
         setAllData(prev => new Map(prev).set(ZU_BEARB, fresh))
-        setSyncMsg(`✓ ${fresh.length} Patienten in Datenbank gespeichert`)
+        setSyncMsg(`✓ ${toImport.length} neue Patienten gespeichert, ${skippedCount} Duplikate übersprungen`)
       } else {
         // Firestore returned 0 despite successful writes — update UI from local data
         // (will be fixed on next page reload once Firestore indexing catches up)
