@@ -87,6 +87,17 @@ async function playwrightDownloadSL() {
       acceptDownloads: true,
     })
     const page = await ctx.newPage()
+
+    // Network-Logging: erfasst alle API-Calls + Failures damit wir sehen
+    // ob die SPA Auth-Errors hat oder ob bestimmte Endpoints blockiert sind.
+    const apiCalls = []
+    page.on('response', async (resp) => {
+      const url = resp.url()
+      if (url.includes('epl.bag.admin.ch') || url.includes('/api/') || url.includes('oauth') || url.includes('auth')) {
+        apiCalls.push({ url, status: resp.status() })
+      }
+    })
+    page.on('pageerror', err => console.log('[Stealth][JS-ERROR]', err.message))
     // Aus der JS-Bundle-Route-Config sind die Routen flach (path: 'current-
     // and-archived-data') und scheinen direkt unter / zu liegen — wir
     // probieren beide URLs.
@@ -123,6 +134,22 @@ async function playwrightDownloadSL() {
     }
     if (!loaded) throw new Error(`Keine SPA-URL ladbar — letzter Fehler: ${lastGotoErr?.message ?? lastGotoErr}`)
 
+    // Erweiterte Wartephase + Diagnose: bisher war die SPA nach 12s nicht
+    // fertig hydriert. Auf 25s ausdehnen und währenddessen Network-Calls
+    // sammeln (page.on('response') oben).
+    console.log('[Stealth] Warte zusätzlich 15s auf SPA-Hydration + API-Calls …')
+    await page.waitForTimeout(15_000)
+    console.log('[Stealth] Final-URL:', page.url())
+    console.log('[Stealth] Final-Title:', await page.title().catch(() => '?'))
+    if (apiCalls.length > 0) {
+      console.log(`[Stealth] ${apiCalls.length} API/Auth Calls beobachtet:`)
+      for (const c of apiCalls.slice(0, 20)) {
+        console.log(`  ${c.status}  ${c.url}`)
+      }
+    } else {
+      console.log('[Stealth] KEINE API-Calls beobachtet — SPA macht möglicherweise gar keine Backend-Requests')
+    }
+
     // Fallback: keine Excel-Buttons auf den probierten URLs → versuche
     // via "Ressourcen"-Button von der aktuellen Page zu navigieren.
     const hasExcelNow = await page.locator('button:has-text("Als Excel herunterladen")').count() > 0
@@ -131,7 +158,7 @@ async function playwrightDownloadSL() {
       if (await ressBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         console.log('[Stealth] Klicke "Ressourcen"-Navigationsbutton …')
         await ressBtn.click().catch(() => {})
-        await page.waitForTimeout(8_000)
+        await page.waitForTimeout(10_000)
       }
     }
 
