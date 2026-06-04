@@ -1031,8 +1031,8 @@ export default function HelpPage() {
               <strong>Schnellfilter-Chips</strong> (direkt anklickbar):
               <ul className="list-disc pl-5 mt-0.5 space-y-0.5">
                 <li><Badge label="Überfällig" color="bg-red-50 text-red-700 border border-red-200" /> — RC-Datum in der Vergangenheit, Aufgebot noch nicht erstellt</li>
-                <li><Badge label="Im Recall" color="bg-amber-50 text-amber-700 border border-amber-200" /> — Patienten mit «Im Recall»-Status (kein konkretes Datum)</li>
-                <li><Badge label="Ohne Termin" color="bg-gray-100 text-gray-600 border border-gray-300" /> — Patienten ohne Nächste Konst. und ohne RC-Datum</li>
+                <li><Badge label="Geplante Recalls" color="bg-amber-50 text-amber-700 border border-amber-200" /> — Patienten mit «Im Recall»-Status oder gesetztem RC-Datum (Aufgebot noch nicht erstellt)</li>
+                <li><Badge label="Ohne Termin" color="bg-gray-100 text-gray-600 border border-gray-300" /> — Patienten ohne Nächste Konst. <strong>und</strong> ohne RC-Datum — wirklich offen</li>
                 <li><Badge label="🔔 Reminder fällig" color="bg-purple-100 text-purple-700 border border-purple-200" /> — Patienten, bei denen ein geplanter Reminder heute oder früher liegt (erscheint nur wenn vorhanden)</li>
               </ul>
             </li>

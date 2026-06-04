@@ -83,7 +83,7 @@ const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   week:       'Nächste 7 Tage',
   month:      'Nächste 30 Tage',
   overdue:    'Überfällig',
-  inPlanung:  'Im Recall',
+  inPlanung:  'Geplante Recalls',
   ohneTermin: 'Ohne Termin',
 }
 
@@ -123,6 +123,15 @@ function isInPlanung(p: RecallPatient): boolean {
   if (p.naechsteKons === 'kein Termin') return true
   if (p.aufgebotFuer && !p.aufgebotErstellt) return true
   return false
+}
+
+/** True wenn ein Patient WIRKLICH offen ist:
+ *  kein nächster Termin, kein RC-Datum (aufgebotFuer), kein "kein-Termin"-Flag.
+ *  Patienten mit geplantem Recall fallen NICHT hierein — die zählen unter "Im Recall". */
+function isOhneTermin(p: RecallPatient): boolean {
+  if (p.naechsteKons) return false       // hat Termin (oder "kein Termin"-Flag)
+  if (p.aufgebotFuer) return false       // hat RC-Datum geplant
+  return true
 }
 
 /** True if the patient already has a real next-consult date booked (not «kein Termin», not empty). */
@@ -1430,7 +1439,7 @@ export default function RecallPage() {
         inPlanung:   active.filter(isInPlanung).length,
         inaktiv:     pts.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben').length,
         storniert:   pts.filter(isStorniert).length,
-        offen:       active.filter(p => !p.naechsteKons).length,
+        offen:       active.filter(isOhneTermin).length,
         neupatient:  pts.filter(p => p.neupatient === true).length,
       }
     }).filter(d => d.total > 0)
@@ -1455,7 +1464,7 @@ export default function RecallPage() {
       month:     activeAll.filter(p => { const d = new Date(s(p.naechsteKons)); return p.naechsteKons && p.naechsteKons !== 'kein Termin' && d > now && d <= in30 }).length,
       overdue:   activeAll.filter(p => p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons)).length,
       inPlanung: activeAll.filter(isInPlanung).length,
-      ohneTermin:activeAll.filter(p => !p.naechsteKons).length,
+      ohneTermin:activeAll.filter(isOhneTermin).length,
     }
 
     // ── Inaktive / verstorbene Patienten ────────────────────────────────────
@@ -1620,7 +1629,7 @@ export default function RecallPage() {
           case 'month':      { if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in30 }
           case 'overdue':    return !!(nk && nk !== 'kein Termin' && !isFutureDate(nk))
           case 'inPlanung':  return isInPlanung(p)
-          case 'ohneTermin': return !nk
+          case 'ohneTermin': return isOhneTermin(p)
         }
       })
     }
@@ -1651,7 +1660,7 @@ export default function RecallPage() {
       month:      active.filter(p => { const nk = p.naechsteKons; if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in30 }).length,
       overdue:    active.filter(p => !!(p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons))).length,
       inPlanung:  active.filter(isInPlanung).length,
-      ohneTermin: active.filter(p => !p.naechsteKons).length,
+      ohneTermin: active.filter(isOhneTermin).length,
       neupatient:        base.filter(p => p.neupatient === true).length,
       storniert:         base.filter(isStorniert).length,
       inaktiv:           base.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben').length,
@@ -2732,7 +2741,7 @@ export default function RecallPage() {
         {/* Termin-chips: nur die 3 wichtigsten immer sichtbar */}
         {([
           { key: 'overdue'    as FilterTermin, label: 'Überfällig',  count: tabStats.overdue,    cls: 'bg-red-100 text-red-700 border-red-300' },
-          { key: 'inPlanung'  as FilterTermin, label: 'Im Recall',   count: tabStats.inPlanung,  cls: 'bg-amber-100 text-amber-700 border-amber-300' },
+          { key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', count: tabStats.inPlanung, cls: 'bg-amber-100 text-amber-700 border-amber-300' },
           { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300' },
         ]).map(chip => {
           const isActive = filterTermin === chip.key
@@ -3917,7 +3926,7 @@ export default function RecallPage() {
                       { ft: 'week'       as FilterTermin, label: 'Nächste 7 Tage',   value: auswertungStats.upcoming.week,       color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
                       { ft: 'month'      as FilterTermin, label: 'Nächste 30 Tage',  value: auswertungStats.upcoming.month,      color: 'bg-violet-50 text-violet-700 border-violet-100' },
                       { ft: 'overdue'    as FilterTermin, label: 'Überfällig',        value: auswertungStats.upcoming.overdue,    color: 'bg-red-50 text-red-700 border-red-100' },
-                      { ft: 'inPlanung'  as FilterTermin, label: 'Im Recall',         value: auswertungStats.upcoming.inPlanung, color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                      { ft: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls',  value: auswertungStats.upcoming.inPlanung, color: 'bg-amber-50 text-amber-700 border-amber-100' },
                       { ft: 'ohneTermin' as FilterTermin, label: 'Ohne Termin',       value: auswertungStats.upcoming.ohneTermin,color: 'bg-gray-50 text-gray-600 border-gray-200' },
                     ]).map(({ ft, label, value, color }) => (
                       <button
