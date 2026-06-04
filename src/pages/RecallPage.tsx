@@ -753,18 +753,22 @@ export default function RecallPage() {
     setAllData(prev => new Map(prev).set(doctor, fresh))
   }
 
-  /** Aus einer Duplikat-Gruppe den "neuesten" Eintrag bestimmen.
-   *  Sortier-Key: parseStamp(erstellt).isoDate desc. Fallback wenn kein
-   *  Erstellt-Stamp da ist: ältere Doc-ID kommt zuerst (lexikographisch
-   *  sind Firestore-IDs nicht zeitlich sortiert, daher kein Verlass —
-   *  besser nichts löschen). */
-  function pickNewestInGroup(entries: RecallPatient[]): RecallPatient | null {
+  /** Aus einer Duplikat-Gruppe den Eintrag bestimmen der HEUTE erfasst wurde.
+   *  Schutz für historische Duplikate (z.B. aus alten Excel-Imports) — die
+   *  bleiben unberührt und müssen manuell entschieden werden. Wenn mehrere
+   *  Einträge heute erfasst wurden, wird der zuletzt-erstellte gewählt
+   *  (sollte aber nicht passieren bei sauberen Daten). */
+  function pickTodaysDuplicate(entries: RecallPatient[]): RecallPatient | null {
+    const today = new Date().toISOString().slice(0, 10)
     let best: RecallPatient | null = null
     let bestKey = ''
     for (const e of entries) {
       const ps = parseStamp(e.erstellt)
-      if (!ps) continue
-      if (ps.isoDate > bestKey) { bestKey = ps.isoDate; best = e }
+      if (!ps || ps.isoDate !== today) continue
+      // Mehrere heute → den letzten/spätesten nehmen (dateStr-Vergleich
+      // hat Sekunden-Genauigkeit über das ursprüngliche Format).
+      const key = String(e.erstellt ?? '')
+      if (key > bestKey) { bestKey = key; best = e }
     }
     return best
   }
@@ -778,14 +782,14 @@ export default function RecallPage() {
       const affectedDoctors = new Set<string>()
       let deletedCount = 0
       for (const g of groups) {
-        const victim = pickNewestInGroup(g.entries)
+        const victim = pickTodaysDuplicate(g.entries)
         if (!victim) continue
         await deleteRecallPatient(victim.id)
         affectedDoctors.add(victim.doctor)
         deletedCount++
       }
       await Promise.all([...affectedDoctors].map(d => reloadTab(d)))
-      toast.success(`${deletedCount} doppelte PID${deletedCount === 1 ? '' : 's'} entfernt (jeweils der neueste Eintrag pro Gruppe)`)
+      toast.success(`${deletedCount} heute hochgeladene Duplikat-PID${deletedCount === 1 ? '' : 's'} entfernt`)
       setShowDupCleanupConfirm(false)
     } catch (e) {
       toast.error(`Fehler beim Löschen: ${e instanceof Error ? e.message : String(e)}`)
@@ -3943,14 +3947,23 @@ export default function RecallPage() {
                       ({auswertungStats.duplicatePidGroups.length} PID{auswertungStats.duplicatePidGroups.length === 1 ? '' : 's'})
                     </span>
                   </h3>
-                  {auswertungStats.duplicatePidGroups.length > 0 && (
-                    <button
-                      onClick={() => setShowDupCleanupConfirm(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Neueste je Gruppe löschen ({auswertungStats.duplicatePidGroups.length})
-                    </button>
-                  )}
+                  {(() => {
+                    // Count groups where a today-uploaded duplicate exists.
+                    // Nur das wird beim Cleanup gelöscht — historische Duplikate
+                    // bleiben unangetastet (manuelle Entscheidung notwendig).
+                    const todayVictimsCount = auswertungStats.duplicatePidGroups
+                      .filter(g => pickTodaysDuplicate(g.entries) !== null).length
+                    if (todayVictimsCount === 0) return null
+                    return (
+                      <button
+                        onClick={() => setShowDupCleanupConfirm(true)}
+                        title="Entfernt nur Einträge die HEUTE hochgeladen wurden — historische Duplikate bleiben unverändert"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Heutige Duplikate löschen ({todayVictimsCount})
+                      </button>
+                    )
+                  })()}
                 </div>
                 {auswertungStats.duplicatePidGroups.length === 0 ? (
                   <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -5136,7 +5149,7 @@ export default function RecallPage() {
       {/* Cleanup-Confirmation: Doppelte PIDs (neueste pro Gruppe) löschen */}
       {showDupCleanupConfirm && (() => {
         const groups = auswertungStats.duplicatePidGroups
-        const victims = groups.map(g => ({ group: g, victim: pickNewestInGroup(g.entries) })).filter(v => v.victim) as Array<{ group: typeof groups[0]; victim: RecallPatient }>
+        const victims = groups.map(g => ({ group: g, victim: pickTodaysDuplicate(g.entries) })).filter(v => v.victim) as Array<{ group: typeof groups[0]; victim: RecallPatient }>
         return (
           <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4" onClick={() => !dupCleanupRunning && setShowDupCleanupConfirm(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[85vh]" onClick={e => e.stopPropagation()}>
@@ -5151,7 +5164,8 @@ export default function RecallPage() {
               </div>
               <div className="px-5 py-4 overflow-auto flex-1">
                 <p className="text-sm text-gray-700 mb-3">
-                  Pro Duplikat-Gruppe wird der <strong>neueste Eintrag</strong> (nach Erstellungs-Datum) gelöscht.
+                  Es werden nur Einträge gelöscht, die <strong>heute</strong> hochgeladen wurden — typischerweise frische Imports
+                  die ein bestehendes PID-Duplikat erzeugt haben. Historische Duplikate bleiben unverändert.
                   Die folgenden <strong>{victims.length}</strong> Einträge werden entfernt:
                 </p>
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -5181,8 +5195,9 @@ export default function RecallPage() {
                 </div>
                 {victims.length < groups.length && (
                   <p className="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
-                    Hinweis: {groups.length - victims.length} Gruppe(n) ohne Erstellungs-Datum werden NICHT bereinigt
-                    (kein verlässliches "neueste" feststellbar). Bitte manuell entscheiden.
+                    Hinweis: {groups.length - victims.length} Gruppe(n) haben keinen heute-hochgeladenen Eintrag.
+                    Diese sind historische Duplikate und werden NICHT bereinigt — bitte manuell entscheiden welcher
+                    Eintrag der richtige ist (über die Tabelle in der Doppelte-PIDs-Sektion).
                   </p>
                 )}
               </div>
