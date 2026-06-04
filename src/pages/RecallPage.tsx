@@ -1328,7 +1328,28 @@ export default function RecallPage() {
       inaktiv:     inaktiveRows.filter(r => r.kind === 'inaktiv').length,
     }
 
-    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, total: all.length }
+    // ── Doppelte PIDs ───────────────────────────────────────────────────────
+    // Gruppiert alle Patienten nach normalisierter PID; gibt nur Gruppen
+    // zurück die mehr als einen Eintrag haben. Pro Gruppe sortiert nach
+    // doctor + vorname (deterministisch). Leere/missing PIDs werden ignoriert.
+    const duplicatesByPid = new Map<string, RecallPatient[]>()
+    for (const p of all) {
+      const k = normalizePid(p.pid)
+      if (!k) continue
+      const list = duplicatesByPid.get(k) ?? []
+      list.push(p)
+      duplicatesByPid.set(k, list)
+    }
+    const duplicatePidGroups: Array<{ pid: string; entries: RecallPatient[] }> = []
+    for (const [pid, entries] of duplicatesByPid) {
+      if (entries.length > 1) {
+        entries.sort((a, b) => (a.doctor + a.vorname).localeCompare(b.doctor + b.vorname, 'de'))
+        duplicatePidGroups.push({ pid, entries })
+      }
+    }
+    duplicatePidGroups.sort((a, b) => b.entries.length - a.entries.length || a.pid.localeCompare(b.pid))
+
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
@@ -2055,6 +2076,16 @@ export default function RecallPage() {
     if (!form.vorname.trim())  errors.vorname  = true
     if (!form.gebDatum)        errors.gebDatum = true
     if (Object.keys(errors).length > 0) { setFormErrors(errors); return }
+
+    // Doppelte PID hart blockieren — der Hinweis-Banner im Modal warnt
+    // schon, aber der User sollte nicht versehentlich speichern können.
+    // checkPid setzt pidDup live während des Tippens, daher ist dieser
+    // Wert hier verlässlich.
+    if (pidDup) {
+      setFormErrors({ ...errors, pid: true })
+      toast.error(`PID ${normalizePid(form.pid)} ist bereits vergeben — bitte korrigieren oder den bestehenden Eintrag öffnen.`)
+      return
+    }
     setFormErrors({})
 
     setSaving(true)
@@ -3856,6 +3887,70 @@ export default function RecallPage() {
                   Hinweis: «Deaktiviert von» basiert auf dem letzten Edit am Patient — falls jemand nach der Deaktivierung
                   nochmal editiert hat, kann das den ursprünglichen Deaktivierer überdecken.
                 </p>
+              </div>
+
+              {/* ── Doppelte PIDs ── */}
+              <div>
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
+                  <AlertTriangle className={`w-4 h-4 ${auswertungStats.duplicatePidGroups.length > 0 ? 'text-red-500' : 'text-gray-300'}`} />
+                  Doppelte PIDs
+                  <span className="text-xs font-normal text-gray-400 ml-1">
+                    ({auswertungStats.duplicatePidGroups.length} PID{auswertungStats.duplicatePidGroups.length === 1 ? '' : 's'})
+                  </span>
+                </h3>
+                {auswertungStats.duplicatePidGroups.length === 0 ? (
+                  <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    ✓ Keine doppelten PIDs gefunden.
+                  </p>
+                ) : (
+                  <div className="overflow-auto rounded-xl border border-red-200 max-h-96">
+                    <table className="w-full text-sm">
+                      <thead className="bg-red-50 text-xs font-semibold text-red-700 uppercase tracking-wide sticky top-0 z-10 shadow-[inset_0_-1px_0_0_rgb(254_202_202)]">
+                        <tr>
+                          <th className="text-left px-4 py-2.5">PID</th>
+                          <th className="text-left px-4 py-2.5">Vorname</th>
+                          <th className="text-left px-4 py-2.5">Geb.-Datum</th>
+                          <th className="text-left px-4 py-2.5">Arzt</th>
+                          <th className="text-right px-4 py-2.5">Aktion</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {auswertungStats.duplicatePidGroups.flatMap(group =>
+                          group.entries.map((p, idx) => (
+                            <tr key={p.id} className={`hover:bg-red-50/30 ${idx === 0 ? 'border-t-2 border-t-red-300' : ''}`}>
+                              <td className="px-4 py-2.5 tabular-nums font-mono text-xs">
+                                {idx === 0 && <span className="font-bold text-red-700">#{group.pid}</span>}
+                                {idx > 0 && <span className="text-gray-400">↳</span>}
+                                {idx === 0 && group.entries.length > 2 && (
+                                  <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                                    {group.entries.length}×
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 font-medium text-gray-800">{p.vorname || <span className="italic text-gray-400">ohne Name</span>}</td>
+                              <td className="px-4 py-2.5 text-xs text-gray-600">{p.gebDatum ? formatDate(p.gebDatum) : '—'}</td>
+                              <td className="px-4 py-2.5 text-xs text-gray-700">{p.doctor}</td>
+                              <td className="px-4 py-2.5 text-right">
+                                <button
+                                  onClick={() => { setAuswertungOpen(false); switchTab(p.doctor); openEdit(p) }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded transition-colors">
+                                  <Pencil className="w-3 h-3" /> Öffnen
+                                </button>
+                              </td>
+                            </tr>
+                          )),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {auswertungStats.duplicatePidGroups.length > 0 && (
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    Tipp: Jede PID darf nur einmal vorkommen. Öffnen Sie die einzelnen Einträge und entscheiden Sie welcher
+                    behalten und welche storniert/gelöscht werden. Beim manuellen Anlegen blockt das Edit-Modal jetzt
+                    Doppelte PID-Eingaben.
+                  </p>
+                )}
               </div>
 
             </div>
