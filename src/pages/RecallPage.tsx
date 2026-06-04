@@ -455,6 +455,9 @@ export default function RecallPage() {
   const [editTarget, setEditTarget] = useState<EditTarget>(null)
   const [form, setForm] = useState<EditForm>(initForm())
   const [saving, setSaving] = useState(false)
+  // Doppelte PIDs — Cleanup-Confirmation + Loading
+  const [showDupCleanupConfirm, setShowDupCleanupConfirm] = useState(false)
+  const [dupCleanupRunning,     setDupCleanupRunning]     = useState(false)
   const [assignDoctor, setAssignDoctor] = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
   const [quickInput, setQuickInput] = useState('')
@@ -748,6 +751,47 @@ export default function RecallPage() {
   async function reloadTab(doctor: string) {
     const fresh = await getRecallPatients(doctor)
     setAllData(prev => new Map(prev).set(doctor, fresh))
+  }
+
+  /** Aus einer Duplikat-Gruppe den "neuesten" Eintrag bestimmen.
+   *  Sortier-Key: parseStamp(erstellt).isoDate desc. Fallback wenn kein
+   *  Erstellt-Stamp da ist: ältere Doc-ID kommt zuerst (lexikographisch
+   *  sind Firestore-IDs nicht zeitlich sortiert, daher kein Verlass —
+   *  besser nichts löschen). */
+  function pickNewestInGroup(entries: RecallPatient[]): RecallPatient | null {
+    let best: RecallPatient | null = null
+    let bestKey = ''
+    for (const e of entries) {
+      const ps = parseStamp(e.erstellt)
+      if (!ps) continue
+      if (ps.isoDate > bestKey) { bestKey = ps.isoDate; best = e }
+    }
+    return best
+  }
+
+  /** Bulk-Löschung: pro Duplikat-Gruppe den neuesten Eintrag entfernen.
+   *  Doctor-Tabs werden danach neu geladen damit die UI aktuell ist. */
+  async function handleDeleteNewestDuplicates(groups: Array<{ pid: string; entries: RecallPatient[] }>) {
+    if (groups.length === 0) return
+    setDupCleanupRunning(true)
+    try {
+      const affectedDoctors = new Set<string>()
+      let deletedCount = 0
+      for (const g of groups) {
+        const victim = pickNewestInGroup(g.entries)
+        if (!victim) continue
+        await deleteRecallPatient(victim.id)
+        affectedDoctors.add(victim.doctor)
+        deletedCount++
+      }
+      await Promise.all([...affectedDoctors].map(d => reloadTab(d)))
+      toast.success(`${deletedCount} doppelte PID${deletedCount === 1 ? '' : 's'} entfernt (jeweils der neueste Eintrag pro Gruppe)`)
+      setShowDupCleanupConfirm(false)
+    } catch (e) {
+      toast.error(`Fehler beim Löschen: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setDupCleanupRunning(false)
+    }
   }
 
   /** Option A: auto-create 2nd reminder after 6 months without response — runs once per day */
@@ -3891,13 +3935,23 @@ export default function RecallPage() {
 
               {/* ── Doppelte PIDs ── */}
               <div>
-                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
-                  <AlertTriangle className={`w-4 h-4 ${auswertungStats.duplicatePidGroups.length > 0 ? 'text-red-500' : 'text-gray-300'}`} />
-                  Doppelte PIDs
-                  <span className="text-xs font-normal text-gray-400 ml-1">
-                    ({auswertungStats.duplicatePidGroups.length} PID{auswertungStats.duplicatePidGroups.length === 1 ? '' : 's'})
-                  </span>
-                </h3>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <AlertTriangle className={`w-4 h-4 ${auswertungStats.duplicatePidGroups.length > 0 ? 'text-red-500' : 'text-gray-300'}`} />
+                    Doppelte PIDs
+                    <span className="text-xs font-normal text-gray-400 ml-1">
+                      ({auswertungStats.duplicatePidGroups.length} PID{auswertungStats.duplicatePidGroups.length === 1 ? '' : 's'})
+                    </span>
+                  </h3>
+                  {auswertungStats.duplicatePidGroups.length > 0 && (
+                    <button
+                      onClick={() => setShowDupCleanupConfirm(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Neueste je Gruppe löschen ({auswertungStats.duplicatePidGroups.length})
+                    </button>
+                  )}
+                </div>
                 {auswertungStats.duplicatePidGroups.length === 0 ? (
                   <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                     ✓ Keine doppelten PIDs gefunden.
@@ -5078,6 +5132,76 @@ export default function RecallPage() {
           </div>
         </>
       )}
+
+      {/* Cleanup-Confirmation: Doppelte PIDs (neueste pro Gruppe) löschen */}
+      {showDupCleanupConfirm && (() => {
+        const groups = auswertungStats.duplicatePidGroups
+        const victims = groups.map(g => ({ group: g, victim: pickNewestInGroup(g.entries) })).filter(v => v.victim) as Array<{ group: typeof groups[0]; victim: RecallPatient }>
+        return (
+          <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4" onClick={() => !dupCleanupRunning && setShowDupCleanupConfirm(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[85vh]" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                  <span className="font-bold text-gray-900">Doppelte PIDs bereinigen</span>
+                </div>
+                <button onClick={() => setShowDupCleanupConfirm(false)} disabled={dupCleanupRunning} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4 overflow-auto flex-1">
+                <p className="text-sm text-gray-700 mb-3">
+                  Pro Duplikat-Gruppe wird der <strong>neueste Eintrag</strong> (nach Erstellungs-Datum) gelöscht.
+                  Die folgenden <strong>{victims.length}</strong> Einträge werden entfernt:
+                </p>
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-3 py-2">PID</th>
+                        <th className="text-left px-3 py-2">Vorname</th>
+                        <th className="text-left px-3 py-2">Arzt</th>
+                        <th className="text-left px-3 py-2">Erstellt</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {victims.map(({ group, victim }) => {
+                        const ps = parseStamp(victim.erstellt)
+                        return (
+                          <tr key={victim.id} className="hover:bg-red-50/30">
+                            <td className="px-3 py-2 font-mono text-red-700">#{group.pid}</td>
+                            <td className="px-3 py-2 font-medium">{victim.vorname || <span className="italic text-gray-400">ohne Name</span>}</td>
+                            <td className="px-3 py-2 text-gray-600">{victim.doctor}</td>
+                            <td className="px-3 py-2 text-gray-500 tabular-nums">{ps?.dateStr ?? '?'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {victims.length < groups.length && (
+                  <p className="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+                    Hinweis: {groups.length - victims.length} Gruppe(n) ohne Erstellungs-Datum werden NICHT bereinigt
+                    (kein verlässliches "neueste" feststellbar). Bitte manuell entscheiden.
+                  </p>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+                <button onClick={() => setShowDupCleanupConfirm(false)} disabled={dupCleanupRunning}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
+                  Abbrechen
+                </button>
+                <button onClick={() => handleDeleteNewestDuplicates(auswertungStats.duplicatePidGroups)}
+                  disabled={dupCleanupRunning || victims.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  {dupCleanupRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {victims.length} Einträge löschen
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
