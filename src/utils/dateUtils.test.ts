@@ -188,6 +188,21 @@ describe('formatSwissDate', () => {
     expect(formatSwissDate('')).toBe('—')
     expect(formatSwissDate('not a date')).toBe('—')
   })
+
+  it('akzeptiert bereits DD.MM.YYYY (mit oder ohne Padding)', () => {
+    // Idempotent: gepaddete Form bleibt unverändert
+    expect(formatSwissDate('15.06.2026')).toBe('15.06.2026')
+    expect(formatSwissDate('31.12.2026')).toBe('31.12.2026')
+    // Ungepaddet wird gepaddet
+    expect(formatSwissDate('5.1.2026')).toBe('05.01.2026')
+    expect(formatSwissDate('5.6.2026')).toBe('05.06.2026')
+  })
+
+  it('konvertiert Excel-Serial-Numbers als String', () => {
+    // 25569 = 1970-01-01, 45123 ≈ 2023-07-08, 46175 ≈ 2026-05-25
+    expect(formatSwissDate('45123')).toBe('08.07.2023')
+    expect(formatSwissDate('46175')).toBe('25.05.2026')
+  })
 })
 
 describe('WEEKDAY_LABELS', () => {
