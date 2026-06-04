@@ -458,6 +458,9 @@ export default function RecallPage() {
   // Doppelte PIDs — Cleanup-Confirmation + Loading
   const [showDupCleanupConfirm, setShowDupCleanupConfirm] = useState(false)
   const [dupCleanupRunning,     setDupCleanupRunning]     = useState(false)
+  // Letzte Einlesung rückgängig
+  const [showUndoImportConfirm, setShowUndoImportConfirm] = useState(false)
+  const [undoImportRunning,     setUndoImportRunning]     = useState(false)
   const [assignDoctor, setAssignDoctor] = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
   const [quickInput, setQuickInput] = useState('')
@@ -795,6 +798,28 @@ export default function RecallPage() {
       toast.error(`Fehler beim Löschen: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setDupCleanupRunning(false)
+    }
+  }
+
+  /** Letzte Excel-Einlesung rückgängig machen — löscht alle Patienten mit
+   *  dem genau gleichen importedAt-Stamp wie die jüngste Import-Session.
+   *  Erzeugt einen Toast mit Anzahl entfernter Einträge. */
+  async function handleUndoLastImport() {
+    if (!lastImport) return
+    setUndoImportRunning(true)
+    try {
+      // Sequenzielle Deletes — Firestore-SDK macht intern Batching, aber
+      // wir wollen pro Patient sehen ob's klappt (im Fehlerfall klar wo).
+      for (const id of lastImport.ids) {
+        await deleteRecallPatient(id)
+      }
+      await Promise.all(lastImport.doctors.map(d => reloadTab(d)))
+      toast.success(`${lastImport.count} Patienten der letzten Einlesung (${lastImport.dateStr} von ${lastImport.user}) entfernt`)
+      setShowUndoImportConfirm(false)
+    } catch (e) {
+      toast.error(`Fehler beim Rückgängig-Machen: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setUndoImportRunning(false)
     }
   }
 
@@ -1399,6 +1424,41 @@ export default function RecallPage() {
 
     return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
+  // findet den jüngsten (= chronologisch letzte Import-Session) + alle
+  // Doc-IDs die zu dieser Session gehören. Eine Import-Session ist eindeutig
+  // durch ihren Sekunden-/Minuten-genauen Timestamp identifizierbar
+  // (siehe recallTimestamp() in firestoreRecall.ts).
+  const lastImport = useMemo(() => {
+    const sessions = new Map<string, { isoKey: string; ids: string[]; doctors: Set<string>; sample: RecallPatient }>()
+    for (const pts of allData.values()) {
+      for (const p of pts) {
+        const stamp = (p as any).importedAt as string | undefined
+        if (!stamp) continue
+        const parsed = parseStamp(stamp)
+        if (!parsed) continue
+        const isoKey = `${parsed.isoDate} ${stamp}` // primarer sort-key + fallback auf raw-string
+        if (!sessions.has(stamp)) sessions.set(stamp, { isoKey, ids: [], doctors: new Set(), sample: p })
+        const s = sessions.get(stamp)!
+        s.ids.push(p.id)
+        s.doctors.add(p.doctor)
+      }
+    }
+    if (sessions.size === 0) return null
+    // Sortieren nach isoKey desc — jüngste Session zuerst
+    const arr = [...sessions.entries()].sort((a, b) => b[1].isoKey.localeCompare(a[1].isoKey))
+    const [stamp, info] = arr[0]
+    return {
+      stamp,
+      isoDate: parseStamp(stamp)?.isoDate ?? '',
+      dateStr: parseStamp(stamp)?.dateStr ?? '',
+      user:    parseStamp(stamp)?.user ?? '',
+      count:   info.ids.length,
+      ids:     info.ids,
+      doctors: [...info.doctors],
+    }
+  }, [allData])
 
   // Close popup on click outside (checks both the input wrapper AND the popup itself)
   useEffect(() => {
@@ -2507,6 +2567,17 @@ export default function RecallPage() {
                 {importingZuBearb ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 <span className="hidden sm:inline">{importingZuBearb ? 'Importiert…' : 'Patientenliste Upload'}</span>
               </button>
+              {lastImport && (
+                <button
+                  onClick={() => setShowUndoImportConfirm(true)}
+                  disabled={importingZuBearb}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-red-300 text-red-700 bg-red-50 rounded-xl hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
+                  title={`Letzte Einlesung rückgängig machen — ${lastImport.count} Patienten vom ${lastImport.dateStr} (${lastImport.user})`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Letzte Einlesung rückgängig ({lastImport.count})</span>
+                </button>
+              )}
             </>
           )}
 
@@ -5217,6 +5288,56 @@ export default function RecallPage() {
           </div>
         )
       })()}
+
+      {/* Letzte Einlesung rückgängig — Confirmation */}
+      {showUndoImportConfirm && lastImport && (
+        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => !undoImportRunning && setShowUndoImportConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[85vh]"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <span className="font-bold text-gray-900">Letzte Excel-Einlesung rückgängig machen</span>
+              </div>
+              <button onClick={() => setShowUndoImportConfirm(false)} disabled={undoImportRunning}
+                      className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 overflow-auto flex-1 space-y-3 text-sm">
+              <p className="text-gray-700">
+                Alle Patienten der letzten Einlesung werden unwiderruflich gelöscht.
+              </p>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-xs">
+                <span className="text-gray-500">Hochgeladen am</span>
+                <span className="font-medium text-gray-900 tabular-nums">{lastImport.dateStr}</span>
+                <span className="text-gray-500">Von</span>
+                <span className="font-medium text-gray-900">{lastImport.user || <span className="italic text-gray-400">unbekannt</span>}</span>
+                <span className="text-gray-500">Patienten</span>
+                <span className="font-bold text-red-700 tabular-nums">{lastImport.count}</span>
+                <span className="text-gray-500">Ärzte / Tabs</span>
+                <span className="font-medium text-gray-900">{lastImport.doctors.join(', ') || '—'}</span>
+              </div>
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+                Nur Einträge mit exakt diesem Import-Zeitstempel werden entfernt. Manuell danach erfasste
+                Patienten bleiben unverändert.
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+              <button onClick={() => setShowUndoImportConfirm(false)} disabled={undoImportRunning}
+                      className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
+                Abbrechen
+              </button>
+              <button onClick={handleUndoLastImport} disabled={undoImportRunning}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                {undoImportRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {lastImport.count} Einträge löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
