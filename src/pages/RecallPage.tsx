@@ -932,17 +932,59 @@ export default function RecallPage() {
       //    Wenn ein Feld fehlt, wird darauf reduziert verglichen (pid only,
       //    bzw. vorname+gebDatum) — verhindert dass Datenlücken Duplikate
       //    durchschlüpfen lassen.
-      const norm = (s: string | null | undefined) =>
-        (s ?? '').toString().trim().toLowerCase()
-      const sigPid    = (pid: string | null, vn: string | null, gd: string | null) =>
-        pid ? `p:${pid}|v:${norm(vn)}|g:${gd ?? ''}` : null
-      const sigNoPid  = (vn: string | null, gd: string | null) =>
-        vn && gd ? `v:${norm(vn)}|g:${gd}` : null
+      // Normalisierung — Vorname kompakt+lowercased, PID nur Ziffern,
+      // Geburtsdatum auf ISO YYYY-MM-DD egal ob ursprünglich DD.MM.YYYY,
+      // YYYY-MM-DD[Trest] oder mit Whitespace.
+      const normName = (s: string | null | undefined) =>
+        (s ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
+      const normPid = (s: string | null | undefined) => {
+        const t = (s ?? '').toString().trim()
+        if (!t) return ''
+        const digits = t.replace(/\D+/g, '')
+        return digits || t.toLowerCase()
+      }
+      const normGeb = (s: string | null | undefined): string => {
+        const t = (s ?? '').toString().trim()
+        if (!t) return ''
+        // ISO yyyy-MM-dd…
+        const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+        // DD.MM.YYYY oder D.M.YYYY
+        const ch = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+        if (ch) return `${ch[3]}-${ch[2].padStart(2,'0')}-${ch[1].padStart(2,'0')}`
+        // Excel-Serial
+        if (/^\d+$/.test(t)) {
+          const n = Number(t)
+          if (n > 1 && n < 100_000) {
+            const ms = Math.round((n - 25569) * 86400_000)
+            const d  = new Date(ms)
+            if (!isNaN(d.getTime())) {
+              const yy = d.getUTCFullYear()
+              const mm = String(d.getUTCMonth()+1).padStart(2,'0')
+              const dd = String(d.getUTCDate()).padStart(2,'0')
+              return `${yy}-${mm}-${dd}`
+            }
+          }
+        }
+        return t.toLowerCase()
+      }
+      const sigPid    = (pid: string | null, vn: string | null, gd: string | null) => {
+        const p = normPid(pid); if (!p) return null
+        return `p:${p}|v:${normName(vn)}|g:${normGeb(gd)}`
+      }
+      const sigPidOnly = (pid: string | null) => {
+        const p = normPid(pid); return p ? `P:${p}` : null
+      }
+      const sigNoPid  = (vn: string | null, gd: string | null) => {
+        const v = normName(vn), g = normGeb(gd)
+        return v && g ? `v:${v}|g:${g}` : null
+      }
 
       const existingSigs = new Set<string>()
       for (const pts of freshData.values()) {
         for (const p of pts) {
-          const s1 = sigPid(p.pid, p.vorname, p.gebDatum); if (s1) existingSigs.add(s1)
+          const sP = sigPidOnly(p.pid);                     if (sP) existingSigs.add(sP)
+          const s1 = sigPid(p.pid, p.vorname, p.gebDatum);  if (s1) existingSigs.add(s1)
           const s2 = sigNoPid(p.vorname, p.gebDatum);       if (s2) existingSigs.add(s2)
         }
       }
@@ -962,14 +1004,20 @@ export default function RecallPage() {
           gebDatum = raw.slice(0, 10)
         }
 
+        const sP = sigPidOnly(pid)
         const s1 = sigPid(pid, vorname, gebDatum)
         const s2 = sigNoPid(vorname, gebDatum)
-        if ((s1 && existingSigs.has(s1)) || (s2 && existingSigs.has(s2))) {
+        // Match-Strategie: PID alleine ist eindeutig → match.
+        // Sonst Vorname+Geburtsdatum als Fallback.
+        if ((sP && existingSigs.has(sP)) ||
+            (s1 && existingSigs.has(s1)) ||
+            (s2 && existingSigs.has(s2))) {
           skippedCount++
           continue
         }
         // Sofort registrieren — verhindert dass dieselbe Person doppelt
         // in der Excel-Liste beide Mal importiert wird.
+        if (sP) existingSigs.add(sP)
         if (s1) existingSigs.add(s1)
         if (s2) existingSigs.add(s2)
 
@@ -1000,6 +1048,14 @@ export default function RecallPage() {
           aktualisiert:     null,
         })
       }
+
+      console.log('[Recall-Import] Dedup-Stats:', {
+        excelRows: rows.length,
+        existingPatients: [...freshData.values()].reduce((n, arr) => n + arr.length, 0),
+        existingSigCount: existingSigs.size,
+        skipped: skippedCount,
+        newToImport: toImport.length,
+      })
 
       if (toImport.length === 0) {
         setSyncMsg(`Keine neuen Patienten — alle ${rows.length} sind bereits in der Recall-Liste vorhanden`)
