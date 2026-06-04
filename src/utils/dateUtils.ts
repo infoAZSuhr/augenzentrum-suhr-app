@@ -97,10 +97,30 @@ export function formatSwissDate(
 ): string {
   if (input == null || input === '') return '—'
 
-  // ISO-String: regex-basiert für maximale Determinismus (kein Zeitzonen-Drift)
   if (typeof input === 'string') {
-    const m = input.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (m) return `${m[3]}.${m[2]}.${m[1]}`
+    const trimmed = input.trim()
+    if (!trimmed) return '—'
+
+    // ISO yyyy-MM-dd[Tzeit] — Regex-basiert (kein Zeitzonen-Drift)
+    const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`
+
+    // Schon DD.MM.YYYY (oder D.M.YYYY) → padden + durchlassen
+    const ch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+    if (ch) return `${ch[1].padStart(2, '0')}.${ch[2].padStart(2, '0')}.${ch[3]}`
+
+    // Excel-Serial-Number als String ("45123" o.ä.) — konvertieren
+    const serial = trimmed.match(/^\d+$/) ? Number(trimmed) : NaN
+    if (Number.isFinite(serial) && serial > 1 && serial < 100_000) {
+      const ms = Math.round((serial - 25569) * 86400_000)
+      const sd = new Date(ms)
+      if (!isNaN(sd.getTime())) {
+        const dd = String(sd.getUTCDate()).padStart(2, '0')
+        const mm = String(sd.getUTCMonth() + 1).padStart(2, '0')
+        const yy = String(sd.getUTCFullYear())
+        return `${dd}.${mm}.${yy}`
+      }
+    }
   }
 
   const d = input instanceof Date ? input : new Date(input as any)
