@@ -904,7 +904,29 @@ export default function RecallPage() {
       const ws   = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: null })
 
-      // 2. Build dedup-Set über ALLE Recall-Einträge (inkl. Zu bearbeiten).
+      // 2a. FRESH-FETCH aller Tabs vor dem Dedup — garantiert dass keine
+      //     veralteten lokalen Daten zu falschen "neue Patienten"-Imports
+      //     führen. Wenn einzelne Tabs fehlschlagen: Abbruch mit Fehler,
+      //     besser nichts importieren als gegen löchrige Liste vergleichen.
+      setSyncMsg('Recall-Liste wird frisch geladen für Dedup-Check…')
+      const allTabs = [ZU_BEARB, ...doctors]
+      const settled = await Promise.allSettled(
+        allTabs.map(d => getRecallPatients(d).then(r => [d, r] as const))
+      )
+      const failedTabs = settled
+        .map((r, i) => r.status === 'rejected' ? allTabs[i] : null)
+        .filter(Boolean) as string[]
+      if (failedTabs.length > 0) {
+        throw new Error(`Konnte ${failedTabs.length} Tab(s) nicht laden: ${failedTabs.join(', ')} — Import abgebrochen, bitte erneut versuchen`)
+      }
+      const freshData = new Map<string, RecallPatient[]>()
+      for (const r of settled) {
+        if (r.status === 'fulfilled') freshData.set(r.value[0], r.value[1])
+      }
+      // Lokalen State gleich aktualisieren — falls inzwischen jemand was geändert hat
+      setAllData(freshData)
+
+      // 2b. Build dedup-Set über ALLE Recall-Einträge (inkl. Zu bearbeiten).
       //    Signatur = pid | vornameLower | gebDatumISO. Eine Übereinstimmung
       //    in ALLEN drei Feldern gilt als Duplikat und wird übersprungen.
       //    Wenn ein Feld fehlt, wird darauf reduziert verglichen (pid only,
@@ -918,7 +940,7 @@ export default function RecallPage() {
         vn && gd ? `v:${norm(vn)}|g:${gd}` : null
 
       const existingSigs = new Set<string>()
-      for (const pts of allData.values()) {
+      for (const pts of freshData.values()) {
         for (const p of pts) {
           const s1 = sigPid(p.pid, p.vorname, p.gebDatum); if (s1) existingSigs.add(s1)
           const s2 = sigNoPid(p.vorname, p.gebDatum);       if (s2) existingSigs.add(s2)
