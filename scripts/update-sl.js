@@ -90,7 +90,14 @@ async function playwrightDownloadSL() {
     // Aus der JS-Bundle-Route-Config sind die Routen flach (path: 'current-
     // and-archived-data') und scheinen direkt unter / zu liegen — wir
     // probieren beide URLs.
+    // Aus de.json: "resources": "Ressourcen" + "publicationCard.title":
+    // "Aktueller Datenstamm (SL/GGSL)" mit downloadButton "Als Excel
+    // herunterladen". Die Excel-Cards leben unter der /resources-Route,
+    // nicht unter /sl (/sl ist die gefilterte Listen-Ansicht mit
+    // "Clear"/"Filter öffnen"-Buttons — falsch).
     const candidateUrls = [
+      'https://sl.bag.admin.ch/resources',
+      'https://sl.bag.admin.ch/sl/resources',
       'https://sl.bag.admin.ch/current-and-archived-data',
       'https://sl.bag.admin.ch/sl/current-and-archived-data',
       'https://sl.bag.admin.ch/sl',
@@ -115,6 +122,18 @@ async function playwrightDownloadSL() {
       }
     }
     if (!loaded) throw new Error(`Keine SPA-URL ladbar — letzter Fehler: ${lastGotoErr?.message ?? lastGotoErr}`)
+
+    // Fallback: keine Excel-Buttons auf den probierten URLs → versuche
+    // via "Ressourcen"-Button von der aktuellen Page zu navigieren.
+    const hasExcelNow = await page.locator('button:has-text("Als Excel herunterladen")').count() > 0
+    if (!hasExcelNow) {
+      const ressBtn = page.locator('button:has-text("Ressourcen"), a:has-text("Ressourcen")').first()
+      if (await ressBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        console.log('[Stealth] Klicke "Ressourcen"-Navigationsbutton …')
+        await ressBtn.click().catch(() => {})
+        await page.waitForTimeout(8_000)
+      }
+    }
 
     // Cookie-Banner / Welcome-Modal schliessen falls vorhanden — sonst
     // überlagern sie den eigentlichen Content und blockieren Click-Events.
