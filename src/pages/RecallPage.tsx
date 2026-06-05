@@ -5151,18 +5151,30 @@ export default function RecallPage() {
                       {/* Telefon panel */}
                       {vorgehenTelOpen && (
                         <div className="mb-3 bg-white rounded-xl border border-green-200 p-3 space-y-2">
-                          <label className="text-xs font-semibold text-gray-600 block">Datum des Anrufs</label>
-                          <input type="date" value={vorgehenTelDatum}
-                            onChange={e => setVorgehenTelDatum(e.target.value)}
-                            className={inputCls} />
-                          {vorgehenTelDatum && <p className="text-xs text-gray-400 -mt-1">{formatDate(vorgehenTelDatum)}</p>}
+                          {/* Grund: zuerst, weil das oft DAS wichtige Info ist
+                              ("warum rufen wir an?"). Quick-Chips erleichtern die
+                              haeufigsten Faelle, Textarea ist immer noch frei. */}
+                          <label className="text-xs font-semibold text-green-700 block">Weshalb anrufen?</label>
+                          <div className="flex flex-wrap gap-1">
+                            {['Termin vereinbaren','Termin verschieben','Rezept','Befundbesprechung','Nachfrage','Erinnerung'].map(g => (
+                              <button key={g} type="button"
+                                onClick={() => setVorgehenTelGrund(prev => prev ? `${prev}, ${g}` : g)}
+                                className="px-2 py-0.5 text-[11px] font-medium border border-green-200 bg-white text-green-700 rounded-full hover:bg-green-100 transition-colors"
+                              >+ {g}</button>
+                            ))}
+                          </div>
                           <textarea
                             rows={2}
-                            placeholder="Grund / Bemerkung (optional)"
+                            placeholder="Grund/Bemerkung — z.B. Patient möchte Termin verschieben, fragt nach Rezept…"
                             value={vorgehenTelGrund}
                             onChange={e => setVorgehenTelGrund(e.target.value)}
                             className={`${inputCls} resize-none`}
                           />
+                          <label className="text-xs font-semibold text-gray-600 block pt-1">Datum des Anrufs</label>
+                          <input type="date" value={vorgehenTelDatum}
+                            onChange={e => setVorgehenTelDatum(e.target.value)}
+                            className={inputCls} />
+                          {vorgehenTelDatum && <p className="text-xs text-gray-400 -mt-1">{formatDate(vorgehenTelDatum)}</p>}
                           {vorgehenTelDatum ? (
                             <div className="grid grid-cols-3 gap-1.5">
                               {([
