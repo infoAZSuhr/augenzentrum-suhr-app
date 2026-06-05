@@ -611,11 +611,19 @@ export default function RecallPage() {
     }
   }
 
-  // Draggable modal
+  // Draggable modal — Position wird in localStorage gespeichert
+  const MODAL_POS_KEY = 'recall-modal-pos'
   const modalRef    = useRef<HTMLDivElement>(null)
-  const [modalPos, setModalPos]     = useState<{ x: number; y: number } | null>(null)
+  const [modalPos, setModalPos]     = useState<{ x: number; y: number } | null>(() => {
+    try { const s = localStorage.getItem(MODAL_POS_KEY); return s ? JSON.parse(s) : null } catch { return null }
+  })
   const [isDragging, setIsDragging] = useState(false)
   const dragOrigin  = useRef<{ mouseX: number; mouseY: number; elemX: number; elemY: number } | null>(null)
+
+  const saveModalPos = (pos: { x: number; y: number }) => {
+    setModalPos(pos)
+    try { localStorage.setItem(MODAL_POS_KEY, JSON.stringify(pos)) } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
@@ -624,7 +632,7 @@ export default function RecallPage() {
       const dy = e.clientY - dragOrigin.current.mouseY
       const w  = modalRef.current?.offsetWidth  ?? 512
       const h  = modalRef.current?.offsetHeight ?? 300
-      setModalPos({
+      saveModalPos({
         x: Math.max(0, Math.min(window.innerWidth  - w,  dragOrigin.current.elemX + dx)),
         y: Math.max(0, Math.min(window.innerHeight - h,  dragOrigin.current.elemY + dy)),
       })
@@ -2297,9 +2305,9 @@ export default function RecallPage() {
     // Lock setzen (fire-and-forget) — andere User sehen das Symbol durch
     // den Live-Snapshot. Beim Schliessen wird der Lock wieder freigegeben.
     acquireEditLock(patient.id, displayLabel).catch(e => console.warn('[Recall] Lock setzen fehlgeschlagen:', e))
-    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); setModalPos(null); resetVorgehen()
+    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
   }
-  function openNew()                        { setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); setModalPos(null); resetVorgehen() }
+  function openNew()                        { setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen() }
   function closeEdit()                      {
     // Lock entfernen — best-effort. Falls Edit auf 'new' war: nichts zu tun.
     if (editTarget && editTarget !== 'new') {
@@ -4370,8 +4378,7 @@ export default function RecallPage() {
       {/* ── Edit / New modal ──────────────────────────────────────────────────── */}
       {editTarget !== null && (
         <>
-          {/* Backdrop */}
-          <div className="fixed inset-0 bg-black/50 z-[55]" />
+
 
           {/* Modal – draggable */}
           <div
