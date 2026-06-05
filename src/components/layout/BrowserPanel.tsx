@@ -93,10 +93,12 @@ export default function BrowserPanel() {
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
   useEffect(() => {
     if (!pendingPid || !isOpen) return
-    const wv = webviewRef.current as any
-    if (!wv?.executeJavaScript) return
 
-    const inject = (pid: string) => {
+    const pid = pendingPid
+
+    const doInject = () => {
+      const wv = webviewRef.current as any
+      if (!wv?.executeJavaScript) return
       const script = `
         (function() {
           var sel = 'input[placeholder^="Allgemeine Suche"]';
@@ -110,31 +112,90 @@ export default function BrowserPanel() {
           el.dispatchEvent(new Event('input',  { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
           el.focus();
-          ['keydown','keypress','keyup'].forEach(function(t) {
-            el.dispatchEvent(new KeyboardEvent(t, {
-              key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
-            }));
-          });
+
+          // Autocomplete-Dropdown abwarten und ersten Treffer auswaehlen.
+          // Liris laedt die Vorschlaege per AJAX -> kurz warten.
+          function selectFirst() {
+            // 1) Versuch: sichtbares Dropdown-Item finden und klicken.
+            var itemSelectors = [
+              '.ui-autocomplete li:first-child a',
+              '.ui-autocomplete li:first-child',
+              '.autocomplete-suggestion',
+              '.dropdown-menu li:first-child a',
+              '.dropdown-menu li:first-child',
+              '[role="option"]',
+              '.tt-suggestion',
+              'ul.typeahead li:first-child'
+            ];
+            for (var i = 0; i < itemSelectors.length; i++) {
+              var item = document.querySelector(itemSelectors[i]);
+              if (item && item.offsetParent !== null) {
+                item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                item.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true }));
+                item.click();
+                return 'clicked';
+              }
+            }
+            // 2) Fallback: Pfeil-runter + Enter im Suchfeld (Keyboard-Navigation).
+            ['keydown','keyup'].forEach(function(t) {
+              el.dispatchEvent(new KeyboardEvent(t, {
+                key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true
+              }));
+            });
+            ['keydown','keypress','keyup'].forEach(function(t) {
+              el.dispatchEvent(new KeyboardEvent(t, {
+                key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
+              }));
+            });
+            return 'keyboard';
+          }
+
+          // Mehrere Versuche, falls das Dropdown langsam laedt.
+          var tries = 0;
+          var iv = setInterval(function() {
+            tries++;
+            var res = selectFirst();
+            if (res === 'clicked' || tries >= 6) clearInterval(iv);
+          }, 350);
+
           return 'ok';
         })();
       `
       wv.executeJavaScript(script)
-        .then((res: string) => { if (res === 'ok') clearPendingPid() })
+        .then((res: string) => { if (res === 'ok' || res === 'no-input-found') clearPendingPid() })
         .catch(() => {})
     }
 
     if (webviewReady.current) {
       // Webview bereits geladen — sofort injizieren
-      const t = setTimeout(() => inject(pendingPid), 300)
+      const t = setTimeout(doInject, 300)
       return () => clearTimeout(t)
-    } else {
-      // Webview lädt noch — warten bis dom-ready, dann injizieren
-      const onReady = () => {
-        webviewReady.current = true
-        setTimeout(() => inject(pendingPid), 800)
-      }
+    }
+
+    // Webview lädt noch oder wurde noch nicht gemountet —
+    // dom-ready abwarten. Guard NACH dem dom-ready-Event, nicht vorher.
+    const onReady = () => {
+      webviewReady.current = true
+      setTimeout(doInject, 800)
+    }
+
+    // Webview-Element könnte noch nicht im DOM sein wenn isOpen soeben true wurde.
+    // Polling bis das Ref gesetzt ist, dann Listener registrieren.
+    let wv = webviewRef.current as any
+    if (wv) {
       wv.addEventListener('dom-ready', onReady)
       return () => wv.removeEventListener('dom-ready', onReady)
+    }
+
+    // Ref noch null — kurz warten und nochmal versuchen
+    const t = setTimeout(() => {
+      wv = webviewRef.current as any
+      if (wv) wv.addEventListener('dom-ready', onReady)
+    }, 50)
+    return () => {
+      clearTimeout(t)
+      const w = webviewRef.current as any
+      if (w) w.removeEventListener('dom-ready', onReady)
     }
   }, [pendingPid, isOpen, clearPendingPid])
 
