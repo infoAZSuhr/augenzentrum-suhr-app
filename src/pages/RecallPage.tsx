@@ -5237,7 +5237,27 @@ export default function RecallPage() {
                       <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                     </div>
                   </div>
-                  {/* Nächste Konst. — jetzt im rechten Aufgebot-Block. */}
+                  <div>
+                    <label className={labelCls}>{
+                      form.aufgebotArt === 'Brief'    ? 'Briefaufgebot erstellt am' :
+                      form.aufgebotArt === 'Reminder' ? 'Reminder erstellt am' :
+                      form.aufgebotArt === 'Tel'      ? 'Telefonaufgebot erstellt am' :
+                      form.aufgebotArt === 'Praxis'   ? 'Vereinbarungsdatum' :
+                      'Aufgebot erstellt am'
+                    }</label>
+                    <div className="relative">
+                      <input type="date" value={form.aufgebotErstellt}
+                        onChange={e => setField('aufgebotErstellt', e.target.value)}
+                        className={`${inputCls} pr-6`} />
+                      <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
+                    </div>
+                    {form.aufgebotArt === 'Praxis' && (
+                      <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                        <span>⚠️</span> Das Terminsdatum bitte unter <strong>«Nächste Konst.»</strong> eintragen.
+                      </p>
+                    )}
+                  </div>
+                  {/* Nächste Konst. — ganz unten in der rechten Spalte. */}
                   <div>
                     <label className={labelCls}>
                       Nächste Konst.
@@ -5305,26 +5325,6 @@ export default function RecallPage() {
                           als letzte Konst. ↑
                         </button>
                       </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className={labelCls}>{
-                      form.aufgebotArt === 'Brief'    ? 'Briefaufgebot erstellt am' :
-                      form.aufgebotArt === 'Reminder' ? 'Reminder erstellt am' :
-                      form.aufgebotArt === 'Tel'      ? 'Telefonaufgebot erstellt am' :
-                      form.aufgebotArt === 'Praxis'   ? 'Vereinbarungsdatum' :
-                      'Aufgebot erstellt am'
-                    }</label>
-                    <div className="relative">
-                      <input type="date" value={form.aufgebotErstellt}
-                        onChange={e => setField('aufgebotErstellt', e.target.value)}
-                        className={`${inputCls} pr-6`} />
-                      <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
-                    </div>
-                    {form.aufgebotArt === 'Praxis' && (
-                      <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
-                        <span>⚠️</span> Das Terminsdatum bitte oben unter <strong>«Nächste Konst.»</strong> eintragen.
-                      </p>
                     )}
                   </div>
                 </div>
