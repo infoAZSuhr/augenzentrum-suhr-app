@@ -5225,9 +5225,10 @@ export default function RecallPage() {
                       </button>
                     ))}
                   </div>
-                  {/* RC zu erstellen ab — unter den Aufgebot-Icons platziert
-                      (auf Wunsch des Users — vorher in der rechten Spalte). */}
-                  <div className="mt-3">
+                </div>
+                <div className="space-y-2">
+                  {/* RC zu erstellen ab — direkt ueber Naechste Konst. (rechte Spalte). */}
+                  <div>
                     <label className={labelCls}>RC zu erstellen ab</label>
                     <div className="relative">
                       <input type="date" value={form.aufgebotFuer}
@@ -5236,8 +5237,6 @@ export default function RecallPage() {
                       <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                     </div>
                   </div>
-                </div>
-                <div className="space-y-2">
                   {/* Nächste Konst. — jetzt im rechten Aufgebot-Block. */}
                   <div>
                     <label className={labelCls}>
