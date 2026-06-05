@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import BackButton from '../components/ui/BackButton'
 import {
   BookOpen, Syringe, Package, CalendarDays, Users, Bell,
   User, LogIn, ArrowLeftRight, ChevronRight, Info, ArrowUp, LayoutList, Phone, GraduationCap, ClipboardList,
+  CheckCircle2, AlertCircle, RefreshCw, Globe, Monitor, Loader2,
 } from 'lucide-react'
 
 function Section({ id, icon: Icon, title, children }: {
@@ -64,6 +65,122 @@ function CodeBadge({ code, label, color }: { code: string; label: string; color:
   )
 }
 
+/**
+ * VersionInfo — zeigt die installierte Electron-Huelle-Version und prueft
+ * gegen GitHub Releases. Gibt klares Signal "aktuell" vs. "Update verfuegbar".
+ *
+ * - Im Browser: Web-App-Hinweis (Web-App ist immer aktuell, kein Update noetig)
+ * - In Electron: Hülle-Version aus electronApp.version (preload) vs.
+ *   https://api.github.com/repos/.../releases/latest
+ */
+function VersionInfo() {
+  // Electron-API durchs preload exposed
+  const electronApp = (typeof window !== 'undefined' ? (window as any).electronApp : null) as { version?: string; platform?: string } | null
+  const isElectron  = !!electronApp
+  const installed   = electronApp?.version ?? null
+
+  type CheckState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'ok'; latest: string }
+    | { status: 'update'; latest: string }
+    | { status: 'error'; msg: string }
+  const [check, setCheck] = useState<CheckState>({ status: 'idle' })
+
+  async function checkLatest() {
+    setCheck({ status: 'loading' })
+    try {
+      // GitHub REST API — kein Auth noetig fuer public repos (60 req/h pro IP)
+      const res = await fetch('https://api.github.com/repos/infoAZSuhr/augenzentrum-suhr-app/releases/latest')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json() as { tag_name?: string }
+      const latest = (json.tag_name ?? '').replace(/^v/, '')
+      if (!latest) throw new Error('Kein Release gefunden')
+      // Einfacher String-Vergleich reicht fuer SemVer-Tags (v1.0.2 < v1.1.0).
+      // Genauer SemVer-Parser ist hier overkill — wir vergleichen Major/Minor/Patch
+      // numerisch.
+      const cmp = compareSemver(installed ?? '0.0.0', latest)
+      setCheck(cmp < 0 ? { status: 'update', latest } : { status: 'ok', latest })
+    } catch (e: any) {
+      setCheck({ status: 'error', msg: e?.message ?? String(e) })
+    }
+  }
+
+  // Auto-Check beim Mount (nur in Electron — Browser ist immer aktuell)
+  useEffect(() => { if (isElectron) checkLatest() }, [isElectron]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        {isElectron ? <Monitor className="w-4 h-4 text-gray-400" /> : <Globe className="w-4 h-4 text-gray-400" />}
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+          {isElectron ? 'Desktop-App' : 'Web-App'}
+        </p>
+      </div>
+
+      {/* Installierte Version */}
+      <div className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <span className="text-gray-500">Installierte Version</span>
+        <span className="font-mono font-semibold text-gray-900">{installed ?? '—'}</span>
+        {isElectron && (
+          <>
+            <span className="text-gray-500">Neueste verfügbare Version</span>
+            <span className="font-mono text-gray-700">
+              {check.status === 'loading'  && <span className="inline-flex items-center gap-1 text-gray-400"><Loader2 className="w-3 h-3 animate-spin" /> prüfe…</span>}
+              {check.status === 'ok'       && check.latest}
+              {check.status === 'update'   && check.latest}
+              {check.status === 'error'    && <span className="text-red-500">Fehler: {check.msg}</span>}
+              {check.status === 'idle'     && '—'}
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Status-Badge */}
+      {isElectron && check.status === 'ok' && (
+        <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-700">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>App ist auf dem neuesten Stand.</span>
+        </div>
+      )}
+      {isElectron && check.status === 'update' && (
+        <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>Update auf <strong>v{check.latest}</strong> verfügbar — beim nächsten App-Neustart wird es automatisch eingespielt.</span>
+        </div>
+      )}
+      {!isElectron && (
+        <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-blue-800">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>Web-Version ist immer aktuell — sie wird direkt von unserem Server geladen.</span>
+        </div>
+      )}
+
+      {/* Manuell prüfen */}
+      {isElectron && (
+        <button
+          onClick={checkLatest}
+          disabled={check.status === 'loading'}
+          className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3 h-3 ${check.status === 'loading' ? 'animate-spin' : ''}`} /> erneut prüfen
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** Vergleicht zwei SemVer-Strings (ohne v-Prefix). Negativ = a < b, 0 = gleich, positiv = a > b. */
+function compareSemver(a: string, b: string): number {
+  const partsA = a.split('.').map(n => parseInt(n, 10) || 0)
+  const partsB = b.split('.').map(n => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const d = (partsA[i] ?? 0) - (partsB[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
+
 export default function HelpPage() {
   const { hash } = useLocation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -92,6 +209,9 @@ export default function HelpPage() {
         <p className="text-gray-500">Praxis-Management — Augenzentrum Suhr</p>
         <p className="text-sm text-gray-400">Diese Anleitung erklärt Schritt für Schritt, wie die App funktioniert.</p>
       </div>
+
+      {/* Version-Status */}
+      <VersionInfo />
 
       {/* TOC */}
       <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
