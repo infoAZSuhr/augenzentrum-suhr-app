@@ -420,7 +420,10 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 }
 
 export default function RecallPage() {
-  const { profile } = useAuth()
+  const { profile, isAdmin, isGeschaeftsleitung } = useAuth()
+  /** Wer darf die Patientenliste hochladen und Imports rückgängig machen?
+   *  Nur Admin + Geschäftsleitung — destruktive bzw. weitreichende Aktionen. */
+  const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
   const username     = profile?.username || profile?.displayName || 'System'
@@ -2620,20 +2623,20 @@ export default function RecallPage() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="shrink-0 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between px-4 sm:px-6 py-3 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+      {/* Toolbar — mobile: icons-only, kompakte Paddings; ab sm: volle Labels */}
+      <div className="shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between px-2 sm:px-6 py-2 sm:py-3 bg-white border-b border-gray-200">
+        <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto">
 
           {/* Global search */}
           <div ref={searchRef} className="flex-1 sm:w-96 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setSearchOpen(true); captureRect() }}
               onFocus={() => { if (search.trim().length >= 2) { setSearchOpen(true); captureRect() } }}
-              placeholder="Alle Ärzte durchsuchen…"
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+              placeholder="Suche…"
+              className="w-full pl-8 sm:pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
             />
             {search && (
               <button
@@ -2648,21 +2651,23 @@ export default function RecallPage() {
           {/* New patient */}
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shrink-0"
+            title="Neuer Patient"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shrink-0"
           >
-            <Plus className="w-4 h-4" /> Neu
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neu</span>
           </button>
 
           {/* Zuweisungen */}
           <button
             onClick={() => navigate('/zuweisungen')}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
+            title="Zuweisungen verwalten"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
           >
-            <ArrowRightLeft className="w-4 h-4" /> Zuweisungen
+            <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">Zuweisungen</span>
           </button>
 
-          {/* Kimenda Excel import – only on "Zu bearbeiten" tab */}
-          {activeTab === ZU_BEARB && (
+          {/* Kimenda Excel import – nur auf "Zu bearbeiten" tab UND nur für Admin/GL */}
+          {activeTab === ZU_BEARB && canManageImports && (
             <>
               <input
                 ref={kimendaInputRef}
@@ -2674,7 +2679,7 @@ export default function RecallPage() {
               <button
                 onClick={() => kimendaInputRef.current?.click()}
                 disabled={importingZuBearb}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-xl hover:bg-amber-100 disabled:opacity-50 transition-colors shrink-0"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-xl hover:bg-amber-100 disabled:opacity-50 transition-colors shrink-0"
                 title="Patientenliste (.xlsx) importieren"
               >
                 {importingZuBearb ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -2684,11 +2689,12 @@ export default function RecallPage() {
                 <button
                   onClick={() => setShowUndoImportConfirm(true)}
                   disabled={importingZuBearb}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-red-300 text-red-700 bg-red-50 rounded-xl hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium border border-red-300 text-red-700 bg-red-50 rounded-xl hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
                   title={`Letzte Einlesung rückgängig machen — ${lastImport.count} Patienten vom ${lastImport.dateStr} (${lastImport.user})`}
                 >
                   <Trash2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Letzte Einlesung rückgängig ({lastImport.count})</span>
+                  <span className="sm:hidden text-[10px] font-bold tabular-nums">{lastImport.count}</span>
                 </button>
               )}
             </>
