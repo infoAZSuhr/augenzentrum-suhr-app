@@ -65,6 +65,21 @@ export default function LirisPage() {
         ['keydown','keypress','keyup'].forEach(function(t) {
           el.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
         });
+        // Nach kurzer Verzoegerung Dropdown schliessen: zuerst Escape feuern
+        // (deckt die meisten Autocomplete-Implementierungen ab), dann blur
+        // (falls Escape nicht greift, schliesst blur in der Regel auch).
+        // 250 ms reicht, damit Liris die Auswahl uebernommen + Detail-Ansicht
+        // geladen hat — sonst koennte Escape die Auswahl wieder verwerfen.
+        setTimeout(function() {
+          var stillThere = document.querySelector(sel);
+          if (!stillThere) return;
+          ['keydown','keypress','keyup'].forEach(function(t) {
+            stillThere.dispatchEvent(new KeyboardEvent(t, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
+          });
+          stillThere.blur();
+          // Click ausserhalb erzwingen, falls Liris an outside-click haengt
+          document.body.click();
+        }, 250);
         return 'ok';
       })();
     `
