@@ -7,6 +7,7 @@
     "build": "tsc && vite build",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder",
+    "electron:release": "npm run build && electron-builder --publish always",
     "update-refdata": "node scripts/update-refdata.js",
     "update-refdata:force": "node scripts/update-refdata.js --force",
     "update-lieferengpaesse": "node scripts/update-lieferengpaesse.js",
@@ -45,6 +46,7 @@
     "axios": "^1.6.5",
     "clsx": "^2.1.0",
     "date-fns": "^3.3.1",
+    "electron-updater": "^6.3.9",
     "firebase": "^10.8.0",
     "lucide-react": "^0.323.0",
     "mermaid": "^11.15.0",
@@ -85,16 +87,30 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "infoAZSuhr",
+        "repo": "augenzentrum-suhr-app"
+      }
+    ],
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ],
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "deleteAppDataOnUninstall": false
     }
   }
 }

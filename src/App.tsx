@@ -19,6 +19,7 @@ import HelpPage from './pages/HelpPage'
 import TasksPage from './pages/TasksPage'
 import TaskBoardPage from './pages/TaskBoardPage'
 import RecallPage from './pages/RecallPage'
+import LirisPage from './pages/LirisPage'
 import ZuweisungPage from './pages/ZuweisungPage'
 import AkvPage from './pages/AkvPage'
 import AdminSystemPage from './pages/AdminSystemPage'
@@ -156,6 +157,7 @@ function RoutesWithPermissions() {
         <Route path="aufgaben"           element={<TasksPage />} />
         <Route path="aufgaben/:boardId"  element={<TaskBoardPage />} />
         <Route path="recall"        element={<PermissionGate allowed={canAccessRecall}><RecallPage /></PermissionGate>} />
+        <Route path="liris"        element={<PermissionGate allowed={canAccessRecall}><LirisPage /></PermissionGate>} />
         <Route path="zuweisungen"  element={<PermissionGate allowed={canAccessRecall}><ZuweisungPage /></PermissionGate>} />
         <Route path="akv"          element={<PermissionGate allowed={canAccessAkv}><AkvPage /></PermissionGate>} />
         <Route path="hilfe"        element={<HelpPage />} />
