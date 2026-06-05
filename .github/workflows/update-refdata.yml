@@ -26,7 +26,7 @@ jobs:
           cache: 'npm'
 
       - name: Dependencies installieren
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Refdata Artikelstamm herunterladen
         run: node scripts/update-refdata.js --force

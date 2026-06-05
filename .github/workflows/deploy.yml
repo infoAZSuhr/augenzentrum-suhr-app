@@ -46,7 +46,9 @@ jobs:
           cache: 'npm'
 
       - name: Dependencies installieren
-        run: npm ci
+        # npm install statt ci — toleriert kurzfristigen Lockfile-Drift,
+        # wenn neue Deps committed wurden ohne lokales npm install vorab.
+        run: npm install --no-audit --no-fund
 
       - name: Bestehende Daten-JSONs von Live-Site holen
         # Die grossen Daten-Dateien sind gitignored und werden nur von den

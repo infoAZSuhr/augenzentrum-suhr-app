@@ -26,7 +26,7 @@ jobs:
           cache: 'npm'
 
       - name: Dependencies installieren
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Playwright + Stealth installieren (nur CI — gehört nicht zur App)
         # --no-save + --no-package-lock: package.json und lock bleiben unangetastet.

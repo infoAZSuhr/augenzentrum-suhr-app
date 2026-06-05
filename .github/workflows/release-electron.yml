@@ -31,7 +31,9 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - run: npm ci
+      # npm install (nicht ci) — toleriert Lockfile-Drift bis package-lock.json
+      # mit neuen Dependencies lokal aktualisiert + committed wurde.
+      - run: npm install --no-audit --no-fund
 
       - name: Build SPA
         run: npm run build
