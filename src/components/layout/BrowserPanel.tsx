@@ -95,6 +95,15 @@ export default function BrowserPanel() {
     if (!pendingPid || !isOpen) return
 
     const pid = pendingPid
+    // ALLE setTimeouts in diesem Effect tracken, damit Cleanup sauber alles
+    // abraeumt. Sonst feuert ein 700-ms-restoreFocus-Timer aus einer alten
+    // Patienten-Session auf das aktuelle Modal — kann Fokus klauen.
+    const timers: number[] = []
+    const setT = (fn: () => void, ms: number) => {
+      const id = window.setTimeout(fn, ms)
+      timers.push(id)
+      return id
+    }
     // Fokus VOR der Injection merken, damit wir ihn danach zurueckgeben koennen.
     // Typischerweise ist das ein Input im "Patient bearbeiten"-Modal, das offen
     // war als der User auf "-> Liris" klickte. Wenn nichts fokussiert war
@@ -209,47 +218,44 @@ export default function BrowserPanel() {
       `
       wv.executeJavaScript(script)
         .then((res: string) => {
-          if (res === 'ok' || res === 'no-input-found') clearPendingPid()
-          // Nach kurzer Verzoegerung (Liris muss die Auswahl uebernehmen +
-          // ggf. die Detail-Ansicht rendern, sonst klauen wir uns selbst
-          // den Fokus zurueck waehrend Liris noch arbeitet) Fokus zurueck
-          // ins Hauptfenster setzen — typischerweise ins zuletzt aktive
-          // Input-Feld des Patient-bearbeiten-Modals.
-          setTimeout(restoreFocus, 700)
+          // pendingPid IMMER clearen — auch bei "keyboard"/"clicked-by-class"/
+          // "clicked-by-pid"/"no-input-found". Sonst kann ein nicht-aufgeraeumter
+          // pendingPid spaetere openWithPid-Aufrufe blockieren (gleicher Wert
+          // -> kein useEffect-Re-Run).
+          clearPendingPid()
+          // Nach kurzer Verzoegerung Fokus zurueck ins Hauptfenster — typischerweise
+          // ins zuletzt aktive Input-Feld des Patient-bearbeiten-Modals.
+          setT(restoreFocus, 700)
         })
-        .catch(() => {})
+        .catch(() => { clearPendingPid() })
     }
+
+    let detachReady: (() => void) | null = null
 
     if (webviewReady.current) {
       // Webview bereits geladen — sofort injizieren
-      const t = setTimeout(doInject, 300)
-      return () => clearTimeout(t)
+      setT(doInject, 300)
+    } else {
+      // Webview lädt noch oder wurde noch nicht gemountet —
+      // dom-ready abwarten. Guard NACH dem dom-ready-Event, nicht vorher.
+      const onReady = () => {
+        webviewReady.current = true
+        setT(doInject, 800)
+      }
+      const attach = () => {
+        const wv = webviewRef.current as any
+        if (!wv) return false
+        wv.addEventListener('dom-ready', onReady)
+        detachReady = () => wv.removeEventListener('dom-ready', onReady)
+        return true
+      }
+      // Webview-Element könnte noch nicht im DOM sein wenn isOpen soeben true wurde.
+      if (!attach()) setT(() => { attach() }, 50)
     }
 
-    // Webview lädt noch oder wurde noch nicht gemountet —
-    // dom-ready abwarten. Guard NACH dem dom-ready-Event, nicht vorher.
-    const onReady = () => {
-      webviewReady.current = true
-      setTimeout(doInject, 800)
-    }
-
-    // Webview-Element könnte noch nicht im DOM sein wenn isOpen soeben true wurde.
-    // Polling bis das Ref gesetzt ist, dann Listener registrieren.
-    let wv = webviewRef.current as any
-    if (wv) {
-      wv.addEventListener('dom-ready', onReady)
-      return () => wv.removeEventListener('dom-ready', onReady)
-    }
-
-    // Ref noch null — kurz warten und nochmal versuchen
-    const t = setTimeout(() => {
-      wv = webviewRef.current as any
-      if (wv) wv.addEventListener('dom-ready', onReady)
-    }, 50)
     return () => {
-      clearTimeout(t)
-      const w = webviewRef.current as any
-      if (w) w.removeEventListener('dom-ready', onReady)
+      timers.forEach(clearTimeout)
+      detachReady?.()
     }
   }, [pendingPid, isOpen, clearPendingPid])
 
