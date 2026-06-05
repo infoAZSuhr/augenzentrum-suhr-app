@@ -129,8 +129,32 @@ export default function BrowserPanel() {
 
           // Autocomplete-Dropdown abwarten und ersten Treffer auswaehlen.
           // Liris laedt die Vorschlaege per AJAX -> kurz warten.
+          var pidStr = ${JSON.stringify(pid)};
+          function isVisible(node) {
+            if (!node || node.offsetParent === null) return false;
+            var r = node.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          }
           function selectFirst() {
-            // 1) Versuch: sichtbares Dropdown-Item finden und klicken.
+            // 1) PID-spezifisch: suche ein klickbares Element, dessen Text die
+            //    PID enthaelt (z.B. "Sestito Heidi #961"). Das ist robust
+            //    gegen unbekannte Klassen-Namen / Framework-Wechsel.
+            var clickables = document.querySelectorAll('a, button, li, [role="option"], [role="button"], div[onclick], tr[onclick]');
+            for (var k = 0; k < clickables.length; k++) {
+              var c = clickables[k];
+              if (!isVisible(c)) continue;
+              // gleichen Knoten nicht doppelt zaehlen — Eltern haben Text der Kinder
+              var ownText = c.textContent || '';
+              if (ownText.indexOf(pidStr) === -1) continue;
+              // Suchfeld selbst nicht klicken
+              if (c.tagName === 'INPUT' || c.contains(el)) continue;
+              c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              c.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true }));
+              c.click();
+              return 'clicked-by-pid';
+            }
+
+            // 2) Klasse-basiert: sichtbares Dropdown-Item finden und klicken.
             var itemSelectors = [
               '.ui-autocomplete li:first-child a',
               '.ui-autocomplete li:first-child',
@@ -143,14 +167,14 @@ export default function BrowserPanel() {
             ];
             for (var i = 0; i < itemSelectors.length; i++) {
               var item = document.querySelector(itemSelectors[i]);
-              if (item && item.offsetParent !== null) {
+              if (item && isVisible(item)) {
                 item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 item.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true }));
                 item.click();
-                return 'clicked';
+                return 'clicked-by-class';
               }
             }
-            // 2) Fallback: Pfeil-runter + Enter im Suchfeld (Keyboard-Navigation).
+            // 3) Fallback: Pfeil-runter + Enter im Suchfeld (Keyboard-Navigation).
             ['keydown','keyup'].forEach(function(t) {
               el.dispatchEvent(new KeyboardEvent(t, {
                 key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true
@@ -169,7 +193,9 @@ export default function BrowserPanel() {
           var iv = setInterval(function() {
             tries++;
             var res = selectFirst();
-            if (res === 'clicked' || tries >= 6) clearInterval(iv);
+            // bei jedem "clicked-*"-Ergebnis aufhoeren — der Patient ist offen
+            if (res && res.indexOf('clicked') === 0) { clearInterval(iv); return; }
+            if (tries >= 6) clearInterval(iv);
           }, 350);
 
           return 'ok';
