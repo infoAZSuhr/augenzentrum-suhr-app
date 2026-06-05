@@ -4881,76 +4881,42 @@ export default function RecallPage() {
                   })()}
                 </div>
 
-                {/* Nächste Konst. */}
-                <div>
-                  <label className={labelCls}>
-                    Nächste Konst.
-                    {form.storniert === 'Terminverschiebung' && (
-                      <span className="ml-2 text-amber-600 font-normal">← vereinbarten Termin hier eintragen</span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
-                      className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
-                      onChange={e => {
-                        const val = e.target.value
-                        setField('naechsteKons', val)
-                        if (val) {
-                          // Mit gesetztem Termin braucht es keinen Recall mehr → «RC zu erstellen ab» leeren
-                          setField('aufgebotFuer', '')
-                          // Aktiv geplante Reminder («Geplant: <Zukunftsdatum>») entfernen,
-                          // historische Reminder-Einträge bleiben als Verlauf erhalten.
-                          const today = new Date().toISOString().slice(0, 10)
-                          const isActivePlannedReminder = (v: { aktion?: string; ergebnis?: string }) => {
-                            if (v.aktion !== 'Reminder') return false
-                            const m = v.ergebnis?.match(/^Geplant:\s*(\d{4}-\d{2}-\d{2})/)
-                            return !!m && m[1] > today
-                          }
-                          if (form.verlauf.some(isActivePlannedReminder)) {
-                            const cancelEntry = {
-                              datum: today,
-                              aktion: 'Reminder',
-                              ergebnis: `Abgesagt – Termin am ${formatDate(val)} vereinbart`,
-                              von: displayLabel,
-                            }
-                            setField('verlauf', [
-                              ...form.verlauf.filter(v => !isActivePlannedReminder(v)),
-                              cancelEntry,
-                            ])
-                          }
-                        }
-                      }} />
-                    <ClearBtn show={!!form.naechsteKons} onClear={() => {
-                      setField('naechsteKons', '')
-                      setField('keinTermin', false)
-                    }} />
-                  </div>
-                  {form.naechsteKons && (
-                    <div className="flex justify-end mt-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newDate = form.naechsteKons.slice(0, 10)
-                          setField('letzteKons', newDate)
-                          setField('storniert', '')
-                          setField('grundStornierung', '')
-                          setField('naechsteKons', '') // manuell neu eingeben
-                          if (form.konsInterval) {
-                            const computed = computeNextKons(newDate, form.konsInterval)
-                            if (computed) {
-                              const d = new Date(computed + 'T00:00:00Z')
-                              d.setUTCMonth(d.getUTCMonth() - 2)
-                              setField('aufgebotFuer', d.toISOString().slice(0, 10))
-                            }
-                          }
+                {/* Arzt zuweisen (im oberen Grid - prominent platziert,
+                    Pflichtfeld wenn noch kein Arzt vorhanden). */}
+                {(() => {
+                  const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
+                  const isRequired  = noDoctorYet
+                  const hasError    = formErrors.assignDoctor === true
+                  return (
+                    <div>
+                      <label className={labelCls}>
+                        {noDoctorYet ? 'Arzt zuweisen' : 'Arzt wechseln'}
+                        {isRequired && <span className="text-red-500 ml-0.5">*</span>}
+                      </label>
+                      <select
+                        value={assignDoctor}
+                        onChange={e => {
+                          setAssignDoctor(e.target.value)
+                          if (formErrors.assignDoctor) setFormErrors(prev => ({ ...prev, assignDoctor: false }))
                         }}
-                        className="text-[11px] font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                        className={`w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
+                          hasError ? 'border-red-400 focus:ring-red-300' : 'border-gray-200 focus:ring-primary-300'
+                        }`}
                       >
-                        als letzte Konst. ↑
-                      </button>
+                        <option value="">
+                          {noDoctorYet ? '— Arzt wählen —' : '— kein Wechsel —'}
+                        </option>
+                        {doctors.filter(d => editTarget === 'new' || d !== (editTarget as RecallPatient).doctor).map(d =>
+                          <option key={d} value={d}>{d}</option>
+                        )}
+                      </select>
+                      {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte Arzt wählen.</p>}
+                      {editTarget !== 'new' && assignDoctor && !noDoctorYet && (
+                        <p className="mt-1 text-[11px] text-primary-500">(wird beim Speichern übernommen)</p>
+                      )}
                     </div>
-                  )}
-                </div>
+                  )
+                })()}
               </div>
 
               {/* ── Zuweisung ─────────────────────────────────────────────────── */}
@@ -5259,9 +5225,9 @@ export default function RecallPage() {
                       </button>
                     ))}
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <div>
+                  {/* RC zu erstellen ab — unter den Aufgebot-Icons platziert
+                      (auf Wunsch des Users — vorher in der rechten Spalte). */}
+                  <div className="mt-3">
                     <label className={labelCls}>RC zu erstellen ab</label>
                     <div className="relative">
                       <input type="date" value={form.aufgebotFuer}
@@ -5269,6 +5235,78 @@ export default function RecallPage() {
                         className={`${inputCls} pr-6`} />
                       <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                     </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {/* Nächste Konst. — jetzt im rechten Aufgebot-Block. */}
+                  <div>
+                    <label className={labelCls}>
+                      Nächste Konst.
+                      {form.storniert === 'Terminverschiebung' && (
+                        <span className="ml-2 text-amber-600 font-normal">← vereinbarten Termin hier eintragen</span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
+                        className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
+                        onChange={e => {
+                          const val = e.target.value
+                          setField('naechsteKons', val)
+                          if (val) {
+                            // Mit gesetztem Termin braucht es keinen Recall mehr → «RC zu erstellen ab» leeren
+                            setField('aufgebotFuer', '')
+                            // Aktiv geplante Reminder («Geplant: <Zukunftsdatum>») entfernen,
+                            // historische Reminder-Einträge bleiben als Verlauf erhalten.
+                            const today = new Date().toISOString().slice(0, 10)
+                            const isActivePlannedReminder = (v: { aktion?: string; ergebnis?: string }) => {
+                              if (v.aktion !== 'Reminder') return false
+                              const m = v.ergebnis?.match(/^Geplant:\s*(\d{4}-\d{2}-\d{2})/)
+                              return !!m && m[1] > today
+                            }
+                            if (form.verlauf.some(isActivePlannedReminder)) {
+                              const cancelEntry = {
+                                datum: today,
+                                aktion: 'Reminder',
+                                ergebnis: `Abgesagt – Termin am ${formatDate(val)} vereinbart`,
+                                von: displayLabel,
+                              }
+                              setField('verlauf', [
+                                ...form.verlauf.filter(v => !isActivePlannedReminder(v)),
+                                cancelEntry,
+                              ])
+                            }
+                          }
+                        }} />
+                      <ClearBtn show={!!form.naechsteKons} onClear={() => {
+                        setField('naechsteKons', '')
+                        setField('keinTermin', false)
+                      }} />
+                    </div>
+                    {form.naechsteKons && (
+                      <div className="flex justify-end mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDate = form.naechsteKons.slice(0, 10)
+                            setField('letzteKons', newDate)
+                            setField('storniert', '')
+                            setField('grundStornierung', '')
+                            setField('naechsteKons', '') // manuell neu eingeben
+                            if (form.konsInterval) {
+                              const computed = computeNextKons(newDate, form.konsInterval)
+                              if (computed) {
+                                const d = new Date(computed + 'T00:00:00Z')
+                                d.setUTCMonth(d.getUTCMonth() - 2)
+                                setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                              }
+                            }
+                          }}
+                          className="text-[11px] font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                        >
+                          als letzte Konst. ↑
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className={labelCls}>{
@@ -5710,39 +5748,6 @@ export default function RecallPage() {
                 </select>
               </div>
 
-              {/* Assign doctor – for new patients and existing */}
-              {(() => {
-                const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
-                const isRequired  = noDoctorYet                       // Pflichtfeld wenn noch kein Arzt
-                const hasError    = formErrors.assignDoctor === true
-                return (
-                  <div className="pt-3 border-t border-gray-100">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      {noDoctorYet ? 'Arzt zuweisen' : 'Behandelnden Arzt wechseln'}
-                      {isRequired && <span className="text-red-500 ml-0.5">*</span>}
-                      {editTarget !== 'new' && assignDoctor && !noDoctorYet && <span className="ml-1.5 text-primary-500 font-normal">(wird beim Speichern übernommen)</span>}
-                    </label>
-                    <select
-                      value={assignDoctor}
-                      onChange={e => {
-                        setAssignDoctor(e.target.value)
-                        if (formErrors.assignDoctor) setFormErrors(prev => ({ ...prev, assignDoctor: false }))
-                      }}
-                      className={`w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
-                        hasError ? 'border-red-400 focus:ring-red-300' : 'border-gray-200 focus:ring-primary-300'
-                      }`}
-                    >
-                      <option value="">
-                        {noDoctorYet ? '— Arzt wählen —' : '— kein Wechsel —'}
-                      </option>
-                      {doctors.filter(d => editTarget === 'new' || d !== (editTarget as RecallPatient).doctor).map(d =>
-                        <option key={d} value={d}>{d}</option>
-                      )}
-                    </select>
-                    {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte einen Arzt auswählen.</p>}
-                  </div>
-                )
-              })()}
 
               {editTarget !== 'new' && (
                 <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
