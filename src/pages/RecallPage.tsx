@@ -562,12 +562,18 @@ export default function RecallPage() {
     voruntersuchungen: string[]      // selected items from VORUNTERSUCHUNGEN + 'Sonstige'
     voruntersuchungenSonstige: string
     fachtitel: string                // from doctor profile, editable (NOT saved)
+    // Telefon-Ergebnis nach Anruf — definiert auch das weitere Vorgehen
+    telResult: 'erreicht' | 'nichtErreicht' | 'nichtGueltig' | ''
+    // Folge-Vorgehen bei "nicht erreicht": was nun?
+    telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
+    telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
     art: null, pupille: false, anrede: '', adressBlock: '',
     terminDatum: '', terminZeit: '',
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
+    telResult: '', telFollowup: '', telFollowupDatum: '',
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
@@ -2283,15 +2289,56 @@ export default function RecallPage() {
       // Brief without date → save as Reminder
       const effectiveArt: AufgebotArt =
         aufgebotForm.art === 'Brief' && !aufgebotForm.terminDatum ? 'Reminder' : aufgebotForm.art
+      // Telefon-Ergebnis ins ergebnis-Feld einbauen, sodass die "Nicht erreicht"-
+      // Markierung im Verlauf eindeutig nachvollziehbar bleibt.
+      const telResultLabel =
+        aufgebotForm.telResult === 'erreicht'      ? 'Erreicht' :
+        aufgebotForm.telResult === 'nichtErreicht' ? 'Nicht erreicht' :
+        aufgebotForm.telResult === 'nichtGueltig'  ? 'Nr. nicht mehr gültig' : ''
+      const telErgebnis = effectiveArt === 'Tel'
+        ? [telResultLabel, aufgebotForm.notiz.trim()].filter(Boolean).join(' — ') || 'Anruf'
+        : null
+
       const logEntry: VerlaufEntry = {
         datum: today,
         aktion: effectiveArt === 'Brief' ? 'Briefaufgebot' :
                 effectiveArt === 'Reminder' ? 'Reminder' : 'Telefonaufgebot',
-        ergebnis: effectiveArt === 'Tel'
-          ? (aufgebotForm.notiz.trim() || 'Anruf')
-          : aufgebotForm.versand ? `Via ${aufgebotForm.versand}` : 'Erstellt',
+        ergebnis: telErgebnis ??
+          (aufgebotForm.versand ? `Via ${aufgebotForm.versand}` : 'Erstellt'),
         von: displayLabel,
       }
+
+      // Folge-Aktion bei "Nicht erreicht": automatisch passenden Verlaufseintrag
+      // anlegen ODER Felder vorbelegen, damit das weitere Vorgehen sichtbar ist.
+      const followupEntries: VerlaufEntry[] = []
+      let followupAufgebotFuer: string | null = null
+      if (effectiveArt === 'Tel' && aufgebotForm.telResult === 'nichtErreicht') {
+        const fd = aufgebotForm.telFollowupDatum
+        if (aufgebotForm.telFollowup === 'erneutAnrufen' && fd) {
+          followupEntries.push({
+            datum: today,
+            aktion: 'Telefonanruf',
+            ergebnis: `Geplant: ${fd}`,
+            von: displayLabel,
+          })
+        } else if (aufgebotForm.telFollowup === 'reminderSetzen' && fd) {
+          followupEntries.push({
+            datum: today,
+            aktion: 'Reminder',
+            ergebnis: `Geplant: ${fd}`,
+            von: displayLabel,
+          })
+          followupAufgebotFuer = fd
+        } else if (aufgebotForm.telFollowup === 'briefVersenden') {
+          followupEntries.push({
+            datum: today,
+            aktion: 'Notiz',
+            ergebnis: 'Brief versenden — folgt',
+            von: displayLabel,
+          })
+        }
+      }
+
       const telDate = aufgebotForm.art === 'Tel' ? aufgebotForm.terminFixiert || null : null
       await updateRecallPatient(aufgebotTarget.patient.id, {
         aufgebotArt:       effectiveArt,
@@ -2300,7 +2347,8 @@ export default function RecallPage() {
         aufgebotNotiz:     aufgebotForm.notiz          || null,
         terminFixiert:     (aufgebotForm.art === 'Brief' ? aufgebotForm.terminDatum : aufgebotForm.terminFixiert) || null,
         ...(telDate ? { naechsteKons: telDate } : {}),
-        verlauf:           [...existingVerlauf, logEntry],
+        ...(followupAufgebotFuer ? { aufgebotFuer: followupAufgebotFuer } : {}),
+        verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
         excelAbgeglichen:  true,
       } as any, displayLabel)
       // Lokalen Excel-Sync-Dienst triggern (läuft nur wenn Dienst aktiv)
@@ -3602,6 +3650,91 @@ export default function RecallPage() {
                       placeholder="z.B. Patient erreicht, Termin vereinbart für… / Keine Antwort, Nachricht hinterlassen"
                       className="input text-sm resize-none"
                     />
+                  </div>
+                )}
+
+                {/* Telefon: Ergebnis-Quick-Buttons + Folge-Vorgehen.
+                    Klick auf "Nicht erreicht" oeffnet Folge-Aktionen, damit
+                    sofort klar wird wie weiter (erneuter Anruf, Brief, Reminder). */}
+                {af.art === 'Tel' && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Ergebnis</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {([
+                        { key: 'erreicht'     as const, label: 'Erreicht',              cls: 'border-green-300 bg-green-50 text-green-700' },
+                        { key: 'nichtErreicht'as const, label: 'Nicht erreicht',        cls: 'border-orange-300 bg-orange-50 text-orange-700' },
+                        { key: 'nichtGueltig' as const, label: 'Nr. nicht mehr gültig', cls: 'border-red-300 bg-red-50 text-red-700' },
+                      ]).map(b => {
+                        const active = af.telResult === b.key
+                        return (
+                          <button key={b.key} type="button"
+                            onClick={() => setAf({
+                              telResult: active ? '' : b.key,
+                              // Folge-Aktionen nur bei "nicht erreicht" relevant — sonst zuruecksetzen
+                              telFollowup: (active || b.key !== 'nichtErreicht') ? '' : af.telFollowup,
+                              telFollowupDatum: (active || b.key !== 'nichtErreicht') ? '' : af.telFollowupDatum,
+                            })}
+                            className={`py-1.5 rounded-lg text-xs font-semibold border-2 transition-colors hover:opacity-80 ${
+                              active ? b.cls : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >{b.label}</button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Folge-Vorgehen-Auswahl — nur bei "Nicht erreicht" */}
+                    {af.telResult === 'nichtErreicht' && (
+                      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
+                        <p className="text-xs font-semibold text-orange-700">Weiteres Vorgehen</p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {([
+                            { key: 'erneutAnrufen'  as const, label: 'Erneut anrufen' },
+                            { key: 'briefVersenden' as const, label: 'Brief versenden' },
+                            { key: 'reminderSetzen' as const, label: 'Reminder setzen' },
+                          ]).map(b => {
+                            const active = af.telFollowup === b.key
+                            // Default-Datum: für Anruf in 3 Tagen, für Reminder in 14 Tagen
+                            const defaultDate = () => {
+                              const d = new Date()
+                              d.setDate(d.getDate() + (b.key === 'erneutAnrufen' ? 3 : 14))
+                              return d.toISOString().slice(0, 10)
+                            }
+                            return (
+                              <button key={b.key} type="button"
+                                onClick={() => setAf({
+                                  telFollowup: active ? '' : b.key,
+                                  telFollowupDatum: active ? '' : (af.telFollowupDatum || defaultDate()),
+                                })}
+                                className={`py-1.5 rounded-lg text-[11px] font-semibold border-2 transition-colors hover:opacity-80 ${
+                                  active
+                                    ? 'border-orange-400 bg-white text-orange-700'
+                                    : 'border-orange-200 bg-white text-orange-600 hover:bg-orange-100'
+                                }`}
+                              >{b.label}</button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Datum-Picker für Anruf / Reminder */}
+                        {(af.telFollowup === 'erneutAnrufen' || af.telFollowup === 'reminderSetzen') && (
+                          <div className="flex items-center gap-2">
+                            <label className="text-[11px] text-orange-700 font-semibold whitespace-nowrap">
+                              {af.telFollowup === 'erneutAnrufen' ? 'Anruf am' : 'Reminder am'}
+                            </label>
+                            <input type="date"
+                              value={af.telFollowupDatum}
+                              onChange={e => setAf({ telFollowupDatum: e.target.value })}
+                              className="input text-xs flex-1"
+                            />
+                          </div>
+                        )}
+                        {af.telFollowup === 'briefVersenden' && (
+                          <p className="text-[11px] text-orange-700 leading-relaxed">
+                            Nach dem Speichern auf <strong>«Brief / Reminder»</strong> umschalten und Brief erstellen.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
