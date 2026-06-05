@@ -101,10 +101,16 @@ export default function BrowserPanel() {
     // (z.B. ueber Tabellen-Klick aufgerufen), nehmen wir document.body als Fallback.
     const previouslyFocused = document.activeElement as HTMLElement | null
     const restoreFocus = () => {
-      // Webview im Panel zuerst blurren — sonst kann der Browser den Focus
-      // im Webview halten, auch wenn wir ein anderes Element fokussieren.
-      const wv = webviewRef.current as any
-      if (wv?.blur) wv.blur()
+      // WICHTIG: Nur restore-en wenn der Fokus zur Zeit IM WEBVIEW liegt
+      // (also vom Inject-Script geklaut wurde). Falls der User inzwischen
+      // schon in ein anderes Feld geklickt hat (z.B. PID-Input im Edit-
+      // Modal), wuerden wir ihm sonst den Fokus wieder wegnehmen waehrend
+      // er tippt — das war ein Bug der manchmal Buchstaben verschluckte.
+      const now = document.activeElement
+      const wv = webviewRef.current as HTMLElement | null
+      const focusInWebview = !!wv && (now === wv || wv.contains(now as Node))
+      if (!focusInWebview) return                  // User ist woanders — nicht stoeren
+      if (wv && (wv as any).blur) (wv as any).blur()
       if (previouslyFocused && document.contains(previouslyFocused)) {
         try { previouslyFocused.focus() } catch { /* ignore */ }
       }
