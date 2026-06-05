@@ -5100,10 +5100,35 @@ export default function RecallPage() {
                   {/* Contact method toggles – only when a Stornierungsgrund is set (not when Verstorben or Arztwechsel) */}
                   {form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel' && (
                     <>
+                      {/* "Weshalb anrufen?" — gehört zum Schritt "Patient anrufen",
+                          nicht ins Telefon-Detail-Panel. Wird beim Klick auf die
+                          Quick-Action mit dem Verlaufseintrag verknuepft. Wird ausserdem
+                          vom Telefon-Detail-Panel weitergenutzt (gleicher State). */}
+                      <div className="mb-2">
+                        <label className="text-xs font-semibold text-amber-700 block mb-1">Weshalb anrufen?</label>
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {['Termin vereinbaren','Termin verschieben','Rezept','Befundbesprechung','Nachfrage','Erinnerung'].map(g => (
+                            <button key={g} type="button"
+                              onClick={() => setVorgehenTelGrund(prev => prev ? `${prev}, ${g}` : g)}
+                              className="px-2 py-0.5 text-[11px] font-medium border border-amber-200 bg-white text-amber-700 rounded-full hover:bg-amber-100 transition-colors"
+                            >+ {g}</button>
+                          ))}
+                        </div>
+                        <textarea
+                          rows={2}
+                          placeholder="z.B. Patient möchte Termin verschieben, fragt nach Rezept…"
+                          value={vorgehenTelGrund}
+                          onChange={e => setVorgehenTelGrund(e.target.value)}
+                          className={`${inputCls} resize-none`}
+                        />
+                      </div>
+
                       <button type="button"
                         onClick={async () => {
                           if (!editTarget || (editTarget as unknown as string) === 'new') return
                           const entry: any = { datum: new Date().toISOString().slice(0, 10), aktion: 'Telefonanruf', ergebnis: 'noch zu erledigen', von: displayLabel }
+                          // Grund aus dem Feld oberhalb mitnehmen, wenn vorhanden.
+                          if (vorgehenTelGrund.trim()) entry.grund = vorgehenTelGrund.trim()
                           const newVerlauf = [...form.verlauf, entry]
                           setField('verlauf', newVerlauf)
                           setAllData(prev => {
@@ -5115,6 +5140,9 @@ export default function RecallPage() {
                             return next
                           })
                           try { await updateRecallPatient(editTarget.id, { verlauf: newVerlauf }, displayLabel) } catch { /* ignore */ }
+                          // Grund-Feld nach dem Speichern leeren — sonst klebt der
+                          // Text fuer den naechsten Patienten.
+                          setVorgehenTelGrund('')
                         }}
                         className="w-full flex items-center justify-center gap-1.5 py-2 mb-3 rounded-xl text-sm font-semibold border-2 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
                       >
@@ -5148,33 +5176,21 @@ export default function RecallPage() {
                         </button>
                       </div>
 
-                      {/* Telefon panel */}
+                      {/* Telefon panel — Grund wird oben unter "Patient anrufen"
+                          erfasst (gleicher State vorgehenTelGrund). Hier nur Datum
+                          + Ergebnis-Buttons. */}
                       {vorgehenTelOpen && (
                         <div className="mb-3 bg-white rounded-xl border border-green-200 p-3 space-y-2">
-                          {/* Grund: zuerst, weil das oft DAS wichtige Info ist
-                              ("warum rufen wir an?"). Quick-Chips erleichtern die
-                              haeufigsten Faelle, Textarea ist immer noch frei. */}
-                          <label className="text-xs font-semibold text-green-700 block">Weshalb anrufen?</label>
-                          <div className="flex flex-wrap gap-1">
-                            {['Termin vereinbaren','Termin verschieben','Rezept','Befundbesprechung','Nachfrage','Erinnerung'].map(g => (
-                              <button key={g} type="button"
-                                onClick={() => setVorgehenTelGrund(prev => prev ? `${prev}, ${g}` : g)}
-                                className="px-2 py-0.5 text-[11px] font-medium border border-green-200 bg-white text-green-700 rounded-full hover:bg-green-100 transition-colors"
-                              >+ {g}</button>
-                            ))}
-                          </div>
-                          <textarea
-                            rows={2}
-                            placeholder="Grund/Bemerkung — z.B. Patient möchte Termin verschieben, fragt nach Rezept…"
-                            value={vorgehenTelGrund}
-                            onChange={e => setVorgehenTelGrund(e.target.value)}
-                            className={`${inputCls} resize-none`}
-                          />
-                          <label className="text-xs font-semibold text-gray-600 block pt-1">Datum des Anrufs</label>
+                          <label className="text-xs font-semibold text-gray-600 block">Datum des Anrufs</label>
                           <input type="date" value={vorgehenTelDatum}
                             onChange={e => setVorgehenTelDatum(e.target.value)}
                             className={inputCls} />
                           {vorgehenTelDatum && <p className="text-xs text-gray-400 -mt-1">{formatDate(vorgehenTelDatum)}</p>}
+                          {vorgehenTelGrund && (
+                            <p className="text-[11px] text-gray-500 italic px-1 py-0.5 bg-amber-50 border border-amber-100 rounded">
+                              Grund (oben erfasst): {vorgehenTelGrund}
+                            </p>
+                          )}
                           {vorgehenTelDatum ? (
                             <div className="grid grid-cols-3 gap-1.5">
                               {([
