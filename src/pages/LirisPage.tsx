@@ -182,7 +182,6 @@ export default function LirisPage() {
         // partition: persistente Session -> Login bleibt erhalten
         partition="persist:liris"
         className="flex-1 w-full h-full"
-        // @ts-expect-error -- 'allowpopups' ist eine valide webview-Property
         allowpopups="true"
       />
     </div>
