@@ -57,6 +57,115 @@ function createWindow() {
   })
 }
 
+// ── Liris-Popup-Fenster (eigene BrowserWindow) ────────────────────────────
+// Wird ueber den IPC-Channel 'open-liris-window' angetriggert. Eine einzige
+// Fenster-Instanz wird wiederverwendet — beim zweiten Aufruf bekommt das
+// bestehende Fenster nur die neue PID + wird fokussiert.
+// Hauptfenster behaelt den Fokus auf "Patient bearbeiten", User kann Liris
+// per Alt-Tab oder Klick auf die Taskbar holen.
+
+const LIRIS_URL = 'https://vip.liris.ch/'
+let lirisWindow = null
+
+function openOrFocusLirisWindow(pid) {
+  if (lirisWindow && !lirisWindow.isDestroyed()) {
+    if (lirisWindow.isMinimized()) lirisWindow.restore()
+    // Fenster wird nur gezeigt, aber NICHT in den Vordergrund geholt —
+    // sonst stiehlt es dem Hauptfenster den Fokus, was wir vermeiden wollen.
+    lirisWindow.showInactive()
+    sendPidToLirisWindow(pid)
+    return
+  }
+
+  lirisWindow = new BrowserWindow({
+    width: 1100,
+    height: 800,
+    minWidth: 700,
+    minHeight: 500,
+    title: 'Liris',
+    show: false,
+    backgroundColor: '#ffffff',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      partition: 'persist:liris',     // Login bleibt erhalten
+    },
+  })
+
+  lirisWindow.once('ready-to-show', () => {
+    // showInactive = zeigen ohne Fokus zu stehlen -> User bleibt im Hauptfenster
+    lirisWindow.showInactive()
+    // Erste PID nach kurzer Verzoegerung uebertragen, sobald DOM bereit
+  })
+
+  lirisWindow.webContents.on('did-finish-load', () => {
+    sendPidToLirisWindow(pid)
+  })
+
+  lirisWindow.on('closed', () => { lirisWindow = null })
+
+  lirisWindow.loadURL(LIRIS_URL).catch(err =>
+    console.warn('[Liris] loadURL fehlgeschlagen:', err?.message ?? err)
+  )
+}
+
+function sendPidToLirisWindow(pid) {
+  if (!lirisWindow || lirisWindow.isDestroyed()) return
+  if (!pid) return
+  const value = String(pid).startsWith('#') ? String(pid) : `#${pid}`
+  // executeJavaScript direkt im Liris-Fenster — fuellt das Suchfeld,
+  // drueckt Enter, klickt das erste Ergebnis. Gleiche Logik wie in der
+  // alten LirisPage-Webview, nur jetzt im echten Fenster.
+  const script = `
+    (function() {
+      var sel = 'input[placeholder^="Allgemeine Suche"]';
+      var el = document.querySelector(sel);
+      if (!el) return 'no-input-found';
+      var proto = Object.getPrototypeOf(el);
+      var setter = Object.getOwnPropertyDescriptor(proto, 'value') && Object.getOwnPropertyDescriptor(proto, 'value').set;
+      if (setter) setter.call(el, ${JSON.stringify(value)});
+      else el.value = ${JSON.stringify(value)};
+      el.dispatchEvent(new Event('input',  { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.focus();
+      ['keydown','keypress','keyup'].forEach(function(t) {
+        el.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+      });
+      setTimeout(function() {
+        var candidates = ['[role="option"]','[role="listbox"] li','[role="listbox"] [role="option"]','ul.dropdown li','ul.search-results li','.search-result','.autocomplete-suggestion','.ui-menu-item','.MuiAutocomplete-option','.mat-option'];
+        for (var i = 0; i < candidates.length; i++) {
+          var hit = document.querySelector(candidates[i]);
+          if (hit) { hit.click(); return; }
+        }
+        var still = document.querySelector(sel);
+        if (still) {
+          ['keydown','keypress','keyup'].forEach(function(t) {
+            still.dispatchEvent(new KeyboardEvent(t, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
+          });
+          still.blur();
+          document.body.click();
+        }
+      }, 400);
+      return 'ok';
+    })();
+  `
+  // Kleiner Delay, damit Liris seine Components rendern kann
+  setTimeout(() => {
+    lirisWindow?.webContents.executeJavaScript(script).catch(err =>
+      console.warn('[Liris] executeJavaScript Fehler:', err?.message ?? err)
+    )
+  }, 600)
+}
+
+ipcMain.handle('open-liris', async (_event, pid) => {
+  try {
+    openOrFocusLirisWindow(pid)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+})
+
 // IPC: write .ics to temp folder and open with default calendar app (Outlook)
 ipcMain.handle('open-ics', async (_event, content, filename) => {
   try {

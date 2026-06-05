@@ -61,25 +61,51 @@ export default function LirisPage() {
         el.dispatchEvent(new Event('input',  { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
         el.focus();
-        // Enter simulieren — manche Apps wollen keypress, manche keydown
+        // Enter simulieren — Trigger der Suche
         ['keydown','keypress','keyup'].forEach(function(t) {
           el.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
         });
-        // Nach kurzer Verzoegerung Dropdown schliessen: zuerst Escape feuern
-        // (deckt die meisten Autocomplete-Implementierungen ab), dann blur
-        // (falls Escape nicht greift, schliesst blur in der Regel auch).
-        // 250 ms reicht, damit Liris die Auswahl uebernommen + Detail-Ansicht
-        // geladen hat — sonst koennte Escape die Auswahl wieder verwerfen.
+
+        // Nach 400 ms: erstes Dropdown-Ergebnis ANKLICKEN, damit Liris den
+        // Patienten wirklich oeffnet (nicht nur die Suchliste anzeigt).
+        // Wir probieren mehrere gaengige Selektoren (verschiedene UI-Frameworks),
+        // brechen beim ersten Treffer ab.
+        function clickFirstResult() {
+          var candidates = [
+            '[role="option"]',
+            '[role="listbox"] li',
+            '[role="listbox"] [role="option"]',
+            'ul.dropdown li',
+            'ul.search-results li',
+            '.search-result',
+            '.autocomplete-suggestion',
+            '.ui-menu-item',
+            '.MuiAutocomplete-option',
+            '.mat-option',
+          ];
+          for (var i = 0; i < candidates.length; i++) {
+            var hit = document.querySelector(candidates[i]);
+            if (hit) {
+              hit.click();
+              return 'clicked:' + candidates[i];
+            }
+          }
+          return 'no-result-clicked';
+        }
         setTimeout(function() {
+          var result = clickFirstResult();
+          console.log('[Liris-script]', result);
+          // Auch wenn nichts geklickt wurde: Dropdown ueber Escape/blur
+          // verschwinden lassen, sonst klebt es weiter im Bild.
           var stillThere = document.querySelector(sel);
-          if (!stillThere) return;
-          ['keydown','keypress','keyup'].forEach(function(t) {
-            stillThere.dispatchEvent(new KeyboardEvent(t, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
-          });
-          stillThere.blur();
-          // Click ausserhalb erzwingen, falls Liris an outside-click haengt
-          document.body.click();
-        }, 250);
+          if (stillThere) {
+            ['keydown','keypress','keyup'].forEach(function(t) {
+              stillThere.dispatchEvent(new KeyboardEvent(t, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
+            });
+            stillThere.blur();
+            document.body.click();
+          }
+        }, 400);
         return 'ok';
       })();
     `

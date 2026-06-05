@@ -95,6 +95,20 @@ export default function BrowserPanel() {
     if (!pendingPid || !isOpen) return
 
     const pid = pendingPid
+    // Fokus VOR der Injection merken, damit wir ihn danach zurueckgeben koennen.
+    // Typischerweise ist das ein Input im "Patient bearbeiten"-Modal, das offen
+    // war als der User auf "-> Liris" klickte. Wenn nichts fokussiert war
+    // (z.B. ueber Tabellen-Klick aufgerufen), nehmen wir document.body als Fallback.
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const restoreFocus = () => {
+      // Webview im Panel zuerst blurren — sonst kann der Browser den Focus
+      // im Webview halten, auch wenn wir ein anderes Element fokussieren.
+      const wv = webviewRef.current as any
+      if (wv?.blur) wv.blur()
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        try { previouslyFocused.focus() } catch { /* ignore */ }
+      }
+    }
 
     const doInject = () => {
       const wv = webviewRef.current as any
@@ -162,7 +176,15 @@ export default function BrowserPanel() {
         })();
       `
       wv.executeJavaScript(script)
-        .then((res: string) => { if (res === 'ok' || res === 'no-input-found') clearPendingPid() })
+        .then((res: string) => {
+          if (res === 'ok' || res === 'no-input-found') clearPendingPid()
+          // Nach kurzer Verzoegerung (Liris muss die Auswahl uebernehmen +
+          // ggf. die Detail-Ansicht rendern, sonst klauen wir uns selbst
+          // den Fokus zurueck waehrend Liris noch arbeitet) Fokus zurueck
+          // ins Hauptfenster setzen — typischerweise ins zuletzt aktive
+          // Input-Feld des Patient-bearbeiten-Modals.
+          setTimeout(restoreFocus, 700)
+        })
         .catch(() => {})
     }
 
