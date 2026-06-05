@@ -448,6 +448,10 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 
 export default function RecallPage() {
   const { profile, isAdmin, isGeschaeftsleitung } = useAuth()
+  // Electron-Erkennung — Liris-Integration (Webview + Auto-PID) funktioniert
+  // NUR in der Desktop-App. Im Browser blockiert CORS, daher Buttons
+  // ausblenden statt einen toten Link anzubieten.
+  const isElectron = typeof window !== 'undefined' && /Electron/i.test(navigator.userAgent)
   /** Wer darf die Patientenliste hochladen und Imports rückgängig machen?
    *  Nur Admin + Geschäftsleitung — destruktive bzw. weitreichende Aktionen. */
   const canManageImports = isAdmin || isGeschaeftsleitung
@@ -2391,9 +2395,13 @@ export default function RecallPage() {
     // Live-Snapshot waehrend Edit puffern -> verhindert Input-Reset beim Tippen.
     editingRef.current = true
     setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
-    // Gleichzeitig PID an Liris senden (öffnet Liris-Panel falls noch zu)
-    const pid = normalizePid(patient.pid)
-    if (pid) openWithPid(pid)
+    // Gleichzeitig PID an Liris senden — NUR in Electron sinnvoll (CORS blockt
+    // im Browser). Im Browser ist openWithPid bereits ein No-Op weil das Panel
+    // gar nicht gerendert wird, aber wir sparen uns den state-Update + Re-Render.
+    if (isElectron) {
+      const pid = normalizePid(patient.pid)
+      if (pid) openWithPid(pid)
+    }
   }
   function openNew() {
     editingRef.current = true
@@ -3197,15 +3205,17 @@ export default function RecallPage() {
                           <button onClick={e => { e.stopPropagation(); copyToClipboard(`#${normalizePid(row.pid)}`, `pid-${row.id}`) }} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-primary-500" title="Kopieren">
                             {copiedCell === `pid-${row.id}` ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
                           </button>
-                          {/* "→ Liris" — oeffnet eingebettetes Liris (Electron) bzw. neuen Tab (Browser).
-                              Liris-Suchfeld wird automatisch mit der PID befuellt (nur Desktop-App). */}
-                          <button
-                            onClick={e => { e.stopPropagation(); openWithPid(normalizePid(row.pid) ?? '') }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-primary-600"
-                            title="In Liris öffnen"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
+                          {/* "→ Liris" — nur in der Electron-Desktop-App. Im Browser
+                              koennen wir Liris nicht steuern (CORS) -> Button nicht zeigen. */}
+                          {isElectron && (
+                            <button
+                              onClick={e => { e.stopPropagation(); openWithPid(normalizePid(row.pid) ?? '') }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-primary-600"
+                              title="In Liris öffnen"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
                         </span>
                       ) : '—'}
                     </td>
