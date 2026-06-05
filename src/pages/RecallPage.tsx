@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, Lock } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
@@ -24,6 +24,10 @@ import {
   saveZuweisungConfig,
   ZUWEISUNG_DEFAULT_PRAXEN,
   ZUWEISUNG_DEFAULT_GRUENDE,
+  subscribeAllRecallPatients,
+  acquireEditLock,
+  releaseEditLock,
+  isLockActive,
 } from '../lib/firestoreRecall'
 import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
@@ -673,6 +677,7 @@ export default function RecallPage() {
   }, [])
 
   useEffect(() => {
+    let unsub: (() => void) | null = null
     async function init() {
       // Load doctor names (last names) from current year's Einsatzplanung
       let docList = DOCTORS_DEFAULT
@@ -683,9 +688,18 @@ export default function RecallPage() {
 
       const exists = await hasRecallData()
       if (!exists) { setStatus('empty'); return }
-      loadAll([...docList, ZU_BEARB])
+      await loadAll([...docList, ZU_BEARB])
+
+      // Live-Subscription: ab jetzt landen Aenderungen anderer User
+      // (sowie eigene Edits/Locks) automatisch im allData-State.
+      // Ersetzt vollstaendig — Listener bekommt die ganze Collection.
+      unsub = subscribeAllRecallPatients(
+        byDoctor => setAllData(byDoctor),
+        err => console.warn('[Recall] Live-Subscription Fehler:', err),
+      )
     }
     init()
+    return () => { unsub?.() }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll(tabs = allTabs) {
@@ -2263,9 +2277,34 @@ export default function RecallPage() {
 
   // ── Edit modal ───────────────────────────────────────────────────────────────
   function resetVorgehen() { setVorgehenTelOpen(false); setVorgehenEmailOpen(false); setVorgehenReminderOpen(false); setVorgehenTelDatum(''); setVorgehenEmailDatum(''); setVorgehenReminderDatum(''); setVorgehenTelGrund(''); setVorgehenEmailGrund(''); setVorgehenReminderGrund('') }
-  function openEdit(patient: RecallPatient) { setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); setModalPos(null); resetVorgehen() }
+  // Beforeunload: Lock freigeben wenn der Tab geschlossen wird waehrend
+  // ein Edit-Modal offen ist. sendBeacon waere ideal aber Firestore SDK
+  // unterstuetzt es nicht direkt — wir feuern updateDoc und hoffen dass
+  // es noch durchgeht (im Worst Case greift der 5-Minuten-TTL).
+  useEffect(() => {
+    function handleBeforeUnload() {
+      if (editTarget && editTarget !== 'new') {
+        releaseEditLock(editTarget.id).catch(() => {})
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [editTarget])
+
+  function openEdit(patient: RecallPatient) {
+    // Lock setzen (fire-and-forget) — andere User sehen das Symbol durch
+    // den Live-Snapshot. Beim Schliessen wird der Lock wieder freigegeben.
+    acquireEditLock(patient.id, displayLabel).catch(e => console.warn('[Recall] Lock setzen fehlgeschlagen:', e))
+    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); setModalPos(null); resetVorgehen()
+  }
   function openNew()                        { setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); setModalPos(null); resetVorgehen() }
-  function closeEdit()                      { setEditTarget(null) }
+  function closeEdit()                      {
+    // Lock entfernen — best-effort. Falls Edit auf 'new' war: nichts zu tun.
+    if (editTarget && editTarget !== 'new') {
+      releaseEditLock(editTarget.id).catch(e => console.warn('[Recall] Lock freigeben fehlgeschlagen:', e))
+    }
+    setEditTarget(null)
+  }
 
   function checkPid(raw: string) {
     const norm = normalizePid(raw)
@@ -2884,14 +2923,19 @@ export default function RecallPage() {
           const storniert  = isStorniert(row)
           const patStatus  = s(row.patientenStatus)
           const isInaktiv  = patStatus === 'inaktiv' || patStatus === 'verstorben'
+          const lockedByOther = isLockActive(row.editingBy) && row.editingBy?.user !== displayLabel
           return (
             <div
               key={row.id}
-              onClick={() => openEdit(row)}
-              className={`flex flex-col gap-1 px-4 py-3 cursor-pointer transition-colors ${
-                storniert ? 'bg-red-50 hover:bg-red-100' :
-                isInaktiv ? 'opacity-60 hover:opacity-80 hover:bg-gray-50' :
-                'hover:bg-primary-50'
+              onClick={() => { if (!lockedByOther) openEdit(row) }}
+              title={lockedByOther ? `Wird gerade von ${row.editingBy?.user} bearbeitet` : undefined}
+              className={`flex flex-col gap-1 px-4 py-3 transition-colors ${
+                lockedByOther ? 'cursor-not-allowed bg-amber-50/40' :
+                'cursor-pointer ' + (
+                  storniert ? 'bg-red-50 hover:bg-red-100' :
+                  isInaktiv ? 'opacity-60 hover:opacity-80 hover:bg-gray-50' :
+                  'hover:bg-primary-50'
+                )
               }`}
             >
               {/* Name + Status + badges */}
@@ -3001,22 +3045,34 @@ export default function RecallPage() {
                 const futureNext = isFutureDate(row.naechsteKons)
                 const patStatus  = s(row.patientenStatus)
                 const isInaktiv  = patStatus === 'inaktiv' || patStatus === 'verstorben'
+                // Live-Lock-Detection: ein anderer User hat die Zeile gerade offen.
+                // Eigene Locks ignorieren (Display-Label-Vergleich).
+                const lockedByOther = isLockActive(row.editingBy) && row.editingBy?.user !== displayLabel
                 return (
                   <tr
                     key={row.id}
-                    onClick={() => openEdit(row)}
-                    className={`transition-colors group cursor-pointer ${
-                      storniert ? 'bg-red-50 hover:bg-red-100' :
-                      isInaktiv ? 'opacity-50 hover:opacity-70 hover:bg-gray-100' :
-                      'hover:bg-primary-50'
+                    onClick={() => { if (!lockedByOther) openEdit(row) }}
+                    title={lockedByOther ? `Wird gerade von ${row.editingBy?.user} bearbeitet — bitte warten` : undefined}
+                    className={`transition-colors group ${
+                      lockedByOther ? 'cursor-not-allowed bg-amber-50/40 hover:bg-amber-50/60' :
+                      storniert ? 'cursor-pointer bg-red-50 hover:bg-red-100' :
+                      isInaktiv ? 'cursor-pointer opacity-50 hover:opacity-70 hover:bg-gray-100' :
+                      'cursor-pointer hover:bg-primary-50'
                     }`}
                   >
-                    <td className={`px-2 py-2.5 sticky left-0 z-10 ${storniert ? 'bg-red-50' : 'bg-white'}`}>
-                      {patStatus === 'verstorben'    && <span title="Verstorben" className="text-gray-500 text-sm font-bold leading-none">✝</span>}
-                      {patStatus === 'inaktiv'       && <span title="Inaktiv"><MinusCircle className="w-4 h-4 text-gray-400" /></span>}
-                      {patStatus === 'aktiv'         && <span title="Aktiv"><CheckCircle2 className="w-4 h-4 text-green-600" /></span>}
-                      {patStatus === 'Reminder'      && <span title="Reminder"><Bell className="w-4 h-4 text-blue-500" /></span>}
-                      {patStatus === 'kein Aufgebot' && <span title="kein Aufgebot - meldet sich b. Bedarf"><BellOff className="w-4 h-4 text-gray-400" /></span>}
+                    <td className={`px-2 py-2.5 sticky left-0 z-10 ${storniert ? 'bg-red-50' : lockedByOther ? 'bg-amber-50/40' : 'bg-white'}`}>
+                      <div className="flex items-center gap-1">
+                        {lockedByOther && (
+                          <span title={`In Bearbeitung durch ${row.editingBy?.user}`}>
+                            <Lock className="w-4 h-4 text-amber-600" />
+                          </span>
+                        )}
+                        {patStatus === 'verstorben'    && <span title="Verstorben" className="text-gray-500 text-sm font-bold leading-none">✝</span>}
+                        {patStatus === 'inaktiv'       && <span title="Inaktiv"><MinusCircle className="w-4 h-4 text-gray-400" /></span>}
+                        {patStatus === 'aktiv'         && <span title="Aktiv"><CheckCircle2 className="w-4 h-4 text-green-600" /></span>}
+                        {patStatus === 'Reminder'      && <span title="Reminder"><Bell className="w-4 h-4 text-blue-500" /></span>}
+                        {patStatus === 'kein Aufgebot' && <span title="kein Aufgebot - meldet sich b. Bedarf"><BellOff className="w-4 h-4 text-gray-400" /></span>}
+                      </div>
                     </td>
                     <td className={`px-3 py-2.5 text-gray-400 text-xs tabular-nums whitespace-nowrap hidden md:table-cell sticky left-10 z-10 min-w-[80px] ${storniert ? 'bg-red-50' : 'bg-white'}`}>
                       {row.pid ? (

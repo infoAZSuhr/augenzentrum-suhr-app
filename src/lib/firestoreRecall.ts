@@ -42,6 +42,20 @@ export interface RecallPatient {
   erstellt: string | null
   aktualisiert: string | null
   zuweisung?: Zuweisung | null
+  /** Aktiver Edit-Lock: wer hat die Zeile gerade in seinem Edit-Modal offen?
+   *  startedAt = Date.now() (millis). Locks > EDIT_LOCK_TTL_MS gelten als
+   *  stale (Browser-Crash, Tab geschlossen ohne Cleanup) und sind ignorierbar. */
+  editingBy?: { user: string; startedAt: number } | null
+}
+
+/** Stale-Lock-Schwelle: 5 Minuten. Nach dieser Zeit wird ein Lock als
+ *  verwaist behandelt und überschrieben (Browser-Crash-Schutz). */
+export const EDIT_LOCK_TTL_MS = 5 * 60 * 1000
+
+/** True wenn der gegebene Lock noch aktiv ist (nicht stale). */
+export function isLockActive(lock: { user: string; startedAt: number } | null | undefined): boolean {
+  if (!lock || !lock.user || !lock.startedAt) return false
+  return Date.now() - lock.startedAt < EDIT_LOCK_TTL_MS
 }
 
 export interface VerlaufEntry {
@@ -359,4 +373,50 @@ export async function getZuweisungConfig(): Promise<ZuweisungConfig> {
 
 export async function saveZuweisungConfig(config: Partial<ZuweisungConfig>): Promise<void> {
   await setDoc(ZUWEISUNG_CONFIG_REF(), config, { merge: true })
+}
+
+/** Live-subscription: alle recall_patients in der Collection.
+ *  Callback bekommt eine Map<doctor, RecallPatient[]> mit den gleichen
+ *  Sortier-/Filter-Regeln wie getRecallPatients (alphabetisch nach vorname).
+ *  Updates kommen automatisch wenn IRGENDJEMAND irgendwo ein Patientendoc
+ *  aendert -> echte Realtime-Coop. */
+export function subscribeAllRecallPatients(
+  callback: (byDoctor: Map<string, RecallPatient[]>) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, 'recall_patients'),
+    snap => {
+      const byDoctor = new Map<string, RecallPatient[]>()
+      for (const d of snap.docs) {
+        const p = { id: d.id, ...d.data() } as RecallPatient
+        const key = p.doctor || 'Zu bearbeiten'
+        if (!byDoctor.has(key)) byDoctor.set(key, [])
+        byDoctor.get(key)!.push(p)
+      }
+      for (const arr of byDoctor.values()) {
+        arr.sort((a, b) => String(a.vorname ?? '').localeCompare(String(b.vorname ?? ''), 'de'))
+      }
+      callback(byDoctor)
+    },
+    err => { onError?.(err) },
+  )
+}
+
+/** Edit-Lock setzen — schreibt editingBy mit aktuellem Timestamp.
+ *  Wird beim Oeffnen des Edit-Modals aufgerufen. Aktualisiert NICHT
+ *  das aktualisiert-Feld (Lock ist Metadata, kein User-Edit). */
+export async function acquireEditLock(id: string, username: string): Promise<void> {
+  await updateDoc(doc(db, 'recall_patients', id), {
+    editingBy: { user: username, startedAt: Date.now() },
+  })
+}
+
+/** Edit-Lock freigeben — setzt editingBy auf null.
+ *  Wird beim Schliessen/Speichern/Abbrechen des Edit-Modals aufgerufen,
+ *  und (best-effort) beim Tab-Close via beforeunload. */
+export async function releaseEditLock(id: string): Promise<void> {
+  await updateDoc(doc(db, 'recall_patients', id), {
+    editingBy: null,
+  })
 }
