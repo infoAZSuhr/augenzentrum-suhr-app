@@ -1203,15 +1203,17 @@ export default function RecallPage() {
     // Aufgebot-Aufschlüsselung aus verlauf: aktion → Art-Bucket.
     // System-generierte Reminder (von === 'System') zählen NICHT — die kommen
     // aus Auto-Logik, nicht aus User-Aktion.
-    type AufgebotBucket = 'Brief' | 'Tel' | 'Praxis' | 'Reminder'
+    type AufgebotBucket = 'Brief' | 'Tel' | 'Praxis' | 'Reminder' | 'TelCall' | 'Email'
     const VERLAUF_TO_ART: Record<string, AufgebotBucket> = {
       Briefaufgebot:    'Brief',
       Telefonaufgebot:  'Tel',
       Praxisaufgebot:   'Praxis',
       Reminder:         'Reminder',
+      Telefonanruf:     'TelCall',
+      'E-Mail':         'Email',
     }
     function emptyAufgebote() {
-      return { Brief: 0, Tel: 0, Praxis: 0, Reminder: 0 }
+      return { Brief: 0, Tel: 0, Praxis: 0, Reminder: 0, TelCall: 0, Email: 0 }
     }
 
     type UA = { updated: number; created: number; displayName: string; aufgebote: ReturnType<typeof emptyAufgebote> }
@@ -1348,9 +1350,11 @@ export default function RecallPage() {
         acc.Tel      += r.aufgebote.Tel
         acc.Praxis   += r.aufgebote.Praxis
         acc.Reminder += r.aufgebote.Reminder
+        acc.TelCall  += r.aufgebote.TelCall
+        acc.Email    += r.aufgebote.Email
         return acc
       },
-      { Brief: 0, Tel: 0, Praxis: 0, Reminder: 0 }
+      { Brief: 0, Tel: 0, Praxis: 0, Reminder: 0, TelCall: 0, Email: 0 }
     )
 
     // Gruppierte Variante: pro User die Summen über den gewählten Zeitraum.
@@ -1364,7 +1368,7 @@ export default function RecallPage() {
       const e = actGroupedMap.get(k)!
       e.created += r.created
       e.updated += r.updated
-      for (const b of ['Brief','Tel','Praxis','Reminder'] as const) e.aufgebote[b] += r.aufgebote[b]
+      for (const b of ['Brief','Tel','Praxis','Reminder','TelCall','Email'] as const) e.aufgebote[b] += r.aufgebote[b]
       actDaysSeen.get(k)!.add(r.iso)
     }
     for (const [k, days] of actDaysSeen) actGroupedMap.get(k)!.days = days.size
@@ -3693,21 +3697,21 @@ export default function RecallPage() {
       {auswertungOpen && (
         <>
           <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setAuswertungOpen(false)} />
-          <div className="fixed inset-4 sm:inset-8 z-[51] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div className="fixed inset-2 sm:inset-8 z-[51] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-              <div className="flex items-center gap-3">
-                <BarChart2 className="w-5 h-5 text-primary-600" />
-                <h2 className="font-bold text-gray-900 text-lg">Auswertung</h2>
-                <span className="text-xs text-gray-400">{auswertungStats.total} Patienten total</span>
+            <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-4 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <BarChart2 className="w-5 h-5 text-primary-600 shrink-0" />
+                <h2 className="font-bold text-gray-900 text-base sm:text-lg">Auswertung</h2>
+                <span className="text-xs text-gray-400 truncate">{auswertungStats.total} <span className="hidden sm:inline">Patienten total</span></span>
               </div>
-              <button onClick={() => setAuswertungOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <button onClick={() => setAuswertungOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-5 sm:space-y-6">
 
               {/* ── Aktivität ── */}
               <div>
@@ -3715,7 +3719,18 @@ export default function RecallPage() {
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-primary-500" /> Aktivität
                   </h3>
-                  <div className="flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                  {/* Mobile: native Dropdown — spart Platz bei 8 Optionen */}
+                  <select
+                    value={actPeriod}
+                    onChange={e => setActPeriod(e.target.value as ActPeriod)}
+                    className="sm:hidden text-xs font-medium px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                  >
+                    {PERIODS.map(({ key, label }) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  {/* Desktop: Pill-Reihe für direkten Zugriff */}
+                  <div className="hidden sm:flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
                     {PERIODS.map(({ key, label }, i) => (
                       <button key={key} onClick={() => setActPeriod(key)}
                         className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${actPeriod === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -3727,22 +3742,36 @@ export default function RecallPage() {
                 {/* Aufgebot-Summary-Cards — Totals über den gewählten Zeitraum.
                     Click filtert die Hauptliste auf die jeweilige Aufgebots-Art
                     (analog zum bestehenden filterAufgebotArt-Dropdown). */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-4">
                   {[
-                    { art: 'Brief',    label: 'Brief',    value: auswertungStats.actAufgebotTotals.Brief,    color: 'bg-blue-50    text-blue-700    border-blue-200'    },
-                    { art: 'Tel',      label: 'Telefon',  value: auswertungStats.actAufgebotTotals.Tel,      color: 'bg-amber-50   text-amber-700   border-amber-200'   },
-                    { art: 'Praxis',   label: 'Praxis',   value: auswertungStats.actAufgebotTotals.Praxis,   color: 'bg-violet-50  text-violet-700  border-violet-200'  },
-                    { art: 'Reminder', label: 'Reminder', value: auswertungStats.actAufgebotTotals.Reminder, color: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
-                  ].map(({ art, label, value, color }) => (
-                    <button
-                      key={art}
-                      onClick={() => { setFilterAufgebotArt(art); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
-                      className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
-                    >
-                      <span className="text-2xl font-bold tabular-nums">{value}</span>
-                      <span className="text-xs mt-0.5 opacity-75">{label}</span>
-                    </button>
-                  ))}
+                    { art: 'Brief',    label: 'Brief',       value: auswertungStats.actAufgebotTotals.Brief,    color: 'bg-blue-50    text-blue-700    border-blue-200'    },
+                    { art: 'Tel',      label: 'Tel-Aufgebot',value: auswertungStats.actAufgebotTotals.Tel,      color: 'bg-amber-50   text-amber-700   border-amber-200'   },
+                    { art: 'Praxis',   label: 'Praxis',      value: auswertungStats.actAufgebotTotals.Praxis,   color: 'bg-violet-50  text-violet-700  border-violet-200'  },
+                    { art: 'Reminder', label: 'Reminder',    value: auswertungStats.actAufgebotTotals.Reminder, color: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
+                    { art: 'TelCall',  label: 'Telefonanruf',value: auswertungStats.actAufgebotTotals.TelCall,  color: 'bg-teal-50    text-teal-700    border-teal-200'    },
+                    { art: 'Email',    label: 'E-Mail',      value: auswertungStats.actAufgebotTotals.Email,    color: 'bg-pink-50    text-pink-700    border-pink-200'    },
+                  ].map(({ art, label, value, color }) => {
+                    // Nur die 4 originalen Aufgebot-Arten haben ein patienten-seitiges
+                    // aufgebotArt-Feld, das gefiltert werden kann. TelCall/Email leben
+                    // nur in verlauf-Einträgen — Cards bleiben informativ ohne Filter.
+                    const filterable = art === 'Brief' || art === 'Tel' || art === 'Praxis' || art === 'Reminder'
+                    const baseCls = `flex flex-col px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border text-left ${color}`
+                    return filterable ? (
+                      <button
+                        key={art}
+                        onClick={() => { setFilterAufgebotArt(art); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
+                        className={`${baseCls} transition-opacity hover:opacity-80 active:scale-95 cursor-pointer`}
+                      >
+                        <span className="text-xl sm:text-2xl font-bold tabular-nums">{value}</span>
+                        <span className="text-[11px] sm:text-xs mt-0.5 opacity-75">{label}</span>
+                      </button>
+                    ) : (
+                      <div key={art} className={baseCls}>
+                        <span className="text-xl sm:text-2xl font-bold tabular-nums">{value}</span>
+                        <span className="text-[11px] sm:text-xs mt-0.5 opacity-75">{label}</span>
+                      </div>
+                    )
+                  })}
                 </div>
                 {(() => {
                   // Wenn ein Period-Filter aktiv ist (alles außer 'Alle'),
@@ -3772,12 +3801,14 @@ export default function RecallPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {actBodyRows.map(r => {
-                          const aufgebotTotal = r.aufgebote.Brief + r.aufgebote.Tel + r.aufgebote.Praxis + r.aufgebote.Reminder
+                          const aufgebotTotal = r.aufgebote.Brief + r.aufgebote.Tel + r.aufgebote.Praxis + r.aufgebote.Reminder + r.aufgebote.TelCall + r.aufgebote.Email
                           const badges: Array<{ key: string; count: number; label: string; cls: string }> = [
-                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',    cls: 'bg-blue-50    text-blue-700    border-blue-200'    },
-                            { key: 'T', count: r.aufgebote.Tel,      label: 'Telefon',  cls: 'bg-amber-50   text-amber-700   border-amber-200'   },
-                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',   cls: 'bg-violet-50  text-violet-700  border-violet-200'  },
-                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder', cls: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
+                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',        cls: 'bg-blue-50    text-blue-700    border-blue-200'    },
+                            { key: 'T', count: r.aufgebote.Tel,      label: 'Tel-Aufgebot', cls: 'bg-amber-50   text-amber-700   border-amber-200'   },
+                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',       cls: 'bg-violet-50  text-violet-700  border-violet-200'  },
+                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder',     cls: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
+                            { key: '☎', count: r.aufgebote.TelCall,  label: 'Telefonanruf', cls: 'bg-teal-50    text-teal-700    border-teal-200'    },
+                            { key: '✉', count: r.aufgebote.Email,    label: 'E-Mail',       cls: 'bg-pink-50    text-pink-700    border-pink-200'    },
                           ].filter(b => b.count > 0)
                           return (
                             <tr key={r.key} className="hover:bg-gray-50">
@@ -3827,7 +3858,16 @@ export default function RecallPage() {
                   </h3>
                   {/* Period-Filter analog zur Aktivitäts-Section. Filtert die History-
                       Tabelle drunter rückwirkend; Summary-Cards bleiben unabhängig. */}
-                  <div className="flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                  <select
+                    value={neuPeriod}
+                    onChange={e => setNeuPeriod(e.target.value as ActPeriod)}
+                    className="sm:hidden text-xs font-medium px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                  >
+                    {PERIODS.map(({ key, label }) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  <div className="hidden sm:flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
                     {PERIODS.map(({ key, label }, i) => (
                       <button key={key} onClick={() => setNeuPeriod(key)}
                         className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${neuPeriod === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -4035,7 +4075,16 @@ export default function RecallPage() {
                   {/* Period-Filter analog zu Aktivität + Neupatienten. Filtert
                       Tabelle UND Summary-Cards rückwirkend — Kind-Counts
                       reflektieren den gewählten Zeitraum. */}
-                  <div className="flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                  <select
+                    value={inaktivPeriod}
+                    onChange={e => setInaktivPeriod(e.target.value as ActPeriod)}
+                    className="sm:hidden text-xs font-medium px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-300"
+                  >
+                    {PERIODS.map(({ key, label }) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  <div className="hidden sm:flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
                     {PERIODS.map(({ key, label }, i) => (
                       <button key={key} onClick={() => setInaktivPeriod(key)}
                         className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-200' : ''} ${inaktivPeriod === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
