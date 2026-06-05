@@ -1,16 +1,15 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, ArrowRight, RotateCcw, X, Globe, Copy, Check, GripVertical } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCcw, X, GripVertical } from 'lucide-react'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { useAuth } from '../../lib/AuthContext'
 
 export default function BrowserPanel() {
-  const { isOpen, close, selectedText, setSelectedText, defaultUrl, pendingPid, clearPendingPid } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
   const [currentUrl, setCurrentUrl] = useState(defaultUrl)
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [width, setWidth] = useState(480)
   const webviewRef   = useRef<HTMLElement>(null)
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
@@ -26,7 +25,13 @@ export default function BrowserPanel() {
     setInputUrl(url)
   }, [])
 
-  // Inject selection listener into webview after page loads
+  // Webview-Events binden (Navigation, Loading). Die frueher hier inject-ierte
+  // Selection-Capture (mouseup -> setSelectedText) wurde entfernt: sie hat
+  // bei jedem Markieren von Text in Liris (z.B. VEKA-Nr fuer Copy) den
+  // Browser-Context aktualisiert -> alle Context-Subscriber (RecallPage etc.)
+  // re-renderten. Das hat Eingabefelder im Patient-bearbeiten-Modal
+  // zwischenzeitlich blockiert. User koennen weiterhin nativ via Ctrl+C in
+  // der Webview kopieren — die Auto-Anzeige "Ausgewaehlt: ..." ist verzichtbar.
   useEffect(() => {
     if (!isOpen) return
     const wv = webviewRef.current as any
@@ -35,45 +40,15 @@ export default function BrowserPanel() {
     const onDomReady = () => {
       setLoading(false)
       webviewReady.current = true
-      // Inject a listener that sends selected text via console.log (intercepted by host)
-      wv.executeJavaScript(`
-        if (!window.__azSelInject) {
-          window.__azSelInject = true;
-          document.addEventListener('mouseup', function() {
-            const t = window.getSelection().toString().trim();
-            if (t.length > 1 && t.length < 500) {
-              console.log('__AZ_SEL__:' + t);
-            }
-          });
-          document.addEventListener('dragstart', function(e) {
-            const t = window.getSelection().toString().trim();
-            if (t) {
-              e.dataTransfer.setData('text/plain', t);
-              console.log('__AZ_DRAG__:' + t);
-            }
-          });
-        }
-      `).catch(() => {})
     }
-
-    const onConsole = (e: any) => {
-      const msg = e.message || ''
-      if (msg.startsWith('__AZ_SEL__:') || msg.startsWith('__AZ_DRAG__:')) {
-        const text = msg.replace(/^__AZ_(SEL|DRAG)__:/, '')
-        setSelectedText(text)
-      }
-    }
-
     const onDidNavigate = (e: any) => {
       if (e.url) setInputUrl(e.url)
       setLoading(false)
     }
-
     const onLoadStart = () => setLoading(true)
     const onLoadStop  = () => setLoading(false)
 
     wv.addEventListener('dom-ready', onDomReady)
-    wv.addEventListener('console-message', onConsole)
     wv.addEventListener('did-navigate', onDidNavigate)
     wv.addEventListener('did-navigate-in-page', onDidNavigate)
     wv.addEventListener('did-start-loading', onLoadStart)
@@ -81,13 +56,12 @@ export default function BrowserPanel() {
 
     return () => {
       wv.removeEventListener('dom-ready', onDomReady)
-      wv.removeEventListener('console-message', onConsole)
       wv.removeEventListener('did-navigate', onDidNavigate)
       wv.removeEventListener('did-navigate-in-page', onDidNavigate)
       wv.removeEventListener('did-start-loading', onLoadStart)
       wv.removeEventListener('did-stop-loading', onLoadStop)
     }
-  }, [isOpen, setSelectedText])
+  }, [isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
@@ -278,13 +252,6 @@ export default function BrowserPanel() {
     window.addEventListener('mouseup', onUp)
   }
 
-  const copyToClipboard = () => {
-    if (!selectedText) return
-    navigator.clipboard.writeText(selectedText).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
 
   if (!isOpen) return null
 
@@ -348,36 +315,6 @@ export default function BrowserPanel() {
             <X className="w-3.5 h-3.5 text-gray-500" />
           </button>
         </div>
-
-        {/* Selected text bar */}
-        {selectedText ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-blue-100 shrink-0">
-            <Globe className="w-3 h-3 text-blue-500 flex-shrink-0" />
-            <span className="text-xs text-blue-700 flex-1 truncate">
-              <span className="font-semibold">Ausgewählt:</span> {selectedText}
-            </span>
-            <button
-              onClick={copyToClipboard}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium flex-shrink-0"
-              title="In Zwischenablage kopieren"
-            >
-              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-              {copied ? 'Kopiert' : 'Kopieren'}
-            </button>
-            <button
-              onClick={() => setSelectedText('')}
-              className="text-blue-400 hover:text-blue-600 flex-shrink-0"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-100 shrink-0">
-            <span className="text-xs text-gray-400">
-              Text auf der Website markieren → auf ein Formularfeld ziehen
-            </span>
-          </div>
-        )}
 
         {/* Webview — partition ist pro User, damit Liris-Logins nicht geteilt werden */}
         {/* @ts-ignore */}
