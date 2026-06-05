@@ -2589,13 +2589,21 @@ export default function RecallPage() {
   async function handleInlineAufgebotArt(rowId: string, doctor: string, value: string, current: string | null) {
     const newValue = current === value ? null : value
     const today = new Date().toISOString().slice(0, 10)
-    const newErstellt = newValue ? today : null
+    // Praxis-Aufgebot: meist beim letzten Konsil direkt vereinbart. Wird der
+    // Inline-Toggle nachtraeglich gesetzt, ist das Datum des letzten Konsils
+    // das semantisch korrekte aufgebotErstellt — sonst muesste der User das
+    // Datum jedes Mal manuell anpassen. Wenn kein letzteKons vorhanden -> today.
+    const row = (allData.get(doctor) ?? []).find(r => r.id === rowId)
+    const erstelltDatum = newValue === 'Praxis' && row?.letzteKons
+      ? row.letzteKons
+      : today
+    const newErstellt = newValue ? erstelltDatum : null
 
     // verlauf-Entry nur bei Neusetzen, aktions-Namen analog zu aufgebotConfirm().
     // ergebnis = 'Inline erfasst' wird vom Auswertung-Aggregator als echtes
     // Aufgebot gewertet (für Reminder: Whitelist gegen 'Geplant:'/'Abgesagt').
     const inlineEntry: VerlaufEntry | null = newValue ? {
-      datum: today,
+      datum: erstelltDatum,                       // gleich wie aufgebotErstellt
       aktion: newValue === 'Brief'  ? 'Briefaufgebot'
             : newValue === 'Tel'    ? 'Telefonaufgebot'
             : newValue === 'Praxis' ? 'Praxisaufgebot'
