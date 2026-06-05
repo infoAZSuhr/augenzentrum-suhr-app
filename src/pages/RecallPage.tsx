@@ -5337,6 +5337,12 @@ export default function RecallPage() {
                     onChange={e => {
                       const v = e.target.value
                       setField('storniert', v)
+                      // Sobald ein Storno-Status aktiv ist (ja/nein/Terminverschiebung),
+                      // ist ein offener RC obsolet — Termin steht entweder fest, ist
+                      // abgesagt oder wird in der Terminverschiebung-Logik neu gesetzt.
+                      if (v === 'ja' || v === 'nein' || v === 'Terminverschiebung') {
+                        setField('aufgebotFuer', '')
+                      }
                       if (v === 'Terminverschiebung') {
                         setField('grundStornierung', '')
                         setTimeout(() => naechsteKonsRef.current?.focus(), 50)
