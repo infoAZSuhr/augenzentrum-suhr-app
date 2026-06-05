@@ -2478,7 +2478,16 @@ export default function RecallPage() {
     if (!form.pid.trim())      errors.pid      = true
     if (!form.vorname.trim())  errors.vorname  = true
     if (!form.gebDatum)        errors.gebDatum = true
-    if (Object.keys(errors).length > 0) { setFormErrors(errors); return }
+    // Wenn der Patient noch keinen Arzt hat (Neuanlage ODER in "Zu bearbeiten"),
+    // ist die Arzt-Zuweisung beim Speichern Pflicht — sonst landet der Patient
+    // niemals in einer Arzt-Liste.
+    const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
+    if (noDoctorYet && !assignDoctor) errors.assignDoctor = true
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      if (errors.assignDoctor) toast.error('Bitte einen Arzt auswählen — der Patient braucht eine Zuweisung.')
+      return
+    }
 
     // Doppelte PID hart blockieren — der Hinweis-Banner im Modal warnt
     // schon, aber der User sollte nicht versehentlich speichern können.
@@ -5675,24 +5684,38 @@ export default function RecallPage() {
               </div>
 
               {/* Assign doctor – for new patients and existing */}
-              {(
-                <div className="pt-3 border-t border-gray-100">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                    {editTarget === 'new' ? 'Arzt zuweisen' : editTarget.doctor === ZU_BEARB ? 'Arzt zuweisen' : 'Behandelnden Arzt wechseln'}
-                    {editTarget !== 'new' && assignDoctor && <span className="ml-1.5 text-primary-500 font-normal">(wird beim Speichern übernommen)</span>}
-                  </label>
-                  <select
-                    value={assignDoctor}
-                    onChange={e => setAssignDoctor(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
-                  >
-                    <option value="">{editTarget === 'new' ? '— kein Arzt —' : '— kein Wechsel —'}</option>
-                    {doctors.filter(d => editTarget === 'new' || d !== editTarget.doctor).map(d =>
-                      <option key={d} value={d}>{d}</option>
-                    )}
-                  </select>
-                </div>
-              )}
+              {(() => {
+                const noDoctorYet = editTarget === 'new' || (editTarget !== 'new' && editTarget?.doctor === ZU_BEARB)
+                const isRequired  = noDoctorYet                       // Pflichtfeld wenn noch kein Arzt
+                const hasError    = formErrors.assignDoctor === true
+                return (
+                  <div className="pt-3 border-t border-gray-100">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                      {noDoctorYet ? 'Arzt zuweisen' : 'Behandelnden Arzt wechseln'}
+                      {isRequired && <span className="text-red-500 ml-0.5">*</span>}
+                      {editTarget !== 'new' && assignDoctor && !noDoctorYet && <span className="ml-1.5 text-primary-500 font-normal">(wird beim Speichern übernommen)</span>}
+                    </label>
+                    <select
+                      value={assignDoctor}
+                      onChange={e => {
+                        setAssignDoctor(e.target.value)
+                        if (formErrors.assignDoctor) setFormErrors(prev => ({ ...prev, assignDoctor: false }))
+                      }}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
+                        hasError ? 'border-red-400 focus:ring-red-300' : 'border-gray-200 focus:ring-primary-300'
+                      }`}
+                    >
+                      <option value="">
+                        {noDoctorYet ? '— Arzt wählen —' : '— kein Wechsel —'}
+                      </option>
+                      {doctors.filter(d => editTarget === 'new' || d !== (editTarget as RecallPatient).doctor).map(d =>
+                        <option key={d} value={d}>{d}</option>
+                      )}
+                    </select>
+                    {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte einen Arzt auswählen.</p>}
+                  </div>
+                )
+              })()}
 
               {editTarget !== 'new' && (
                 <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
