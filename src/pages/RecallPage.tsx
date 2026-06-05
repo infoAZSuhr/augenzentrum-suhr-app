@@ -5685,7 +5685,7 @@ export default function RecallPage() {
 
               {/* Assign doctor – for new patients and existing */}
               {(() => {
-                const noDoctorYet = editTarget === 'new' || (editTarget !== 'new' && editTarget?.doctor === ZU_BEARB)
+                const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
                 const isRequired  = noDoctorYet                       // Pflichtfeld wenn noch kein Arzt
                 const hasError    = formErrors.assignDoctor === true
                 return (
