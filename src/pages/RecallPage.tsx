@@ -2306,6 +2306,9 @@ export default function RecallPage() {
     // den Live-Snapshot. Beim Schliessen wird der Lock wieder freigegeben.
     acquireEditLock(patient.id, displayLabel).catch(e => console.warn('[Recall] Lock setzen fehlgeschlagen:', e))
     setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
+    // Gleichzeitig PID an Liris senden (öffnet Liris-Panel falls noch zu)
+    const pid = normalizePid(patient.pid)
+    if (pid) openWithPid(pid)
   }
   function openNew()                        { setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen() }
   function closeEdit()                      {
