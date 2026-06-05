@@ -55,6 +55,20 @@ function createWindow() {
     shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  // DevTools-Shortcuts auch in der gepackten App: F12 und Strg+Shift+I
+  // toggeln die Entwicklerwerkzeuge. Hilft bei Diagnose von Console-Fehlern
+  // im Praxisbetrieb (sonst muesste der User die App neu installieren mit
+  // Dev-Build).
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const isF12 = input.key === 'F12'
+    const isCtrlShiftI = input.control && input.shift && (input.key === 'I' || input.key === 'i')
+    if (isF12 || isCtrlShiftI) {
+      win.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+  })
 }
 
 // ── Liris-Popup-Fenster (eigene BrowserWindow) ────────────────────────────
