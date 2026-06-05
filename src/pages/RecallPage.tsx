@@ -3807,14 +3807,14 @@ export default function RecallPage() {
                         {actBodyRows.map(r => {
                           const aufgebotTotal = r.aufgebote.Brief + r.aufgebote.Tel + r.aufgebote.Praxis + r.aufgebote.Reminder + r.aufgebote.TelCall + r.aufgebote.Email
                           type Badge = { key: string; count: number; label: string; cls: string; filter: { type: 'aufgebotArt' | 'verlaufAktion'; value: string } }
-                          const badges: Badge[] = [
-                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',        cls: 'bg-blue-50    text-blue-700    border-blue-200',    filter: { type: 'aufgebotArt',   value: 'Brief'        } },
-                            { key: 'T', count: r.aufgebote.Tel,      label: 'Tel-Aufgebot', cls: 'bg-amber-50   text-amber-700   border-amber-200',   filter: { type: 'aufgebotArt',   value: 'Tel'          } },
-                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',       cls: 'bg-violet-50  text-violet-700  border-violet-200',  filter: { type: 'aufgebotArt',   value: 'Praxis'       } },
-                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder',     cls: 'bg-indigo-50  text-indigo-700  border-indigo-200',  filter: { type: 'aufgebotArt',   value: 'Reminder'     } },
-                            { key: '☎', count: r.aufgebote.TelCall,  label: 'Telefonanruf', cls: 'bg-teal-50    text-teal-700    border-teal-200',   filter: { type: 'verlaufAktion', value: 'Telefonanruf' } },
-                            { key: '✉', count: r.aufgebote.Email,    label: 'E-Mail',       cls: 'bg-pink-50    text-pink-700    border-pink-200',   filter: { type: 'verlaufAktion', value: 'E-Mail'       } },
-                          ].filter(b => b.count > 0)
+                          const badges: Badge[] = ([
+                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',        cls: 'bg-blue-50    text-blue-700    border-blue-200',    filter: { type: 'aufgebotArt'   as const, value: 'Brief'        } },
+                            { key: 'T', count: r.aufgebote.Tel,      label: 'Tel-Aufgebot', cls: 'bg-amber-50   text-amber-700   border-amber-200',   filter: { type: 'aufgebotArt'   as const, value: 'Tel'          } },
+                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',       cls: 'bg-violet-50  text-violet-700  border-violet-200',  filter: { type: 'aufgebotArt'   as const, value: 'Praxis'       } },
+                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder',     cls: 'bg-indigo-50  text-indigo-700  border-indigo-200',  filter: { type: 'aufgebotArt'   as const, value: 'Reminder'     } },
+                            { key: '☎', count: r.aufgebote.TelCall,  label: 'Telefonanruf', cls: 'bg-teal-50    text-teal-700    border-teal-200',   filter: { type: 'verlaufAktion' as const, value: 'Telefonanruf' } },
+                            { key: '✉', count: r.aufgebote.Email,    label: 'E-Mail',       cls: 'bg-pink-50    text-pink-700    border-pink-200',   filter: { type: 'verlaufAktion' as const, value: 'E-Mail'       } },
+                          ]).filter(b => b.count > 0)
                           return (
                             <tr key={r.key} className="hover:bg-gray-50">
                               <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.leftCol}</td>
