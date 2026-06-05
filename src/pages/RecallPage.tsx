@@ -5234,7 +5234,14 @@ export default function RecallPage() {
                           const next = form.aufgebotArt === value ? '' : value
                           setField('aufgebotArt', next)
                           if (next) {
-                            setField('aufgebotErstellt', new Date().toISOString().slice(0, 10))
+                            // Praxis-Aufgebot: meist beim letzten Konsil direkt
+                            // vereinbart -> letzteKons als Default-Datum, sonst
+                            // muss der User das nachtraeglich korrigieren.
+                            const isPraxis = next === 'Praxis'
+                            const defaultDate = (isPraxis && form.letzteKons)
+                              ? form.letzteKons
+                              : new Date().toISOString().slice(0, 10)
+                            setField('aufgebotErstellt', defaultDate)
                           } else {
                             setField('aufgebotErstellt', '')
                             setField('naechsteKons', '')
