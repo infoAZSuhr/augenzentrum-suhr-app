@@ -144,20 +144,21 @@ export default function PatientDetail() {
         actions={
           <>
             <BackButton fallback="/ivom" />
-            <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)}>
-              <FileText className="w-4 h-4" /> Intervallblatt
+            <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
+              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
             </button>
-            <button className="btn-secondary" onClick={() => setShowEditPatient(true)}>
-              <Pencil className="w-4 h-4" /> Bearbeiten
+            <button className="btn-secondary" onClick={() => setShowEditPatient(true)} title="Bearbeiten">
+              <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
             </button>
             <button
-              className="px-4 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center gap-2"
+              className="px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center gap-2"
               onClick={() => setConfirmDeletePatient(true)}
+              title="Patient löschen"
             >
-              <Trash2 className="w-4 h-4" /> Patient löschen
+              <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Patient löschen</span>
             </button>
-            <button className="btn-primary" onClick={() => setShowForm(true)}>
-              <Plus className="w-4 h-4" /> Neue Behandlung
+            <button className="btn-primary" onClick={() => setShowForm(true)} title="Neue Behandlung">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neue Behandlung</span>
             </button>
           </>
         }

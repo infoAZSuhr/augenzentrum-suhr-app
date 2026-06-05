@@ -1114,8 +1114,9 @@ export default function TaskBoardPage() {
           </button>
           {isManager && (
             <button onClick={() => setShowColSettings(true)}
+              title="Spalten verwalten"
               className="flex items-center gap-1.5 text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-lg transition-colors">
-              <Settings className="w-3.5 h-3.5" /> Spalten
+              <Settings className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Spalten</span>
             </button>
           )}
         </div>

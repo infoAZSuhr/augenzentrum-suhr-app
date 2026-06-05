@@ -68,17 +68,21 @@ export default function InventurPage() {
         title="Inventur"
         subtitle={`${today} · ${discrepancies.length} Differenz${discrepancies.length !== 1 ? 'en' : ''}`}
         actions={
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/lager')} className="btn-secondary">
-              <X className="w-4 h-4" /> Abbrechen
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button onClick={() => navigate('/lager')} className="btn-secondary" title="Abbrechen">
+              <X className="w-4 h-4" /> <span className="hidden sm:inline">Abbrechen</span>
             </button>
             <button
               onClick={() => saveMut.mutate()}
               disabled={saveMut.isPending || saved || discrepancies.length === 0}
               className="btn-primary"
+              title="Inventur abschliessen"
             >
               <Check className="w-4 h-4" />
-              {saved ? 'Gespeichert ✓' : saveMut.isPending ? 'Speichern…' : `Abschliessen${discrepancies.length > 0 ? ` (${discrepancies.length})` : ''}`}
+              <span className="hidden sm:inline">{saved ? 'Gespeichert ✓' : saveMut.isPending ? 'Speichern…' : `Abschliessen${discrepancies.length > 0 ? ` (${discrepancies.length})` : ''}`}</span>
+              {discrepancies.length > 0 && !saved && !saveMut.isPending && (
+                <span className="sm:hidden text-[10px] font-bold tabular-nums">{discrepancies.length}</span>
+              )}
             </button>
           </div>
         }

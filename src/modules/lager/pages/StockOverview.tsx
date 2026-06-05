@@ -238,23 +238,23 @@ const { data: bookingData } = useQuery({
         title="Lagermanagement"
         subtitle={`${articles.length} Artikel`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => exportCSV(filtered)}
               className="btn-secondary text-sm"
               title="Als CSV exportieren"
             >
-              <Download className="w-4 h-4" /> CSV
+              <Download className="w-4 h-4" /> <span className="hidden sm:inline">CSV</span>
             </button>
             <button
               onClick={() => exportPDF(filtered)}
               className="btn-secondary text-sm"
               title="Als PDF exportieren"
             >
-              <FileText className="w-4 h-4" /> PDF
+              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
             </button>
-            <button className="btn-primary" onClick={() => setShowForm(true)}>
-              <Plus className="w-4 h-4" /> Neuer Artikel
+            <button className="btn-primary" onClick={() => setShowForm(true)} title="Neuer Artikel">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neuer Artikel</span>
             </button>
           </div>
         }

@@ -47,18 +47,18 @@ export default function IVOMSchema() {
         subtitle="Intravitreale Injektion — Ablaufschema"
         actions={
           editing ? (
-            <div className="flex gap-2">
-              <button className="btn-secondary" onClick={handleCancel}>
-                <X className="w-4 h-4" /> Abbrechen
+            <div className="flex gap-1.5 sm:gap-2">
+              <button className="btn-secondary" onClick={handleCancel} title="Abbrechen">
+                <X className="w-4 h-4" /> <span className="hidden sm:inline">Abbrechen</span>
               </button>
-              <button className="btn-primary" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+              <button className="btn-primary" onClick={() => saveMut.mutate()} disabled={saveMut.isPending} title="Speichern">
                 <Save className="w-4 h-4" />
-                {saveMut.isPending ? 'Speichern…' : 'Speichern'}
+                <span className="hidden sm:inline">{saveMut.isPending ? 'Speichern…' : 'Speichern'}</span>
               </button>
             </div>
           ) : (
-            <button className="btn-secondary" onClick={() => setEditing(true)}>
-              <Pencil className="w-4 h-4" /> Bearbeiten
+            <button className="btn-secondary" onClick={() => setEditing(true)} title="Bearbeiten">
+              <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
             </button>
           )
         }

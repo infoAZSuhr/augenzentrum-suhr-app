@@ -48,9 +48,10 @@ export default function IVOMSettings() {
             className="btn-primary"
             onClick={() => saveMut.mutate()}
             disabled={saveMut.isPending}
+            title="Speichern"
           >
             <Save className="w-4 h-4" />
-            {saved ? 'Gespeichert ✓' : saveMut.isPending ? 'Speichern…' : 'Speichern'}
+            <span className="hidden sm:inline">{saved ? 'Gespeichert ✓' : saveMut.isPending ? 'Speichern…' : 'Speichern'}</span>
           </button>
         }
       />

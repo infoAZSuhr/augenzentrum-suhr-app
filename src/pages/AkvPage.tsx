@@ -487,22 +487,24 @@ export default function AkvPage() {
           <div className="shrink-0 flex flex-col items-end gap-2">
             {canEdit && (
               <button onClick={openPersonsModal}
+                title="Personen verwalten"
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
                 <UserCog className="w-3.5 h-3.5" />
-                Personen
+                <span className="hidden sm:inline">Personen</span>
               </button>
             )}
             <button onClick={() => window.print()}
+              title="Drucken"
               className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
               <Printer className="w-3.5 h-3.5" />
-              Drucken
+              <span className="hidden sm:inline">Drucken</span>
             </button>
             {canRelease && (
               <button onClick={handleRelease} disabled={releasing || !gueltigAb}
-                title={!gueltigAb ? 'Zuerst ein «Gültig ab»-Datum setzen' : undefined}
+                title={!gueltigAb ? 'Zuerst ein «Gültig ab»-Datum setzen' : 'Freigeben'}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                 {releasing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                {releasing ? 'Freigeben…' : 'Freigeben'}
+                <span className="hidden sm:inline">{releasing ? 'Freigeben…' : 'Freigeben'}</span>
               </button>
             )}
             {canEdit && (

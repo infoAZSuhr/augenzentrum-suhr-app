@@ -294,17 +294,18 @@ const addLotMut = useMutation({
         actions={
           <>
             <BackButton fallback="/lager" />
-            <button className="btn-secondary" onClick={() => setShowEdit(true)}>
-              <Pencil className="w-4 h-4" /> Bearbeiten
+            <button className="btn-secondary" onClick={() => setShowEdit(true)} title="Bearbeiten">
+              <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
             </button>
             <button
-              className="px-4 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center gap-2"
+              className="px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center gap-2"
               onClick={() => setConfirmDeleteArticle(true)}
+              title="Artikel löschen"
             >
-              <Trash2 className="w-4 h-4" /> Artikel löschen
+              <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Artikel löschen</span>
             </button>
-            <button className="btn-primary" onClick={() => setShowBooking(true)}>
-              <BookOpen className="w-4 h-4" /> Ein- / Ausbuchen
+            <button className="btn-primary" onClick={() => setShowBooking(true)} title="Ein- / Ausbuchen">
+              <BookOpen className="w-4 h-4" /> <span className="hidden sm:inline">Ein- / Ausbuchen</span>
             </button>
           </>
         }

@@ -605,14 +605,14 @@ export default function TasksPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">{visibleBoards.length} Board{visibleBoards.length !== 1 ? 's' : ''}</p>
           </div>
-          <div className="flex items-center gap-2 mt-8">
+          <div className="flex items-center gap-1.5 sm:gap-2 mt-8">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               <input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Suchen…"
-                className="pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 w-40 sm:w-52"
+                placeholder="Suche…"
+                className="pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 w-32 sm:w-52"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
@@ -623,13 +623,14 @@ export default function TasksPage() {
             <button
               onClick={() => setOnlyMine(s => !s)}
               title="Nur meine Boards"
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-xl border transition-colors ${onlyMine ? 'bg-primary-600 text-white border-primary-600' : 'text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-semibold rounded-xl border transition-colors ${onlyMine ? 'bg-primary-600 text-white border-primary-600' : 'text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
               <UserCheck className="w-4 h-4" />
               <span className="hidden sm:inline">Meine</span>
             </button>
             <button onClick={() => { setEditingBoard(null); setShowCreate(true) }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors whitespace-nowrap">
-              <Plus className="w-4 h-4" /> Neues Board
+              title="Neues Board"
+              className="flex items-center gap-2 px-2.5 sm:px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors whitespace-nowrap">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neues Board</span>
             </button>
           </div>
         </div>
@@ -739,8 +740,9 @@ export default function TasksPage() {
               )}
             </div>
             <button onClick={() => setShowPollCreate(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors">
-              <Plus className="w-4 h-4" /> Neue Umfrage
+              title="Neue Umfrage"
+              className="flex items-center gap-2 px-2.5 sm:px-4 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neue Umfrage</span>
             </button>
           </div>
 

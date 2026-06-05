@@ -38,8 +38,8 @@ export default function SupplierList() {
         title="Lieferanten"
         subtitle={`${suppliers.length} Lieferant${suppliers.length !== 1 ? 'en' : ''}`}
         actions={
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4" /> Neuer Lieferant
+          <button className="btn-primary" onClick={() => setShowForm(true)} title="Neuer Lieferant">
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neuer Lieferant</span>
           </button>
         }
       />

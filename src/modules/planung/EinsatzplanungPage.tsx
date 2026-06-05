@@ -3162,14 +3162,14 @@ export default function EinsatzplanungPage(){
 
           {/* View toggle */}
           <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5 text-sm">
-            <button onClick={()=>setView('month')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='month'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-              <Calendar className="w-4 h-4"/>Monat
+            <button onClick={()=>setView('month')} title="Monat" className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-medium transition-all ${view==='month'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
+              <Calendar className="w-4 h-4"/><span className="hidden sm:inline">Monat</span>
             </button>
-            <button onClick={()=>setView('year')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='year'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-              <CalendarDays className="w-4 h-4"/>Jahr
+            <button onClick={()=>setView('year')} title="Jahr" className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-medium transition-all ${view==='year'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
+              <CalendarDays className="w-4 h-4"/><span className="hidden sm:inline">Jahr</span>
             </button>
-            <button onClick={()=>setView('arbeitstage')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${view==='arbeitstage'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-              <User className="w-4 h-4"/>Arbeitstage
+            <button onClick={()=>setView('arbeitstage')} title="Arbeitstage" className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-medium transition-all ${view==='arbeitstage'?'bg-white text-primary-700 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
+              <User className="w-4 h-4"/><span className="hidden sm:inline">Arbeitstage</span>
             </button>
           </div>
 

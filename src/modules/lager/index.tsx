@@ -12,7 +12,7 @@ function LagerNav() {
   if (isDetail) return null
 
   return (
-    <div className="border-b border-gray-200 bg-white px-6 flex items-center gap-3">
+    <div className="border-b border-gray-200 bg-white px-2 sm:px-6 flex items-center gap-2 sm:gap-3 overflow-x-auto">
       <BackButton fallback="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors shrink-0" />
       <div className="w-px h-6 bg-gray-200 shrink-0" />
       <NavLink to="" end
