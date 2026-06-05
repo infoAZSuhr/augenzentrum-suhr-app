@@ -125,12 +125,20 @@ function isInPlanung(p: RecallPatient): boolean {
   return false
 }
 
-/** True wenn ein Patient WIRKLICH offen ist:
- *  kein nächster Termin, kein RC-Datum (aufgebotFuer), kein "kein-Termin"-Flag.
- *  Patienten mit geplantem Recall fallen NICHT hierein — die zählen unter "Im Recall". */
+/** True wenn ein Patient WIRKLICH offen ist (=> braucht Recall-Planung):
+ *  kein nächster Termin, kein RC-Datum (aufgebotFuer), kein "kein-Termin"-Flag,
+ *  und Patient hat NICHT aktiv "kein Aufgebot" gewünscht.
+ *
+ *  Patienten mit Status 'kein Aufgebot' wollen weder Reminder noch Aufgebote
+ *  bekommen — die melden sich bei Bedarf selbst. Sie sind also KEIN offener
+ *  Recall-Fall, sondern eine bewusste Patientenentscheidung.
+ *
+ *  Patienten mit geplantem Recall fallen ebenfalls NICHT hierein — die zählen
+ *  unter "Geplante Recalls". */
 function isOhneTermin(p: RecallPatient): boolean {
-  if (p.naechsteKons) return false       // hat Termin (oder "kein Termin"-Flag)
-  if (p.aufgebotFuer) return false       // hat RC-Datum geplant
+  if (p.patientenStatus === 'kein Aufgebot') return false  // bewusste Entscheidung
+  if (p.naechsteKons) return false                          // hat Termin (oder "kein Termin"-Flag)
+  if (p.aufgebotFuer) return false                          // hat RC-Datum geplant
   return true
 }
 
@@ -3073,11 +3081,10 @@ export default function RecallPage() {
                         }
                         // Fall back to aufgebotFuer (target date)
                         if (!row.aufgebotFuer) {
-                          // KEIN naechsteKons UND kein aufgebotFuer UND kein aufgebotErstellt
-                          // -> wirklich ohne geplanten Recall. Sichtbarer Status-Badge statt
-                          // stilles "—", damit diese Patienten in der Liste sofort auffallen.
-                          const hatTermin = !!(row.naechsteKons && row.naechsteKons !== 'kein Termin')
-                          if (!hatTermin) {
+                          // Echt offen? -> sichtbarer Status-Badge statt stilles "—".
+                          // isOhneTermin() berücksichtigt patientenStatus='kein Aufgebot'
+                          // (Patient möchte explizit keine Aufgebote -> kein Badge).
+                          if (isOhneTermin(row)) {
                             return (
                               <span
                                 title="Kein nächster Termin und kein RC-Datum gesetzt — Patient braucht Recall-Planung"
