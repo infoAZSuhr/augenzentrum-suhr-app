@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, RefreshCw, Search } from 'lucide-react'
+import { useAuth } from '../lib/AuthContext'
 
 const LIRIS_URL = 'https://vip.liris.ch/'
 
@@ -25,6 +26,8 @@ export default function LirisPage() {
   // True wenn wir in der Electron-Hülle laufen. Im Browser greift CORS und
   // wir koennen das eingebettete Liris nicht steuern -> Fallback-UI.
   const isElectron = typeof window !== 'undefined' && /Electron/i.test(navigator.userAgent)
+  const { user } = useAuth()
+  const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
 
   /** Fuellt PID in das Liris-Suchfeld + drueckt Enter. Wird im Kontext der
    *  eingebetteten Liris-Seite ausgefuehrt — kein CORS-Problem in Electron-
@@ -32,6 +35,9 @@ export default function LirisPage() {
    *  Modell ist (wie ein zweiter Tab). */
   function sendToLiris(value: string) {
     if (!value) return
+    // Liris erwartet PIDs immer mit # davor
+    const pid = value.startsWith('#') ? value : `#${value}`
+    value = pid
     if (!webviewRef.current) return
     const wv = webviewRef.current as any
     if (!wv.executeJavaScript) {
@@ -95,7 +101,9 @@ export default function LirisPage() {
   function handleManualSearch() {
     const v = manualPid.trim()
     if (!v) return
-    sendToLiris(v)
+    const withHash = v.startsWith('#') ? v : `#${v}`
+    setManualPid(withHash)
+    sendToLiris(withHash)
   }
 
   function handleReload() {
@@ -179,8 +187,7 @@ export default function LirisPage() {
       <webview
         ref={webviewRef as any}
         src={LIRIS_URL}
-        // partition: persistente Session -> Login bleibt erhalten
-        partition="persist:liris"
+        partition={partition}
         className="flex-1 w-full h-full"
         allowpopups="true"
       />

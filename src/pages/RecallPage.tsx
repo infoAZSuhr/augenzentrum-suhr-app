@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useBrowser } from '../contexts/BrowserContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
 import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, Lock, ExternalLink } from 'lucide-react'
@@ -438,6 +439,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
+  const { openWithPid } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -3084,7 +3086,7 @@ export default function RecallPage() {
                           {/* "→ Liris" — oeffnet eingebettetes Liris (Electron) bzw. neuen Tab (Browser).
                               Liris-Suchfeld wird automatisch mit der PID befuellt (nur Desktop-App). */}
                           <button
-                            onClick={e => { e.stopPropagation(); navigate(`/liris?pid=${encodeURIComponent(normalizePid(row.pid)!)}`) }}
+                            onClick={e => { e.stopPropagation(); openWithPid(normalizePid(row.pid) ?? '') }}
                             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-primary-600"
                             title="In Liris öffnen"
                           >

@@ -1,16 +1,20 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, ArrowRight, RotateCcw, X, Globe, Copy, Check, GripVertical } from 'lucide-react'
 import { useBrowser } from '../../contexts/BrowserContext'
+import { useAuth } from '../../lib/AuthContext'
 
 export default function BrowserPanel() {
-  const { isOpen, close, selectedText, setSelectedText, defaultUrl } = useBrowser()
+  const { isOpen, close, selectedText, setSelectedText, defaultUrl, pendingPid, clearPendingPid } = useBrowser()
+  const { user } = useAuth()
+  const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
   const [currentUrl, setCurrentUrl] = useState(defaultUrl)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [width, setWidth] = useState(480)
-  const webviewRef = useRef<HTMLElement>(null)
-  const resizeRef = useRef<{ startX: number; startW: number } | null>(null)
+  const webviewRef   = useRef<HTMLElement>(null)
+  const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
+  const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
 
   const navigate = useCallback((target: string) => {
     let url = target.trim()
@@ -30,6 +34,7 @@ export default function BrowserPanel() {
 
     const onDomReady = () => {
       setLoading(false)
+      webviewReady.current = true
       // Inject a listener that sends selected text via console.log (intercepted by host)
       wv.executeJavaScript(`
         if (!window.__azSelInject) {
@@ -83,6 +88,55 @@ export default function BrowserPanel() {
       wv.removeEventListener('did-stop-loading', onLoadStop)
     }
   }, [isOpen, setSelectedText])
+
+  // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
+  // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
+  useEffect(() => {
+    if (!pendingPid || !isOpen) return
+    const wv = webviewRef.current as any
+    if (!wv?.executeJavaScript) return
+
+    const inject = (pid: string) => {
+      const script = `
+        (function() {
+          var sel = 'input[placeholder^="Allgemeine Suche"]';
+          var el = document.querySelector(sel);
+          if (!el) return 'no-input-found';
+          var proto = Object.getPrototypeOf(el);
+          var desc = Object.getOwnPropertyDescriptor(proto, 'value');
+          var setter = desc && desc.set;
+          if (setter) setter.call(el, ${JSON.stringify(pid)});
+          else el.value = ${JSON.stringify(pid)};
+          el.dispatchEvent(new Event('input',  { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.focus();
+          ['keydown','keypress','keyup'].forEach(function(t) {
+            el.dispatchEvent(new KeyboardEvent(t, {
+              key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true
+            }));
+          });
+          return 'ok';
+        })();
+      `
+      wv.executeJavaScript(script)
+        .then((res: string) => { if (res === 'ok') clearPendingPid() })
+        .catch(() => {})
+    }
+
+    if (webviewReady.current) {
+      // Webview bereits geladen — sofort injizieren
+      const t = setTimeout(() => inject(pendingPid), 300)
+      return () => clearTimeout(t)
+    } else {
+      // Webview lädt noch — warten bis dom-ready, dann injizieren
+      const onReady = () => {
+        webviewReady.current = true
+        setTimeout(() => inject(pendingPid), 800)
+      }
+      wv.addEventListener('dom-ready', onReady)
+      return () => wv.removeEventListener('dom-ready', onReady)
+    }
+  }, [pendingPid, isOpen, clearPendingPid])
 
   // Resize panel by dragging the grip
   const onResizeMouseDown = (e: React.MouseEvent) => {
@@ -204,11 +258,12 @@ export default function BrowserPanel() {
           </div>
         )}
 
-        {/* Webview */}
+        {/* Webview — partition ist pro User, damit Liris-Logins nicht geteilt werden */}
         {/* @ts-ignore */}
         <webview
           ref={webviewRef as any}
           src={currentUrl}
+          partition={partition}
           className="flex-1 w-full"
           allowpopups="true"
           disablewebsecurity="false"

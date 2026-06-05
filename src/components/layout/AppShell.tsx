@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
+import BrowserPanel from './BrowserPanel'
+import { useBrowser } from '../../contexts/BrowserContext'
 import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft, Library, FileText } from 'lucide-react'
 import GlossarModal from '../ui/GlossarModal'
 import { useToast } from '../../lib/ToastContext'
@@ -1379,10 +1381,13 @@ export default function AppShell() {
         )}
       </header>
 
-      {/* ── Page Content ── */}
-      <main className="flex-1 overflow-auto min-w-0">
-        <Outlet />
-      </main>
+      {/* ── Page Content + optionaler Liris-Seitenbereich ── */}
+      <div className="flex flex-1 overflow-hidden min-w-0">
+        <main className="flex-1 overflow-auto min-w-0">
+          <Outlet />
+        </main>
+        <BrowserPanel />
+      </div>
 
       {/* Profile modal */}
       {showProfile && profile && (
