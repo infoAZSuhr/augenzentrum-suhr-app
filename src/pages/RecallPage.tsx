@@ -492,6 +492,12 @@ export default function RecallPage() {
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
+  // Live-Subscription Puffer: true sobald openEdit lief, false nach closeEdit.
+  // Solange true, werden Snapshots NICHT direkt appliziert (verhindert Input-
+  // Reset im offenen Edit-Modal) — sondern in editingPendingSnapRef geparkt
+  // und beim closeEdit nachgereicht.
+  const editingRef            = useRef(false)
+  const editingPendingSnapRef = useRef<Map<string, RecallPatient[]> | null>(null)
   const [copiedCell, setCopiedCell] = useState<string | null>(null)
   const [filterNeupatient, setFilterNeupatient] = useState(false)
   const [filterTermin, setFilterTermin] = useState<FilterTermin | null>(null)
@@ -703,8 +709,20 @@ export default function RecallPage() {
       // Live-Subscription: ab jetzt landen Aenderungen anderer User
       // (sowie eigene Edits/Locks) automatisch im allData-State.
       // Ersetzt vollstaendig — Listener bekommt die ganze Collection.
+      //
+      // WICHTIG: Wenn ein Edit-Modal offen ist, wuerden die Re-Renders
+      // durch jeden Snapshot waehrend des Tippens die Inputs reseten
+      // (Buchstaben gehen verloren, Cursor springt). Daher puffern wir den
+      // Snapshot in editingPendingSnapRef und applizieren ihn erst wenn das
+      // Modal geschlossen wird.
       unsub = subscribeAllRecallPatients(
-        byDoctor => setAllData(byDoctor),
+        byDoctor => {
+          if (editingRef.current) {
+            editingPendingSnapRef.current = byDoctor
+            return
+          }
+          setAllData(byDoctor)
+        },
         err => console.warn('[Recall] Live-Subscription Fehler:', err),
       )
     }
@@ -2305,16 +2323,28 @@ export default function RecallPage() {
     // Lock setzen (fire-and-forget) — andere User sehen das Symbol durch
     // den Live-Snapshot. Beim Schliessen wird der Lock wieder freigegeben.
     acquireEditLock(patient.id, displayLabel).catch(e => console.warn('[Recall] Lock setzen fehlgeschlagen:', e))
+    // Live-Snapshot waehrend Edit puffern -> verhindert Input-Reset beim Tippen.
+    editingRef.current = true
     setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
     // Gleichzeitig PID an Liris senden (öffnet Liris-Panel falls noch zu)
     const pid = normalizePid(patient.pid)
     if (pid) openWithPid(pid)
   }
-  function openNew()                        { setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen() }
-  function closeEdit()                      {
+  function openNew() {
+    editingRef.current = true
+    setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
+  }
+  function closeEdit() {
     // Lock entfernen — best-effort. Falls Edit auf 'new' war: nichts zu tun.
     if (editTarget && editTarget !== 'new') {
       releaseEditLock(editTarget.id).catch(e => console.warn('[Recall] Lock freigeben fehlgeschlagen:', e))
+    }
+    // Buffer freigeben + gepuffertes Snapshot nachreichen
+    editingRef.current = false
+    if (editingPendingSnapRef.current) {
+      const pending = editingPendingSnapRef.current
+      editingPendingSnapRef.current = null
+      setAllData(pending)
     }
     setEditTarget(null)
   }
