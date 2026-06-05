@@ -510,12 +510,22 @@ export default function RecallPage() {
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
-  // Live-Subscription Puffer: true sobald openEdit lief, false nach closeEdit.
-  // Solange true, werden Snapshots NICHT direkt appliziert (verhindert Input-
-  // Reset im offenen Edit-Modal) — sondern in editingPendingSnapRef geparkt
-  // und beim closeEdit nachgereicht.
+  // Live-Subscription Puffer — solange ein Modal mit Texteingaben offen ist,
+  // werden ankommende Firestore-Snapshots NICHT direkt appliziert (sonst
+  // koennten Re-Renders das Tippen unterbrechen). Sobald das letzte Modal
+  // schliesst, wird der zuletzt gepufferte Snapshot nachgereicht.
   const editingRef            = useRef(false)
   const editingPendingSnapRef = useRef<Map<string, RecallPatient[]> | null>(null)
+  // Helper: setzt editingRef auf den korrekten Wert und applisiert
+  // ggf. gepufferten Snapshot wenn alle Modale zu sind.
+  function setModalBuffer(active: boolean) {
+    editingRef.current = active
+    if (!active && editingPendingSnapRef.current) {
+      const pending = editingPendingSnapRef.current
+      editingPendingSnapRef.current = null
+      setAllData(pending)
+    }
+  }
   const [copiedCell, setCopiedCell] = useState<string | null>(null)
   const [filterNeupatient, setFilterNeupatient] = useState(false)
   const [filterTermin, setFilterTermin] = useState<FilterTermin | null>(null)
@@ -723,6 +733,13 @@ export default function RecallPage() {
   useEffect(() => {
     if (isElectron) openBrowser()
   }, [isElectron]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Snapshot-Buffer auch waehrend Aufgebot-Dialog aktiv (Grundvermerk-Textarea
+  // ist eine grosse Input-Flaeche, wo Live-Re-Render die Eingabe stoeren wuerde).
+  useEffect(() => {
+    if (aufgebotTarget) setModalBuffer(true)
+    else if (!editTarget) setModalBuffer(false)
+  }, [aufgebotTarget, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let unsub: (() => void) | null = null
@@ -2401,7 +2418,7 @@ export default function RecallPage() {
     // den Live-Snapshot. Beim Schliessen wird der Lock wieder freigegeben.
     acquireEditLock(patient.id, displayLabel).catch(e => console.warn('[Recall] Lock setzen fehlgeschlagen:', e))
     // Live-Snapshot waehrend Edit puffern -> verhindert Input-Reset beim Tippen.
-    editingRef.current = true
+    setModalBuffer(true)
     setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
     // Gleichzeitig PID an Liris senden — NUR in Electron sinnvoll (CORS blockt
     // im Browser). Im Browser ist openWithPid bereits ein No-Op weil das Panel
@@ -2412,7 +2429,7 @@ export default function RecallPage() {
     }
   }
   function openNew() {
-    editingRef.current = true
+    setModalBuffer(true)
     setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
   }
   function closeEdit() {
@@ -2420,13 +2437,8 @@ export default function RecallPage() {
     if (editTarget && editTarget !== 'new') {
       releaseEditLock(editTarget.id).catch(e => console.warn('[Recall] Lock freigeben fehlgeschlagen:', e))
     }
-    // Buffer freigeben + gepuffertes Snapshot nachreichen
-    editingRef.current = false
-    if (editingPendingSnapRef.current) {
-      const pending = editingPendingSnapRef.current
-      editingPendingSnapRef.current = null
-      setAllData(pending)
-    }
+    // Nur Buffer freigeben wenn KEIN weiteres Modal offen ist
+    if (!aufgebotTarget) setModalBuffer(false)
     setEditTarget(null)
   }
 
