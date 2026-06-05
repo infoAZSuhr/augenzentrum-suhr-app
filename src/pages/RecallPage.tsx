@@ -3072,7 +3072,23 @@ export default function RecallPage() {
                           }
                         }
                         // Fall back to aufgebotFuer (target date)
-                        if (!row.aufgebotFuer) return '—'
+                        if (!row.aufgebotFuer) {
+                          // KEIN naechsteKons UND kein aufgebotFuer UND kein aufgebotErstellt
+                          // -> wirklich ohne geplanten Recall. Sichtbarer Status-Badge statt
+                          // stilles "—", damit diese Patienten in der Liste sofort auffallen.
+                          const hatTermin = !!(row.naechsteKons && row.naechsteKons !== 'kein Termin')
+                          if (!hatTermin) {
+                            return (
+                              <span
+                                title="Kein nächster Termin und kein RC-Datum gesetzt — Patient braucht Recall-Planung"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300 text-[10px] font-semibold tabular-nums"
+                              >
+                                ohne Recall
+                              </span>
+                            )
+                          }
+                          return '—'
+                        }
                         const d = new Date(row.aufgebotFuer + 'T00:00:00Z')
                         if (isNaN(d.getTime())) return '—'
                         const label = `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
@@ -4025,7 +4041,7 @@ export default function RecallPage() {
                         <th className="text-right px-4 py-2.5">Neupatienten</th>
                         <th className="text-right px-4 py-2.5">Mit Termin</th>
                         <th className="text-right px-4 py-2.5">Im Recall</th>
-                        <th className="text-right px-4 py-2.5">Ohne Eintrag</th>
+                        <th className="text-right px-4 py-2.5" title="Aktive Patienten ohne Nächste Konst. und ohne RC-Datum — wirklich offen">Ohne Recall</th>
                         <th className="text-right px-4 py-2.5">Inaktiv/✝</th>
                         <th className="text-right px-4 py-2.5">Storniert</th>
                       </tr>
@@ -4042,7 +4058,26 @@ export default function RecallPage() {
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-green-700 font-medium">{d.mitTermin || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">{d.inPlanung || '—'}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.offen || '—'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">
+                            {d.offen > 0 && d.name !== ZU_BEARB ? (
+                              <button
+                                onClick={() => {
+                                  // In den Arzt-Tab springen und Filter "Ohne Termin" setzen
+                                  // -> direkt sichtbar welche Patienten betroffen sind.
+                                  setActiveTab(d.name)
+                                  setFilterTermin('ohneTermin')
+                                  setFilterNeupatient(false)
+                                  setFilterStatus(null)
+                                  setAuswertungOpen(false)
+                                  setPage(1)
+                                }}
+                                title={`${d.offen} Patient(en) ohne geplanten Recall — anzeigen`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
+                              >
+                                {d.offen}
+                              </button>
+                            ) : <span className="text-gray-300">{d.offen || '—'}</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.inaktiv || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{d.storniert || '—'}</td>
                         </tr>
