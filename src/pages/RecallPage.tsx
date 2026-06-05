@@ -77,7 +77,7 @@ const VU_DAUER: Record<string, string> = {
 }
 
 type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin'
-type FilterStatus = 'storniert' | 'inaktiv'
+type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot'
 const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   heute:      'Heute',
   week:       'Nächste 7 Tage',
@@ -1480,6 +1480,9 @@ export default function RecallPage() {
       overdue:   activeAll.filter(p => p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons)).length,
       inPlanung: activeAll.filter(isInPlanung).length,
       ohneTermin:activeAll.filter(isOhneTermin).length,
+      // Status-basierte Unter-Kategorien (warum "ohne Termin"):
+      statusReminder:     activeAll.filter(p => p.patientenStatus === 'Reminder').length,
+      statusKeinAufgebot: activeAll.filter(p => p.patientenStatus === 'kein Aufgebot').length,
     }
 
     // ── Inaktive / verstorbene Patienten ────────────────────────────────────
@@ -1622,6 +1625,10 @@ export default function RecallPage() {
       base = base.filter(isStorniert)
     } else if (filterStatus === 'inaktiv') {
       base = base.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben')
+    } else if (filterStatus === 'reminder') {
+      base = base.filter(p => p.patientenStatus === 'Reminder')
+    } else if (filterStatus === 'keinAufgebot') {
+      base = base.filter(p => p.patientenStatus === 'kein Aufgebot')
     } else {
       // Standard: inaktive/verstorbene ausblenden
       base = base.filter(p => p.patientenStatus !== 'inaktiv' && p.patientenStatus !== 'verstorben')
@@ -3982,57 +3989,53 @@ export default function RecallPage() {
                 })()}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* ── Kommende Termine & Recall-Status (volle Breite, "Aufgebot Art" entfernt) ── */}
+              <div>
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
+                  <CalendarClock className="w-4 h-4 text-primary-500" /> Termine & Recall-Status
+                </h3>
 
-                {/* ── Kommende Termine & Recall-Status ── */}
-                <div>
-                  <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-3">
-                    <CalendarClock className="w-4 h-4 text-primary-500" /> Termine & Recall-Status
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      { ft: 'heute'      as FilterTermin, label: 'Heute',            value: auswertungStats.upcoming.today,      color: 'bg-blue-50 text-blue-700 border-blue-100' },
-                      { ft: 'week'       as FilterTermin, label: 'Nächste 7 Tage',   value: auswertungStats.upcoming.week,       color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
-                      { ft: 'month'      as FilterTermin, label: 'Nächste 30 Tage',  value: auswertungStats.upcoming.month,      color: 'bg-violet-50 text-violet-700 border-violet-100' },
-                      { ft: 'overdue'    as FilterTermin, label: 'Überfällig',        value: auswertungStats.upcoming.overdue,    color: 'bg-red-50 text-red-700 border-red-100' },
-                      { ft: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls',  value: auswertungStats.upcoming.inPlanung, color: 'bg-amber-50 text-amber-700 border-amber-100' },
-                      { ft: 'ohneTermin' as FilterTermin, label: 'Ohne Termin',       value: auswertungStats.upcoming.ohneTermin,color: 'bg-gray-50 text-gray-600 border-gray-200' },
-                    ]).map(({ ft, label, value, color }) => (
-                      <button
-                        key={label}
-                        onClick={() => { setFilterTermin(ft); setFilterNeupatient(false); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
-                        className={`flex flex-col px-4 py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
-                      >
-                        <span className="text-2xl font-bold tabular-nums">{value}</span>
-                        <span className="text-xs mt-0.5 opacity-75">{label}</span>
-                      </button>
-                    ))}
-                  </div>
+                {/* Termin-bezogen */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                  {([
+                    { ft: 'heute'   as FilterTermin, label: 'Heute',           value: auswertungStats.upcoming.today,   color: 'bg-blue-50 text-blue-700 border-blue-100' },
+                    { ft: 'week'    as FilterTermin, label: 'Nächste 7 Tage',  value: auswertungStats.upcoming.week,    color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+                    { ft: 'month'   as FilterTermin, label: 'Nächste 30 Tage', value: auswertungStats.upcoming.month,   color: 'bg-violet-50 text-violet-700 border-violet-100' },
+                    { ft: 'overdue' as FilterTermin, label: 'Überfällig',      value: auswertungStats.upcoming.overdue, color: 'bg-red-50 text-red-700 border-red-100' },
+                  ]).map(({ ft, label, value, color }) => (
+                    <button key={label}
+                      onClick={() => { setFilterTermin(ft); setFilterNeupatient(false); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
+                      className={`flex flex-col px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${color}`}
+                    >
+                      <span className="text-xl sm:text-2xl font-bold tabular-nums">{value}</span>
+                      <span className="text-[11px] sm:text-xs mt-0.5 opacity-75">{label}</span>
+                    </button>
+                  ))}
                 </div>
 
-                {/* ── Aufgebot Art ── */}
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-3">Aufgebot Art</h3>
-                  <div className="space-y-3">
-                    {[
-                      { label: 'Brief',         Icon: Mail,      value: auswertungStats.aufgebot.Brief,  color: 'bg-blue-500' },
-                      { label: 'Telefon',        Icon: Phone,     value: auswertungStats.aufgebot.Tel,    color: 'bg-green-500' },
-                      { label: 'Praxis',         Icon: Building2, value: auswertungStats.aufgebot.Praxis, color: 'bg-violet-500' },
-                      { label: 'Kein Aufgebot',  Icon: null,      value: auswertungStats.aufgebot.kein,   color: 'bg-gray-300' },
-                    ].map(({ label, Icon, value, color }) => (
-                      <div key={label} className="flex items-center gap-3">
-                        <div className="w-28 shrink-0 flex items-center gap-1.5 text-sm text-gray-600">
-                          {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
-                          {label}
-                        </div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                          <div className={`h-full rounded-full ${color} transition-all`}
-                            style={{ width: `${(value / auswertungStats.aufgebotMax) * 100}%` }} />
-                        </div>
-                        <span className="w-10 text-right text-sm font-semibold text-gray-700 tabular-nums">{value}</span>
-                      </div>
-                    ))}
-                  </div>
+                {/* Recall-Status — "Ohne Termin" aufgeschlüsselt nach Grund (patientenStatus) */}
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-3 mb-1.5">Ohne konkreten Termin — nach Status</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {([
+                    { kind: 'termin' as const, key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', sub: 'RC-Datum oder im Recall', value: auswertungStats.upcoming.inPlanung,         color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                    { kind: 'termin' as const, key: 'ohneTermin' as FilterTermin, label: 'Wirklich offen',   sub: 'kein Termin, kein RC',    value: auswertungStats.upcoming.ohneTermin,        color: 'bg-gray-50 text-gray-700 border-gray-200' },
+                    { kind: 'status' as const, key: 'reminder'     as FilterStatus, label: 'Status: Reminder', sub: 'meldet sich noch',        value: auswertungStats.upcoming.statusReminder,    color: 'bg-purple-50 text-purple-700 border-purple-100' },
+                    { kind: 'status' as const, key: 'keinAufgebot' as FilterStatus, label: 'Kein Aufgebot',    sub: 'Patientenwunsch',         value: auswertungStats.upcoming.statusKeinAufgebot,color: 'bg-slate-50 text-slate-600 border-slate-200' },
+                  ]).map(c => (
+                    <button key={c.label}
+                      onClick={() => {
+                        if (c.kind === 'termin') { setFilterTermin(c.key); setFilterStatus(null) }
+                        else                      { setFilterStatus(c.key); setFilterTermin(null) }
+                        setFilterNeupatient(false); setAuswertungOpen(false); setPage(1)
+                      }}
+                      title={c.sub}
+                      className={`flex flex-col px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border text-left transition-opacity hover:opacity-80 active:scale-95 cursor-pointer ${c.color}`}
+                    >
+                      <span className="text-xl sm:text-2xl font-bold tabular-nums">{c.value}</span>
+                      <span className="text-[11px] sm:text-xs mt-0.5 opacity-90 font-medium">{c.label}</span>
+                      <span className="text-[10px] opacity-60 hidden sm:block">{c.sub}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
