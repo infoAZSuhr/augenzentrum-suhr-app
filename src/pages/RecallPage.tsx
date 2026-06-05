@@ -457,7 +457,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid } = useBrowser()
+  const { openWithPid, open: openBrowser } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -715,6 +715,14 @@ export default function RecallPage() {
       setZuweisungGruende(cfg.gruende)
     }).catch(() => {})
   }, [])
+
+  // Liris-Panel beim Recall-Start vorab oeffnen (nur Electron) — so ist die
+  // Webview schon geladen + eingeloggt bevor der User den ersten Patient
+  // anklickt. Erster Klick auf "-> Liris" ist dann sofort interaktiv statt
+  // 2-3 Sek auf den Initial-Page-Load zu warten.
+  useEffect(() => {
+    if (isElectron) openBrowser()
+  }, [isElectron]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let unsub: (() => void) | null = null
