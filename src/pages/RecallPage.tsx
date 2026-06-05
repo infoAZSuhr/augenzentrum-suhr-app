@@ -82,7 +82,7 @@ const VU_DAUER: Record<string, string> = {
 }
 
 type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin'
-type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot'
+type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot' | 'wartetBericht'
 const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   heute:      'Heute',
   week:       'Nächste 7 Tage',
@@ -130,20 +130,34 @@ function isInPlanung(p: RecallPatient): boolean {
   return false
 }
 
+/** True wenn der Patient an einen externen oder internen Arzt/Klinik
+ *  weiterverwiesen wurde und der Bericht (Abschluss / weiteres Vorgehen)
+ *  noch aussteht — also wir auf die Empfehlung warten und das eigene
+ *  Recall-Vorgehen erst danach bestimmt wird. */
+function isAwaitingZuweisungsBericht(p: RecallPatient): boolean {
+  const z = p.zuweisung
+  if (!z) return false
+  // Aktiv = noch nicht erledigt oder Bericht nicht erhalten
+  if (z.status === 'pendent') return true
+  if (z.status === 'erledigt' && !z.berichtErhalten) return true
+  return false
+}
+
 /** True wenn ein Patient WIRKLICH offen ist (=> braucht Recall-Planung):
  *  kein nächster Termin, kein RC-Datum (aufgebotFuer), kein "kein-Termin"-Flag,
- *  und Patient hat NICHT aktiv "kein Aufgebot" gewünscht.
+ *  Patient hat NICHT aktiv "kein Aufgebot" gewünscht, und wir warten NICHT
+ *  noch auf den Abschlussbericht einer Zuweisung.
  *
  *  Patienten mit Status 'kein Aufgebot' wollen weder Reminder noch Aufgebote
- *  bekommen — die melden sich bei Bedarf selbst. Sie sind also KEIN offener
- *  Recall-Fall, sondern eine bewusste Patientenentscheidung.
+ *  bekommen — die melden sich bei Bedarf selbst.
  *
- *  Patienten mit geplantem Recall fallen ebenfalls NICHT hierein — die zählen
- *  unter "Geplante Recalls". */
+ *  Patienten mit ausstehender Zuweisung sind auch nicht offen — das weitere
+ *  Vorgehen kann ja erst nach Erhalt des Berichts bestimmt werden. */
 function isOhneTermin(p: RecallPatient): boolean {
   if (p.patientenStatus === 'kein Aufgebot') return false  // bewusste Entscheidung
   if (p.naechsteKons) return false                          // hat Termin (oder "kein Termin"-Flag)
   if (p.aufgebotFuer) return false                          // hat RC-Datum geplant
+  if (isAwaitingZuweisungsBericht(p)) return false          // wartet auf Bericht
   return true
 }
 
@@ -1529,6 +1543,7 @@ export default function RecallPage() {
       // Status-basierte Unter-Kategorien (warum "ohne Termin"):
       statusReminder:     activeAll.filter(p => p.patientenStatus === 'Reminder').length,
       statusKeinAufgebot: activeAll.filter(p => p.patientenStatus === 'kein Aufgebot').length,
+      wartetBericht:      activeAll.filter(isAwaitingZuweisungsBericht).length,
     }
 
     // ── Inaktive / verstorbene Patienten ────────────────────────────────────
@@ -1675,6 +1690,8 @@ export default function RecallPage() {
       base = base.filter(p => p.patientenStatus === 'Reminder')
     } else if (filterStatus === 'keinAufgebot') {
       base = base.filter(p => p.patientenStatus === 'kein Aufgebot')
+    } else if (filterStatus === 'wartetBericht') {
+      base = base.filter(isAwaitingZuweisungsBericht)
     } else {
       // Standard: inaktive/verstorbene ausblenden
       base = base.filter(p => p.patientenStatus !== 'inaktiv' && p.patientenStatus !== 'verstorben')
@@ -3202,8 +3219,6 @@ export default function RecallPage() {
                         // Fall back to aufgebotFuer (target date)
                         if (!row.aufgebotFuer) {
                           // Echt offen? -> sichtbarer Status-Badge statt stilles "—".
-                          // isOhneTermin() berücksichtigt patientenStatus='kein Aufgebot'
-                          // (Patient möchte explizit keine Aufgebote -> kein Badge).
                           if (isOhneTermin(row)) {
                             return (
                               <span
@@ -3211,6 +3226,20 @@ export default function RecallPage() {
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300 text-[10px] font-semibold tabular-nums"
                               >
                                 ohne Recall
+                              </span>
+                            )
+                          }
+                          // Patient wartet auf Abschluss-Bericht einer Zuweisung
+                          // -> kein Recall geplant, aber NICHT vergessen.
+                          if (isAwaitingZuweisungsBericht(row)) {
+                            const z = row.zuweisung
+                            const ziel = z?.ziel ? ` an ${z.ziel}` : ''
+                            return (
+                              <span
+                                title={`Zuweisung${ziel} — wartet auf Abschluss-Bericht. Recall-Vorgehen wird danach festgelegt.`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-semibold tabular-nums"
+                              >
+                                wartet auf Bericht
                               </span>
                             )
                           }
@@ -4114,12 +4143,13 @@ export default function RecallPage() {
 
                 {/* Recall-Status — "Ohne Termin" aufgeschlüsselt nach Grund (patientenStatus) */}
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-3 mb-1.5">Ohne konkreten Termin — nach Status</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {([
-                    { kind: 'termin' as const, key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', sub: 'RC-Datum oder im Recall', value: auswertungStats.upcoming.inPlanung,         color: 'bg-amber-50 text-amber-700 border-amber-100' },
-                    { kind: 'termin' as const, key: 'ohneTermin' as FilterTermin, label: 'Wirklich offen',   sub: 'kein Termin, kein RC',    value: auswertungStats.upcoming.ohneTermin,        color: 'bg-gray-50 text-gray-700 border-gray-200' },
-                    { kind: 'status' as const, key: 'reminder'     as FilterStatus, label: 'Status: Reminder', sub: 'meldet sich noch',        value: auswertungStats.upcoming.statusReminder,    color: 'bg-purple-50 text-purple-700 border-purple-100' },
-                    { kind: 'status' as const, key: 'keinAufgebot' as FilterStatus, label: 'Kein Aufgebot',    sub: 'Patientenwunsch',         value: auswertungStats.upcoming.statusKeinAufgebot,color: 'bg-slate-50 text-slate-600 border-slate-200' },
+                    { kind: 'termin' as const, key: 'inPlanung'    as FilterTermin, label: 'Geplante Recalls', sub: 'RC-Datum oder im Recall',           value: auswertungStats.upcoming.inPlanung,         color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                    { kind: 'termin' as const, key: 'ohneTermin'   as FilterTermin, label: 'Wirklich offen',   sub: 'kein Termin, kein RC',              value: auswertungStats.upcoming.ohneTermin,        color: 'bg-gray-50 text-gray-700 border-gray-200' },
+                    { kind: 'status' as const, key: 'wartetBericht'as FilterStatus, label: 'Wartet auf Bericht', sub: 'Zuweisung ausstehend',            value: auswertungStats.upcoming.wartetBericht,     color: 'bg-cyan-50 text-cyan-700 border-cyan-100' },
+                    { kind: 'status' as const, key: 'reminder'     as FilterStatus, label: 'Status: Reminder', sub: 'meldet sich noch',                  value: auswertungStats.upcoming.statusReminder,    color: 'bg-purple-50 text-purple-700 border-purple-100' },
+                    { kind: 'status' as const, key: 'keinAufgebot' as FilterStatus, label: 'Kein Aufgebot',    sub: 'Patientenwunsch',                   value: auswertungStats.upcoming.statusKeinAufgebot,color: 'bg-slate-50 text-slate-600 border-slate-200' },
                   ]).map(c => (
                     <button key={c.label}
                       onClick={() => {
