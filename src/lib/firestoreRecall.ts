@@ -243,7 +243,10 @@ export async function importUnmatched(
   for (let i = 0; i < patients.length; i += 499) {
     const batch = writeBatch(db)
     for (const p of patients.slice(i, i + 499)) {
-      batch.set(doc(col, zuBearbStableId(p)), { ...p, doctor: 'Zu bearbeiten', importedAt: stamp })
+      // erstellt: stamp -> damit der Patient in der Aktivitaets-Auswertung
+      // als "Neu erfasst" beim importierenden User auftaucht. Ohne dies waren
+      // Excel-Imports in der Auswertung komplett unsichtbar (Bug, gefixt 06-2026).
+      batch.set(doc(col, zuBearbStableId(p)), { ...p, doctor: 'Zu bearbeiten', erstellt: stamp, importedAt: stamp })
     }
     try {
       await batch.commit()

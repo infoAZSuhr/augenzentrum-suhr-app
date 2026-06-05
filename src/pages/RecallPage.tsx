@@ -494,6 +494,10 @@ export default function RecallPage() {
   const [filterNochZuErledigen, setFilterNochZuErledigen] = useState(false)
   const [filterReminderFaellig, setFilterReminderFaellig] = useState(false)
   const [filterReminderGeplant, setFilterReminderGeplant] = useState(false)
+  // Filter über eine verlauf-Aktion (Telefonanruf / E-Mail) — für die anklickbaren
+  // Badges in der Aktivitäts-Tabelle, die nicht über patientenseitiges aufgebotArt
+  // abgedeckt sind.
+  const [filterVerlaufAktion, setFilterVerlaufAktion] = useState<string | null>(null)
 
   // ── Weiteres Vorgehen (Kontakt-Protokoll UI state) ───────────────────────────
   const [vorgehenTelOpen,       setVorgehenTelOpen]       = useState(false)
@@ -1613,7 +1617,7 @@ export default function RecallPage() {
   }, [])
 
   // ── Tab helpers ──────────────────────────────────────────────────────────────
-  function switchTab(doctor: string) { setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false) }
+  function switchTab(doctor: string) { setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null) }
 
   const rows = useMemo(() => {
     // When searching (≥2 chars), show cross-doctor results in the table
@@ -1636,6 +1640,7 @@ export default function RecallPage() {
     if (filterAufgebotArt === 'kein') base = base.filter(p => !p.aufgebotArt)
     else if (filterAufgebotArt) base = base.filter(p => p.aufgebotArt === filterAufgebotArt)
     if (filterNochZuErledigen) base = base.filter(p => p.verlauf?.some(v => v.ergebnis === 'noch zu erledigen'))
+    if (filterVerlaufAktion) base = base.filter(p => p.verlauf?.some(v => v.aktion === filterVerlaufAktion && v.von !== 'System'))
     if (filterReminderFaellig) base = base.filter(p => getReminderDueDate(p) !== null)
     if (filterReminderGeplant) base = base.filter(p => getUpcomingReminderDate(p) !== null)
     if (filterTermin) {
@@ -1667,7 +1672,7 @@ export default function RecallPage() {
       }
       return 0
     })
-  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Per-tab statistics for the filter bar chips
   const tabStats = useMemo(() => {
@@ -2747,9 +2752,9 @@ export default function RecallPage() {
               ? `${rows.length} Treffer`
               : `${rows.length} Einträge`}
           </span>
-          {(filterTermin || filterNeupatient || filterStatus || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant) && (
+          {(filterTermin || filterNeupatient || filterStatus || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion) && (
             <button
-              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterReminderGeplant(false); setPage(1) }}
+              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setPage(1) }}
               className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200 font-medium hover:bg-gray-200 transition-colors"
             >
               <X className="w-3 h-3" /> Filter zurücksetzen
@@ -3769,40 +3774,9 @@ export default function RecallPage() {
                     ))}
                   </div>
                 </div>
-                {/* Aufgebot-Summary-Cards — Totals über den gewählten Zeitraum.
-                    Click filtert die Hauptliste auf die jeweilige Aufgebots-Art
-                    (analog zum bestehenden filterAufgebotArt-Dropdown). */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-4">
-                  {[
-                    { art: 'Brief',    label: 'Brief',       value: auswertungStats.actAufgebotTotals.Brief,    color: 'bg-blue-50    text-blue-700    border-blue-200'    },
-                    { art: 'Tel',      label: 'Tel-Aufgebot',value: auswertungStats.actAufgebotTotals.Tel,      color: 'bg-amber-50   text-amber-700   border-amber-200'   },
-                    { art: 'Praxis',   label: 'Praxis',      value: auswertungStats.actAufgebotTotals.Praxis,   color: 'bg-violet-50  text-violet-700  border-violet-200'  },
-                    { art: 'Reminder', label: 'Reminder',    value: auswertungStats.actAufgebotTotals.Reminder, color: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
-                    { art: 'TelCall',  label: 'Telefonanruf',value: auswertungStats.actAufgebotTotals.TelCall,  color: 'bg-teal-50    text-teal-700    border-teal-200'    },
-                    { art: 'Email',    label: 'E-Mail',      value: auswertungStats.actAufgebotTotals.Email,    color: 'bg-pink-50    text-pink-700    border-pink-200'    },
-                  ].map(({ art, label, value, color }) => {
-                    // Nur die 4 originalen Aufgebot-Arten haben ein patienten-seitiges
-                    // aufgebotArt-Feld, das gefiltert werden kann. TelCall/Email leben
-                    // nur in verlauf-Einträgen — Cards bleiben informativ ohne Filter.
-                    const filterable = art === 'Brief' || art === 'Tel' || art === 'Praxis' || art === 'Reminder'
-                    const baseCls = `flex flex-col px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border text-left ${color}`
-                    return filterable ? (
-                      <button
-                        key={art}
-                        onClick={() => { setFilterAufgebotArt(art); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setAuswertungOpen(false); setPage(1) }}
-                        className={`${baseCls} transition-opacity hover:opacity-80 active:scale-95 cursor-pointer`}
-                      >
-                        <span className="text-xl sm:text-2xl font-bold tabular-nums">{value}</span>
-                        <span className="text-[11px] sm:text-xs mt-0.5 opacity-75">{label}</span>
-                      </button>
-                    ) : (
-                      <div key={art} className={baseCls}>
-                        <span className="text-xl sm:text-2xl font-bold tabular-nums">{value}</span>
-                        <span className="text-[11px] sm:text-xs mt-0.5 opacity-75">{label}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                {/* Hinweis: Summary-Cards wurden entfernt (Stand 2026-06).
+                    Die Aufgebot-Totals pro Art lassen sich aus den Badges in der
+                    Tabelle ablesen — klick filtert die Hauptliste. */}
                 {(() => {
                   // Wenn ein Period-Filter aktiv ist (alles außer 'Alle'),
                   // zeige aggregierte Zahlen pro User statt einer Zeile pro
@@ -3823,22 +3797,23 @@ export default function RecallPage() {
                         <tr>
                           <th className="text-left  px-4 py-2.5">{actGrouped ? 'Tage' : 'Datum'}</th>
                           <th className="text-left  px-4 py-2.5">Benutzer</th>
-                          <th className="text-right px-4 py-2.5">Neu erfasst</th>
-                          <th className="text-right px-4 py-2.5">Bearbeitet</th>
-                          <th className="text-left  px-4 py-2.5">Aufgebote</th>
-                          <th className="text-right px-4 py-2.5">Total</th>
+                          <th className="text-right px-4 py-2.5" title="Patienten, die der User an diesem Tag NEU erfasst hat (Quelle: erstellt-Stamp)">Neu erfasst</th>
+                          <th className="text-right px-4 py-2.5" title="Distinct Patienten, die der User an diesem Tag bearbeitet hat (Verlauf-Eintrag oder aktualisiert-Stamp). Patienten, die er am gleichen Tag selbst erstellt hat, zaehlen nur unter 'Neu erfasst'.">Bearbeitet</th>
+                          <th className="text-left  px-4 py-2.5" title="Anzahl Aufgebot-Aktionen (Brief, Tel-Aufgebot, Praxis, Reminder, Telefonanruf, E-Mail) — Klick filtert die Liste">Aufgebote</th>
+                          <th className="text-right px-4 py-2.5" title="Summe: Neu erfasst + Bearbeitet + alle Aufgebot-Aktionen — Gesamt-Arbeitsleistung an diesem Tag">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {actBodyRows.map(r => {
                           const aufgebotTotal = r.aufgebote.Brief + r.aufgebote.Tel + r.aufgebote.Praxis + r.aufgebote.Reminder + r.aufgebote.TelCall + r.aufgebote.Email
-                          const badges: Array<{ key: string; count: number; label: string; cls: string }> = [
-                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',        cls: 'bg-blue-50    text-blue-700    border-blue-200'    },
-                            { key: 'T', count: r.aufgebote.Tel,      label: 'Tel-Aufgebot', cls: 'bg-amber-50   text-amber-700   border-amber-200'   },
-                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',       cls: 'bg-violet-50  text-violet-700  border-violet-200'  },
-                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder',     cls: 'bg-indigo-50  text-indigo-700  border-indigo-200'  },
-                            { key: '☎', count: r.aufgebote.TelCall,  label: 'Telefonanruf', cls: 'bg-teal-50    text-teal-700    border-teal-200'    },
-                            { key: '✉', count: r.aufgebote.Email,    label: 'E-Mail',       cls: 'bg-pink-50    text-pink-700    border-pink-200'    },
+                          type Badge = { key: string; count: number; label: string; cls: string; filter: { type: 'aufgebotArt' | 'verlaufAktion'; value: string } }
+                          const badges: Badge[] = [
+                            { key: 'B', count: r.aufgebote.Brief,    label: 'Brief',        cls: 'bg-blue-50    text-blue-700    border-blue-200',    filter: { type: 'aufgebotArt',   value: 'Brief'        } },
+                            { key: 'T', count: r.aufgebote.Tel,      label: 'Tel-Aufgebot', cls: 'bg-amber-50   text-amber-700   border-amber-200',   filter: { type: 'aufgebotArt',   value: 'Tel'          } },
+                            { key: 'P', count: r.aufgebote.Praxis,   label: 'Praxis',       cls: 'bg-violet-50  text-violet-700  border-violet-200',  filter: { type: 'aufgebotArt',   value: 'Praxis'       } },
+                            { key: 'R', count: r.aufgebote.Reminder, label: 'Reminder',     cls: 'bg-indigo-50  text-indigo-700  border-indigo-200',  filter: { type: 'aufgebotArt',   value: 'Reminder'     } },
+                            { key: '☎', count: r.aufgebote.TelCall,  label: 'Telefonanruf', cls: 'bg-teal-50    text-teal-700    border-teal-200',   filter: { type: 'verlaufAktion', value: 'Telefonanruf' } },
+                            { key: '✉', count: r.aufgebote.Email,    label: 'E-Mail',       cls: 'bg-pink-50    text-pink-700    border-pink-200',   filter: { type: 'verlaufAktion', value: 'E-Mail'       } },
                           ].filter(b => b.count > 0)
                           return (
                             <tr key={r.key} className="hover:bg-gray-50">
@@ -3856,18 +3831,34 @@ export default function RecallPage() {
                                 ) : (
                                   <div className="flex flex-wrap gap-1">
                                     {badges.map(b => (
-                                      <span
+                                      <button
                                         key={b.key}
-                                        title={`${b.count} × ${b.label}`}
-                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-semibold tabular-nums ${b.cls}`}
+                                        title={`${b.count} × ${b.label} — Liste filtern`}
+                                        onClick={() => {
+                                          // Filter setzen + Modal schließen + zu betroffenem User-Tab springen
+                                          // wenn die Activity-Row einem konkreten Arzt zugeordnet ist (Zu-bearb bleibt).
+                                          if (b.filter.type === 'aufgebotArt') {
+                                            setFilterAufgebotArt(b.filter.value)
+                                            setFilterVerlaufAktion(null)
+                                          } else {
+                                            setFilterVerlaufAktion(b.filter.value)
+                                            setFilterAufgebotArt(null)
+                                          }
+                                          setFilterTermin(null)
+                                          setFilterNeupatient(false)
+                                          setFilterStatus(null)
+                                          setAuswertungOpen(false)
+                                          setPage(1)
+                                        }}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-semibold tabular-nums hover:opacity-80 active:scale-95 transition cursor-pointer ${b.cls}`}
                                       >
                                         <span className="opacity-70">{b.key}</span>{b.count}
-                                      </span>
+                                      </button>
                                     ))}
                                   </div>
                                 )}
                               </td>
-                              <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900">{r.created + r.updated}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900">{r.created + r.updated + aufgebotTotal}</td>
                             </tr>
                           )
                         })}
