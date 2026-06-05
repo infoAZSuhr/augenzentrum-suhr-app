@@ -5295,7 +5295,7 @@ export default function RecallPage() {
                             const v = e.target.value
                             if (v === 'Sonstiges') setField('grundStornierung', ' ')
                             else setField('grundStornierung', v)
-                            if (v === 'kein Bedarf') setField('patientenStatus', 'kein Aufgebot')
+                            if (v === 'kein Bedarf' || v === 'Selbstmeldung') setField('patientenStatus', 'kein Aufgebot')
                             if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
                             if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
                             if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
