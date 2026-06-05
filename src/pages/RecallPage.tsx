@@ -5187,146 +5187,147 @@ export default function RecallPage() {
                 )}
               </div>
 
-              {/* Aufgebot + Aufgebot für */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Aufgebot-Icons (volle Breite oben) */}
+              <div>
+                <label className={labelCls}>Aufgebot</label>
+                <div className="flex gap-2">
+                  {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        const next = form.aufgebotArt === value ? '' : value
+                        setField('aufgebotArt', next)
+                        if (next) {
+                          // Praxis-Aufgebot: meist beim letzten Konsil direkt
+                          // vereinbart -> letzteKons als Default-Datum, sonst
+                          // muss der User das nachtraeglich korrigieren.
+                          const isPraxis = next === 'Praxis'
+                          const defaultDate = (isPraxis && form.letzteKons)
+                            ? form.letzteKons
+                            : new Date().toISOString().slice(0, 10)
+                          setField('aufgebotErstellt', defaultDate)
+                        } else {
+                          setField('aufgebotErstellt', '')
+                          setField('naechsteKons', '')
+                          setField('keinTermin', false)
+                        }
+                      }}
+                      className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
+                        form.aufgebotArt === value
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Datums-Felder nebeneinander unter den Aufgebot-Icons */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* RC zu erstellen ab */}
                 <div>
-                  <label className={labelCls}>Aufgebot</label>
-                  <div className="flex gap-2">
-                    {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => {
-                          const next = form.aufgebotArt === value ? '' : value
-                          setField('aufgebotArt', next)
-                          if (next) {
-                            // Praxis-Aufgebot: meist beim letzten Konsil direkt
-                            // vereinbart -> letzteKons als Default-Datum, sonst
-                            // muss der User das nachtraeglich korrigieren.
-                            const isPraxis = next === 'Praxis'
-                            const defaultDate = (isPraxis && form.letzteKons)
-                              ? form.letzteKons
-                              : new Date().toISOString().slice(0, 10)
-                            setField('aufgebotErstellt', defaultDate)
-                          } else {
-                            setField('aufgebotErstellt', '')
-                            setField('naechsteKons', '')
-                            setField('keinTermin', false)
-                          }
-                        }}
-                        className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
-                          form.aufgebotArt === value
-                            ? 'border-primary-500 bg-primary-50 text-primary-700'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        {label}
-                      </button>
-                    ))}
+                  <label className={labelCls}>RC zu erstellen ab</label>
+                  <div className="relative">
+                    <input type="date" value={form.aufgebotFuer}
+                      onChange={e => setField('aufgebotFuer', e.target.value)}
+                      className={`${inputCls} pr-6`} />
+                    <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {/* RC zu erstellen ab — direkt ueber Naechste Konst. (rechte Spalte). */}
-                  <div>
-                    <label className={labelCls}>RC zu erstellen ab</label>
-                    <div className="relative">
-                      <input type="date" value={form.aufgebotFuer}
-                        onChange={e => setField('aufgebotFuer', e.target.value)}
-                        className={`${inputCls} pr-6`} />
-                      <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
-                    </div>
+                {/* Aufgebot erstellt am (dynamisches Label je Aufgebot-Art) */}
+                <div>
+                  <label className={labelCls}>{
+                    form.aufgebotArt === 'Brief'    ? 'Briefaufgebot erstellt am' :
+                    form.aufgebotArt === 'Reminder' ? 'Reminder erstellt am' :
+                    form.aufgebotArt === 'Tel'      ? 'Telefonaufgebot erstellt am' :
+                    form.aufgebotArt === 'Praxis'   ? 'Vereinbarungsdatum' :
+                    'Aufgebot erstellt am'
+                  }</label>
+                  <div className="relative">
+                    <input type="date" value={form.aufgebotErstellt}
+                      onChange={e => setField('aufgebotErstellt', e.target.value)}
+                      className={`${inputCls} pr-6`} />
+                    <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
                   </div>
-                  <div>
-                    <label className={labelCls}>{
-                      form.aufgebotArt === 'Brief'    ? 'Briefaufgebot erstellt am' :
-                      form.aufgebotArt === 'Reminder' ? 'Reminder erstellt am' :
-                      form.aufgebotArt === 'Tel'      ? 'Telefonaufgebot erstellt am' :
-                      form.aufgebotArt === 'Praxis'   ? 'Vereinbarungsdatum' :
-                      'Aufgebot erstellt am'
-                    }</label>
-                    <div className="relative">
-                      <input type="date" value={form.aufgebotErstellt}
-                        onChange={e => setField('aufgebotErstellt', e.target.value)}
-                        className={`${inputCls} pr-6`} />
-                      <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
-                    </div>
-                    {form.aufgebotArt === 'Praxis' && (
-                      <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
-                        <span>⚠️</span> Das Terminsdatum bitte unter <strong>«Nächste Konst.»</strong> eintragen.
-                      </p>
+                  {form.aufgebotArt === 'Praxis' && (
+                    <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                      <span>⚠️</span> Das Terminsdatum bitte unter <strong>«Nächste Konst.»</strong> eintragen.
+                    </p>
+                  )}
+                </div>
+                {/* Nächste Konst. */}
+                <div>
+                  <label className={labelCls}>
+                    Nächste Konst.
+                    {form.storniert === 'Terminverschiebung' && (
+                      <span className="ml-2 text-amber-600 font-normal">← vereinbarten Termin hier eintragen</span>
                     )}
-                  </div>
-                  {/* Nächste Konst. — ganz unten in der rechten Spalte. */}
-                  <div>
-                    <label className={labelCls}>
-                      Nächste Konst.
-                      {form.storniert === 'Terminverschiebung' && (
-                        <span className="ml-2 text-amber-600 font-normal">← vereinbarten Termin hier eintragen</span>
-                      )}
-                    </label>
-                    <div className="relative">
-                      <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
-                        className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
-                        onChange={e => {
-                          const val = e.target.value
-                          setField('naechsteKons', val)
-                          if (val) {
-                            // Mit gesetztem Termin braucht es keinen Recall mehr → «RC zu erstellen ab» leeren
-                            setField('aufgebotFuer', '')
-                            // Aktiv geplante Reminder («Geplant: <Zukunftsdatum>») entfernen,
-                            // historische Reminder-Einträge bleiben als Verlauf erhalten.
-                            const today = new Date().toISOString().slice(0, 10)
-                            const isActivePlannedReminder = (v: { aktion?: string; ergebnis?: string }) => {
-                              if (v.aktion !== 'Reminder') return false
-                              const m = v.ergebnis?.match(/^Geplant:\s*(\d{4}-\d{2}-\d{2})/)
-                              return !!m && m[1] > today
+                  </label>
+                  <div className="relative">
+                    <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
+                      className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
+                      onChange={e => {
+                        const val = e.target.value
+                        setField('naechsteKons', val)
+                        if (val) {
+                          // Mit gesetztem Termin braucht es keinen Recall mehr → «RC zu erstellen ab» leeren
+                          setField('aufgebotFuer', '')
+                          // Aktiv geplante Reminder («Geplant: <Zukunftsdatum>») entfernen,
+                          // historische Reminder-Einträge bleiben als Verlauf erhalten.
+                          const today = new Date().toISOString().slice(0, 10)
+                          const isActivePlannedReminder = (v: { aktion?: string; ergebnis?: string }) => {
+                            if (v.aktion !== 'Reminder') return false
+                            const m = v.ergebnis?.match(/^Geplant:\s*(\d{4}-\d{2}-\d{2})/)
+                            return !!m && m[1] > today
+                          }
+                          if (form.verlauf.some(isActivePlannedReminder)) {
+                            const cancelEntry = {
+                              datum: today,
+                              aktion: 'Reminder',
+                              ergebnis: `Abgesagt – Termin am ${formatDate(val)} vereinbart`,
+                              von: displayLabel,
                             }
-                            if (form.verlauf.some(isActivePlannedReminder)) {
-                              const cancelEntry = {
-                                datum: today,
-                                aktion: 'Reminder',
-                                ergebnis: `Abgesagt – Termin am ${formatDate(val)} vereinbart`,
-                                von: displayLabel,
-                              }
-                              setField('verlauf', [
-                                ...form.verlauf.filter(v => !isActivePlannedReminder(v)),
-                                cancelEntry,
-                              ])
+                            setField('verlauf', [
+                              ...form.verlauf.filter(v => !isActivePlannedReminder(v)),
+                              cancelEntry,
+                            ])
+                          }
+                        }
+                      }} />
+                    <ClearBtn show={!!form.naechsteKons} onClear={() => {
+                      setField('naechsteKons', '')
+                      setField('keinTermin', false)
+                    }} />
+                  </div>
+                  {form.naechsteKons && (
+                    <div className="flex justify-end mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newDate = form.naechsteKons.slice(0, 10)
+                          setField('letzteKons', newDate)
+                          setField('storniert', '')
+                          setField('grundStornierung', '')
+                          setField('naechsteKons', '') // manuell neu eingeben
+                          if (form.konsInterval) {
+                            const computed = computeNextKons(newDate, form.konsInterval)
+                            if (computed) {
+                              const d = new Date(computed + 'T00:00:00Z')
+                              d.setUTCMonth(d.getUTCMonth() - 2)
+                              setField('aufgebotFuer', d.toISOString().slice(0, 10))
                             }
                           }
-                        }} />
-                      <ClearBtn show={!!form.naechsteKons} onClear={() => {
-                        setField('naechsteKons', '')
-                        setField('keinTermin', false)
-                      }} />
+                        }}
+                        className="text-[11px] font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                      >
+                        als letzte Konst. ↑
+                      </button>
                     </div>
-                    {form.naechsteKons && (
-                      <div className="flex justify-end mt-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newDate = form.naechsteKons.slice(0, 10)
-                            setField('letzteKons', newDate)
-                            setField('storniert', '')
-                            setField('grundStornierung', '')
-                            setField('naechsteKons', '') // manuell neu eingeben
-                            if (form.konsInterval) {
-                              const computed = computeNextKons(newDate, form.konsInterval)
-                              if (computed) {
-                                const d = new Date(computed + 'T00:00:00Z')
-                                d.setUTCMonth(d.getUTCMonth() - 2)
-                                setField('aufgebotFuer', d.toISOString().slice(0, 10))
-                              }
-                            }
-                          }}
-                          className="text-[11px] font-medium text-primary-600 hover:text-primary-800 hover:underline"
-                        >
-                          als letzte Konst. ↑
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
 
