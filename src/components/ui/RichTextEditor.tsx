@@ -13,9 +13,10 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import {
   Bold, Italic, UnderlineIcon, List, ListOrdered,
   Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
-  Undo2, Redo2, Minus, ImageIcon, Link2, Link2Off, X, Check, Loader2, GitBranch,
+  Undo2, Redo2, Minus, ImageIcon, Link2, Link2Off, X, Check, Loader2, GitBranch, ArrowLeftRight,
 } from 'lucide-react'
 import { MermaidBlock } from './MermaidBlock'
+import { LirisDiagramBlock } from './LirisDiagramBlock'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../../lib/firebase'
 import { useToast } from '../../lib/ToastContext'
@@ -238,6 +239,12 @@ function Toolbar({
         onClick={() => (editor.chain().focus() as any).insertMermaidBlock().run()}>
         <GitBranch className="w-4 h-4" />
       </ToolbarBtn>
+
+      {/* Liris TARMED diagram */}
+      <ToolbarBtn title="Liris TARMED-Zuordnung einfügen"
+        onClick={() => (editor.chain().focus() as any).insertLirisDiagram().run()}>
+        <ArrowLeftRight className="w-4 h-4" />
+      </ToolbarBtn>
     </div>
   )
 }
@@ -325,6 +332,7 @@ export default function RichTextEditor({ content, onChange, editable = true, pla
       TableHeader,
       TableCell,
       MermaidBlock,
+      LirisDiagramBlock,
     ],
     content,
     editable,

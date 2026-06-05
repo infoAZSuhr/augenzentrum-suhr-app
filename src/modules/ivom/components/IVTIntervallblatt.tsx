@@ -177,11 +177,11 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
           </div>`).join('')
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <title>Intervallblatt – ${patient.lastName} ${patient.firstName}</title>
+    <title>Intervallblatt – ${patient.firstName}</title>
     <style>${PRINT_STYLE}</style></head><body>
     <div class="header-row">
       <div class="patient-box">
-        <div><strong>${patient.lastName}, ${patient.firstName}</strong></div>
+        <div><strong>${patient.firstName}</strong></div>
         <div>Geb. ${fmt(patient.dateOfBirth)}</div>
         ${patient.patientNumber ? `<div>Pat.-Nr. ${patient.patientNumber}</div>` : ''}
       </div>
@@ -247,7 +247,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
 
         {/* Toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
-          <h2 className="font-semibold text-gray-800">Intervallblatt — {patient.lastName}, {patient.firstName}</h2>
+          <h2 className="font-semibold text-gray-800">Intervallblatt — {patient.firstName}</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
@@ -267,7 +267,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
           {/* Patient */}
           <div className="flex justify-between items-start">
             <div className="border border-dashed border-gray-300 rounded p-3 text-sm min-w-[200px]">
-              <p className="font-semibold">{patient.lastName}, {patient.firstName}</p>
+              <p className="font-semibold">{patient.firstName}</p>
               <p className="text-gray-500 text-xs">Geb. {fmt(patient.dateOfBirth)}</p>
               {patient.patientNumber && <p className="text-gray-500 text-xs">Pat.-Nr. {patient.patientNumber}</p>}
             </div>

@@ -38,6 +38,7 @@ export interface UserProfile {
   approvedBy?: string
   approvedAt?: unknown
   lastSeen?: unknown
+  lastLogin?: unknown
 }
 
 interface AuthContextType {
@@ -165,7 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (snap.empty) throw { code: 'auth/user-not-found' }
     const email = (snap.docs[0].data() as UserProfile).email
     try {
+      const uid = snap.docs[0].id
       await signInWithEmailAndPassword(auth, email, password)
+      updateDoc(doc(db, 'users', uid), { lastLogin: serverTimestamp() }).catch(() => {})
       window.location.hash = '/'
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code

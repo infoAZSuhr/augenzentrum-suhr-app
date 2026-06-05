@@ -1,6 +1,6 @@
 export interface Patient {
   id: string
-  lastName: string
+  lastName?: string
   firstName: string
   dateOfBirth: string
   gender: 'M' | 'W' | 'D'
@@ -10,6 +10,7 @@ export interface Patient {
   diagnosisOd?: string
   diagnosisOs?: string
   allergies?: string
+  anaesthetics?: string[]
   notes?: string
   status: 'aktiv' | 'pausiert' | 'abgeschlossen'
   createdAt?: string

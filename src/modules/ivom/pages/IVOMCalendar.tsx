@@ -150,7 +150,7 @@ export default function IVOMCalendar() {
                       className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-primary-50 transition-colors group">
                       <div>
                         <p className="font-medium text-sm text-gray-900 group-hover:text-primary-700">
-                          {p.lastName}, {p.firstName}
+                          {p.firstName}
                         </p>
                         <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
                           {p.diagnosisOd && <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-orange-400" /> OD: {p.diagnosisOd}</span>}
@@ -181,7 +181,7 @@ export default function IVOMCalendar() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium text-sm text-gray-900 group-hover:text-primary-700 truncate">
-                          {p.lastName}, {p.firstName}
+                          {p.firstName}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {new Date(p.nextAppointmentDate!).toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'short' })}

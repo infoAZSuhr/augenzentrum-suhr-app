@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Users } from 'lucide-react'
+import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Users, ShieldAlert } from 'lucide-react'
 import { getPatients, createPatient, deletePatient } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
@@ -20,8 +20,8 @@ function sortPatients(patients: Patient[], key: SortKey | null, dir: 'asc' | 'de
   return [...patients].sort((a, b) => {
     let va: string, vb: string
     if (key === 'name') {
-      va = `${a.lastName} ${a.firstName}`.toLowerCase()
-      vb = `${b.lastName} ${b.firstName}`.toLowerCase()
+      va = a.firstName.toLowerCase()
+      vb = b.firstName.toLowerCase()
     } else {
       va = (a[key as keyof Patient] as string) ?? ''
       vb = (b[key as keyof Patient] as string) ?? ''
@@ -173,9 +173,20 @@ export default function PatientList() {
                         {p.patientNumber || <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="font-medium text-gray-900 group-hover:text-primary-700 transition-colors">
-                          {p.lastName}, {p.firstName}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-900 group-hover:text-primary-700 transition-colors">
+                            {p.firstName}
+                          </span>
+                          {p.allergies && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap"
+                              title={`Allergie: ${p.allergies}`}
+                            >
+                              <ShieldAlert className="w-2.5 h-2.5" />
+                              {p.allergies}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{formatDate(p.dateOfBirth)}</td>
                       <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{p.diagnosisOd || '—'}</td>
@@ -221,7 +232,7 @@ export default function PatientList() {
       {deleteTarget && (
         <ConfirmDialog
           title="Patient löschen?"
-          message={`«${deleteTarget.lastName}, ${deleteTarget.firstName}» und alle zugehörigen Behandlungen werden unwiderruflich gelöscht.`}
+          message={`«${deleteTarget.firstName}${deleteTarget.patientNumber ? ` (#${deleteTarget.patientNumber})` : ''}» und alle zugehörigen Behandlungen werden unwiderruflich gelöscht.`}
           confirmLabel="Endgültig löschen"
           isLoading={deleteMut.isPending}
           onConfirm={() => deleteMut.mutate(deleteTarget.id)}

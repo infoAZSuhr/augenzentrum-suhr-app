@@ -10,8 +10,6 @@ import { useAuth, UserProfile, UserRole, UserStatus, UserPermissions, Arbeitszei
 import { loadPlanung, savePlanung, loadYearListFirestore } from '../lib/firestorePlanung'
 import { Check, X, Users, Shield, ShieldCheck, Clock, UserCheck, UserPlus, Eye, EyeOff, Trash2, Crown, Unlock, Mail, Pencil, Save, Lock, MessageSquare, ClipboardList, Search, ChevronUp, ChevronDown, ChevronsUpDown, Package, CalendarDays, BookOpen, Phone, type LucideIcon } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
-import { formatLastSeen } from '../utils/formatLastSeen'
-import { useToast } from '../lib/ToastContext'
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYRnIZJ46oEPUIZ9uRiLDbTWW0dB93vgQ",
@@ -43,14 +41,19 @@ const PERMISSION_AREAS: { key: keyof UserPermissions; label: string; Icon: Lucid
   { key: 'recall',     label: 'Recall',         Icon: Phone },
   { key: 'akv',        label: 'AKV',            Icon: ClipboardList },
 ]
+function formatTimestamp(ts: unknown): string {
+  const seconds = (ts as { seconds?: number })?.seconds
+  if (!seconds) return '—'
+  const d = new Date(seconds * 1000)
+  return d.toLocaleDateString('de-CH') + ' ' + d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
+}
+
 // User is considered online if lastSeen within the last 5 minutes
 function isOnline(u: UserProfile): boolean {
   const ts = (u.lastSeen as { seconds?: number })?.seconds
   if (!ts) return false
   return Date.now() / 1000 - ts < 5 * 60
 }
-
-// formatLastSeen: siehe src/utils/formatLastSeen.ts
 
 const STATUS_STYLE: Record<UserStatus, string> = {
   pending:  'bg-amber-50 text-amber-700 border-amber-200',
@@ -68,7 +71,6 @@ interface LoginRequest { id: string; senderName?: string; email?: string; note?:
 export default function UserManagementPage() {
   const { profile: me, isSuperAdmin, isAdmin, isGeschaeftsleitung, canAccessBenutzerverwaltung, sendResetEmail } = useAuth()
   const canManageUsers = isAdmin || canAccessBenutzerverwaltung
-  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [users,   setUsers]   = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
@@ -218,9 +220,9 @@ export default function UserManagementPage() {
     try {
       await sendResetEmail(email)
       await updateDoc(doc(db, 'users', uid), { mustChangePassword: true })
-      toast.success(`Passwort-Reset E-Mail an ${email} gesendet`)
+      alert(`Passwort-Reset E-Mail wurde an ${email} gesendet.`)
     } catch {
-      toast.error('Fehler beim Senden der E-Mail')
+      alert('Fehler beim Senden der E-Mail.')
     }
   }
 
@@ -869,17 +871,10 @@ export default function UserManagementPage() {
                                 <p className="font-medium text-gray-800 text-sm leading-tight">{u.displayName || u.username}</p>
                                 {isOnline(u) && <span className="text-[9px] font-semibold text-green-600 bg-green-50 border border-green-200 px-1 py-0.5 rounded-full leading-none">Online</span>}
                               </div>
-                              {(u.username || !isOnline(u)) && (
-                                <p className="text-xs text-gray-400 leading-tight">
-                                  {u.username}
-                                  {!isOnline(u) && (
-                                    <>
-                                      {u.username && <span className="mx-1">·</span>}
-                                      <span title="Zuletzt aktiv">zuletzt: {formatLastSeen(u.lastSeen)}</span>
-                                    </>
-                                  )}
-                                </p>
-                              )}
+                              {u.username && <p className="text-xs text-gray-400 leading-tight">{u.username}</p>}
+                              <p className="text-[11px] text-gray-400 leading-tight mt-0.5" title="Letzter Login">
+                                {u.lastLogin ? formatTimestamp(u.lastLogin) : <span className="italic">Noch nie eingeloggt</span>}
+                              </p>
                             </div>
                           </div>
                         </td>

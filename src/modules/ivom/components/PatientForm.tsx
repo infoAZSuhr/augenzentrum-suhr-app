@@ -45,8 +45,10 @@ function droppableProps(onDrop: (text: string) => void) {
   }
 }
 
+const ANAESTHETICS = ['Tetracaine 1%', 'Novesine 0.4%', 'Oxybuprocaine 0.4%']
+
 export default function PatientForm({ initial, onClose, onSubmit, isLoading }: Props) {
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     defaultValues: { status: 'aktiv', ...initial },
   })
   const { style: dragStyle, onHeaderMouseDown } = useDraggable()
@@ -82,25 +84,14 @@ export default function PatientForm({ initial, onClose, onSubmit, isLoading }: P
           </div>
 
           {/* Name */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Nachname *</label>
-              <input
-                className="input transition-all"
-                {...register('lastName', { required: true })}
-                {...droppableProps(t => setValue('lastName', t))}
-              />
-              {errors.lastName && <p className="text-xs text-red-500 mt-1">Pflichtfeld</p>}
-            </div>
-            <div>
-              <label className="label">Vorname *</label>
-              <input
-                className="input transition-all"
-                {...register('firstName', { required: true })}
-                {...droppableProps(t => setValue('firstName', t))}
-              />
-              {errors.firstName && <p className="text-xs text-red-500 mt-1">Pflichtfeld</p>}
-            </div>
+          <div>
+            <label className="label">Vorname *</label>
+            <input
+              className="input transition-all"
+              {...register('firstName', { required: true })}
+              {...droppableProps(t => setValue('firstName', t))}
+            />
+            {errors.firstName && <p className="text-xs text-red-500 mt-1">Pflichtfeld</p>}
           </div>
 
           {/* Geburtsdatum */}
@@ -148,6 +139,33 @@ export default function PatientForm({ initial, onClose, onSubmit, isLoading }: P
               {...register('allergies')}
               {...droppableProps(t => setValue('allergies', t))}
             />
+          </div>
+
+          {/* Anästhetikum */}
+          <div>
+            <label className="label">Anästhetikum (verträglich)</label>
+            <div className="flex flex-wrap gap-4 mt-1">
+              {ANAESTHETICS.map(a => {
+                const checked = (watch('anaesthetics') ?? []).includes(a)
+                return (
+                  <label key={a} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 rounded accent-primary-600"
+                      checked={checked}
+                      onChange={e => {
+                        const current = watch('anaesthetics') ?? []
+                        setValue('anaesthetics', e.target.checked
+                          ? [...current, a]
+                          : current.filter((x: string) => x !== a)
+                        )
+                      }}
+                    />
+                    <span className="text-sm text-gray-700">{a}</span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
 
           {/* Notizen */}

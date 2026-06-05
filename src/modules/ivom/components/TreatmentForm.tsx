@@ -229,11 +229,11 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
             <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
               <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                 <span className="text-xs font-bold text-primary-700">
-                  {patient.firstName[0]}{patient.lastName[0]}
+                  {patient.firstName[0]}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{patient.lastName}, {patient.firstName}</p>
+                <p className="text-sm font-semibold text-gray-900 truncate">{patient.firstName}</p>
                 <div className="flex items-center gap-3 mt-0.5">
                   {patient.patientNumber && (
                     <span className="text-xs text-gray-500">ID: <span className="font-medium text-gray-700">{patient.patientNumber}</span></span>

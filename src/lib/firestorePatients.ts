@@ -92,21 +92,21 @@ export async function getMedications(): Promise<Medication[]> {
 // ─── Patients ────────────────────────────────────────────────────────────────
 
 export async function getPatientNames(): Promise<string[]> {
-  const snap = await getDocs(query(col('patients'), orderBy('lastName')))
+  const snap = await getDocs(query(col('patients'), orderBy('firstName')))
   return snap.docs.map(d => {
     const p = d.data()
-    return `${p.lastName} ${p.firstName}`.trim()
+    return `${p.firstName}`.trim()
   }).filter(Boolean)
 }
 
 export async function getPatients(search?: string, status?: string): Promise<Patient[]> {
-  const snap = await getDocs(query(col('patients'), orderBy('lastName')))
+  const snap = await getDocs(query(col('patients'), orderBy('firstName')))
   let patients = snap.docs.map(d => fromDoc<Patient>(d))
   if (status) patients = patients.filter(p => p.status === status)
   if (search) {
     const s = search.toLowerCase()
     patients = patients.filter(p =>
-      p.lastName.toLowerCase().includes(s) ||
+      (p.lastName ?? '').toLowerCase().includes(s) ||
       p.firstName.toLowerCase().includes(s) ||
       (p.patientNumber || '').toLowerCase().includes(s)
     )
@@ -236,7 +236,7 @@ export async function getIviDayPlan(): Promise<IviDayPlan[]> {
     const pSnap = await getDoc(doc(db, 'patients', id))
     if (pSnap.exists() && pSnap.data().status === 'aktiv') {
       const p = pSnap.data()
-      patientNames.set(id, `${p.lastName}, ${p.firstName}`)
+      patientNames.set(id, `${p.firstName}`)
       if (p.allergies) patientAllergies.set(id, p.allergies)
     }
   }))
@@ -382,7 +382,7 @@ export async function getAllPlannedAppointments(): Promise<Appointment[]> {
     const pSnap = await getDoc(doc(db, 'patients', a.patientId))
     if (pSnap.exists()) {
       const p = pSnap.data()
-      a.patientName = `${p.lastName}, ${p.firstName}`
+      a.patientName = `${p.firstName}`
     }
   }))
   return appts
@@ -407,7 +407,7 @@ export async function getUpcomingAppointments(days = 7): Promise<Appointment[]> 
     const pSnap = await getDoc(doc(db, 'patients', a.patientId))
     if (pSnap.exists()) {
       const p = pSnap.data()
-      a.patientName = `${p.lastName}, ${p.firstName}`
+      a.patientName = `${p.firstName}`
     }
   }))
   return appts
@@ -432,7 +432,7 @@ export async function getOverduePatients() {
       const pSnap = await getDoc(doc(db, 'patients', patientId))
       if (pSnap.exists() && pSnap.data().status === 'aktiv') {
         const p = pSnap.data()
-        result.push({ patientId, patient: `${p.lastName}, ${p.firstName}`, nextAppointment })
+        result.push({ patientId, patient: `${p.firstName}`, nextAppointment })
       }
     }
   }

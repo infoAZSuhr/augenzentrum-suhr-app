@@ -1,14 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw, Package } from 'lucide-react'
+import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw } from 'lucide-react'
 import { getArticles, createArticle, getAlerts, getArticle, addLot, addMovement, getCategories } from '../../../lib/firestoreLager'
 import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
-import EmptyState from '../../../components/ui/EmptyState'
-import TableSkeleton from '../../../components/ui/TableSkeleton'
 import { formatDate } from '../../../utils/dateUtils'
-import { useToast } from '../../../lib/ToastContext'
 import ArticleForm from '../components/ArticleForm'
 import BookingForm from '../components/BookingForm'
 import { vatRate } from '../../../types/inventory.types'
@@ -22,7 +19,7 @@ export default function StockOverview() {
   const [activeCategory, setActiveCategory] = useState<string>('Alle')
   const [search, setSearch] = useState('')
   const [slBanner, setSlBanner] = useState<{ date: string; stale: boolean } | null>(null)
-  const [zurRoseBanner, setZurRoseBanner] = useState<{ stand: string } | null>(null)
+  const [zurRoseMeta, setZurRoseMeta] = useState<{ stand: string; extractedAt: string; entries: number } | null>(null)
 
   useEffect(() => {
     fetch('/sl-meta.json')
@@ -37,21 +34,13 @@ export default function StockOverview() {
       .catch(() => {})
     fetch('/zurrose-nota-meta.json')
       .then(r => r.json())
-      .then((meta: { extractedAt: string; stand: string }) => {
-        if (!meta.extractedAt) return
-        const daysOld = Math.floor((Date.now() - new Date(meta.extractedAt).getTime()) / 86400000)
-        // Banner nur zeigen wenn veraltet — analog SL-Banner. Sonst läuft die Liste
-        // ohnehin automatisch via GitHub-Action-Cron und braucht keinen Hinweis.
-        if (daysOld <= 3) return
-        const dismissKey = `zurrose-banner-dismissed-${meta.extractedAt}`
-        if (localStorage.getItem(dismissKey)) return
-        setZurRoseBanner({ stand: meta.stand || meta.extractedAt })
+      .then((meta: { stand: string; extractedAt: string; entries: number }) => {
+        if (meta.extractedAt) setZurRoseMeta(meta)
       })
       .catch(() => {})
   }, [])
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const toast = useToast()
 
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ['inventory-articles'],
@@ -225,7 +214,7 @@ const { data: bookingData } = useQuery({
 </table>
 </body></html>`
     const w = window.open('', '_blank', 'width=1200,height=750')
-    if (!w) { toast.warning('Popup blockiert – bitte Popups erlauben'); return }
+    if (!w) { alert('Popup blockiert – bitte Popups erlauben.'); return }
     w.document.write(html)
     w.document.close()
     w.focus()
@@ -238,23 +227,23 @@ const { data: bookingData } = useQuery({
         title="Lagermanagement"
         subtitle={`${articles.length} Artikel`}
         actions={
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => exportCSV(filtered)}
               className="btn-secondary text-sm"
               title="Als CSV exportieren"
             >
-              <Download className="w-4 h-4" /> <span className="hidden sm:inline">CSV</span>
+              <Download className="w-4 h-4" /> CSV
             </button>
             <button
               onClick={() => exportPDF(filtered)}
               className="btn-secondary text-sm"
               title="Als PDF exportieren"
             >
-              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
+              <FileText className="w-4 h-4" /> PDF
             </button>
-            <button className="btn-primary" onClick={() => setShowForm(true)} title="Neuer Artikel">
-              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neuer Artikel</span>
+            <button className="btn-primary" onClick={() => setShowForm(true)}>
+              <Plus className="w-4 h-4" /> Neuer Artikel
             </button>
           </div>
         }
@@ -271,17 +260,26 @@ const { data: bookingData } = useQuery({
             className="text-amber-500 hover:text-amber-700 shrink-0"><X className="w-4 h-4" /></button>
         </div>
       )}
-      {zurRoseBanner && (
-        <div className="mx-6 mt-2 flex items-center gap-3 px-4 py-3 rounded-lg border bg-amber-50 border-amber-200">
-          <RefreshCw className="w-4 h-4 text-amber-600 shrink-0" />
-          <div className="flex-1 text-sm">
-            <span className="font-medium text-amber-800">Zur Rose Nota-Liste veraltet</span>
-            <span className="text-amber-700"> · Stand {zurRoseBanner.stand} · wird automatisch aktualisiert</span>
+
+      {/* Zur Rose Nota-Liste Statuszeile — immer sichtbar */}
+      {zurRoseMeta && (() => {
+        const daysOld = Math.floor((Date.now() - new Date(zurRoseMeta.extractedAt).getTime()) / 86400000)
+        const ok = daysOld <= 1
+        const geprueft = daysOld === 0 ? 'heute' : daysOld === 1 ? 'gestern' : `vor ${daysOld} Tagen`
+        return (
+          <div className={`mx-6 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-green-500' : 'bg-amber-500'}`} />
+            <span className="font-medium">Zur Rose Nota-Liste</span>
+            <span className="text-gray-400">·</span>
+            <span>Stand {zurRoseMeta.stand}</span>
+            <span className="text-gray-400">·</span>
+            <span>geprüft {geprueft}</span>
+            <span className="text-gray-400">·</span>
+            <span>{zurRoseMeta.entries} Einträge</span>
+            {!ok && <span className="ml-1 font-semibold">⚠ Aktualisierung ausstehend</span>}
           </div>
-          <button onClick={() => { localStorage.setItem(`zurrose-banner-dismissed-${zurRoseBanner.stand}`, '1'); setZurRoseBanner(null) }}
-            className="text-amber-500 hover:text-amber-700 shrink-0"><X className="w-4 h-4" /></button>
-        </div>
-      )}
+        )
+      })()}
 
       {alerts.length > 0 && (
         <div className={`mx-6 mt-6 px-4 py-3 rounded-lg border flex items-start gap-3 ${
@@ -356,20 +354,9 @@ const { data: bookingData } = useQuery({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
-                <TableSkeleton columns={7} />
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Laden…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7}>
-                  <EmptyState
-                    icon={Package}
-                    title={search || activeCategory !== 'Alle' ? 'Keine Artikel gefunden' : 'Noch keine Artikel erfasst'}
-                    description={search || activeCategory !== 'Alle' ? 'Versuche, die Suche oder den Kategorie-Filter anzupassen.' : 'Lege deinen ersten Artikel an, um den Bestand zu verwalten.'}
-                    action={!search && activeCategory === 'Alle' && (
-                      <button className="btn-primary" onClick={() => setShowForm(true)}>
-                        <Plus className="w-4 h-4" /> Neuer Artikel
-                      </button>
-                    )}
-                  />
-                </td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{search || activeCategory !== 'Alle' ? 'Keine Artikel gefunden.' : 'Noch keine Artikel erfasst.'}</td></tr>
               ) : (
                 filtered.map((a) => {
                   const isManualND = !!a.notDeliverable

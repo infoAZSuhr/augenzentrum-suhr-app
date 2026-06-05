@@ -120,7 +120,7 @@ export default function PatientDetail() {
   return (
     <div>
       <PageHeader
-        title={`${patient.lastName}, ${patient.firstName}`}
+        title={patient.firstName}
         subtitle={
           <span className="flex items-center gap-2 text-sm text-gray-500 mt-0.5">
             <span>Geb. {formatDate(patient.dateOfBirth)}</span>
@@ -179,6 +179,9 @@ export default function PatientDetail() {
             </div>
             {patient.allergies && (
               <p className="text-xs text-red-600 mt-1">⚠ Allergie: {patient.allergies}</p>
+            )}
+            {patient.anaesthetics && patient.anaesthetics.length > 0 && (
+              <p className="text-xs text-teal-700 mt-1">💉 Anästhetikum: {patient.anaesthetics.join(', ')}</p>
             )}
           </div>
 
@@ -339,7 +342,7 @@ export default function PatientDetail() {
       {confirmDeletePatient && patient && (
         <ConfirmDialog
           title="Patient löschen?"
-          message={`«${patient.lastName}, ${patient.firstName}» und alle ${treatments.length} Behandlung${treatments.length !== 1 ? 'en' : ''} werden unwiderruflich gelöscht.`}
+          message={`«${patient.firstName}${patient.patientNumber ? ` (#${patient.patientNumber})` : ''}» und alle ${treatments.length} Behandlung${treatments.length !== 1 ? 'en' : ''} werden unwiderruflich gelöscht.`}
           confirmLabel="Endgültig löschen"
           isLoading={deletePatientMut.isPending}
           onConfirm={() => deletePatientMut.mutate()}
