@@ -181,6 +181,13 @@ ipcMain.handle('open-liris', async (_event, pid) => {
   }
 })
 
+// IPC (synchron): App-Version aus dem Main-Process. Robuster als
+// require('../package.json') im preload — Electron's app.getVersion() liest
+// die Version direkt aus dem Package, das beim Build mitgegeben wurde.
+ipcMain.on('app-version-sync', (event) => {
+  event.returnValue = app.getVersion()
+})
+
 // IPC: write .ics to temp folder and open with default calendar app (Outlook)
 ipcMain.handle('open-ics', async (_event, content, filename) => {
   try {

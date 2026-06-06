@@ -1,13 +1,14 @@
 // Preload script - runs in renderer context with limited Node.js access
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Version aus der gepackten app.asar holen — process.env.npm_package_version
-// ist nur waehrend `npm run`-Aufrufen gesetzt, nicht in der installierten .exe.
-// Fallback-Kette: package.json -> ipcRenderer (sync) -> hard '1.0.0'.
+// Version vom Main-Process via synchronem IPC holen.
+// Robuster als require('../package.json') — das kann in der gepackten
+// asar-App in seltenen Faellen scheitern. app.getVersion() im Main-Process
+// liest die Version aus dem Build-Metadata und ist immer korrekt.
 let resolvedVersion = '1.0.0'
 try {
-  const pkg = require('../package.json')
-  if (pkg?.version) resolvedVersion = pkg.version
+  const v = ipcRenderer.sendSync('app-version-sync')
+  if (typeof v === 'string' && v) resolvedVersion = v
 } catch { /* fallback bleibt */ }
 
 contextBridge.exposeInMainWorld('electronApp', {
