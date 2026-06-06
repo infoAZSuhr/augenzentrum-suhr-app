@@ -4848,6 +4848,12 @@ export default function RecallPage() {
                       onChange={e => {
                         const val = e.target.value
                         setField('konsInterval', val)
+                        // Bei Intervall-Aktualisierung Storniert-Status leeren —
+                        // wenn der Recall neu geplant wird, ist die Stornierung obsolet.
+                        if (val.trim()) {
+                          setField('storniert', '')
+                          setField('grundStornierung', '')
+                        }
                         if (form.letzteKons) {
                           const computed = computeNextKons(form.letzteKons, val)
                           if (computed) {
