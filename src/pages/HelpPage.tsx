@@ -75,7 +75,11 @@ function CodeBadge({ code, label, color }: { code: string; label: string; color:
  */
 function VersionInfo() {
   // Electron-API durchs preload exposed
-  const electronApp = (typeof window !== 'undefined' ? (window as any).electronApp : null) as { version?: string; platform?: string } | null
+  const electronApp = (typeof window !== 'undefined' ? (window as any).electronApp : null) as {
+    version?: string;
+    platform?: string;
+    onUpdateProgress?: (cb: (p: any) => void) => () => void;
+  } | null
   const isElectron  = !!electronApp
   const installed   = electronApp?.version ?? null
 
@@ -86,6 +90,25 @@ function VersionInfo() {
     | { status: 'update'; latest: string }
     | { status: 'error'; msg: string }
   const [check, setCheck] = useState<CheckState>({ status: 'idle' })
+
+  // Live-Updater-Fortschritt vom Main-Process abonnieren (nur Electron).
+  type UpdaterStatus =
+    | { state: 'checking' }
+    | { state: 'available'; version?: string }
+    | { state: 'not-available' }
+    | { state: 'downloading'; percent: number; transferred: number; total: number }
+    | { state: 'downloaded'; version?: string }
+    | { state: 'error'; message?: string }
+  const [updater, setUpdater] = useState<UpdaterStatus | null>(null)
+  useEffect(() => {
+    if (!electronApp?.onUpdateProgress) return
+    return electronApp.onUpdateProgress(setUpdater)
+  }, [electronApp])
+
+  function formatMB(bytes?: number): string {
+    if (!bytes) return '0 MB'
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  }
 
   async function checkLatest() {
     setCheck({ status: 'loading' })
@@ -154,6 +177,31 @@ function VersionInfo() {
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>Update auf <strong>v{check.latest}</strong> verfügbar — beim nächsten App-Neustart wird es automatisch eingespielt.</span>
         </div>
+      )}
+
+      {/* Live-Updater-Fortschritt vom Main-Process */}
+      {isElectron && updater?.state === 'downloading' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-blue-800">
+            <span className="font-semibold">Update wird heruntergeladen…</span>
+            <span className="tabular-nums">{updater.percent}% — {formatMB(updater.transferred)} / {formatMB(updater.total)}</span>
+          </div>
+          <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 transition-all" style={{ width: `${updater.percent}%` }} />
+          </div>
+        </div>
+      )}
+      {isElectron && updater?.state === 'downloaded' && (
+        <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>Update <strong>v{updater.version}</strong> heruntergeladen — wird beim nächsten Neustart installiert.</span>
+        </div>
+      )}
+      {isElectron && updater?.state === 'checking' && (
+        <p className="text-xs text-gray-500 inline-flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Suche nach Updates…</p>
+      )}
+      {isElectron && updater?.state === 'error' && (
+        <p className="text-xs text-red-500">Updater-Fehler: {updater.message}</p>
       )}
       {!isElectron && (
         <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-blue-800">

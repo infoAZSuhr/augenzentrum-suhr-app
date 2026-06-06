@@ -17,4 +17,12 @@ contextBridge.exposeInMainWorld('electronApp', {
   openIcs: (content, filename) => ipcRenderer.invoke('open-ics', content, filename),
   // Open Liris in a separate (non-focus-stealing) window with the given PID
   openLiris: (pid) => ipcRenderer.invoke('open-liris', pid),
+  // Subscribe to updater status events. Callback bekommt
+  //   { state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error', ...payload }
+  // Liefert unsubscribe-Funktion.
+  onUpdateProgress: (callback) => {
+    const handler = (_event, payload) => callback(payload)
+    ipcRenderer.on('updater-status', handler)
+    return () => ipcRenderer.removeListener('updater-status', handler)
+  },
 })

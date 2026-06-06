@@ -223,11 +223,33 @@ function setupAutoUpdater() {
     const { autoUpdater } = require('electron-updater')
     autoUpdater.autoDownload         = true
     autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.on('error', err => console.warn('[Updater] Fehler:', err?.message ?? err))
-    autoUpdater.on('update-available',     info => console.log('[Updater] Update verfuegbar:', info?.version))
-    autoUpdater.on('update-not-available', ()   => console.log('[Updater] Keine neue Version'))
+    // Hilfsfunktion: Status an alle offenen Fenster broadcasten — die Renderer-
+    // Seite (HelpPage) hoert via electronApp.onUpdateProgress und zeigt einen
+    // sichtbaren Fortschrittsbalken.
+    function broadcast(channel, payload) {
+      for (const w of BrowserWindow.getAllWindows()) {
+        try { w.webContents.send(channel, payload) } catch { /* ignore */ }
+      }
+    }
+    autoUpdater.on('error', err => {
+      console.warn('[Updater] Fehler:', err?.message ?? err)
+      broadcast('updater-status', { state: 'error', message: String(err?.message ?? err) })
+    })
+    autoUpdater.on('checking-for-update',  ()   => broadcast('updater-status', { state: 'checking' }))
+    autoUpdater.on('update-available',     info => { console.log('[Updater] verfuegbar:', info?.version); broadcast('updater-status', { state: 'available', version: info?.version }) })
+    autoUpdater.on('update-not-available', ()   => { console.log('[Updater] keine neue Version'); broadcast('updater-status', { state: 'not-available' }) })
+    autoUpdater.on('download-progress', p => {
+      // p.percent = 0..100, p.bytesPerSecond, p.transferred, p.total
+      broadcast('updater-status', {
+        state: 'downloading',
+        percent: Math.round(p.percent || 0),
+        transferred: p.transferred,
+        total: p.total,
+      })
+    })
     autoUpdater.on('update-downloaded', info => {
       console.log('[Updater] Geladen, installiert beim Beenden:', info?.version)
+      broadcast('updater-status', { state: 'downloaded', version: info?.version })
       dialog.showMessageBox({
         type:    'info',
         buttons: ['Spaeter', 'Jetzt neustarten'],
