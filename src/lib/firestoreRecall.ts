@@ -48,9 +48,11 @@ export interface RecallPatient {
   editingBy?: { user: string; startedAt: number } | null
 }
 
-/** Stale-Lock-Schwelle: 5 Minuten. Nach dieser Zeit wird ein Lock als
- *  verwaist behandelt und überschrieben (Browser-Crash-Schutz). */
-export const EDIT_LOCK_TTL_MS = 5 * 60 * 1000
+/** Stale-Lock-Schwelle: 60 Sekunden. Nach dieser Zeit wird ein Lock als
+ *  verwaist behandelt und überschrieben (Browser-Crash-Schutz). Kompromiss:
+ *  kurz genug, dass verwaiste Locks keinen anderen User blockieren, lang genug,
+ *  dass aktive Editier-Sessions ohne Heartbeat nicht vorzeitig ablaufen. */
+export const EDIT_LOCK_TTL_MS = 60 * 1000
 
 /** True wenn der gegebene Lock noch aktiv ist (nicht stale). */
 export function isLockActive(lock: { user: string; startedAt: number } | null | undefined): boolean {

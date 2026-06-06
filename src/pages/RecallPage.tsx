@@ -741,6 +741,22 @@ export default function RecallPage() {
     else if (!editTarget) setModalBuffer(false)
   }, [aufgebotTarget, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-Flush des Snapshot-Puffers: sobald Fokus aus einem Input/Textarea wandert,
+  // pending Snapshot anwenden. So vermeiden wir veraltete Daten im Hintergrund.
+  useEffect(() => {
+    function onFocusOut() {
+      const ae = document.activeElement
+      const stillTyping = !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || (ae as HTMLElement).isContentEditable)
+      if (!stillTyping && !editingRef.current && editingPendingSnapRef.current) {
+        const pending = editingPendingSnapRef.current
+        editingPendingSnapRef.current = null
+        setAllData(pending)
+      }
+    }
+    document.addEventListener('focusout', onFocusOut)
+    return () => document.removeEventListener('focusout', onFocusOut)
+  }, [])
+
   useEffect(() => {
     let unsub: (() => void) | null = null
     async function init() {
@@ -766,7 +782,14 @@ export default function RecallPage() {
       // Modal geschlossen wird.
       unsub = subscribeAllRecallPatients(
         byDoctor => {
-          if (editingRef.current) {
+          // Snapshot puffern wenn:
+          //   1. Edit-Modal/Aufgebot-Dialog offen (editingRef), ODER
+          //   2. Irgendwo Text-Input/Textarea fokussiert ist — schuetzt
+          //      vor Re-Renders waehrend des Tippens (z.B. in inline Suche
+          //      oder schnellen Klicks zwischen Patienten).
+          const ae = document.activeElement
+          const isTyping = !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || (ae as HTMLElement).isContentEditable)
+          if (editingRef.current || isTyping) {
             editingPendingSnapRef.current = byDoctor
             return
           }
