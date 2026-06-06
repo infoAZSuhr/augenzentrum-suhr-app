@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, UserPlus, CalendarDays, GripHorizontal } from 'lucide-react'
-import { getDoctors, addDoctor, getPatient, getPatientTreatments, subscribeIviDaysFromPlanung } from '../../../lib/firestorePatients'
+import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung } from '../../../lib/firestorePatients'
 import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
 import { IVI_WORKING, filterIviDoctors } from '../../../lib/iviPlanLogic'
 import { getArticles, getArticleLots } from '../../../lib/firestoreLager'
@@ -112,26 +112,6 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
   const treatmentDate = watch('treatmentDate')
   const selectedLotId = watch('inventoryLotId')
   const selectedSetLotId = watch('setLotId')
-
-  // Letzte Behandlung dieses Patienten am ausgewaehlten Auge — wird als Basis
-  // fuer die Wochenzahl-Anzeige bei den Termin-Pills verwendet (statt
-  // treatmentDate). Wenn keine fruehere Behandlung existiert, fallback auf
-  // treatmentDate (bei Ersterfassung sind beide identisch).
-  const eyeSideWatched = watch('eyeSide')
-  const { data: prevTreatments = [] } = useQuery({
-    queryKey: ['patient-treatments', patientId],
-    queryFn:  () => getPatientTreatments(patientId),
-    enabled:  !!patientId,
-  })
-  const lastTreatmentDate = (() => {
-    // Behandlungen des gleichen Auges, ohne die aktuelle (falls Edit)
-    const matching = prevTreatments
-      .filter(t => t.eyeSide === eyeSideWatched)
-      .filter(t => t.treatmentDate <= (treatmentDate || ''))   // nur Vergangene
-      .filter(t => t.treatmentDate !== treatmentDate || (initial as any)?.id !== t.id)
-      .sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate))
-    return matching[0]?.treatmentDate ?? treatmentDate
-  })()
 
   /** Returns up to `count` IVI days from the Planung closest to (and >= ) the approx date */
   function closestIVIDays(approx: string, count = 3): string[] {
@@ -441,10 +421,8 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
                       {options.length === 0 ? (
                         <p className="text-xs text-gray-400 italic">Keine IVI-Tage in der Einsatzplanung gefunden</p>
                       ) : options.map(dateStr => {
-                        // Wochen ab LETZTER Behandlung (= vorheriges Treatment dieses
-                        // Auges, oder treatmentDate falls keine vorherige existiert).
-                        const baseDate = lastTreatmentDate || treatmentDate
-                        const weeks   = Math.round((new Date(dateStr).getTime() - new Date(baseDate).getTime()) / (7 * 86400000))
+                        // Wochen ab dem (gerade erfassten) treatmentDate.
+                        const weeks   = Math.round((new Date(dateStr).getTime() - new Date(treatmentDate).getTime()) / (7 * 86400000))
                         const doctors = getDoctorsForDate(dateStr)
                         const docStr  = doctors.map(d => d.split(' ').pop()).join(' / ')   // nur Nachname(n)
                         const isActive = nextAppointment === dateStr
