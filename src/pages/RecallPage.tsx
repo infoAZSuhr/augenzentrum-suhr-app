@@ -2505,6 +2505,32 @@ export default function RecallPage() {
     await saveZuweisungConfig({ praxen: zuweisungPraxen, gruende: updated }).catch(() => {})
   }
 
+  /** Vergleicht die user-relevanten Felder im Save-data-Objekt gegen den
+   *  Original-Patient. Gibt true zurueck wenn nichts geaendert wurde — dann
+   *  kann der Firestore-Write komplett uebersprungen werden. */
+  function isUserDataUnchanged(data: any, orig: RecallPatient): boolean {
+    const norm = (v: any) => (v === '' || v === undefined ? null : v)
+    const eq = (a: any, b: any) => {
+      const na = norm(a), nb = norm(b)
+      if (na === nb) return true
+      if (na && nb && typeof na === 'object' && typeof nb === 'object') {
+        return JSON.stringify(na) === JSON.stringify(nb)
+      }
+      return false
+    }
+    const fields = [
+      'pid', 'vorname', 'gebDatum', 'letzteKons', 'naechsteKons',
+      'storniert', 'grundStornierung',
+      'nachfassAdresse', 'nachfassTel', 'nachfassTelDatum',
+      'aufgebotFuer', 'aufgebotErstellt', 'aufgebotArt',
+      'patientenStatus', 'neupatient', 'verlauf', 'zuweisung',
+    ] as const
+    for (const f of fields) {
+      if (!eq((data as any)[f], (orig as any)[f])) return false
+    }
+    return true
+  }
+
   async function handleSave() {
     const errors: Record<string, boolean> = {}
     if (!form.pid.trim())      errors.pid      = true
@@ -2611,6 +2637,14 @@ export default function RecallPage() {
         await reloadTab(targetTab)
         closeEdit()
       } else if (editTarget) {
+        // No-Op-Check: wenn keine User-Eingabe geaendert wurde UND keine Arzt-
+        // Zuweisung vorliegt, das Doc NICHT ueberschreiben (kein aktualisiert-
+        // Update, kein Live-Snapshot-Trigger).
+        const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
+        if (noChanges) {
+          closeEdit()
+          return
+        }
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
         fetch('http://localhost:9731/sync', { method: 'POST' }).catch(() => {})
         if (assignDoctor) {
