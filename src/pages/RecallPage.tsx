@@ -25,7 +25,6 @@ import {
   saveZuweisungConfig,
   ZUWEISUNG_DEFAULT_PRAXEN,
   ZUWEISUNG_DEFAULT_GRUENDE,
-  subscribeAllRecallPatients,
 } from '../lib/firestoreRecall'
 import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
@@ -507,22 +506,9 @@ export default function RecallPage() {
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
-  // Live-Subscription Puffer — solange ein Modal mit Texteingaben offen ist,
-  // werden ankommende Firestore-Snapshots NICHT direkt appliziert (sonst
-  // koennten Re-Renders das Tippen unterbrechen). Sobald das letzte Modal
-  // schliesst, wird der zuletzt gepufferte Snapshot nachgereicht.
-  const editingRef            = useRef(false)
-  const editingPendingSnapRef = useRef<Map<string, RecallPatient[]> | null>(null)
-  // Helper: setzt editingRef auf den korrekten Wert und applisiert
-  // ggf. gepufferten Snapshot wenn alle Modale zu sind.
-  function setModalBuffer(active: boolean) {
-    editingRef.current = active
-    if (!active && editingPendingSnapRef.current) {
-      const pending = editingPendingSnapRef.current
-      editingPendingSnapRef.current = null
-      setAllData(pending)
-    }
-  }
+  // Stub-Refs falls noch alte Aufrufe von setModalBuffer rumliegen — die Live-
+  // Subscription wurde komplett entfernt, daher No-Op.
+  function setModalBuffer(_active: boolean) { /* no-op */ }
   const [copiedCell, setCopiedCell] = useState<string | null>(null)
   const [filterNeupatient, setFilterNeupatient] = useState(false)
   const [filterTermin, setFilterTermin] = useState<FilterTermin | null>(null)
@@ -746,31 +732,10 @@ export default function RecallPage() {
     if (isElectron) openBrowser()
   }, [isElectron]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Snapshot-Buffer auch waehrend Aufgebot-Dialog aktiv (Grundvermerk-Textarea
-  // ist eine grosse Input-Flaeche, wo Live-Re-Render die Eingabe stoeren wuerde).
-  useEffect(() => {
-    if (aufgebotTarget) setModalBuffer(true)
-    else if (!editTarget) setModalBuffer(false)
-  }, [aufgebotTarget, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Snapshot-Buffer/Live-Subscription entfernt — siehe init() unten.
 
-  // Auto-Flush des Snapshot-Puffers: sobald Fokus aus einem Input/Textarea wandert,
-  // pending Snapshot anwenden. So vermeiden wir veraltete Daten im Hintergrund.
-  useEffect(() => {
-    function onFocusOut() {
-      const ae = document.activeElement
-      const stillTyping = !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || (ae as HTMLElement).isContentEditable)
-      if (!stillTyping && !editingRef.current && editingPendingSnapRef.current) {
-        const pending = editingPendingSnapRef.current
-        editingPendingSnapRef.current = null
-        setAllData(pending)
-      }
-    }
-    document.addEventListener('focusout', onFocusOut)
-    return () => document.removeEventListener('focusout', onFocusOut)
-  }, [])
 
   useEffect(() => {
-    let unsub: (() => void) | null = null
     async function init() {
       // Load doctor names (last names) from current year's Einsatzplanung
       let docList = DOCTORS_DEFAULT
@@ -782,36 +747,11 @@ export default function RecallPage() {
       const exists = await hasRecallData()
       if (!exists) { setStatus('empty'); return }
       await loadAll([...docList, ZU_BEARB])
-
-      // Live-Subscription: ab jetzt landen Aenderungen anderer User
-      // (sowie eigene Edits/Locks) automatisch im allData-State.
-      // Ersetzt vollstaendig — Listener bekommt die ganze Collection.
-      //
-      // WICHTIG: Wenn ein Edit-Modal offen ist, wuerden die Re-Renders
-      // durch jeden Snapshot waehrend des Tippens die Inputs reseten
-      // (Buchstaben gehen verloren, Cursor springt). Daher puffern wir den
-      // Snapshot in editingPendingSnapRef und applizieren ihn erst wenn das
-      // Modal geschlossen wird.
-      unsub = subscribeAllRecallPatients(
-        byDoctor => {
-          // Snapshot puffern wenn:
-          //   1. Edit-Modal/Aufgebot-Dialog offen (editingRef), ODER
-          //   2. Irgendwo Text-Input/Textarea fokussiert ist — schuetzt
-          //      vor Re-Renders waehrend des Tippens (z.B. in inline Suche
-          //      oder schnellen Klicks zwischen Patienten).
-          const ae = document.activeElement
-          const isTyping = !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || (ae as HTMLElement).isContentEditable)
-          if (editingRef.current || isTyping) {
-            editingPendingSnapRef.current = byDoctor
-            return
-          }
-          setAllData(byDoctor)
-        },
-        err => console.warn('[Recall] Live-Subscription Fehler:', err),
-      )
+      // Live-Subscription entfernt — sorgte fuer Re-Renders waehrend des
+      // Tippens und blockierte Tastatureingaben. Aktualisierung jetzt nur
+      // nach eigenen Aktionen (reloadTab) oder manuell via "Erneut versuchen".
     }
     init()
-    return () => { unsub?.() }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll(tabs = allTabs) {
