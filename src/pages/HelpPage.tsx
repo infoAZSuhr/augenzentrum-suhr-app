@@ -92,6 +92,12 @@ function VersionInfo() {
     try {
       // GitHub REST API — kein Auth noetig fuer public repos (60 req/h pro IP)
       const res = await fetch('https://api.github.com/repos/infoAZSuhr/augenzentrum-suhr-app/releases/latest')
+      if (res.status === 404) {
+        // Repo hat noch keinen veroeffentlichten Release — typisch wenn die
+        // erste .exe noch nicht via Tag-Push gebaut wurde.
+        setCheck({ status: 'error', msg: 'Noch kein Release veröffentlicht' })
+        return
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json() as { tag_name?: string }
       const latest = (json.tag_name ?? '').replace(/^v/, '')
