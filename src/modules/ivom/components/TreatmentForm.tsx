@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, UserPlus, CalendarDays, GripHorizontal } from 'lucide-react'
 import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung } from '../../../lib/firestorePatients'
+import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
+import { IVI_WORKING, filterIviDoctors } from '../../../lib/iviPlanLogic'
 import { getArticles, getArticleLots } from '../../../lib/firestoreLager'
 import { today, addWeeks, formatSwissDate } from '../../../utils/dateUtils'
 import { useDraggable } from '../../../hooks/useDraggable'
@@ -67,6 +69,30 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
 
   const [planIviDays, setPlanIviDays] = useState<string[]>([])
   useEffect(() => subscribeIviDaysFromPlanung(setPlanIviDays), [])
+
+  // Planung-Daten (aktuelles + naechstes Jahr) — fuer Arzt-Anzeige auf den Datums-Pills
+  const [planungs, setPlanungs] = useState<Map<number, PlanungData | null>>(new Map())
+  useEffect(() => {
+    const currentYear = new Date().getFullYear()
+    const unsubs = [currentYear, currentYear + 1].map(year =>
+      subscribePlanung(year, plan => setPlanungs(prev => new Map(prev).set(year, plan)))
+    )
+    return () => unsubs.forEach(u => u())
+  }, [])
+
+  /** Gibt die IVI-Aerzte (Tschopp / Trachsler) zurueck, die an einem bestimmten
+   *  Datum als GT/VM/NM eingetragen sind. */
+  function getDoctorsForDate(date: string): string[] {
+    const year = parseInt(date.slice(0, 4), 10)
+    const plan = planungs.get(year)
+    if (!plan) return []
+    const allPersons = plan.sections?.flatMap((s: any) => s.persons) ?? []
+    const iviPersons = filterIviDoctors(allPersons)
+    return iviPersons.filter(p => {
+      const code = plan.schedule?.[p]?.[date]
+      return code && IVI_WORKING.has(code)
+    })
+  }
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<TreatmentFormValues>({
     defaultValues: {
@@ -395,17 +421,29 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
                       {options.length === 0 ? (
                         <p className="text-xs text-gray-400 italic">Keine IVI-Tage in der Einsatzplanung gefunden</p>
                       ) : options.map(dateStr => {
-                        const weeks = Math.round((new Date(dateStr).getTime() - new Date(treatmentDate).getTime()) / (7 * 86400000))
+                        const weeks   = Math.round((new Date(dateStr).getTime() - new Date(treatmentDate).getTime()) / (7 * 86400000))
+                        const doctors = getDoctorsForDate(dateStr)
+                        const docStr  = doctors.map(d => d.split(' ').pop()).join(' / ')   // nur Nachname(n)
+                        const isActive = nextAppointment === dateStr
                         return (
                           <button key={dateStr} type="button"
                             onClick={() => setValue('nextAppointment', dateStr)}
-                            title={`${weeks} Wochen`}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors ${
-                              nextAppointment === dateStr
+                            title={`${weeks} Wochen${docStr ? ' — ' + docStr : ''}`}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors flex flex-col items-start gap-0.5 ${
+                              isActive
                                 ? 'bg-primary-600 border-primary-600 text-white'
                                 : 'bg-white border-gray-200 text-gray-700 hover:border-primary-400'
                             }`}>
-                            {new Date(dateStr).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                            <span>{new Date(dateStr).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                            <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isActive ? 'text-white/90' : 'text-gray-500'}`}>
+                              <span className="tabular-nums">{weeks} W</span>
+                              {docStr && (
+                                <>
+                                  <span className="opacity-50">·</span>
+                                  <span className="truncate max-w-[140px]">{docStr}</span>
+                                </>
+                              )}
+                            </span>
                           </button>
                         )
                       })}
