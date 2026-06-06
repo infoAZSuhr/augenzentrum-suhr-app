@@ -20,6 +20,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Augenzentrum Suhr',
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
