@@ -185,6 +185,8 @@ export default function IVOMTagesplanung() {
       {iviPlan.map(({ date, entries }) => {
         const weekday = new Date(date + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'long' })
         const dateLabel = `${date.slice(8,10)}.${date.slice(5,7)}.${date.slice(0,4)}`
+        const todayStr = new Date().toISOString().slice(0, 10)
+        const isPast   = date < todayStr   // vergangener Termin, noch nicht erfasst (sonst waere er rausgefiltert)
         const meds = countBy(entries, e => e.medicationName)
         const sets = countBy(entries, e => e.setName)
         const doctors = getDoctors(date)
@@ -202,10 +204,16 @@ export default function IVOMTagesplanung() {
         const hasWarning = medShortage || setShortage
 
         return (
-          <div key={date} className={`card overflow-hidden ${hasWarning ? 'border-red-200' : ''}`}>
+          <div key={date} className={`card overflow-hidden ${
+            isPast ? 'border-amber-300 ring-2 ring-amber-100' :
+            hasWarning ? 'border-red-200' : ''
+          }`}>
             {/* Day header */}
-            <div className={`px-4 py-3 border-b flex items-center justify-between ${hasWarning ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
-              <div className="flex items-center gap-3">
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${
+              isPast ? 'bg-amber-50 border-amber-100' :
+              hasWarning ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'
+            }`}>
+              <div className="flex items-center gap-3 flex-wrap">
                 <div>
                   <span className="text-xs font-bold uppercase text-gray-400 mr-2">{weekday}</span>
                   <span className="text-base font-bold text-gray-900">{dateLabel}</span>
@@ -213,6 +221,11 @@ export default function IVOMTagesplanung() {
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700">
                   {entries.length} Auge{entries.length !== 1 ? 'n' : ''}
                 </span>
+                {isPast && (
+                  <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-300">
+                    <AlertTriangle className="w-3.5 h-3.5" /> verpasst / nicht erfasst
+                  </span>
+                )}
                 {hasWarning && (
                   <span className="flex items-center gap-1 text-xs font-semibold text-red-600">
                     <AlertTriangle className="w-3.5 h-3.5" /> Lager prüfen

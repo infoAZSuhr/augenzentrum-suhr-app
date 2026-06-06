@@ -218,9 +218,13 @@ export function subscribeIviDaysFromPlanung(cb: (days: string[]) => void): () =>
 }
 
 export async function getIviDayPlan(): Promise<IviDayPlan[]> {
-  const today = new Date().toISOString().slice(0, 10)
+  // Kein "nextAppointment >= today"-Filter mehr: vergangene Termine, die
+  // NICHT erfasst wurden (= kein neueres Treatment fuer denselben Patient+
+  // Auge), sollen weiterhin sichtbar bleiben. pickLatestPerPatientEye filtert
+  // automatisch erfasste Treatments raus (es nimmt das mit hoechstem
+  // treatmentDate -> wenn ein neueres existiert, ueberschattet es das alte).
   const [snap, planDays] = await Promise.all([
-    getDocs(query(col('treatments'), where('nextAppointment', '>=', today))),
+    getDocs(query(col('treatments'), where('nextAppointment', '!=', null))),
     getIviDaysFromPlanung(),
   ])
   const treatments = snap.docs.map(d => fromDoc<Treatment>(d))
