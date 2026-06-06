@@ -42,22 +42,6 @@ export interface RecallPatient {
   erstellt: string | null
   aktualisiert: string | null
   zuweisung?: Zuweisung | null
-  /** Aktiver Edit-Lock: wer hat die Zeile gerade in seinem Edit-Modal offen?
-   *  startedAt = Date.now() (millis). Locks > EDIT_LOCK_TTL_MS gelten als
-   *  stale (Browser-Crash, Tab geschlossen ohne Cleanup) und sind ignorierbar. */
-  editingBy?: { user: string; startedAt: number } | null
-}
-
-/** Stale-Lock-Schwelle: 60 Sekunden. Nach dieser Zeit wird ein Lock als
- *  verwaist behandelt und überschrieben (Browser-Crash-Schutz). Kompromiss:
- *  kurz genug, dass verwaiste Locks keinen anderen User blockieren, lang genug,
- *  dass aktive Editier-Sessions ohne Heartbeat nicht vorzeitig ablaufen. */
-export const EDIT_LOCK_TTL_MS = 60 * 1000
-
-/** True wenn der gegebene Lock noch aktiv ist (nicht stale). */
-export function isLockActive(lock: { user: string; startedAt: number } | null | undefined): boolean {
-  if (!lock || !lock.user || !lock.startedAt) return false
-  return Date.now() - lock.startedAt < EDIT_LOCK_TTL_MS
 }
 
 export interface VerlaufEntry {
@@ -405,20 +389,3 @@ export function subscribeAllRecallPatients(
   )
 }
 
-/** Edit-Lock setzen — schreibt editingBy mit aktuellem Timestamp.
- *  Wird beim Oeffnen des Edit-Modals aufgerufen. Aktualisiert NICHT
- *  das aktualisiert-Feld (Lock ist Metadata, kein User-Edit). */
-export async function acquireEditLock(id: string, username: string): Promise<void> {
-  await updateDoc(doc(db, 'recall_patients', id), {
-    editingBy: { user: username, startedAt: Date.now() },
-  })
-}
-
-/** Edit-Lock freigeben — setzt editingBy auf null.
- *  Wird beim Schliessen/Speichern/Abbrechen des Edit-Modals aufgerufen,
- *  und (best-effort) beim Tab-Close via beforeunload. */
-export async function releaseEditLock(id: string): Promise<void> {
-  await updateDoc(doc(db, 'recall_patients', id), {
-    editingBy: null,
-  })
-}
