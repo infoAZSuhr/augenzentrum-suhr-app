@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useBrowser } from '../contexts/BrowserContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, Lock, ExternalLink } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, Lock, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
@@ -627,13 +627,28 @@ export default function RecallPage() {
   }
   function sortIcon(col: SortCol) {
     const idx = sortKeys.findIndex(k => k.col === col)
-    if (idx < 0) return <span className="ml-0.5 opacity-30">↕</span>
+    if (idx < 0) {
+      // Unsortierte Spalte: dezenter Doppel-Pfeil als Hint, dass sortierbar.
+      return <ChevronsUpDown className="ml-1 inline-block w-3 h-3 opacity-25 group-hover:opacity-60 transition-opacity align-middle" />
+    }
+    const isAsc = sortKeys[idx].dir === 'asc'
     return (
-      <span className="ml-0.5 text-primary-500 inline-flex items-center gap-px">
-        {sortKeys[idx].dir === 'asc' ? '↑' : '↓'}
-        {sortKeys.length > 1 && <span className="text-[9px] leading-none">{idx + 1}</span>}
+      <span className="ml-1 inline-flex items-center gap-0.5 align-middle">
+        {isAsc
+          ? <ArrowUp   className="w-3.5 h-3.5 text-primary-600" />
+          : <ArrowDown className="w-3.5 h-3.5 text-primary-600" />}
+        {sortKeys.length > 1 && (
+          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-primary-600 text-white text-[9px] font-bold tabular-nums">
+            {idx + 1}
+          </span>
+        )}
       </span>
     )
+  }
+  /** Tailwind-Klassen für sortierbare Header — active=primary getöntes Bg, sonst nur Hover. */
+  function thSortCls(col: SortCol, baseCls: string): string {
+    const isActive = sortKeys.some(k => k.col === col)
+    return `${baseCls} ${isActive ? 'bg-primary-50 text-primary-800' : 'hover:bg-gray-100'} cursor-pointer select-none group transition-colors`
   }
   function sortVal(p: RecallPatient, col: SortCol): string {
     const s = (v: unknown) => String(v ?? '')
@@ -3195,16 +3210,16 @@ export default function RecallPage() {
           <thead className="sticky top-0 z-20">
             <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
               <th className="px-3 py-3 w-10 sticky left-0 z-30 bg-gray-50" />
-              <th onClick={e => handleSort('pid', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap hidden md:table-cell sticky left-10 z-30 bg-gray-50 min-w-[80px] cursor-pointer hover:bg-gray-100 select-none">PID{sortIcon('pid')}</th>
-              <th onClick={e => handleSort('vorname', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap sticky left-10 md:left-[120px] z-30 bg-gray-50 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] cursor-pointer hover:bg-gray-100 select-none">Vorname{sortIcon('vorname')}</th>
-              <th onClick={e => handleSort('gebDatum', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">Geb. Datum{sortIcon('gebDatum')}</th>
-              <th onClick={e => handleSort('letzteKons', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">Letzte Konst.{sortIcon('letzteKons')}</th>
-              <th onClick={e => handleSort('naechsteKons', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">Nächste Konst.{sortIcon('naechsteKons')}</th>
-              <th onClick={e => handleSort('aufgebotFuer', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">RC erstellen ab{sortIcon('aufgebotFuer')}</th>
-              <th onClick={e => handleSort('aufgebotArt', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">Aufgebotsart{sortIcon('aufgebotArt')}</th>
-              <th onClick={e => handleSort('storniert', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">Storniert{sortIcon('storniert')}</th>
+              <th onClick={e => handleSort('pid', e.shiftKey)}          title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('pid',          "text-left px-3 py-3 whitespace-nowrap hidden md:table-cell sticky left-10 z-30 min-w-[80px] " + (sortKeys.some(k => k.col === 'pid') ? '' : 'bg-gray-50'))}>PID{sortIcon('pid')}</th>
+              <th onClick={e => handleSort('vorname', e.shiftKey)}      title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('vorname',      "text-left px-3 py-3 whitespace-nowrap sticky left-10 md:left-[120px] z-30 min-w-[120px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] " + (sortKeys.some(k => k.col === 'vorname') ? '' : 'bg-gray-50'))}>Vorname{sortIcon('vorname')}</th>
+              <th onClick={e => handleSort('gebDatum', e.shiftKey)}     title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('gebDatum',     "text-left px-3 py-3 whitespace-nowrap")}>Geb. Datum{sortIcon('gebDatum')}</th>
+              <th onClick={e => handleSort('letzteKons', e.shiftKey)}   title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('letzteKons',   "text-left px-3 py-3 whitespace-nowrap")}>Letzte Konst.{sortIcon('letzteKons')}</th>
+              <th onClick={e => handleSort('naechsteKons', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('naechsteKons', "text-left px-3 py-3 whitespace-nowrap")}>Nächste Konst.{sortIcon('naechsteKons')}</th>
+              <th onClick={e => handleSort('aufgebotFuer', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotFuer', "text-left px-3 py-3 whitespace-nowrap")}>RC erstellen ab{sortIcon('aufgebotFuer')}</th>
+              <th onClick={e => handleSort('aufgebotArt', e.shiftKey)}  title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotArt',  "text-left px-3 py-3 whitespace-nowrap")}>Aufgebotsart{sortIcon('aufgebotArt')}</th>
+              <th onClick={e => handleSort('storniert', e.shiftKey)}    title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('storniert',    "text-left px-3 py-3 whitespace-nowrap")}>Storniert{sortIcon('storniert')}</th>
               <th className="px-2 py-3 w-[120px] text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Schnellaktionen</th>
-              <th onClick={e => handleSort('aktualisiert', e.shiftKey)} className="text-left px-3 py-3 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none">Aktualisiert{sortIcon('aktualisiert')}</th>
+              <th onClick={e => handleSort('aktualisiert', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aktualisiert', "text-left px-3 py-3 whitespace-nowrap")}>Aktualisiert{sortIcon('aktualisiert')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
