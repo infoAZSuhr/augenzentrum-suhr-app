@@ -70,34 +70,16 @@ export default function BrowserPanel() {
 
     const pid = pendingPid
     // ALLE setTimeouts in diesem Effect tracken, damit Cleanup sauber alles
-    // abraeumt. Sonst feuert ein 700-ms-restoreFocus-Timer aus einer alten
-    // Patienten-Session auf das aktuelle Modal — kann Fokus klauen.
+    // abraeumt (Inject-Delay, etc.).
     const timers: number[] = []
     const setT = (fn: () => void, ms: number) => {
       const id = window.setTimeout(fn, ms)
       timers.push(id)
       return id
     }
-    // Fokus VOR der Injection merken, damit wir ihn danach zurueckgeben koennen.
-    // Typischerweise ist das ein Input im "Patient bearbeiten"-Modal, das offen
-    // war als der User auf "-> Liris" klickte. Wenn nichts fokussiert war
-    // (z.B. ueber Tabellen-Klick aufgerufen), nehmen wir document.body als Fallback.
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    const restoreFocus = () => {
-      // WICHTIG: Nur restore-en wenn der Fokus zur Zeit IM WEBVIEW liegt
-      // (also vom Inject-Script geklaut wurde). Falls der User inzwischen
-      // schon in ein anderes Feld geklickt hat (z.B. PID-Input im Edit-
-      // Modal), wuerden wir ihm sonst den Fokus wieder wegnehmen waehrend
-      // er tippt — das war ein Bug der manchmal Buchstaben verschluckte.
-      const now = document.activeElement
-      const wv = webviewRef.current as HTMLElement | null
-      const focusInWebview = !!wv && (now === wv || wv.contains(now as Node))
-      if (!focusInWebview) return                  // User ist woanders — nicht stoeren
-      if (wv && (wv as any).blur) (wv as any).blur()
-      if (previouslyFocused && document.contains(previouslyFocused)) {
-        try { previouslyFocused.focus() } catch { /* ignore */ }
-      }
-    }
+    // Fokus-Management entfernt — verursachte Race-Conditions die manuelle
+    // Tastatureingaben im "Patient bearbeiten"-Modal blockieren konnten.
+    // User muss ggf. selbst zurueck ins Input klicken nach Liris-Injection.
 
     const doInject = () => {
       const wv = webviewRef.current as any
@@ -191,15 +173,12 @@ export default function BrowserPanel() {
         })();
       `
       wv.executeJavaScript(script)
-        .then((res: string) => {
+        .then(() => {
           // pendingPid IMMER clearen — auch bei "keyboard"/"clicked-by-class"/
           // "clicked-by-pid"/"no-input-found". Sonst kann ein nicht-aufgeraeumter
           // pendingPid spaetere openWithPid-Aufrufe blockieren (gleicher Wert
           // -> kein useEffect-Re-Run).
           clearPendingPid()
-          // Nach kurzer Verzoegerung Fokus zurueck ins Hauptfenster — typischerweise
-          // ins zuletzt aktive Input-Feld des Patient-bearbeiten-Modals.
-          setT(restoreFocus, 700)
         })
         .catch(() => { clearPendingPid() })
     }
