@@ -5431,15 +5431,20 @@ export default function RecallPage() {
                 )}
               </div>
 
-              {/* ── Weiteres Vorgehen & Verlauf ────────────────────────────────── */}
-              {editTarget !== 'new' && (form.grundStornierung !== '' || form.verlauf.length > 0) && (
+              {/* ── Weiteres Vorgehen & Verlauf ──────────────────────────────────
+                  Sichtbar wenn: Storno-Grund gesetzt, oder Storniert=nein gewählt
+                  (auch ohne Grund — Patient soll dann angerufen/kontaktiert werden),
+                  oder bereits Verlauf-Eintraege existieren. */}
+              {editTarget !== 'new' && (form.grundStornierung !== '' || form.storniert === 'nein' || form.verlauf.length > 0) && (
                 <div className="pt-3 border-t border-amber-200 bg-amber-50 -mx-6 px-6 pb-4">
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                     <ListChecks className="w-3.5 h-3.5" /> Weiteres Vorgehen
                   </p>
 
-                  {/* Contact method toggles – only when a Stornierungsgrund is set (not when Verstorben or Arztwechsel) */}
-                  {form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel' && (
+                  {/* Contact method toggles – wenn ein Storno-Grund gesetzt (ausser
+                      Verstorben/Arztwechsel — bei denen ist Kontakt obsolet) ODER
+                      Storniert=nein (Patient soll kontaktiert werden). */}
+                  {((form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel') || form.storniert === 'nein') && (
                     <>
                       {/* "Weshalb anrufen?" — gehört zum Schritt "Patient anrufen",
                           nicht ins Telefon-Detail-Panel. Wird beim Klick auf die
