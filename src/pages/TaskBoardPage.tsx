@@ -69,6 +69,66 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
   const [comments, setComments] = useState<TaskComment[]>([])
   const [newComment, setNewComment] = useState('')
   const [postingComment, setPostingComment] = useState(false)
+  // @-Mention: Dropdown-Steuerung. mentionQuery ist der Text nach dem letzten "@"
+  // an der Caret-Position; mentionPos = Index des "@" im Kommentar-String.
+  // mentionIdx = aktuell selektierter Eintrag im Dropdown (fuer Pfeil-Navigation).
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionPos, setMentionPos]     = useState<number>(-1)
+  const [mentionIdx, setMentionIdx]     = useState<number>(0)
+  const commentInputRef = useRef<HTMLInputElement | null>(null)
+
+  /** Findet das aktuelle @-Token an der Caret-Position. Gibt null zurueck wenn
+   *  nicht im Mention-Modus (also kein "@" vor dem Caret oder Whitespace nach). */
+  function detectMention(text: string, caret: number): { query: string; atPos: number } | null {
+    const before = text.slice(0, caret)
+    const atIdx  = before.lastIndexOf('@')
+    if (atIdx < 0) return null
+    // "@" muss am Anfang oder nach Whitespace stehen
+    if (atIdx > 0 && !/\s/.test(before.charAt(atIdx - 1))) return null
+    const query = before.slice(atIdx + 1)
+    // Whitespace bricht den Mention-Modus ab
+    if (/\s/.test(query)) return null
+    return { query, atPos: atIdx }
+  }
+
+  /** Liste der User, die zum aktuellen mentionQuery passen (max 6, sortiert). */
+  const mentionCandidates = (() => {
+    if (mentionQuery === null) return []
+    const q = mentionQuery.toLowerCase()
+    return approvedUsers
+      .filter(u => {
+        const name = (u.displayName || u.username || '').toLowerCase()
+        const user = (u.username || '').toLowerCase()
+        return name.includes(q) || user.includes(q)
+      })
+      .slice(0, 6)
+  })()
+
+  function insertMention(user: UserProfile) {
+    if (mentionPos < 0) return
+    const tag = `@${user.displayName || user.username} `
+    const before = newComment.slice(0, mentionPos)
+    const afterCaret = (() => {
+      // alles ab "@..." bis zum naechsten Whitespace ueberschreiben
+      const rest = newComment.slice(mentionPos + 1)
+      const m = rest.match(/^\S*/)
+      return rest.slice(m ? m[0].length : 0)
+    })()
+    const newVal = before + tag + afterCaret
+    setNewComment(newVal)
+    setMentionQuery(null)
+    setMentionPos(-1)
+    setMentionIdx(0)
+    // Caret hinter den eingefuegten Mention setzen
+    requestAnimationFrame(() => {
+      const inp = commentInputRef.current
+      if (inp) {
+        const caretPos = before.length + tag.length
+        inp.focus()
+        inp.setSelectionRange(caretPos, caretPos)
+      }
+    })
+  }
   const commentEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const prevAssigneeKey = useRef(card.assigneeKey)
@@ -737,21 +797,75 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                       <span className="text-xs font-semibold text-gray-700">{c.authorName}</span>
                       {ts && <span className="text-[10px] text-gray-400">{new Date(ts * 1000).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.text}</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {/* Mentions (@Name) blau hervorheben — bricht den Text in
+                          Token, jeder Mention-Token bekommt eigene Span. */}
+                      {c.text.split(/(@\S+)/g).map((part, i) =>
+                        part.startsWith('@')
+                          ? <span key={i} className="font-semibold text-primary-600 bg-primary-50 rounded px-1">{part}</span>
+                          : <span key={i}>{part}</span>
+                      )}
+                    </p>
                   </div>
                 )
               })}
               <div ref={commentEndRef} />
             </div>
-            <div className="flex gap-2">
-              <input value={newComment} onChange={e => setNewComment(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment() } }}
-                placeholder="Kommentar schreiben…"
+            <div className="flex gap-2 relative">
+              <input ref={commentInputRef} value={newComment}
+                onChange={e => {
+                  const v = e.target.value
+                  setNewComment(v)
+                  const caret = e.target.selectionStart ?? v.length
+                  const m = detectMention(v, caret)
+                  if (m) { setMentionQuery(m.query); setMentionPos(m.atPos); setMentionIdx(0) }
+                  else   { setMentionQuery(null); setMentionPos(-1) }
+                }}
+                onKeyDown={e => {
+                  // Wenn Mention-Dropdown offen: Pfeiltasten + Enter steuern Auswahl
+                  if (mentionQuery !== null && mentionCandidates.length > 0) {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => (i + 1) % mentionCandidates.length); return }
+                    if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIdx(i => (i - 1 + mentionCandidates.length) % mentionCandidates.length); return }
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault()
+                      insertMention(mentionCandidates[mentionIdx])
+                      return
+                    }
+                    if (e.key === 'Escape') { e.preventDefault(); setMentionQuery(null); setMentionPos(-1); return }
+                  }
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment() }
+                }}
+                onBlur={() => { setTimeout(() => { setMentionQuery(null); setMentionPos(-1) }, 150) }}
+                placeholder="Kommentar schreiben… (Tipp: @ für Erwähnung)"
                 className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
               <button onClick={handleComment} disabled={!newComment.trim() || postingComment}
                 className="px-3 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 transition-colors">
                 {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Senden'}
               </button>
+              {/* Mention-Dropdown */}
+              {mentionQuery !== null && mentionCandidates.length > 0 && (
+                <div className="absolute bottom-full left-0 right-12 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
+                  {mentionCandidates.map((u, i) => {
+                    const label = u.displayName || u.username || '—'
+                    const isActive = i === mentionIdx
+                    return (
+                      <button key={u.uid}
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); insertMention(u) }}
+                        onMouseEnter={() => setMentionIdx(i)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                          isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}>
+                        <span className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center shrink-0">
+                          {label.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="flex-1 truncate">{label}</span>
+                        {u.role && <span className="text-[10px] text-gray-400 uppercase tracking-wide">{u.role}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
