@@ -5,14 +5,12 @@ import PatientDetail from './pages/PatientDetail'
 import IVOMCalendar from './pages/IVOMCalendar'
 import IVOMSettings from './pages/IVOMSettings'
 import IVOMTagesplanung from './pages/IVOMTagesplanung'
-import IVOMSchema from './pages/IVOMSchema'
 import IVOMDokumente from './pages/IVOMDokumente'
 
 const NAV_TABS = [
   { to: '/ivom', label: 'Patienten', end: true },
   { to: '/ivom/tagesplanung', label: 'Tagesplanung', end: false },
   { to: '/ivom/kalender', label: 'Kalender', end: false },
-  { to: '/ivom/schema', label: 'Schema', end: false },
   { to: '/ivom/dokumente', label: 'Dokumente', end: false },
   { to: '/ivom/einstellungen', label: 'Einstellungen', end: false },
 ]
@@ -23,7 +21,6 @@ export default function IVOMModule() {
     !location.pathname.includes('kalender') &&
     !location.pathname.includes('einstellungen') &&
     !location.pathname.includes('tagesplanung') &&
-    !location.pathname.includes('schema') &&
     !location.pathname.includes('dokumente')
 
   return (
@@ -59,7 +56,6 @@ export default function IVOMModule() {
         <Routes>
           <Route index element={<PatientList />} />
           <Route path="tagesplanung" element={<IVOMTagesplanung />} />
-          <Route path="schema" element={<IVOMSchema />} />
           <Route path="dokumente" element={<IVOMDokumente />} />
           <Route path="kalender" element={<IVOMCalendar />} />
           <Route path="einstellungen" element={<IVOMSettings />} />
