@@ -1,8 +1,53 @@
 import {
-  collection, doc, getDocs, getDoc, getDocsFromServer, setDoc, updateDoc, deleteDoc,
-  writeBatch, query, where, limit, onSnapshot,
+  collection, doc, getDocs, getDoc, getDocsFromServer, setDoc, updateDoc, deleteDoc, addDoc,
+  writeBatch, query, where, limit, onSnapshot, Timestamp,
 } from 'firebase/firestore'
 import { db } from './firebase'
+
+// ── Activity-Log (immutable historisches Audit fuer die Auswertung) ──────────
+// Jede User-Aktion (created, updated, aufgebot) schreibt einen Eintrag, der
+// NIE veraendert oder geloescht wird. So bleibt die Auswertungs-Statistik
+// auch nach spaeteren Patient-Aenderungen/Reassignments/Loeschungen stabil.
+
+export type RecallActivityType =
+  | 'created' | 'updated'
+  | 'aufgebot_brief' | 'aufgebot_tel' | 'aufgebot_praxis' | 'reminder'
+  | 'telefonanruf' | 'email' | 'noShow'
+
+export interface RecallActivityLog {
+  id?: string
+  date:      string                  // YYYY-MM-DD
+  user:      string                  // displayName / username
+  type:      RecallActivityType
+  patientId: string
+  patientName?: string | null
+  doctor?:   string                  // zum Zeitpunkt des Events zugewiesener Arzt
+  details?:  string | null           // freie Notiz / Grund
+  createdAt: Timestamp               // Server-seitig falls moeglich
+}
+
+/** Schreibt eine Aktivitaet ins Log — fire-and-forget (App soll nicht
+ *  scheitern wenn das Log scheitert). */
+export async function logRecallActivity(entry: Omit<RecallActivityLog, 'id' | 'createdAt'>): Promise<void> {
+  try {
+    await addDoc(collection(db, 'recall_activity_log'), {
+      ...entry,
+      createdAt: Timestamp.now(),
+    })
+  } catch (err) {
+    console.warn('[Recall] activity log write failed:', err)
+  }
+}
+
+/** Liest alle Activity-Log-Eintraege ab einem Stichtag (default: 1 Jahr zurueck). */
+export async function loadRecallActivity(sinceIsoDate?: string): Promise<RecallActivityLog[]> {
+  const since = sinceIsoDate ?? (() => {
+    const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() - 1)
+    return d.toISOString().slice(0, 10)
+  })()
+  const snap = await getDocs(query(collection(db, 'recall_activity_log'), where('date', '>=', since)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as RecallActivityLog))
+}
 
 export interface Zuweisung {
   typ: 'intern' | 'extern'
@@ -87,6 +132,13 @@ export async function updateRecallPatient(
     ...data,
     aktualisiert: recallTimestamp(username),
   })
+  // Immutables Activity-Log-Entry — bleibt erhalten auch wenn der Patient
+  // spaeter durch andere User editiert / geloescht / reassigned wird.
+  const todayIso = new Date().toISOString().slice(0, 10)
+  await logRecallActivity({
+    date: todayIso, user: username, type: 'updated',
+    patientId: id, patientName: (data as any).vorname ?? null,
+  })
 }
 
 export async function createRecallPatient(
@@ -97,6 +149,12 @@ export async function createRecallPatient(
   const stamp = recallTimestamp(username)
   const ref = doc(collection(db, 'recall_patients'))
   await setDoc(ref, { ...data, doctor, erstellt: stamp, aktualisiert: null })
+  const todayIso = new Date().toISOString().slice(0, 10)
+  await logRecallActivity({
+    date: todayIso, user: username, type: 'created',
+    patientId: ref.id, patientName: (data as any).vorname ?? null,
+    doctor,
+  })
   return ref.id
 }
 
@@ -240,6 +298,7 @@ export async function importUnmatched(
   const col   = collection(db, 'recall_patients')
   const stamp = recallTimestamp(username)
 
+  const todayIso = new Date().toISOString().slice(0, 10)
   for (let i = 0; i < patients.length; i += 499) {
     const batch = writeBatch(db)
     for (const p of patients.slice(i, i + 499)) {
@@ -256,6 +315,14 @@ export async function importUnmatched(
       throw new Error(`Batch ${Math.floor(i / 499) + 1} fehlgeschlagen (${code}): ${err?.message ?? err}`)
     }
   }
+  // Immutables Activity-Log pro importierten Patienten — fire-and-forget,
+  // parallelisiert.
+  await Promise.all(patients.map(p => logRecallActivity({
+    date: todayIso, user: username, type: 'created',
+    patientId: zuBearbStableId(p),
+    patientName: p.vorname ?? null,
+    doctor: 'Zu bearbeiten',
+  })))
   return patients.length
 }
 
