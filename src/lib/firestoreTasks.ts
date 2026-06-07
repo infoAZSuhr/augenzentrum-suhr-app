@@ -116,7 +116,7 @@ export interface TaskComment {
 
 export interface TaskNotification {
   id: string
-  type?: 'assignment' | 'comment' | 'board_assignment' | 'poll_assignment'
+  type?: 'assignment' | 'comment' | 'mention' | 'board_assignment' | 'poll_assignment'
         | 'sop_relevance'    // User wurde als "Relevant für" zu einer SOP hinzugefügt
         | 'sop_release'      // SOP wurde (re-)released — alle Relevanten müssen neu bestätigen
   recipientUid: string

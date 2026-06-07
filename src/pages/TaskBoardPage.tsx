@@ -91,11 +91,15 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
     return { query, atPos: atIdx }
   }
 
-  /** Liste der User, die zum aktuellen mentionQuery passen (max 6, sortiert). */
+  /** Liste der User, die zum aktuellen mentionQuery passen.
+   *  Nur Mitglieder dieser Karte (members) sind erwaehnbar — andere User
+   *  haben keinen Kontext zu dieser Karte und bekaemen sinnlose Benachrichtigungen. */
   const mentionCandidates = (() => {
     if (mentionQuery === null) return []
+    const memberUids = new Set(members.map(m => m.uid))
     const q = mentionQuery.toLowerCase()
     return approvedUsers
+      .filter(u => memberUids.has(u.uid))
       .filter(u => {
         const name = (u.displayName || u.username || '').toLowerCase()
         const user = (u.username || '').toLowerCase()
@@ -251,49 +255,54 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
       authorUid: commenterUid, authorName: commenterName,
     })
 
-    // Collect unique recipients: creator + specific assignee + members
-    //   + @-mention-Empfaenger (User-Profil-Lookup via Display-Name oder Username)
-    // — Commenter selbst wird ausgeschlossen.
-    const recipients = new Set<string>()
-    if (card.createdByUid) recipients.add(card.createdByUid)
-    if (card.assigneeType === 'user' && card.assigneeKey) recipients.add(card.assigneeKey)
-    members.forEach(m => recipients.add(m.uid))
+    // Mitglieder dieser Karte = Kandidaten fuer Mentions UND Empfaenger fuer
+    // normale Kommentar-Notifications. NUR Mitglieder koennen erwaehnt werden.
+    const memberUidsSet = new Set(members.map(m => m.uid))
+    // approvedUsers gefiltert auf Mitglieder (Username-/Name-Lookup unten).
+    const memberUsers = approvedUsers.filter(u => memberUidsSet.has(u.uid))
 
-    // @-Mention-Token aus Kommentar extrahieren und gegen approvedUsers matchen.
-    // Token = "@<NichtWhitespace>", evtl. inkl. Vor-/Nachname-Kombinationen.
-    // Wir matchen sowohl gegen displayName als auch gegen username (case-insensitive).
+    // @-Mention-Token aus Kommentar extrahieren und gegen MEMBERS matchen.
+    // Token = "@<NichtWhitespace>" plus optional 1-2 Folgeworte (Vor + Nach-
+    // name). Erster gueltiger Treffer wird genommen.
     const text = newComment
-    // Greift "@" gefolgt von Wort-Zeichen + optional Bindestrich + Leerzeichen-folge
-    // bis zu 3 Woertern (Display-Names koennen "Vor Nachname" sein, wir koennen sie
-    // aber nicht eindeutig parsen) - daher gehen wir simpel vor: jeder @-Token
-    // wird gegen Username gematcht, dann gegen Display-Name-Substring.
     const tokens = Array.from(text.matchAll(/@([^\s@]+(?:\s+[^\s@]+){0,2})/g)).map(m => m[1])
+    const mentionedUids = new Set<string>()
     for (const raw of tokens) {
-      // Genaue Trennung bei Display-Names mit Leerzeichen wir testen alle moeglichen
-      // Prefix-Variationen (1, 2, oder 3 Worte).
       const words = raw.split(/\s+/)
       let matched: UserProfile | undefined
       for (let n = words.length; n >= 1; n--) {
         const candidate = words.slice(0, n).join(' ').toLowerCase()
-        matched = approvedUsers.find(u => {
+        matched = memberUsers.find(u => {
           const name = (u.displayName || '').toLowerCase()
           const user = (u.username    || '').toLowerCase()
           return name === candidate || user === candidate
         })
         if (matched) break
       }
-      if (matched) recipients.add(matched.uid)
+      if (matched) mentionedUids.add(matched.uid)
     }
+    mentionedUids.delete(commenterUid)
 
-    recipients.delete(commenterUid)
+    // Comment-Recipients (ohne Mentions): Ersteller + Assignee + Members,
+    // exklusive Mention-Empfaenger (die bekommen eigenen Mention-Eintrag) +
+    // Commenter selbst.
+    const commentRecipients = new Set<string>()
+    if (card.createdByUid) commentRecipients.add(card.createdByUid)
+    if (card.assigneeType === 'user' && card.assigneeKey) commentRecipients.add(card.assigneeKey)
+    members.forEach(m => commentRecipients.add(m.uid))
+    commentRecipients.delete(commenterUid)
+    // Erwaehnte User bekommen NUR die Mention-Notification, keinen Doppel-Eintrag
+    mentionedUids.forEach(uid => commentRecipients.delete(uid))
 
     const base = {
-      type: 'comment' as const,
       cardId: card.id, boardId: card.boardId,
       cardTitle: card.title, boardName: board.name,
       assignerName: commenterName,
     }
-    await Promise.all([...recipients].map(uid => createTaskNotification({ ...base, recipientUid: uid })))
+    await Promise.all([
+      ...[...commentRecipients].map(uid => createTaskNotification({ ...base, type: 'comment', recipientUid: uid })),
+      ...[...mentionedUids].map(uid => createTaskNotification({ ...base, type: 'mention', recipientUid: uid })),
+    ])
 
     setNewComment('')
     setPostingComment(false)
@@ -871,7 +880,12 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                 className="px-3 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 transition-colors">
                 {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Senden'}
               </button>
-              {/* Mention-Dropdown */}
+              {/* Mention-Dropdown — keine Treffer = Hinweis warum (Mitglieder fehlen) */}
+              {mentionQuery !== null && mentionCandidates.length === 0 && members.length === 0 && (
+                <div className="absolute bottom-full left-0 right-12 mb-1 bg-amber-50 border border-amber-200 rounded-xl shadow-lg p-3 z-50 text-xs text-amber-800">
+                  Keine Mitglieder dieser Karte — füge oben unter <strong>Mitglieder</strong> Personen hinzu, damit du sie erwähnen kannst.
+                </div>
+              )}
               {mentionQuery !== null && mentionCandidates.length > 0 && (
                 <div className="absolute bottom-full left-0 right-12 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
                   {mentionCandidates.map((u, i) => {

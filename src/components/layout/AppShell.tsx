@@ -738,22 +738,35 @@ export default function AppShell() {
                                                               : `/aufgaben/${n.boardId}?card=${n.cardId}`
                             const title = n.type === 'sop_release'      ? `SOP aktualisiert — bitte erneut bestätigen`
                                         : isSop                          ? `Neue SOP für Sie zur Kenntnisnahme`
+                                        : n.type === 'mention'           ? `@${n.assignerName} hat Sie erwähnt`
                                         : n.type === 'comment'           ? `${n.assignerName} hat kommentiert`
                                         : n.type === 'board_assignment'  ? n.boardName
                                         :                                   n.cardTitle
-                            const subtitle = n.type === 'comment'          ? n.cardTitle
+                            const subtitle = n.type === 'mention'         ? n.cardTitle
+                                           : n.type === 'comment'          ? n.cardTitle
                                            : n.type === 'board_assignment' ? `Board freigegeben · von ${n.assignerName}`
                                            : n.type === 'poll_assignment'  ? `Umfrage freigegeben · von ${n.assignerName}`
                                            : n.type === 'sop_relevance'    ? `${n.cardTitle} · von ${n.assignerName}`
                                            : n.type === 'sop_release'      ? `${n.cardTitle} · freigegeben von ${n.assignerName}`
                                            :                                  `Zugewiesen · von ${n.assignerName}`
+                            const isMention = n.type === 'mention'
                             return (
-                              <div key={n.id} className={`px-4 py-3 border-l-2 ${isSop ? 'bg-purple-50/50 border-purple-400' : 'bg-blue-50/50 border-blue-400'}`}>
+                              <div key={n.id} className={`px-4 py-3 border-l-2 ${
+                                isMention ? 'bg-amber-50/70 border-amber-500' :
+                                isSop     ? 'bg-purple-50/50 border-purple-400' :
+                                            'bg-blue-50/50 border-blue-400'
+                              }`}>
                                 <div className="flex items-start gap-3">
-                                  <div className={`w-8 h-8 rounded-full ${isSop ? 'bg-purple-100' : 'bg-primary-100'} flex items-center justify-center shrink-0 mt-0.5`}>
-                                    {isSop
-                                      ? <FileText className="w-4 h-4 text-purple-600" />
-                                      : <LayoutList className="w-4 h-4 text-primary-600" />}
+                                  <div className={`w-8 h-8 rounded-full ${
+                                    isMention ? 'bg-amber-100' :
+                                    isSop     ? 'bg-purple-100' :
+                                                'bg-primary-100'
+                                  } flex items-center justify-center shrink-0 mt-0.5`}>
+                                    {isMention
+                                      ? <span className="text-amber-700 font-bold text-base leading-none">@</span>
+                                      : isSop
+                                        ? <FileText className="w-4 h-4 text-purple-600" />
+                                        : <LayoutList className="w-4 h-4 text-primary-600" />}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-bold text-gray-900 truncate">{title}</p>
@@ -765,7 +778,11 @@ export default function AppShell() {
                                     )}
                                   </div>
                                   <button onClick={() => { markTaskNotifRead(n.id); setBellOpen(false); navigate(target) }}
-                                    className={`text-xs ${isSop ? 'text-purple-700 hover:text-purple-900' : 'text-primary-600 hover:text-primary-700'} font-medium shrink-0 whitespace-nowrap`}>
+                                    className={`text-xs ${
+                                      isMention ? 'text-amber-700 hover:text-amber-900' :
+                                      isSop     ? 'text-purple-700 hover:text-purple-900' :
+                                                  'text-primary-600 hover:text-primary-700'
+                                    } font-medium shrink-0 whitespace-nowrap`}>
                                     Öffnen →
                                   </button>
                                 </div>
