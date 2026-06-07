@@ -25,6 +25,24 @@ export default function BrowserPanel() {
     setInputUrl(url)
   }, [])
 
+  // Webview-Blur-Workaround: Electron behaelt manchmal "Geist-Focus" im
+  // webview, auch nachdem der User in der Host-App auf ein Input geklickt hat
+  // — Folge: Tastatureingaben gehen ins Leere. Wir lauschen global auf
+  // mousedown (Capture-Phase, damit BEVOR der Click target verarbeitet wird)
+  // und blurren das webview wenn der Klick NICHT im webview war.
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      const wv = webviewRef.current
+      if (!wv) return
+      if (wv.contains(e.target as Node)) return  // Klick IM webview -> nichts tun
+      // Klick ausserhalb -> webview-Focus loslassen (egal ob er noch dran ist
+      // oder nicht — schadet nicht, schuetzt aber gegen Geister-Focus).
+      try { (wv as any).blur?.() } catch { /* ignore */ }
+    }
+    document.addEventListener('mousedown', onMouseDown, true)
+    return () => document.removeEventListener('mousedown', onMouseDown, true)
+  }, [])
+
   // Webview-Events binden (Navigation, Loading). Die frueher hier inject-ierte
   // Selection-Capture (mouseup -> setSelectedText) wurde entfernt: sie hat
   // bei jedem Markieren von Text in Liris (z.B. VEKA-Nr fuer Copy) den
