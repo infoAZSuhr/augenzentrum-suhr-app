@@ -251,11 +251,40 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
       authorUid: commenterUid, authorName: commenterName,
     })
 
-    // Collect unique recipients: creator + specific assignee + members — excluding the commenter
+    // Collect unique recipients: creator + specific assignee + members
+    //   + @-mention-Empfaenger (User-Profil-Lookup via Display-Name oder Username)
+    // — Commenter selbst wird ausgeschlossen.
     const recipients = new Set<string>()
     if (card.createdByUid) recipients.add(card.createdByUid)
     if (card.assigneeType === 'user' && card.assigneeKey) recipients.add(card.assigneeKey)
     members.forEach(m => recipients.add(m.uid))
+
+    // @-Mention-Token aus Kommentar extrahieren und gegen approvedUsers matchen.
+    // Token = "@<NichtWhitespace>", evtl. inkl. Vor-/Nachname-Kombinationen.
+    // Wir matchen sowohl gegen displayName als auch gegen username (case-insensitive).
+    const text = newComment
+    // Greift "@" gefolgt von Wort-Zeichen + optional Bindestrich + Leerzeichen-folge
+    // bis zu 3 Woertern (Display-Names koennen "Vor Nachname" sein, wir koennen sie
+    // aber nicht eindeutig parsen) - daher gehen wir simpel vor: jeder @-Token
+    // wird gegen Username gematcht, dann gegen Display-Name-Substring.
+    const tokens = Array.from(text.matchAll(/@([^\s@]+(?:\s+[^\s@]+){0,2})/g)).map(m => m[1])
+    for (const raw of tokens) {
+      // Genaue Trennung bei Display-Names mit Leerzeichen wir testen alle moeglichen
+      // Prefix-Variationen (1, 2, oder 3 Worte).
+      const words = raw.split(/\s+/)
+      let matched: UserProfile | undefined
+      for (let n = words.length; n >= 1; n--) {
+        const candidate = words.slice(0, n).join(' ').toLowerCase()
+        matched = approvedUsers.find(u => {
+          const name = (u.displayName || '').toLowerCase()
+          const user = (u.username    || '').toLowerCase()
+          return name === candidate || user === candidate
+        })
+        if (matched) break
+      }
+      if (matched) recipients.add(matched.uid)
+    }
+
     recipients.delete(commenterUid)
 
     const base = {
