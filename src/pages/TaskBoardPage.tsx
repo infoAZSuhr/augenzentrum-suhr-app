@@ -92,14 +92,19 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
   }
 
   /** Liste der User, die zum aktuellen mentionQuery passen.
-   *  Nur Mitglieder dieser Karte (members) sind erwaehnbar — andere User
-   *  haben keinen Kontext zu dieser Karte und bekaemen sinnlose Benachrichtigungen. */
+   *  Erwaehnbar = Mitglieder dieser Karte + Ersteller (auch wenn der Ersteller
+   *  nicht explizit als Mitglied eingetragen ist). Andere User koennen nicht
+   *  erwaehnt werden — sie haben keinen Kontext zur Karte. */
+  const mentionableUids = (() => {
+    const ids = new Set(members.map(m => m.uid))
+    if (card.createdByUid) ids.add(card.createdByUid)
+    return ids
+  })()
   const mentionCandidates = (() => {
     if (mentionQuery === null) return []
-    const memberUids = new Set(members.map(m => m.uid))
     const q = mentionQuery.toLowerCase()
     return approvedUsers
-      .filter(u => memberUids.has(u.uid))
+      .filter(u => mentionableUids.has(u.uid))
       .filter(u => {
         const name = (u.displayName || u.username || '').toLowerCase()
         const user = (u.username || '').toLowerCase()
@@ -255,11 +260,10 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
       authorUid: commenterUid, authorName: commenterName,
     })
 
-    // Mitglieder dieser Karte = Kandidaten fuer Mentions UND Empfaenger fuer
-    // normale Kommentar-Notifications. NUR Mitglieder koennen erwaehnt werden.
-    const memberUidsSet = new Set(members.map(m => m.uid))
-    // approvedUsers gefiltert auf Mitglieder (Username-/Name-Lookup unten).
-    const memberUsers = approvedUsers.filter(u => memberUidsSet.has(u.uid))
+    // Mitglieder + Ersteller = Kandidaten fuer Mentions.
+    const mentionableSet = new Set(members.map(m => m.uid))
+    if (card.createdByUid) mentionableSet.add(card.createdByUid)
+    const memberUsers = approvedUsers.filter(u => mentionableSet.has(u.uid))
 
     // @-Mention-Token aus Kommentar extrahieren und gegen MEMBERS matchen.
     // Token = "@<NichtWhitespace>" plus optional 1-2 Folgeworte (Vor + Nach-
@@ -880,8 +884,8 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                 className="px-3 py-2 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-40 transition-colors">
                 {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Senden'}
               </button>
-              {/* Mention-Dropdown — keine Treffer = Hinweis warum (Mitglieder fehlen) */}
-              {mentionQuery !== null && mentionCandidates.length === 0 && members.length === 0 && (
+              {/* Mention-Dropdown — keine Treffer + keine erwaehnbaren User vorhanden */}
+              {mentionQuery !== null && mentionCandidates.length === 0 && mentionableUids.size === 0 && (
                 <div className="absolute bottom-full left-0 right-12 mb-1 bg-amber-50 border border-amber-200 rounded-xl shadow-lg p-3 z-50 text-xs text-amber-800">
                   Keine Mitglieder dieser Karte — füge oben unter <strong>Mitglieder</strong> Personen hinzu, damit du sie erwähnen kannst.
                 </div>
