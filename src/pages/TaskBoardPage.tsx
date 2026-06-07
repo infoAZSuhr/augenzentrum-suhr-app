@@ -33,6 +33,44 @@ function dueStyle(due: string | null, done: boolean) {
 }
 
 // ── Card detail modal ──────────────────────────────────────────────────────────
+/** Rendert Text mit anklickbaren Links + hervorgehobenen @-Mentions.
+ *  Erkennt http://, https://, www. URLs und @-Mentions als Token. Andere
+ *  Komponenten koennen diese Funktion auch verwenden. */
+function renderRichText(text: string): React.ReactNode[] {
+  // Combined Regex: greift @Mention ODER URL.
+  // URL-Pattern: http(s)://... oder www.... bis Whitespace/Klammer.
+  // Trailing-Punctuation (.,;:!?) wird vom Match exkludiert (in eigenes Token).
+  const pattern = /(@\S+|https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/g
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let m: RegExpExecArray | null
+  let key = 0
+  while ((m = pattern.exec(text)) !== null) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index))
+    let token = m[0]
+    // Trailing-Punctuation abschneiden (.,;:!?) und an plain text anhaengen
+    let trail = ''
+    while (token.length > 0 && /[.,;:!?)]/.test(token[token.length - 1])) {
+      trail = token[token.length - 1] + trail
+      token = token.slice(0, -1)
+    }
+    if (token.startsWith('@')) {
+      parts.push(<span key={key++} className="font-semibold text-primary-600 bg-primary-50 rounded px-1">{token}</span>)
+    } else {
+      const href = token.startsWith('http') ? token : `https://${token}`
+      parts.push(
+        <a key={key++} href={href} target="_blank" rel="noopener noreferrer"
+           className="text-blue-600 hover:text-blue-800 underline break-all"
+           onClick={e => e.stopPropagation()}>{token}</a>
+      )
+    }
+    if (trail) parts.push(trail)
+    lastIndex = m.index + m[0].length
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+  return parts
+}
+
 function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, allBoards }: {
   card: TaskCard
   board: TaskBoard
@@ -839,14 +877,8 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                       <span className="text-xs font-semibold text-gray-700">{c.authorName}</span>
                       {ts && <span className="text-[10px] text-gray-400">{new Date(ts * 1000).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {/* Mentions (@Name) blau hervorheben — bricht den Text in
-                          Token, jeder Mention-Token bekommt eigene Span. */}
-                      {c.text.split(/(@\S+)/g).map((part, i) =>
-                        part.startsWith('@')
-                          ? <span key={i} className="font-semibold text-primary-600 bg-primary-50 rounded px-1">{part}</span>
-                          : <span key={i}>{part}</span>
-                      )}
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                      {renderRichText(c.text)}
                     </p>
                   </div>
                 )
