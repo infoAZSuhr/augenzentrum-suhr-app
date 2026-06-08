@@ -9,11 +9,11 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; gebDatum: string | null; autor: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; gebDatum: string | null; autor: string | null; letzteKons: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   const script = `
     (function() {
-      var result = { gebDatum: null, autor: null, _debug: { textLen: 0 } };
+      var result = { gebDatum: null, autor: null, letzteKons: null, _debug: { textLen: 0 } };
       // Sammle Text auch aus iframes (Liris koennte verschachtelt sein).
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
@@ -42,7 +42,13 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; ge
         result._debug.allBirths = matches.length;
       }
 
-      // 2) Autor: "Autor: Dr. Name" / "Autor Prof. ..." / "Autor: Name"
+      // 2) Untersuchungs-Datum: "Untersuchung vom DD.MM.YYYY" → letzteKons
+      var untersMatch = allText.match(/Untersuchung\\s+vom\\s+(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)/i);
+      if (untersMatch) {
+        result.letzteKons = untersMatch[3] + '-' + untersMatch[2] + '-' + untersMatch[1];
+      }
+
+      // 3) Autor: "Autor: Dr. Name" / "Autor Prof. ..." / "Autor: Name"
       var autorMatch = allText.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
       if (autorMatch && autorMatch[1]) {
         result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
@@ -60,9 +66,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; ge
     }
     try {
       const res = await wv.executeJavaScript(script)
-      if (res?.gebDatum || res?.autor) {
+      if (res?.gebDatum || res?.autor || res?.letzteKons) {
         console.log('[Liris-Extract] attempt', attempt + 1, 'success:', res)
-        return { pid, gebDatum: res.gebDatum ?? null, autor: res.autor ?? null }
+        return { pid, gebDatum: res.gebDatum ?? null, autor: res.autor ?? null, letzteKons: res.letzteKons ?? null }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)
     } catch (e) {

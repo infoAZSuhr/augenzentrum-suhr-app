@@ -776,6 +776,13 @@ export default function RecallPage() {
       setField('gebDatum', lirisExtract.gebDatum)
       filled = true
     }
+    // Letzte Konst. auto-fill nur wenn leer und ein neueres Datum
+    if (lirisExtract.letzteKons) {
+      if (!form.letzteKons || lirisExtract.letzteKons > form.letzteKons) {
+        setField('letzteKons', lirisExtract.letzteKons)
+        filled = true
+      }
+    }
     // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
     if (!assignDoctor && lirisExtract.autor && editTarget.doctor === ZU_BEARB) {
       // Aus "Dr. Max Mustermann" → versuche Nachname extrahieren und gegen doctors-Liste matchen.
@@ -791,12 +798,15 @@ export default function RecallPage() {
       if (match) {
         setAssignDoctor(match)
         filled = true
+      } else {
+        // Arzt-Name kein Match in der doctors-Liste -> User muss manuell waehlen.
+        toast.error(`Arzt „${cleaned}" nicht in Auswahlliste — bitte manuell wählen.`)
       }
     }
     if (filled) toast.success('Patient-Infos aus Liris übernommen')
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
-  }, [lirisExtract, editTarget, form.gebDatum, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Snapshot-Buffer/Live-Subscription entfernt — siehe init() unten.
 
