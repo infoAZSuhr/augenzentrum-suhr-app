@@ -13,39 +13,64 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; ge
   if (!wv?.executeJavaScript) return null
   const script = `
     (function() {
-      var result = { gebDatum: null, autor: null };
-      // 1) Geburtsdatum: DD.MM.YYYY-Pattern im Patient-Header.
-      //    Pattern muss plausibles Datum sein (Jahr 1900-2030).
-      var allText = document.body ? (document.body.textContent || '') : '';
+      var result = { gebDatum: null, autor: null, _debug: { textLen: 0 } };
+      // Sammle Text auch aus iframes (Liris koennte verschachtelt sein).
+      function collectText(doc) {
+        var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
+        var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
+        for (var i = 0; i < frames.length; i++) {
+          try {
+            var inner = frames[i].contentDocument;
+            if (inner) t += '\\n' + collectText(inner);
+          } catch (e) { /* cross-origin iframe — skip */ }
+        }
+        return t;
+      }
+      var allText = collectText(document);
+      result._debug.textLen = allText.length;
+
+      // 1) Geburtsdatum: DD.MM.YYYY-Pattern (Jahr 1900-2030).
+      //    Pattern muss plausibles Datum sein.
       var birthRe = /(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)/g;
       var matches = [];
       var m;
       while ((m = birthRe.exec(allText)) !== null) matches.push(m);
       if (matches.length > 0) {
-        // Nimm das ERSTE Match (typisch im Patient-Header oben).
+        // Nimm das ERSTE Match (typisch Patient-Header oben).
         var b = matches[0];
         result.gebDatum = b[3] + '-' + b[2] + '-' + b[1];
+        result._debug.allBirths = matches.length;
       }
-      // 2) Autor: meist "Autor: Dr. Name" oder "Autor: Prof. ..."
-      //    Suche nach Label "Autor" in Naehe.
+
+      // 2) Autor: "Autor: Dr. Name" / "Autor Prof. ..." / "Autor: Name"
       var autorMatch = allText.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
       if (autorMatch && autorMatch[1]) {
-        // Trim + Punctuation/HTML cleanup
         result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
-        // Stoppe am ersten Komma / Zeilenumbruch / extra-Whitespace-Burst
         var stop = result.autor.search(/[,\\n\\r]|  /);
         if (stop > 0) result.autor = result.autor.slice(0, stop).trim();
       }
       return result;
     })();
   `
-  try {
-    const res = await wv.executeJavaScript(script)
-    if (!res) return null
-    return { pid, gebDatum: res.gebDatum ?? null, autor: res.autor ?? null }
-  } catch {
-    return null
+  // Bis zu 3 Versuche mit zunehmender Wartezeit — Liris-Untersuchung kann
+  // einige Sekunden brauchen bis sie fertig gerendert ist.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, 1200))
+    }
+    try {
+      const res = await wv.executeJavaScript(script)
+      if (res?.gebDatum || res?.autor) {
+        console.log('[Liris-Extract] attempt', attempt + 1, 'success:', res)
+        return { pid, gebDatum: res.gebDatum ?? null, autor: res.autor ?? null }
+      }
+      console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)
+    } catch (e) {
+      console.warn('[Liris-Extract] attempt', attempt + 1, 'error:', e)
+    }
   }
+  console.warn('[Liris-Extract] all attempts failed')
+  return null
 }
 
 export default function BrowserPanel() {
