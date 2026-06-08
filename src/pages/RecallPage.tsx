@@ -102,6 +102,30 @@ function formatDate(val: string | null): string {
 
 function isKeinTermin(val: string | null): boolean { return val === 'kein Termin' }
 
+/** Parst hineingezogenen Text in ein ISO-Datum (YYYY-MM-DD).
+ *  Erkennt: TT.MM.JJJJ, TT.MM.JJ, TT/MM/JJJJ, TT-MM-JJJJ, JJJJ-MM-TT.
+ *  Gibt '' zurück wenn kein Datum erkennbar ist. */
+function parseDroppedDate(raw: string): string {
+  if (!raw) return ''
+  const t = raw.trim()
+  // Bereits ISO (YYYY-MM-DD)
+  let m = t.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  // TT.MM.JJJJ  oder  TT/MM/JJJJ  oder  TT-MM-JJJJ
+  m = t.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/)
+  if (m) {
+    const d = m[1].padStart(2, '0'), mo = m[2].padStart(2, '0')
+    return `${m[3]}-${mo}-${d}`
+  }
+  // TT.MM.JJ  (zweistelliges Jahr → 20JJ)
+  m = t.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2})(?!\d)/)
+  if (m) {
+    const d = m[1].padStart(2, '0'), mo = m[2].padStart(2, '0')
+    return `20${m[3]}-${mo}-${d}`
+  }
+  return ''
+}
+
 /** Normalize Liris address format (Name / PLZ / Strasse / Ort) → Swiss standard (Name / Strasse / PLZ Ort) */
 function normalizeLirisAddress(raw: string): string {
   const lines = raw.trim().split('\n').map(l => l.trim()).filter(Boolean)
@@ -2429,6 +2453,19 @@ export default function RecallPage() {
     if (formErrors[k as string]) setFormErrors(prev => ({ ...prev, [k as string]: false }))
   }
 
+  /** Drop-Props für Datumsfelder: hineingezogener Text wird als Datum geparst.
+   *  Verwendung: <input type="date" {...dateDrop('gebDatum')} … /> */
+  function dateDrop(field: keyof EditForm) {
+    return {
+      onDragOver: (e: React.DragEvent) => { e.preventDefault() },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault()
+        const iso = parseDroppedDate(e.dataTransfer.getData('text'))
+        if (iso) setField(field, iso as EditForm[typeof field])
+      },
+    }
+  }
+
   async function addPraxis(name: string) {
     const trimmed = name.trim()
     if (!trimmed || zuweisungPraxen.includes(trimmed)) return
@@ -4738,7 +4775,7 @@ export default function RecallPage() {
                 <label className={labelCls}>Geb. Datum{reqStar}</label>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
-                    <input type="date" value={form.gebDatum}
+                    <input type="date" value={form.gebDatum} {...dateDrop('gebDatum')}
                       onChange={e => setField('gebDatum', e.target.value)}
                       className={`w-full pr-6 ${formErrors.gebDatum ? inputClsErr : inputCls}`} />
                     <ClearBtn show={!!form.gebDatum} onClear={() => setField('gebDatum', '')} />
@@ -4779,7 +4816,7 @@ export default function RecallPage() {
                 <div>
                   <label className={labelCls}>Letzte Konst.</label>
                   <div className="relative">
-                    <input type="date" value={form.letzteKons}
+                    <input type="date" value={form.letzteKons} {...dateDrop('letzteKons')}
                       onChange={e => {
                         const newDate = e.target.value
                         setField('letzteKons', newDate)
@@ -5096,7 +5133,7 @@ export default function RecallPage() {
                       <div>
                         <label className={labelCls}>Zugewiesen am</label>
                         <div className="relative">
-                          <input type="date" value={form.zuweisungDatum}
+                          <input type="date" value={form.zuweisungDatum} {...dateDrop('zuweisungDatum')}
                             onChange={e => setField('zuweisungDatum', e.target.value)}
                             className={`${inputCls} pr-6`} />
                           <ClearBtn show={!!form.zuweisungDatum} onClear={() => setField('zuweisungDatum', '')} />
@@ -5133,7 +5170,7 @@ export default function RecallPage() {
                         {form.zuweisungStatus === 'erledigt' && (
                           <div className="mt-1.5 space-y-1.5">
                             <div className="relative">
-                              <input type="date" value={form.zuweisungErledigtAm}
+                              <input type="date" value={form.zuweisungErledigtAm} {...dateDrop('zuweisungErledigtAm')}
                                 onChange={e => setField('zuweisungErledigtAm', e.target.value)}
                                 className={`${inputCls} pr-6 text-[11px] py-1`} />
                               <ClearBtn show={!!form.zuweisungErledigtAm} onClear={() => setField('zuweisungErledigtAm', '')} />
@@ -5209,7 +5246,7 @@ export default function RecallPage() {
                 <div>
                   <label className={labelCls}>RC zu erstellen ab</label>
                   <div className="relative">
-                    <input type="date" value={form.aufgebotFuer}
+                    <input type="date" value={form.aufgebotFuer} {...dateDrop('aufgebotFuer')}
                       onChange={e => setField('aufgebotFuer', e.target.value)}
                       className={`${inputCls} pr-6`} />
                     <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
@@ -5225,7 +5262,7 @@ export default function RecallPage() {
                     'Aufgebot erstellt am'
                   }</label>
                   <div className="relative">
-                    <input type="date" value={form.aufgebotErstellt}
+                    <input type="date" value={form.aufgebotErstellt} {...dateDrop('aufgebotErstellt')}
                       onChange={e => setField('aufgebotErstellt', e.target.value)}
                       className={`${inputCls} pr-6`} />
                     <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
@@ -5245,7 +5282,7 @@ export default function RecallPage() {
                     )}
                   </label>
                   <div className="relative">
-                    <input ref={naechsteKonsRef} type="date" value={form.naechsteKons}
+                    <input ref={naechsteKonsRef} type="date" value={form.naechsteKons} {...dateDrop('naechsteKons')}
                       className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
                       onChange={e => {
                         const val = e.target.value
