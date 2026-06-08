@@ -2456,7 +2456,10 @@ export default function RecallPage() {
     // PID an Liris senden — NUR in Electron sinnvoll (CORS blockt im Browser).
     if (isElectron) {
       const pid = normalizePid(patient.pid)
+      console.log('[Recall] openEdit -> openWithPid', { pid, patientId: patient.id })
       if (pid) openWithPid(pid)
+    } else {
+      console.log('[Recall] openEdit: not Electron, skipping openWithPid')
     }
   }
   function openNew() {

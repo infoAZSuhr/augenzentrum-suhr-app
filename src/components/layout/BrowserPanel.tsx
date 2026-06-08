@@ -157,7 +157,11 @@ export default function BrowserPanel() {
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
   useEffect(() => {
-    if (!pendingPid || !isOpen) return
+    console.log('[Liris] inject-useEffect fired, pendingPid=', pendingPid, 'isOpen=', isOpen)
+    if (!pendingPid || !isOpen) {
+      console.log('[Liris] early return — no pendingPid or panel closed')
+      return
+    }
 
     const pid = pendingPid
     // ALLE setTimeouts in diesem Effect tracken, damit Cleanup sauber alles
@@ -264,23 +268,23 @@ export default function BrowserPanel() {
         })();
       `
       wv.executeJavaScript(script)
-        .then(() => {
-          // pendingPid IMMER clearen — auch bei "keyboard"/"clicked-by-class"/
-          // "clicked-by-pid"/"no-input-found". Sonst kann ein nicht-aufgeraeumter
-          // pendingPid spaetere openWithPid-Aufrufe blockieren (gleicher Wert
-          // -> kein useEffect-Re-Run).
+        .then((res: any) => {
+          console.log('[Liris] inject script done, result=', res)
           clearPendingPid()
           // Nach ~1.5 Sek (Liris hat dann Patient + Untersuchung geladen)
-          // extrahieren wir Geburtsdatum + Autor aus dem DOM. Heuristisch —
-          // mehrere Selektor-Patterns probiert. Ergebnis landet im
-          // BrowserContext und kann von RecallPage konsumiert werden.
+          // extrahieren wir Geburtsdatum + Autor aus dem DOM.
           setT(() => {
+            console.log('[Liris] starting extract for pid=', pid)
             extractLirisInfo(wv, pid).then(info => {
+              console.log('[Liris] extract result:', info)
               if (info) setLirisExtract({ ...info, at: Date.now() })
-            }).catch(() => {})
+            }).catch(err => console.warn('[Liris] extract threw:', err))
           }, 1500)
         })
-        .catch(() => { clearPendingPid() })
+        .catch(err => {
+          console.warn('[Liris] inject script error:', err)
+          clearPendingPid()
+        })
     }
 
     let detachReady: (() => void) | null = null
