@@ -278,10 +278,10 @@ export default function BrowserPanel() {
             extractLirisInfo(wv, pid).then(info => {
               console.log('[Liris] extract result:', info)
               if (info) setLirisExtract({ ...info, at: Date.now() })
-            }).catch(err => console.warn('[Liris] extract threw:', err))
+            }).catch((err: unknown) => console.warn('[Liris] extract threw:', err))
           }, 1500)
         })
-        .catch(err => {
+        .catch((err: unknown) => {
           console.warn('[Liris] inject script error:', err)
           clearPendingPid()
         })
