@@ -2401,7 +2401,13 @@ export default function RecallPage() {
   function openEdit(patient: RecallPatient) {
     // Live-Snapshot waehrend Edit puffern -> verhindert Input-Reset beim Tippen.
     setModalBuffer(true)
-    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
+    // Pflichtfelder die fehlen sofort als Fehler markieren — User sieht das
+    // gleich beim Oeffnen, nicht erst beim Speichern. Gilt vor allem fuer
+    // Importe aus Excel, wo Geburtsdatum und Arzt oft noch fehlen.
+    const preErrors: Record<string, boolean> = {}
+    if (!patient.gebDatum) preErrors.gebDatum = true
+    if (patient.doctor === ZU_BEARB) preErrors.assignDoctor = true
+    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors(preErrors); setQuickInput(''); setPidDup(null); resetVorgehen()
     // PID an Liris senden — NUR in Electron sinnvoll (CORS blockt im Browser).
     if (isElectron) {
       const pid = normalizePid(patient.pid)
@@ -4720,6 +4726,21 @@ export default function RecallPage() {
                   </span>
                 )}
               </div>}
+
+              {/* Hinweis-Banner: fehlende Pflichtfelder bei bestehendem Patient
+                  (z.B. nach Excel-Import: Geburtsdatum nicht gesetzt, kein Arzt). */}
+              {editTarget !== 'new' && (formErrors.gebDatum || formErrors.assignDoctor) && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-sm text-amber-900">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <div className="flex-1">
+                    <p className="font-semibold mb-0.5">Bitte ergänzen:</p>
+                    <ul className="text-xs space-y-0.5 ml-1">
+                      {formErrors.gebDatum     && <li>• Geburtsdatum eintragen</li>}
+                      {formErrors.assignDoctor && <li>• Arzt zuweisen (unten im Feld „Arzt zuweisen")</li>}
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className={labelCls}>Patienten-ID (PID){reqStar}</label>
