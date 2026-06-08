@@ -3,8 +3,53 @@ import { ArrowLeft, ArrowRight, RotateCcw, X, GripVertical } from 'lucide-react'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { useAuth } from '../../lib/AuthContext'
 
+/** Extrahiert Geburtsdatum + Autor aus der aktuell in Liris geoeffneten
+ *  Patient-Untersuchung. Heuristisch — versucht mehrere DOM-Patterns weil
+ *  wir die genaue Liris-HTML-Struktur nicht kennen. Gibt null zurueck wenn
+ *  nichts gefunden.
+ *
+ *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; gebDatum: string | null; autor: string | null } | null> {
+  if (!wv?.executeJavaScript) return null
+  const script = `
+    (function() {
+      var result = { gebDatum: null, autor: null };
+      // 1) Geburtsdatum: DD.MM.YYYY-Pattern im Patient-Header.
+      //    Pattern muss plausibles Datum sein (Jahr 1900-2030).
+      var allText = document.body ? (document.body.textContent || '') : '';
+      var birthRe = /(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)/g;
+      var matches = [];
+      var m;
+      while ((m = birthRe.exec(allText)) !== null) matches.push(m);
+      if (matches.length > 0) {
+        // Nimm das ERSTE Match (typisch im Patient-Header oben).
+        var b = matches[0];
+        result.gebDatum = b[3] + '-' + b[2] + '-' + b[1];
+      }
+      // 2) Autor: meist "Autor: Dr. Name" oder "Autor: Prof. ..."
+      //    Suche nach Label "Autor" in Naehe.
+      var autorMatch = allText.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
+      if (autorMatch && autorMatch[1]) {
+        // Trim + Punctuation/HTML cleanup
+        result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
+        // Stoppe am ersten Komma / Zeilenumbruch / extra-Whitespace-Burst
+        var stop = result.autor.search(/[,\\n\\r]|  /);
+        if (stop > 0) result.autor = result.autor.slice(0, stop).trim();
+      }
+      return result;
+    })();
+  `
+  try {
+    const res = await wv.executeJavaScript(script)
+    if (!res) return null
+    return { pid, gebDatum: res.gebDatum ?? null, autor: res.autor ?? null }
+  } catch {
+    return null
+  }
+}
+
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -200,6 +245,15 @@ export default function BrowserPanel() {
           // pendingPid spaetere openWithPid-Aufrufe blockieren (gleicher Wert
           // -> kein useEffect-Re-Run).
           clearPendingPid()
+          // Nach ~1.5 Sek (Liris hat dann Patient + Untersuchung geladen)
+          // extrahieren wir Geburtsdatum + Autor aus dem DOM. Heuristisch —
+          // mehrere Selektor-Patterns probiert. Ergebnis landet im
+          // BrowserContext und kann von RecallPage konsumiert werden.
+          setT(() => {
+            extractLirisInfo(wv, pid).then(info => {
+              if (info) setLirisExtract({ ...info, at: Date.now() })
+            }).catch(() => {})
+          }, 1500)
         })
         .catch(() => { clearPendingPid() })
     }

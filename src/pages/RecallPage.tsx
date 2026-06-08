@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -755,6 +755,48 @@ export default function RecallPage() {
   useEffect(() => {
     if (isElectron) openBrowser()
   }, [isElectron]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-Fill: wenn der Liris-Webview Patient-Infos extrahiert hat und ein
+  // Edit-Modal offen ist, das passt (gleiche PID) UND das jeweilige Feld
+  // leer ist → automatisch befuellen. Sicherheits-Checks:
+  //   - Nur bei bestehenden Patienten (nicht 'new')
+  //   - Nur wenn extract.at neuer ist als 5 Sek (verhindert stale Daten)
+  //   - Nach Anwendung wird lirisExtract genullt damit's nicht doppelt feuert
+  useEffect(() => {
+    if (!lirisExtract) return
+    if (!editTarget || editTarget === 'new') return
+    if (Date.now() - lirisExtract.at > 5000) return
+    const currentPid = normalizePid(form.pid)
+    const extractPid = normalizePid(lirisExtract.pid)
+    if (!currentPid || !extractPid || currentPid !== extractPid) return
+
+    let filled = false
+    // Geburtsdatum auto-fill nur wenn leer
+    if (!form.gebDatum && lirisExtract.gebDatum) {
+      setField('gebDatum', lirisExtract.gebDatum)
+      filled = true
+    }
+    // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
+    if (!assignDoctor && lirisExtract.autor && editTarget !== 'new' && editTarget.doctor === ZU_BEARB) {
+      // Aus "Dr. Max Mustermann" → versuche Nachname extrahieren und gegen doctors-Liste matchen.
+      const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+      const words = cleaned.split(/\s+/)
+      // Probier alle Suffix-Kombinationen (letztes Wort, 2 letzte, ...)
+      let match: string | undefined
+      for (let n = 1; n <= words.length; n++) {
+        const cand = words.slice(-n).join(' ').toLowerCase()
+        match = doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))
+        if (match) break
+      }
+      if (match) {
+        setAssignDoctor(match)
+        filled = true
+      }
+    }
+    if (filled) toast.success('Patient-Infos aus Liris übernommen')
+    // Extract konsumiert -> nicht erneut anwenden
+    setLirisExtract(null)
+  }, [lirisExtract, editTarget, form.gebDatum, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Snapshot-Buffer/Live-Subscription entfernt — siehe init() unten.
 

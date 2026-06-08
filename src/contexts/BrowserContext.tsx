@@ -1,10 +1,21 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
+/** Daten die aus dem Liris-Webview nach PID-Inject extrahiert wurden.
+ *  Wird vom BrowserPanel gesetzt und kann z.B. von RecallPage konsumiert
+ *  werden um leere Felder (Geburtsdatum, Arzt) automatisch zu fuellen. */
+export interface LirisExtract {
+  pid:       string                // PID die geladen wurde
+  gebDatum?: string | null         // ISO YYYY-MM-DD
+  autor?:    string | null         // Name (oben rechts in Liris-Untersuchung)
+  at:        number                // Timestamp damit Consumer nur frisches sehen
+}
+
 interface BrowserContextType {
   isOpen: boolean
   selectedText: string
   defaultUrl: string
   pendingPid: string | null
+  lirisExtract: LirisExtract | null
   toggle: () => void
   open: () => void
   close: () => void
@@ -12,6 +23,7 @@ interface BrowserContextType {
   setDefaultUrl: (url: string) => void
   openWithPid: (pid: string) => void
   clearPendingPid: () => void
+  setLirisExtract: (e: LirisExtract | null) => void
 }
 
 const BrowserContext = createContext<BrowserContextType>({
@@ -19,6 +31,7 @@ const BrowserContext = createContext<BrowserContextType>({
   selectedText: '',
   defaultUrl: 'https://vip.liris.ch',
   pendingPid: null,
+  lirisExtract: null,
   toggle: () => {},
   open: () => {},
   close: () => {},
@@ -26,6 +39,7 @@ const BrowserContext = createContext<BrowserContextType>({
   setDefaultUrl: () => {},
   openWithPid: () => {},
   clearPendingPid: () => {},
+  setLirisExtract: () => {},
 })
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
@@ -33,6 +47,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [selectedText, setSelectedText] = useState('')
   const [defaultUrl, setDefaultUrl] = useState('https://vip.liris.ch')
   const [pendingPid, setPendingPid] = useState<string | null>(null)
+  const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
 
   return (
     <BrowserContext.Provider value={{
@@ -40,6 +55,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       selectedText,
       defaultUrl,
       pendingPid,
+      lirisExtract,
       toggle: () => setIsOpen(o => !o),
       open: () => setIsOpen(true),
       close: () => setIsOpen(false),
@@ -51,6 +67,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         setIsOpen(true)
       },
       clearPendingPid: () => setPendingPid(null),
+      setLirisExtract,
     }}>
       {children}
     </BrowserContext.Provider>
