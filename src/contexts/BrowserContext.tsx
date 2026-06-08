@@ -4,11 +4,13 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
  *  Wird vom BrowserPanel gesetzt und kann z.B. von RecallPage konsumiert
  *  werden um leere Felder (Geburtsdatum, Arzt) automatisch zu fuellen. */
 export interface LirisExtract {
-  pid:        string               // PID die geladen wurde
-  gebDatum?:  string | null        // ISO YYYY-MM-DD — Geburtsdatum
-  autor?:     string | null        // Name (oben rechts in Liris-Untersuchung)
+  pid:         string              // PID die wir gesendet haben
+  lirisPid?:   string | null       // PID die Liris im Header zeigt (zur Verifikation)
+  gebDatum?:   string | null       // ISO YYYY-MM-DD — Geburtsdatum
+  autor?:      string | null       // Name (oben rechts in Liris-Untersuchung)
   letzteKons?: string | null       // ISO YYYY-MM-DD — Datum der Untersuchung
-  at:         number               // Timestamp damit Consumer nur frisches sehen
+  notFound?:   boolean             // Liris meldete "Kein Patient / nicht gefunden"
+  at:          number              // Timestamp damit Consumer nur frisches sehen
 }
 
 interface BrowserContextType {

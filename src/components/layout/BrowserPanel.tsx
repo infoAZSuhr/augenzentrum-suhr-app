@@ -9,11 +9,11 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; gebDatum: string | null; autor: string | null; letzteKons: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; lirisPid: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; notFound: boolean } | null> {
   if (!wv?.executeJavaScript) return null
   const script = `
     (function() {
-      var result = { gebDatum: null, autor: null, letzteKons: null, _debug: { textLen: 0 } };
+      var result = { lirisPid: null, gebDatum: null, autor: null, letzteKons: null, notFound: false, _debug: { textLen: 0 } };
       // Sammle Text auch aus iframes (Liris koennte verschachtelt sein).
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
@@ -28,6 +28,20 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; ge
       }
       var allText = collectText(document);
       result._debug.textLen = allText.length;
+
+      // 0) PID-Verifikation: Liris zeigt Patient-PID als "#12345" im Header.
+      //    Wir extrahieren das erste #-Pattern und vergleichen spaeter mit
+      //    der erwarteten PID (Caller macht den Match).
+      var pidMatch = allText.match(/#\\s*(\\d{2,8})/);
+      if (pidMatch) result.lirisPid = pidMatch[1];
+
+      // not-found-Erkennung: typische Liris-Meldungen wenn keine Patient existiert.
+      if (/Kein\\s+Patient/i.test(allText) ||
+          /keine\\s+Treffer/i.test(allText) ||
+          /nicht\\s+gefunden/i.test(allText) ||
+          /nicht\\s+vorhanden/i.test(allText)) {
+        result.notFound = true;
+      }
 
       // 1) Geburtsdatum: DD.MM.YYYY-Pattern (Jahr 1900-2030).
       //    Pattern muss plausibles Datum sein.
@@ -66,9 +80,16 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; ge
     }
     try {
       const res = await wv.executeJavaScript(script)
-      if (res?.gebDatum || res?.autor || res?.letzteKons) {
+      if (res?.gebDatum || res?.autor || res?.letzteKons || res?.notFound || res?.lirisPid) {
         console.log('[Liris-Extract] attempt', attempt + 1, 'success:', res)
-        return { pid, gebDatum: res.gebDatum ?? null, autor: res.autor ?? null, letzteKons: res.letzteKons ?? null }
+        return {
+          pid,
+          lirisPid:   res.lirisPid   ?? null,
+          gebDatum:   res.gebDatum   ?? null,
+          autor:      res.autor      ?? null,
+          letzteKons: res.letzteKons ?? null,
+          notFound:   !!res.notFound,
+        }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)
     } catch (e) {

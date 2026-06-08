@@ -770,6 +770,26 @@ export default function RecallPage() {
     const extractPid = normalizePid(lirisExtract.pid)
     if (!currentPid || !extractPid || currentPid !== extractPid) return
 
+    // Patient existiert in Liris nicht (mehr) — Warnung + Loesch-Hinweis,
+    // KEIN Auto-Fill.
+    if (lirisExtract.notFound) {
+      toast.error(`Patient #${currentPid} ist in Liris nicht (mehr) vorhanden — bitte pruefen ob der Recall-Eintrag noch benoetigt wird.`)
+      setLirisExtract(null)
+      return
+    }
+
+    // PID-Verifikation: Liris-Header muss die gleiche PID zeigen die wir
+    // erwartet haben (Schutz gegen falsche Patient-Daten durch zaehe
+    // Liris-Ladenzeiten oder Cache-Effekte).
+    if (lirisExtract.lirisPid) {
+      const normalizedLirisPid = normalizePid(lirisExtract.lirisPid)
+      if (normalizedLirisPid && normalizedLirisPid !== currentPid) {
+        toast.error(`Liris zeigt PID #${normalizedLirisPid} statt #${currentPid} — Auto-Fill abgebrochen.`)
+        setLirisExtract(null)
+        return
+      }
+    }
+
     let filled = false
     // Geburtsdatum auto-fill nur wenn leer
     if (!form.gebDatum && lirisExtract.gebDatum) {
