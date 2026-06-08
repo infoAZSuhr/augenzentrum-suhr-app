@@ -12,7 +12,7 @@ export default function BrowserPanel() {
   const [loading, setLoading] = useState(false)
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem('liris-panel-width'))
-    return saved >= 300 && saved <= 1200 ? saved : 720
+    return saved >= 300 && saved <= 1200 ? saved : 480
   })
   const webviewRef   = useRef<HTMLElement>(null)
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
