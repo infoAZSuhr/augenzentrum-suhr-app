@@ -777,7 +777,7 @@ export default function RecallPage() {
       filled = true
     }
     // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
-    if (!assignDoctor && lirisExtract.autor && editTarget !== 'new' && editTarget.doctor === ZU_BEARB) {
+    if (!assignDoctor && lirisExtract.autor && editTarget.doctor === ZU_BEARB) {
       // Aus "Dr. Max Mustermann" → versuche Nachname extrahieren und gegen doctors-Liste matchen.
       const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
       const words = cleaned.split(/\s+/)
