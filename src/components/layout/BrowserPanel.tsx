@@ -10,7 +10,10 @@ export default function BrowserPanel() {
   const [inputUrl, setInputUrl] = useState(defaultUrl)
   const [currentUrl, setCurrentUrl] = useState(defaultUrl)
   const [loading, setLoading] = useState(false)
-  const [width, setWidth] = useState(480)
+  const [width, setWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('liris-panel-width'))
+    return saved >= 300 && saved <= 1200 ? saved : 720
+  })
   const webviewRef   = useRef<HTMLElement>(null)
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
@@ -237,10 +240,14 @@ export default function BrowserPanel() {
     const onMove = (ev: MouseEvent) => {
       if (!resizeRef.current) return
       const delta = resizeRef.current.startX - ev.clientX
-      const newW = Math.max(300, Math.min(900, resizeRef.current.startW + delta))
+      const newW = Math.max(300, Math.min(1200, resizeRef.current.startW + delta))
       setWidth(newW)
     }
     const onUp = () => {
+      if (resizeRef.current) {
+        // Endbreite persistieren, damit sie nach Neustart erhalten bleibt
+        setWidth(w => { localStorage.setItem('liris-panel-width', String(w)); return w })
+      }
       resizeRef.current = null
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
