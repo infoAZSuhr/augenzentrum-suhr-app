@@ -271,9 +271,11 @@ export default function BrowserPanel() {
         .then((res: any) => {
           console.log('[Liris] inject script done, result=', res)
           clearPendingPid()
-          // Nach ~1.5 Sek (Liris hat dann Patient + Untersuchung geladen)
-          // extrahieren wir Geburtsdatum + Autor aus dem DOM.
-          setT(() => {
+          // Extract-Timer NICHT ueber setT (=in timers-Array) anlegen —
+          // clearPendingPid loest gleich einen useEffect-Re-Run aus, dessen
+          // Cleanup alle Timer abraeumt. Wir wollen aber dass dieser Timer
+          // fest steht. Daher window.setTimeout direkt + KEIN tracking.
+          window.setTimeout(() => {
             console.log('[Liris] starting extract for pid=', pid)
             extractLirisInfo(wv, pid).then(info => {
               console.log('[Liris] extract result:', info)
