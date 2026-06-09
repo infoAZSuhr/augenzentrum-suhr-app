@@ -515,12 +515,14 @@ export default function BrowserPanel() {
 
     // Liris wechselt Tag-/Wochen-/Monatsansicht oft per AJAX, ohne dass
     // did-navigate feuert. Daher zusaetzlich alle 2.5s pruefen ob sich
-    // das Kalender-Datum / Detail-PID geaendert hat und ggf. Highlights
-    // neu setzen.
+    // das Kalender-Datum geaendert hat und ggf. Highlights neu setzen.
+    // checkDetailPid LAEUFT BEWUSST NICHT IM POLLING — sonst feuert beim
+    // Klick im Liris (waehrend ein Recall-Modal offen ist) alle 2.5s der
+    // Mismatch-/Auto-Fill-Effect, was zu wiederholt aufpoppenden Meldungen
+    // fuehrt. Detail-Extract laeuft nur bei echter Navigation/dom-ready.
     const poll = window.setInterval(() => {
       if (!webviewReady.current) return
       checkCalendarDay()
-      checkDetailPid()
       highlightRecallPids()
     }, 2500)
 
