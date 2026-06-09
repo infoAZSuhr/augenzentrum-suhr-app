@@ -2646,6 +2646,37 @@ export default function RecallPage() {
   /** Vergleicht die user-relevanten Felder im Save-data-Objekt gegen den
    *  Original-Patient. Gibt true zurueck wenn nichts geaendert wurde — dann
    *  kann der Firestore-Write komplett uebersprungen werden. */
+  // Set der Felder die im aktuell offenen Edit-Modal vom Original abweichen.
+  // Wird genutzt um geaenderte Inputs visuell mit einem Bernstein-Ring
+  // hervorzuheben — User sieht so direkt was er angefasst hat.
+  const changedFields = useMemo(() => {
+    const s = new Set<string>()
+    if (!editTarget || editTarget === 'new') return s
+    const norm = (v: any) => (v === '' || v === undefined ? null : v)
+    const eq = (a: any, b: any) => {
+      const na = norm(a), nb = norm(b)
+      if (na === nb) return true
+      if (na && nb && typeof na === 'object' && typeof nb === 'object') {
+        return JSON.stringify(na) === JSON.stringify(nb)
+      }
+      return false
+    }
+    const fields: (keyof EditForm)[] = [
+      'pid', 'vorname', 'gebDatum', 'letzteKons', 'naechsteKons', 'konsInterval',
+      'storniert', 'grundStornierung',
+      'nachfassAdresse', 'nachfassTel', 'nachfassTelDatum',
+      'aufgebotFuer', 'aufgebotErstellt', 'aufgebotArt',
+      'patientenStatus', 'neupatient', 'keinTermin',
+    ]
+    for (const f of fields) {
+      if (!eq((form as any)[f], (editTarget as any)[f])) s.add(f as string)
+    }
+    return s
+  }, [form, editTarget])
+
+  /** Append-Klasse fuer Eingabefelder die vom Original abweichen. */
+  const chCls = (f: string) => changedFields.has(f) ? ' ring-2 ring-amber-300 border-amber-300 bg-amber-50' : ''
+
   function isUserDataUnchanged(data: any, orig: RecallPatient): boolean {
     const norm = (v: any) => (v === '' || v === undefined ? null : v)
     const eq = (a: any, b: any) => {
@@ -4899,7 +4930,7 @@ export default function RecallPage() {
 
               <div>
                 <label className={labelCls}>Patienten-ID (PID){reqStar}</label>
-                <div className={`flex items-stretch border rounded-lg overflow-hidden bg-white focus-within:ring-2 ${formErrors.pid ? 'border-red-400 focus-within:ring-red-300' : 'border-gray-200 focus-within:ring-primary-300'}`}>
+                <div className={`flex items-stretch border rounded-lg overflow-hidden bg-white focus-within:ring-2 ${formErrors.pid ? 'border-red-400 focus-within:ring-red-300' : changedFields.has('pid') ? 'border-amber-300 ring-2 ring-amber-300 bg-amber-50 focus-within:ring-amber-400' : 'border-gray-200 focus-within:ring-primary-300'}`}>
                   <span className="px-2.5 flex items-center text-sm font-medium text-gray-400 bg-gray-50 border-r border-gray-200 select-none">#</span>
                   <input
                     type="text"
@@ -4944,7 +4975,7 @@ export default function RecallPage() {
                 <label className={labelCls}>Vorname{reqStar}</label>
                 <input type="text" value={form.vorname}
                   onChange={e => setField('vorname', e.target.value)}
-                  className={formErrors.vorname ? inputClsErr : inputCls} placeholder="Vorname" />
+                  className={(formErrors.vorname ? inputClsErr : inputCls) + chCls('vorname')} placeholder="Vorname" />
               </div>
 
               <div>
@@ -4953,7 +4984,7 @@ export default function RecallPage() {
                   <div className="relative flex-1">
                     <input type="date" value={form.gebDatum} {...dateDrop('gebDatum')}
                       onChange={e => setField('gebDatum', e.target.value)}
-                      className={`w-full pr-6 ${formErrors.gebDatum ? inputClsErr : inputCls}`} />
+                      className={`w-full pr-6 ${formErrors.gebDatum ? inputClsErr : inputCls}${chCls('gebDatum')}`} />
                     <ClearBtn show={!!form.gebDatum} onClear={() => setField('gebDatum', '')} />
                   </div>
                   {form.gebDatum && (
@@ -5017,7 +5048,7 @@ export default function RecallPage() {
                           }
                         }
                       }}
-                      className={`${inputCls} pr-6`} />
+                      className={`${inputCls} pr-6${chCls('letzteKons')}`} />
                     <ClearBtn show={!!form.letzteKons} onClear={() => setField('letzteKons', '')} />
                   </div>
                 </div>
@@ -5058,7 +5089,7 @@ export default function RecallPage() {
                         }
                       }}
                       placeholder="1j · 6m · 30t"
-                      className={`${inputCls} pr-6 placeholder:text-gray-300`}
+                      className={`${inputCls} pr-6 placeholder:text-gray-300${chCls('konsInterval')}`}
                     />
                     <ClearBtn show={!!form.konsInterval} onClear={() => setField('konsInterval', '')} />
                   </div>
@@ -5381,8 +5412,8 @@ export default function RecallPage() {
 
               {/* Aufgebot-Icons (volle Breite oben) */}
               <div>
-                <label className={labelCls}>Aufgebot</label>
-                <div className="flex gap-2">
+                <label className={labelCls}>Aufgebot{changedFields.has('aufgebotArt') && <span className="ml-1.5 text-amber-600">●</span>}</label>
+                <div className={`flex gap-2${changedFields.has('aufgebotArt') ? ' p-1 -m-1 rounded-lg ring-2 ring-amber-300 bg-amber-50' : ''}`}>
                   {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => (
                     <button
                       key={value}
@@ -5426,7 +5457,7 @@ export default function RecallPage() {
                   <div className="relative">
                     <input type="date" value={form.aufgebotFuer} {...dateDrop('aufgebotFuer')}
                       onChange={e => setField('aufgebotFuer', e.target.value)}
-                      className={`${inputCls} pr-6`} />
+                      className={`${inputCls} pr-6${chCls('aufgebotFuer')}`} />
                     <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                   </div>
                 </div>
@@ -5442,7 +5473,7 @@ export default function RecallPage() {
                   <div className="relative">
                     <input type="date" value={form.aufgebotErstellt} {...dateDrop('aufgebotErstellt')}
                       onChange={e => setField('aufgebotErstellt', e.target.value)}
-                      className={`${inputCls} pr-6`} />
+                      className={`${inputCls} pr-6${chCls('aufgebotErstellt')}`} />
                     <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
                   </div>
                   {form.aufgebotArt === 'Praxis' && (
@@ -5461,7 +5492,7 @@ export default function RecallPage() {
                   </label>
                   <div className="relative">
                     <input ref={naechsteKonsRef} type="date" value={form.naechsteKons} {...dateDrop('naechsteKons')}
-                      className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}`}
+                      className={`pr-6 ${form.storniert === 'Terminverschiebung' ? `${inputCls} ring-2 ring-amber-400` : inputCls}${chCls('naechsteKons')}`}
                       onChange={e => {
                         const val = e.target.value
                         setField('naechsteKons', val)
@@ -5541,7 +5572,7 @@ export default function RecallPage() {
                         setTimeout(() => naechsteKonsRef.current?.focus(), 50)
                       }
                     }}
-                    className={inputCls}>
+                    className={inputCls + chCls('storniert')}>
                     <option value="">—</option>
                     <option value="ja">ja</option>
                     <option value="nein">nein</option>
@@ -5576,7 +5607,7 @@ export default function RecallPage() {
                               ))
                             }
                           }}
-                          className={inputCls}>
+                          className={inputCls + chCls('grundStornierung')}>
                           <option value="">—</option>
                           {STORNO_GRUENDE.map(g => <option key={g} value={g}>{g}</option>)}
                           <option value="Sonstiges">Sonstiges…</option>
@@ -5584,7 +5615,7 @@ export default function RecallPage() {
                         {selVal === 'Sonstiges' && (
                           <input type="text" value={form.grundStornierung.trimStart()}
                             onChange={e => setField('grundStornierung', e.target.value)}
-                            className={`${inputCls} mt-2`}
+                            className={`${inputCls} mt-2${chCls('grundStornierung')}`}
                             placeholder="Weiterer Grund…" autoFocus />
                         )}
                       </>
@@ -5941,7 +5972,7 @@ export default function RecallPage() {
                       setField('keinTermin', false)
                     }
                   }}
-                  className={inputCls}>
+                  className={inputCls + chCls('patientenStatus')}>
                   <option value="">—</option>
                   <option value="aktiv">Aktiv</option>
                   <option value="inaktiv">Inaktiv</option>
