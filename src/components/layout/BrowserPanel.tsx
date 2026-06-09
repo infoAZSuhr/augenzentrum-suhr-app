@@ -477,6 +477,17 @@ export default function BrowserPanel() {
     wv.addEventListener('did-start-loading', onLoadStart)
     wv.addEventListener('did-stop-loading', onLoadStop)
 
+    // Liris wechselt Tag-/Wochen-/Monatsansicht oft per AJAX, ohne dass
+    // did-navigate feuert. Daher zusaetzlich alle 2.5s pruefen ob sich
+    // das Kalender-Datum / Detail-PID geaendert hat und ggf. Highlights
+    // neu setzen.
+    const poll = window.setInterval(() => {
+      if (!webviewReady.current) return
+      checkCalendarDay()
+      checkDetailPid()
+      highlightRecallPids()
+    }, 2500)
+
     return () => {
       wv.removeEventListener('dom-ready', onDomReady)
       wv.removeEventListener('console-message', onConsole)
@@ -484,8 +495,9 @@ export default function BrowserPanel() {
       wv.removeEventListener('did-navigate-in-page', onDidNavigate)
       wv.removeEventListener('did-start-loading', onLoadStart)
       wv.removeEventListener('did-stop-loading', onLoadStop)
+      window.clearInterval(poll)
     }
-  }, [isOpen, requestRecallByPid])
+  }, [isOpen, requestRecallByPid, setStaleReferenceDate])
 
   // Recall-PIDs in einer Ref spiegeln (damit der Inject-Effekt sie ohne
   // Re-Render erreicht) UND bei jeder Aenderung Liris neu highlighten:
