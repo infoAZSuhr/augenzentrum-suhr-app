@@ -2701,10 +2701,14 @@ export default function RecallPage() {
         const norm = normalizePid(p.pid)
         if (!norm) continue
         known.push(norm)
+        // Fuer Neupatienten ohne 'aktualisiert' gilt das Erfassungsdatum
+        // ('erstellt') als implizite Aktualisierung — sonst stuenden alle
+        // neu angelegten Recall-Eintraege sofort als "stale" da.
+        const stamp = p.aktualisiert || p.erstellt
         let okay = false
-        if (p.aktualisiert) {
+        if (stamp) {
           // Format: "DD.MM.YYYY HH:MM – username"
-          const m = p.aktualisiert.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
+          const m = stamp.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
           if (m) {
             const ms = new Date(
               parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10),
