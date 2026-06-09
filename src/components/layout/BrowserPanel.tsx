@@ -189,6 +189,7 @@ export default function BrowserPanel() {
   const webviewRef   = useRef<HTMLElement>(null)
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
+  const lastDetailPid = useRef<string | null>(null)  // zuletzt im Liris-Header erkannte PID
 
   const navigate = useCallback((target: string) => {
     let url = target.trim()
@@ -266,10 +267,43 @@ export default function BrowserPanel() {
       })();
     `
 
+    // Liest die PID aus dem Patienten-Detail-Header von Liris.
+    // Header-Muster: "Herr Keller Peter , 10.12.1958 (67 Jahre) , Buchs AG … #05162"
+    // Die PID (#NNNNN) wird nur akzeptiert wenn sie nach "(NN Jahre)" steht —
+    // so wird sie eindeutig dem geoeffneten Patienten zugeordnet.
+    const DETAIL_PID_SCRIPT = `
+      (function() {
+        var txt = document.body ? (document.body.innerText || '') : '';
+        var m = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)[\\s\\S]{0,120}?#\\s*0*(\\d{2,7})(?!\\d)/);
+        return m ? m[1] : null;
+      })();
+    `
+    // Prueft den Detail-Header; bei NEUER PID -> Recall-Popup anfordern.
+    const checkDetailPid = () => {
+      wv.executeJavaScript(DETAIL_PID_SCRIPT).then((pid: string | null) => {
+        if (!pid) {
+          // Kein Patient-Header sichtbar (Kalender/Suche) -> merken zuruecksetzen,
+          // damit ein erneutes Oeffnen desselben Patienten wieder ausloest.
+          lastDetailPid.current = null
+          return
+        }
+        if (pid !== lastDetailPid.current) {
+          lastDetailPid.current = pid
+          console.log('[Liris] Patient-Detail geoeffnet, PID=', pid)
+          requestRecallByPid(pid)
+        }
+      }).catch(() => {})
+    }
+    // Mehrere Versuche, da die Detailseite asynchron nachlaedt.
+    const scheduleDetailCheck = () => {
+      [500, 1200, 2200].forEach(ms => window.setTimeout(checkDetailPid, ms))
+    }
+
     const onDomReady = () => {
       setLoading(false)
       webviewReady.current = true
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
+      scheduleDetailCheck()
     }
     const onConsole = (e: any) => {
       const msg = e?.message || ''
@@ -286,6 +320,8 @@ export default function BrowserPanel() {
       setLoading(false)
       // Nach Navigation neu injizieren (window-Flag ist auf neuer Seite weg)
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
+      // Detail-Header pruefen — neuer Patient geoeffnet?
+      scheduleDetailCheck()
     }
     const onLoadStart = () => setLoading(true)
     const onLoadStop  = () => setLoading(false)
