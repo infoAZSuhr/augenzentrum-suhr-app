@@ -525,6 +525,8 @@ export default function RecallPage() {
   // Letzte Einlesung rückgängig
   const [showUndoImportConfirm, setShowUndoImportConfirm] = useState(false)
   const [undoImportRunning,     setUndoImportRunning]     = useState(false)
+  // Liris-Mismatch-Dialog (Patient nicht / falsch in Liris)
+  const [lirisMismatch, setLirisMismatch] = useState<{ patientId: string; doctor: string; vorname: string; pid: string; reason: string } | null>(null)
   const [assignDoctor, setAssignDoctor] = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
   const [quickInput, setQuickInput] = useState('')
@@ -797,7 +799,14 @@ export default function RecallPage() {
       else if (!lirisExtract.pidMatchesLiris) reason = `PID #${currentPid} nicht in Liris gefunden`
       else if (!vornameMatches)               reason = `Name passt nicht: lokal „${form.vorname}" vs. Liris „${lirisExtract.vorname}"`
       else if (!gebMatches)                   reason = `Geburtsdatum passt nicht: lokal ${formatDate(localGeb)} vs. Liris ${formatDate(lirisGeb)}`
-      toast.error(`${reason} — Auto-Fill abgebrochen. Eintrag prüfen oder löschen.`)
+      // Popup statt Toast — Mismatch sollte nicht uebersehen werden.
+      setLirisMismatch({
+        patientId: editTarget.id,
+        doctor:    editTarget.doctor,
+        vorname:   form.vorname || '—',
+        pid:       currentPid,
+        reason,
+      })
       setLirisExtract(null)
       return
     }
@@ -5996,6 +6005,62 @@ export default function RecallPage() {
       })()}
 
       {/* Letzte Einlesung rückgängig — Confirmation */}
+      {/* Liris-Mismatch-Dialog: Patient existiert nicht (mehr) in Liris.
+          Bietet "Patient loeschen" oder "Schliessen" an. */}
+      {lirisMismatch && (
+        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => setLirisMismatch(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[85vh]"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <span className="font-bold text-gray-900">Patient nicht in Liris</span>
+              </div>
+              <button onClick={() => setLirisMismatch(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              <p className="text-gray-700">
+                {lirisMismatch.reason}.
+              </p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1.5">
+                <span className="text-gray-500">PID</span><span className="font-mono">#{lirisMismatch.pid}</span>
+                <span className="text-gray-500">Vorname</span><span className="font-medium">{lirisMismatch.vorname}</span>
+                <span className="text-gray-500">Arzt</span><span>{lirisMismatch.doctor}</span>
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Möglich, dass dieser Patient nicht (mehr) in Liris existiert oder die PID falsch ist.
+                <strong className="block mt-1">Empfehlung:</strong> Den Eintrag aus der Recall-Liste löschen, falls er nicht mehr benötigt wird.
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+              <button onClick={() => setLirisMismatch(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Schliessen
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await deleteRecallPatient(lirisMismatch.patientId)
+                    toast.success(`Patient #${lirisMismatch.pid} (${lirisMismatch.vorname}) gelöscht.`)
+                    setLirisMismatch(null)
+                    closeEdit()
+                    await reloadTab(lirisMismatch.doctor)
+                  } catch (e) {
+                    toast.error(`Fehler beim Löschen: ${e instanceof Error ? e.message : String(e)}`)
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors">
+                <Trash2 className="w-4 h-4" />
+                Patient aus Recall löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUndoImportConfirm && lastImport && (
         <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
              onClick={() => !undoImportRunning && setShowUndoImportConfirm(false)}>
