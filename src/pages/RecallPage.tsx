@@ -770,24 +770,36 @@ export default function RecallPage() {
     const extractPid = normalizePid(lirisExtract.pid)
     if (!currentPid || !extractPid || currentPid !== extractPid) return
 
-    // Patient existiert in Liris nicht (mehr) — Warnung + Loesch-Hinweis,
-    // KEIN Auto-Fill.
-    if (lirisExtract.notFound) {
-      toast.error(`Patient #${currentPid} ist in Liris nicht (mehr) vorhanden — bitte pruefen ob der Recall-Eintrag noch benoetigt wird.`)
+    // Verifikation: Patient muss in Liris vorhanden sein UND mit unseren
+    // bekannten Daten uebereinstimmen. Vergleichs-Strategie:
+    //   - PID muss im Liris-Text vorkommen (pidMatchesLiris)
+    //   - Vorname muss im Liris-Header vorkommen
+    //   - Geburtsdatum muss matchen WENN beide gesetzt sind (sonst nicht
+    //     ausschlaggebend, nur informativ)
+    const localVorname  = (form.vorname || '').toLowerCase().trim()
+    const lirisVorname  = (lirisExtract.vorname || '').toLowerCase()
+    const vornameMatches = !localVorname || !lirisVorname || lirisVorname.includes(localVorname) || localVorname.split(/\s+/).every(w => lirisVorname.includes(w))
+
+    const localGeb = form.gebDatum || ''
+    const lirisGeb = lirisExtract.gebDatum || ''
+    const gebMatches = !localGeb || !lirisGeb || localGeb === lirisGeb
+
+    const patientNotFound =
+      lirisExtract.notFound ||
+      !lirisExtract.pidMatchesLiris ||
+      !vornameMatches ||
+      !gebMatches
+
+    if (patientNotFound) {
+      // Praezise Meldung: warum es nicht passt
+      let reason = 'Patient nicht in Liris vorhanden'
+      if (lirisExtract.notFound)             reason = 'Patient nicht in Liris vorhanden'
+      else if (!lirisExtract.pidMatchesLiris) reason = `PID #${currentPid} nicht in Liris gefunden`
+      else if (!vornameMatches)               reason = `Name passt nicht: lokal „${form.vorname}" vs. Liris „${lirisExtract.vorname}"`
+      else if (!gebMatches)                   reason = `Geburtsdatum passt nicht: lokal ${formatDate(localGeb)} vs. Liris ${formatDate(lirisGeb)}`
+      toast.error(`${reason} — Auto-Fill abgebrochen. Eintrag prüfen oder löschen.`)
       setLirisExtract(null)
       return
-    }
-
-    // PID-Verifikation: Liris-Header muss die gleiche PID zeigen die wir
-    // erwartet haben (Schutz gegen falsche Patient-Daten durch zaehe
-    // Liris-Ladenzeiten oder Cache-Effekte).
-    if (lirisExtract.lirisPid) {
-      const normalizedLirisPid = normalizePid(lirisExtract.lirisPid)
-      if (normalizedLirisPid && normalizedLirisPid !== currentPid) {
-        toast.error(`Liris zeigt PID #${normalizedLirisPid} statt #${currentPid} — Auto-Fill abgebrochen.`)
-        setLirisExtract(null)
-        return
-      }
     }
 
     let filled = false

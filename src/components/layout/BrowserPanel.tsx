@@ -9,12 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; lirisPid: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; notFound: boolean } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; notFound: boolean } | null> {
   if (!wv?.executeJavaScript) return null
+  // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
+  const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
-      var result = { lirisPid: null, gebDatum: null, autor: null, letzteKons: null, notFound: false, _debug: { textLen: 0 } };
-      // Sammle Text auch aus iframes (Liris koennte verschachtelt sein).
+      var expectedPid = ${JSON.stringify(expectedPidDigits)};
+      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, notFound: false, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -29,13 +31,16 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; li
       var allText = collectText(document);
       result._debug.textLen = allText.length;
 
-      // 0) PID-Verifikation: Liris zeigt Patient-PID als "#12345" im Header.
-      //    Wir extrahieren das erste #-Pattern und vergleichen spaeter mit
-      //    der erwarteten PID (Caller macht den Match).
-      var pidMatch = allText.match(/#\\s*(\\d{2,8})/);
-      if (pidMatch) result.lirisPid = pidMatch[1];
+      // 0) PID-Verifikation: pruefe ob die ERWARTETE PID irgendwo im Text vorkommt.
+      //    Liris padded gelegentlich Zeros ("#0042"), wir normalisieren auf reine
+      //    Ziffern ohne Leading-Zeros. Match-Pattern: #?0*<pid>(?!\\d) — verhindert
+      //    dass "#42" auch in "#420" matched.
+      if (expectedPid) {
+        var pidRe = new RegExp('#?0*' + expectedPid + '(?!\\\\d)');
+        result.pidMatchesLiris = pidRe.test(allText);
+      }
 
-      // not-found-Erkennung: typische Liris-Meldungen wenn keine Patient existiert.
+      // Not-Found-Erkennung
       if (/Kein\\s+Patient/i.test(allText) ||
           /keine\\s+Treffer/i.test(allText) ||
           /nicht\\s+gefunden/i.test(allText) ||
@@ -43,26 +48,23 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; li
         result.notFound = true;
       }
 
-      // 1) Geburtsdatum: DD.MM.YYYY-Pattern (Jahr 1900-2030).
-      //    Pattern muss plausibles Datum sein.
-      var birthRe = /(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)/g;
-      var matches = [];
-      var m;
-      while ((m = birthRe.exec(allText)) !== null) matches.push(m);
-      if (matches.length > 0) {
-        // Nimm das ERSTE Match (typisch Patient-Header oben).
-        var b = matches[0];
-        result.gebDatum = b[3] + '-' + b[2] + '-' + b[1];
-        result._debug.allBirths = matches.length;
-      }
+      // 1) Geburtsdatum: nur DD.MM.YYYY MIT "(NN Jahre)"-Suffix akzeptieren.
+      //    Verhindert dass "Untersuchung vom 14.01.2026" als gebDatum gelesen wird.
+      var birthRe = /(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)/;
+      var bm = allText.match(birthRe);
+      if (bm) result.gebDatum = bm[3] + '-' + bm[2] + '-' + bm[1];
 
-      // 2) Untersuchungs-Datum: "Untersuchung vom DD.MM.YYYY" → letzteKons
+      // 2) Vorname (eigentlich der ganze Name vor dem Geburtsdatum):
+      //    Pattern: "(Frau|Herr|...) <Wort+> , DD.MM.YYYY (NN Jahre)"
+      var nameRe = /(?:Frau|Herr|Fr\\.|Hr\\.)\\s+([A-ZÄÖÜ][\\wäöüÄÖÜß-]+(?:\\s+[A-ZÄÖÜ][\\wäöüÄÖÜß-]+)*?)\\s*,?\\s*\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(/;
+      var nm = allText.match(nameRe);
+      if (nm) result.vorname = nm[1].trim();
+
+      // 3) Untersuchungs-Datum: "Untersuchung vom DD.MM.YYYY" → letzteKons
       var untersMatch = allText.match(/Untersuchung\\s+vom\\s+(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)/i);
-      if (untersMatch) {
-        result.letzteKons = untersMatch[3] + '-' + untersMatch[2] + '-' + untersMatch[1];
-      }
+      if (untersMatch) result.letzteKons = untersMatch[3] + '-' + untersMatch[2] + '-' + untersMatch[1];
 
-      // 3) Autor: "Autor: Dr. Name" / "Autor Prof. ..." / "Autor: Name"
+      // 4) Autor: "Autor: Dr. Name" / "Autor Prof. ..."
       var autorMatch = allText.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
       if (autorMatch && autorMatch[1]) {
         result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
@@ -80,11 +82,12 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; li
     }
     try {
       const res = await wv.executeJavaScript(script)
-      if (res?.gebDatum || res?.autor || res?.letzteKons || res?.notFound || res?.lirisPid) {
+      if (res?.gebDatum || res?.autor || res?.letzteKons || res?.notFound || res?.vorname || res?.pidMatchesLiris) {
         console.log('[Liris-Extract] attempt', attempt + 1, 'success:', res)
         return {
           pid,
-          lirisPid:   res.lirisPid   ?? null,
+          pidMatchesLiris: !!res.pidMatchesLiris,
+          vorname:    res.vorname    ?? null,
           gebDatum:   res.gebDatum   ?? null,
           autor:      res.autor      ?? null,
           letzteKons: res.letzteKons ?? null,
