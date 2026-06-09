@@ -31,6 +31,7 @@ export interface UserProfile {
   locked?: boolean
   lockedReason?: 'tooManyAttempts' | 'admin'
   mustChangePassword?: boolean
+  mustSetRealEmail?: boolean    // Admin-Flag: User muss beim naechsten Login eine echte E-Mail hinterlegen
   canEditPlanung?: boolean      // Darf Einsatzplanung bearbeiten (ohne Admin-Rolle)
   permissions?: UserPermissions // Bereichsberechtigungen für Geschäftsleitung
   fachtitel?: string | null     // Fachtitel für Briefköpfe (z.B. «Fachärztin FMH für Ophthalmologie»)
@@ -142,7 +143,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // damit der Username-Login-Lookup weiter funktioniert.
         const authMail = user.email
         if (authMail && p.authEmail !== authMail) {
-          updateDoc(profileRef, { authEmail: authMail }).catch(() => {})
+          const patch: Record<string, unknown> = { authEmail: authMail }
+          // Falls Admin `mustSetRealEmail` gesetzt hatte und die neue
+          // Auth-Mail nicht mehr nach einer Dummy-Adresse aussieht
+          // (keine Standard-Dummy-Domain), Flag automatisch entfernen.
+          if (p.mustSetRealEmail && !/@(dummy|noemail|test|example|local)\./i.test(authMail)) {
+            patch.mustSetRealEmail = false
+          }
+          updateDoc(profileRef, patch).catch(() => {})
         }
       } else {
         // No Firestore profile yet — create a pending placeholder.

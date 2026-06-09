@@ -79,7 +79,10 @@ service cloud.firestore {
                     // und intern ueber `authEmail`. authEmail wird beim Login per
                     // Self-Heal aus auth.currentUser.email nachgefuehrt und ist
                     // damit immer == der echten Firebase-Auth-Identitaet.
-                    'email', 'authEmail'
+                    'email', 'authEmail',
+                    // Flag wird vom Self-Heal automatisch abgeraeumt sobald
+                    // die Auth-Mail nach echter Adresse aussieht.
+                    'mustSetRealEmail'
                   ]));
 
       allow delete: if isAdmin();

@@ -82,7 +82,7 @@ export default function UserManagementPage() {
   const [showPw,  setShowPw]  = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [editUser, setEditUser] = useState<UserProfile | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '' })
+  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '', mustSetRealEmail: false })
   const [editSaving, setEditSaving] = useState(false)
   const [editErr, setEditErr] = useState('')
   const [loginRequests, setLoginRequests] = useState<LoginRequest[]>([])
@@ -228,7 +228,7 @@ export default function UserManagementPage() {
 
   const openEdit = (u: UserProfile) => {
     setEditUser(u)
-    setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '' })
+    setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '', mustSetRealEmail: u.mustSetRealEmail ?? false })
     setEditErr('')
   }
 
@@ -249,12 +249,13 @@ export default function UserManagementPage() {
       // Login-Lookup). Der echte Firebase-Auth-Login wechselt erst, wenn der User
       // selber im Profil "E-Mail aendern" + Verifizierungs-Mail bestaetigt.
       await updateDoc(doc(db, 'users', uid), {
-        displayName:     newName,
-        username:        editForm.username.trim(),
-        email:           editForm.email.trim().toLowerCase(),
-        role:            editForm.role,
-        additionalRoles: editForm.additionalRoles,
-        fachtitel:       editForm.fachtitel.trim() || null,
+        displayName:      newName,
+        username:         editForm.username.trim(),
+        email:            editForm.email.trim().toLowerCase(),
+        role:             editForm.role,
+        additionalRoles:  editForm.additionalRoles,
+        fachtitel:        editForm.fachtitel.trim() || null,
+        mustSetRealEmail: editForm.mustSetRealEmail,
       })
 
       // Close modal immediately after the user record is saved
@@ -556,6 +557,18 @@ export default function UserManagementPage() {
                   ℹ Eingeloggt wird über den Benutzernamen — diese E-Mail dient nur zur Identifikation und für
                   Benachrichtigungen. Kann jederzeit gefahrlos geändert werden, der Login bleibt davon unberührt.
                 </p>
+                <label className="mt-2 flex items-start gap-2 text-[12px] text-gray-700 cursor-pointer select-none">
+                  <input type="checkbox" checked={editForm.mustSetRealEmail}
+                    onChange={e => setEditForm(f => ({ ...f, mustSetRealEmail: e.target.checked }))}
+                    className="mt-0.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                  <span>
+                    User muss beim nächsten Login eine echte E-Mail eingeben
+                    <span className="block text-[10px] text-gray-500 leading-snug">
+                      (für Konten die ursprünglich mit fiktiver Adresse angelegt wurden — sonst funktioniert
+                      „Passwort vergessen" nicht)
+                    </span>
+                  </span>
+                </label>
               </div>
               {(editForm.role === 'arzt' || editForm.additionalRoles.includes('arzt')) && (
                 <div>

@@ -15,6 +15,7 @@ import RequestLogPage from './pages/RequestLogPage'
 import LidPage from './pages/LidPage'
 import KatPage from './pages/KatPage'
 import ForceChangePasswordPage from './pages/ForceChangePasswordPage'
+import ForceSetEmailPage from './pages/ForceSetEmailPage'
 import HelpPage from './pages/HelpPage'
 import TasksPage from './pages/TasksPage'
 import TaskBoardPage from './pages/TaskBoardPage'
@@ -188,6 +189,9 @@ function AppRoutes() {
 
   // Force password change (provisional password set by admin)
   if (profile?.mustChangePassword) return <ForceChangePasswordPage />
+
+  // Force user to set a real e-mail (admin flagged fictional address)
+  if (profile?.mustSetRealEmail) return <ForceSetEmailPage />
 
   return (
     <HashRouter>
