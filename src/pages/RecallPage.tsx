@@ -2736,7 +2736,6 @@ export default function RecallPage() {
           return
         }
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
-        fetch('http://localhost:9731/sync', { method: 'POST' }).catch(() => {})
         if (assignDoctor) {
           await assignRecallPatient(editTarget.id, assignDoctor, displayLabel)
           await Promise.all([reloadTab(editTarget.doctor), reloadTab(assignDoctor)])
