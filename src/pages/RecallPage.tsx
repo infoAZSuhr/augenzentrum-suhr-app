@@ -6022,14 +6022,8 @@ export default function RecallPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="px-5 py-4 space-y-3 text-sm">
-              <p className="text-gray-700">
-                Aus Liris wurde der Arzt <strong>„{unknownDoctor.extractedName}"</strong> erkannt, dieser ist aber nicht in der Auswahlliste enthalten.
-              </p>
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Bitte den Arzt manuell unten im Edit-Modal im Feld <strong>„Arzt zuweisen"</strong> auswählen.
-                Falls der Arzt gar nicht in der Auswahl steht, ggf. in der Einsatzplanung eintragen lassen.
-              </p>
+            <div className="px-5 py-4 text-sm text-gray-700">
+              <strong>{unknownDoctor.extractedName}</strong> ist inaktiv — bitte manuell auswählen.
             </div>
             <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
               <button onClick={() => setUnknownDoctor(null)}
