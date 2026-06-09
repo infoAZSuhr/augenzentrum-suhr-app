@@ -338,9 +338,11 @@ export default function BrowserPanel() {
     const CALENDAR_DAY_SCRIPT = `
       (function() {
         var txt = document.body ? (document.body.innerText || '') : '';
-        // Variante A: "Mi. 20/05" oder "Mi 20.05" (Wochentag + Tag/Monat)
-        // Variante B: "20.05.2026" (vollstaendiges Datum)
-        var m = txt.match(/(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})[\\/.](\\d{1,2})(?:[\\/.](\\d{2,4}))?/);
+        // Prio 1: Patienten-Akte offen -> "Untersuchung vom DD.MM.YYYY"
+        var m = txt.match(/Untersuchung\\s+vom\\s+(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/i);
+        // Prio 2: Kalender-Tagesheader "Mi. 20/05" / "Mi 20.05.2026"
+        if (!m) m = txt.match(/(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})[\\/.](\\d{1,2})(?:[\\/.](\\d{2,4}))?/);
+        // Prio 3: irgendein DD.MM.YYYY auf der Seite (Fallback)
         if (!m) m = txt.match(/(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/);
         if (!m) return null;
         var dd = parseInt(m[1], 10);
