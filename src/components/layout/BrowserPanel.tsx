@@ -439,8 +439,8 @@ export default function BrowserPanel() {
             st.textContent =
               // Volle Zeile einfaerben — damit der Patient-Name sichtbar
               // markiert ist auch wenn die PID-Spalte abgeschnitten ist.
-              '.az-recall-row-stale{background:#fef3c7 !important;outline:2px solid #fbbf24 !important;border-radius:3px;}'+
-              '.az-recall-row-missing{background:#fee2e2 !important;outline:2px solid #f87171 !important;border-radius:3px;}';
+              '.az-recall-row-stale{outline:2px solid #f59e0b !important;outline-offset:-1px;border-radius:3px;}'+
+              '.az-recall-row-missing{outline:2px solid #dc2626 !important;outline-offset:-1px;border-radius:3px;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -550,8 +550,8 @@ export default function BrowserPanel() {
           var st = document.createElement('style');
           st.id = '__az_recall_css';
           st.textContent =
-            '.az-recall-row-stale{background:#fef3c7 !important;outline:2px solid #fbbf24 !important;border-radius:3px;}'+
-            '.az-recall-row-missing{background:#fee2e2 !important;outline:2px solid #f87171 !important;border-radius:3px;}';
+            '.az-recall-row-stale{outline:2px solid #f59e0b !important;outline-offset:-1px;border-radius:3px;}'+
+            '.az-recall-row-missing{outline:2px solid #dc2626 !important;outline-offset:-1px;border-radius:3px;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
