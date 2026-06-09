@@ -257,13 +257,21 @@ export default function BrowserPanel() {
               else if (node.classList && node.classList.contains('az-recall-row-stale')) markedKind = 'stale';
               rowEl = node;
             }
-            // 1) Text des Elements: "#1234 DD.MM.YYYY" — PID nur akzeptieren
-            //    wenn ein Geburtsdatum direkt danach steht (Liris-Patient-
-            //    Format). KW-Indikatoren wie "#21" mit "sites" o.ae.
-            //    darunter werden so zuverlaessig ignoriert.
+            // 1a) Text des Elements: "#1234 DD.MM.YYYY" — PID nur akzeptieren
+            //     wenn ein Geburtsdatum direkt danach steht (Liris-Patient-
+            //     Format aus dem Kalender). KW-Indikatoren wie "#21" mit
+            //     "sites" darunter werden so zuverlaessig ignoriert.
             var txt = (node.textContent || '');
             var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/);
             if (m) { pid = m[1]; if (!rowEl) rowEl = node; break; }
+            // 1b) Klick auf den Patient-Detail-Header (Name + Geburtsdatum +
+            //     "(NN Jahre)"). Im Detail-View steht die PID an einer
+            //     anderen Stelle der Seite — wir suchen sie im gesamten Body.
+            if (/\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)/.test(txt)) {
+              var fullTxt = (document.body && document.body.innerText) || '';
+              var hm = fullTxt.match(/\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)[^\\n#]{0,150}#\\s*0*(\\d{1,7})(?!\\d)/);
+              if (hm) { pid = hm[1]; if (!rowEl) rowEl = node; break; }
+            }
             // 2) Attribute durchsuchen (nur bei expliziten Patient-Attributen,
             //    nicht bei generischem '#NN').
             if (node.getAttribute) {
