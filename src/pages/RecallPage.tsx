@@ -537,7 +537,6 @@ export default function RecallPage() {
     if (unknownDoctor && assignDoctor) setUnknownDoctor(null)
   }, [assignDoctor, unknownDoctor])
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
-  const [noChangesMsg, setNoChangesMsg] = useState(false)
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
@@ -2556,7 +2555,7 @@ export default function RecallPage() {
     const preErrors: Record<string, boolean> = {}
     if (!patient.gebDatum) preErrors.gebDatum = true
     if (patient.doctor === ZU_BEARB) preErrors.assignDoctor = true
-    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors(preErrors); setQuickInput(''); setPidDup(null); resetVorgehen(); setNoChangesMsg(false)
+    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors(preErrors); setQuickInput(''); setPidDup(null); resetVorgehen()
     // PID an Liris senden — NUR in Electron sinnvoll (CORS blockt im Browser).
     // sendToLiris=false wenn der Patient bereits aus dem Liris-Kalender heraus
     // angeklickt wurde (er ist dort schon offen — kein erneutes Suchen noetig).
@@ -2568,7 +2567,7 @@ export default function RecallPage() {
   }
   function openNew() {
     setModalBuffer(true)
-    setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen(); setNoChangesMsg(false)
+    setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
   }
   function closeEdit() {
     // Nur Buffer freigeben wenn KEIN weiteres Modal offen ist
@@ -2678,11 +2677,15 @@ export default function RecallPage() {
   /** Append-Klasse fuer Eingabefelder die vom Original abweichen. */
   const chCls = (f: string) => changedFields.has(f) ? ' ring-2 ring-amber-300 border-amber-300 bg-amber-50' : ''
 
-  // "Bereits aktualisiert"-Hinweis verschwinden lassen sobald wieder
-  // etwas geaendert wird (oder Arzt-Zuweisung gewaehlt wird).
-  useEffect(() => {
-    if (noChangesMsg && (changedFields.size > 0 || assignDoctor)) setNoChangesMsg(false)
-  }, [changedFields, assignDoctor, noChangesMsg])
+  // Hinweis "bereits aktualisiert" ist sichtbar, sobald ein bestehender
+  // Patient offen ist UND nichts geaendert wurde UND kein Arzt-Wechsel
+  // ausgewaehlt ist. Verschwindet automatisch sobald irgendwas angefasst
+  // wird — und erscheint wieder, wenn der User alle Aenderungen rueckgaengig
+  // macht.
+  const showNoChangesMsg = !!editTarget
+    && editTarget !== 'new'
+    && changedFields.size === 0
+    && !assignDoctor
 
   function isUserDataUnchanged(data: any, orig: RecallPatient): boolean {
     const norm = (v: any) => (v === '' || v === undefined ? null : v)
@@ -2818,9 +2821,8 @@ export default function RecallPage() {
         // Update, kein Live-Snapshot-Trigger).
         const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
         if (noChanges) {
-          // Statt Auto-Close + Toast: Hinweis im Modal-Header anzeigen,
-          // damit der User das aktiv wahrnimmt und selber schliessen kann.
-          setNoChangesMsg(true)
+          // No-Op: Hinweis-Banner im Header steht eh schon (showNoChangesMsg
+          // ist derived). Doc nicht ueberschreiben, kein Aktualisierungs-Update.
           return
         }
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
@@ -4859,10 +4861,12 @@ export default function RecallPage() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              {noChangesMsg && (
+              {showNoChangesMsg && editTarget !== 'new' && (
                 <div className="mx-6 mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-2">
                   <Info className="w-4 h-4 shrink-0 text-amber-600" />
-                  <span>Keine Änderungen — Aktualisierungsdatum bleibt unverändert. Fenster kann geschlossen werden.</span>
+                  <span>
+                    Bereits aktualisiert{editTarget.aktualisiert ? ` (${editTarget.aktualisiert})` : ''} — keine Änderungen nötig. Fenster kann geschlossen werden.
+                  </span>
                 </div>
               )}
             </div>
