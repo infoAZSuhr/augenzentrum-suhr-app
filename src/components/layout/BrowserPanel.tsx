@@ -331,11 +331,44 @@ export default function BrowserPanel() {
       [500, 1200, 2200].forEach(ms => window.setTimeout(checkDetailPid, ms))
     }
 
+    // Liest das im Liris-Kalender-Header sichtbare Tagesdatum
+    // (z.B. "Mi. 20/05" oder "20.05.2026"). Gibt ISO YYYY-MM-DD zurueck
+    // (Jahr ggf. aus aktuellem Jahr ergaenzt). Wird nach jeder Navigation
+    // ausgefuehrt damit das stale-Referenzdatum dem gezeigten Tag folgt.
+    const CALENDAR_DAY_SCRIPT = `
+      (function() {
+        var txt = document.body ? (document.body.innerText || '') : '';
+        // Variante A: "Mi. 20/05" oder "Mi 20.05" (Wochentag + Tag/Monat)
+        // Variante B: "20.05.2026" (vollstaendiges Datum)
+        var m = txt.match(/(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})[\\/.](\\d{1,2})(?:[\\/.](\\d{2,4}))?/);
+        if (!m) m = txt.match(/(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/);
+        if (!m) return null;
+        var dd = parseInt(m[1], 10);
+        var mm = parseInt(m[2], 10);
+        var yy = m[3] ? parseInt(m[3], 10) : new Date().getFullYear();
+        if (yy < 100) yy += 2000;
+        if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return null;
+        function p(n){return n<10?'0'+n:''+n;}
+        return yy + '-' + p(mm) + '-' + p(dd);
+      })();
+    `
+    const checkCalendarDay = () => {
+      wv.executeJavaScript(CALENDAR_DAY_SCRIPT).then((iso: string | null) => {
+        if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+          setStaleReferenceDate(iso)
+        }
+      }).catch(() => {})
+    }
+    const scheduleCalendarDayCheck = () => {
+      [400, 1000, 2000].forEach(ms => window.setTimeout(checkCalendarDay, ms))
+    }
+
     const onDomReady = () => {
       setLoading(false)
       webviewReady.current = true
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
       scheduleDetailCheck()
+      scheduleCalendarDayCheck()
       scheduleRecallHighlight()
     }
     const onConsole = (e: any) => {
@@ -358,6 +391,8 @@ export default function BrowserPanel() {
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
       // Detail-Header pruefen — neuer Patient geoeffnet?
       scheduleDetailCheck()
+      // Aktuell gezeigten Kalendertag erkennen
+      scheduleCalendarDayCheck()
       // Recall-PIDs neu markieren
       scheduleRecallHighlight()
     }
@@ -815,19 +850,15 @@ export default function BrowserPanel() {
             />
           </form>
 
-          {/* Stale-Recall-Referenzdatum: PIDs werden hervorgehoben sofern
-              ihr aktualisiert-Feld vor diesem Datum liegt. Default heute,
-              kann zurueck-/vorgesetzt werden um z.B. die Liste letzter
-              Woche zu pruefen. */}
-          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-0.5"
-               title="Markiere im Liris-Kalender PIDs deren Recall seit diesem Datum NICHT mehr aktualisiert wurde (Patient am 12.02 -> markiert wenn aktualisiert vor dem 12.02 oder nie)">
+          {/* Stale-Recall-Referenzdatum: wird automatisch aus dem im
+              Liris-Header sichtbaren Tagesdatum (z.B. "Mi. 20/05")
+              uebernommen — Anzeige nur read-only. */}
+          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5"
+               title="Datum stammt aus dem Liris-Kalender-Header. PIDs werden hervorgehoben deren Recall seit diesem Datum noch nicht aktualisiert wurde.">
             <span className="text-[10px] font-semibold text-amber-700 select-none">Recall seit</span>
-            <input
-              type="date"
-              value={staleReferenceDate}
-              onChange={e => setStaleReferenceDate(e.target.value || new Date().toISOString().slice(0, 10))}
-              className="text-[11px] bg-transparent border-0 text-amber-900 focus:outline-none cursor-pointer"
-            />
+            <span className="text-[11px] font-medium text-amber-900 select-none">
+              {staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : '—'}
+            </span>
           </div>
 
           <button
