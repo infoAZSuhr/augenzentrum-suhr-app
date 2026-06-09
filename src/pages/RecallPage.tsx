@@ -885,6 +885,26 @@ export default function RecallPage() {
         // analog zur manuellen Eingabe in der Edit-Maske.
         setField('storniert', '')
         setField('grundStornierung', '')
+        // 'RC zu erstellen ab' aus Letzte Konst. + Intervall berechnen
+        // (gleiche Logik wie im manuellen onChange-Handler). Wir nutzen
+        // hier die Liris-letzteKons falls vorhanden, sonst form.letzteKons.
+        const baseLk = lirisExtract.letzteKons || form.letzteKons
+        if (baseLk) {
+          const computed = computeNextKons(baseLk, label)
+          if (computed) {
+            setField('naechsteKons', '')
+            setField('keinTermin', false)
+            const lk2 = new Date(baseLk + 'T00:00:00Z')
+            lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+            if (computed <= lk2.toISOString().slice(0, 10)) {
+              setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+            } else {
+              const d = new Date(computed + 'T00:00:00Z')
+              d.setUTCMonth(d.getUTCMonth() - 2)
+              setField('aufgebotFuer', d.toISOString().slice(0, 10))
+            }
+          }
+        }
         filled = true
       }
     }
