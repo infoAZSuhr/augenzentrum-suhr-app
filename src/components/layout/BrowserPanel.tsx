@@ -179,7 +179,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -248,17 +248,19 @@ export default function BrowserPanel() {
         document.addEventListener('click', function(e) {
           var node = e.target;
           var pid = null;
-          var isMarked = false;
+          var markedKind = null; // 'stale' | 'missing' | null
+          var rowEl = null;
           for (var i = 0; i < 8 && node; i++) {
-            // Markierte Zeile? Dann NICHT auto-oeffnen — User soll selber
-            // entscheiden ob/wann er den Recall-Eintrag bearbeitet.
+            // Markierte Zeile?
             if (node.getAttribute && node.getAttribute('data-az-recall-pid')) {
-              isMarked = true;
+              if (node.classList && node.classList.contains('az-recall-row-missing')) markedKind = 'missing';
+              else if (node.classList && node.classList.contains('az-recall-row-stale')) markedKind = 'stale';
+              rowEl = node;
             }
             // 1) Text des Elements: "#1234" (kleinste Einheit zuerst -> richtiger Patient)
             var txt = (node.textContent || '');
             var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)/);
-            if (m) { pid = m[1]; break; }
+            if (m) { pid = m[1]; if (!rowEl) rowEl = node; break; }
             // 2) Attribute durchsuchen
             if (node.getAttribute) {
               var attrs = ['data-pid','data-patient','data-patientid','data-patid','title','href','id','onclick','data-id'];
@@ -273,7 +275,23 @@ export default function BrowserPanel() {
             }
             node = node.parentElement;
           }
-          if (pid && !isMarked) console.log('__AZ_PID__:' + pid);
+          if (!pid) return;
+          if (markedKind === 'missing') {
+            // Patient nicht im Recall -> NEU-Erfassung mit vorbefuellten Daten
+            // (PID + Name + Geb.datum aus der Liris-Zeile, soweit erkennbar).
+            var rowTxt = (rowEl && rowEl.textContent) || '';
+            var nameMatch = rowTxt.match(/([A-Z\\u00c4\\u00d6\\u00dc][\\wA-Z\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc'-]+(?:\\s+[A-Z\\u00c4\\u00d6\\u00dc][\\wA-Z\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc'-]+)*)\\s+@\\d{2}:\\d{2}/);
+            var name = nameMatch ? nameMatch[1].trim() : '';
+            var gebMatch = rowTxt.match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+            var geb = gebMatch ? (gebMatch[3] + '-' + gebMatch[2] + '-' + gebMatch[1]) : '';
+            console.log('__AZ_PID_NEW__:' + JSON.stringify({ pid: pid, name: name, geb: geb }));
+          } else if (markedKind === 'stale') {
+            // Markierte (zu aktualisierende) Zeilen NICHT auto-oeffnen — User klickt manuell.
+            return;
+          } else {
+            // Unmarkierter Klick -> normales Recall-Lookup
+            console.log('__AZ_PID__:' + pid);
+          }
         }, true);
         return 'injected';
       })();
@@ -383,6 +401,14 @@ export default function BrowserPanel() {
           console.log('[Liris] Patient im Kalender angeklickt, PID=', pid)
           requestRecallByPid(pid)
         }
+      } else if (msg.indexOf('__AZ_PID_NEW__:') === 0) {
+        try {
+          const payload = JSON.parse(msg.slice('__AZ_PID_NEW__:'.length).trim())
+          if (payload && payload.pid) {
+            console.log('[Liris] Neu-Erfassung angefordert:', payload)
+            requestRecallNew(payload)
+          }
+        } catch { /* ignore */ }
       }
     }
     const onDidNavigate = (e: any) => {

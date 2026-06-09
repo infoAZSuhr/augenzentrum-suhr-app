@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -802,6 +802,30 @@ export default function RecallPage() {
       toast.warning(`Patient #${wantPid} ist nicht im Recall vorhanden.`)
     }
   }, [recallPidRequest, allData]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Neu-Erfassung aus Liris: rot-markierter Patient angeklickt -> Edit-Modal
+  // im NEU-Modus mit PID + Name + Geb.datum vorausgefuellt oeffnen.
+  useEffect(() => {
+    if (!recallNewRequest) return
+    if (Date.now() - recallNewRequest.at > 5000) { clearRecallNewRequest(); return }
+    const { pid, name, geb } = recallNewRequest
+    clearRecallNewRequest()
+    setModalBuffer(true)
+    setEditTarget('new')
+    setForm(f => ({
+      ...initForm(),
+      pid: pid || '',
+      vorname: name || '',
+      gebDatum: geb || '',
+      neupatient: true,
+    }))
+    setAssignDoctor('')
+    setFormErrors({})
+    setQuickInput('')
+    setPidDup(null)
+    resetVorgehen()
+    if (pid) checkPid(pid)
+  }, [recallNewRequest]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-Fill: wenn der Liris-Webview Patient-Infos extrahiert hat und ein
   // Edit-Modal offen ist, das passt (gleiche PID) UND das jeweilige Feld

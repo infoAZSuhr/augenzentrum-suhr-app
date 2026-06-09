@@ -22,6 +22,15 @@ export interface RecallPidRequest {
   at:  number
 }
 
+/** Anfrage: Patient ist in Liris vorhanden aber nicht im Recall —
+ *  RecallPage soll die Neu-Erfassung mit den vorhandenen Daten oeffnen. */
+export interface RecallNewRequest {
+  pid:  string
+  name: string
+  geb:  string   // ISO YYYY-MM-DD oder ''
+  at:   number
+}
+
 interface BrowserContextType {
   isOpen: boolean
   selectedText: string
@@ -29,6 +38,7 @@ interface BrowserContextType {
   pendingPid: string | null
   lirisExtract: LirisExtract | null
   recallPidRequest: RecallPidRequest | null
+  recallNewRequest: RecallNewRequest | null
   staleRecallPids: string[]                  // Normalisierte PIDs (nur Ziffern, ohne Leading-Zeros) die im Recall stehen und seit dem Referenzdatum nicht mehr aktualisiert wurden
   knownRecallPids: string[]                  // Alle PIDs die ueberhaupt im Recall stehen — fuer Detektion "in Liris vorhanden aber nicht im Recall"
   staleReferenceDate: string                 // ISO YYYY-MM-DD — Schwellwert: Patient gilt als OK wenn aktualisiert >= diesem Datum
@@ -42,6 +52,8 @@ interface BrowserContextType {
   setLirisExtract: (e: LirisExtract | null) => void
   requestRecallByPid: (pid: string) => void
   clearRecallPidRequest: () => void
+  requestRecallNew: (data: { pid: string; name?: string; geb?: string }) => void
+  clearRecallNewRequest: () => void
   setStaleRecallPids: (pids: string[]) => void
   setKnownRecallPids: (pids: string[]) => void
   setStaleReferenceDate: (iso: string) => void
@@ -54,6 +66,7 @@ const BrowserContext = createContext<BrowserContextType>({
   pendingPid: null,
   lirisExtract: null,
   recallPidRequest: null,
+  recallNewRequest: null,
   staleRecallPids: [],
   knownRecallPids: [],
   staleReferenceDate: new Date().toISOString().slice(0, 10),
@@ -67,6 +80,8 @@ const BrowserContext = createContext<BrowserContextType>({
   setLirisExtract: () => {},
   requestRecallByPid: () => {},
   clearRecallPidRequest: () => {},
+  requestRecallNew: () => {},
+  clearRecallNewRequest: () => {},
   setStaleRecallPids: () => {},
   setKnownRecallPids: () => {},
   setStaleReferenceDate: () => {},
@@ -79,6 +94,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [pendingPid, setPendingPid] = useState<string | null>(null)
   const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
   const [recallPidRequest, setRecallPidRequest] = useState<RecallPidRequest | null>(null)
+  const [recallNewRequest, setRecallNewRequest] = useState<RecallNewRequest | null>(null)
   const [staleRecallPids, setStaleRecallPids] = useState<string[]>([])
   const [knownRecallPids, setKnownRecallPids] = useState<string[]>([])
   const [staleReferenceDate, setStaleReferenceDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
@@ -91,6 +107,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       pendingPid,
       lirisExtract,
       recallPidRequest,
+      recallNewRequest,
       staleRecallPids,
       knownRecallPids,
       staleReferenceDate,
@@ -108,6 +125,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setLirisExtract,
       requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
       clearRecallPidRequest: () => setRecallPidRequest(null),
+      requestRecallNew: (data) => setRecallNewRequest({ pid: data.pid, name: data.name || '', geb: data.geb || '', at: Date.now() }),
+      clearRecallNewRequest: () => setRecallNewRequest(null),
       setStaleRecallPids,
       setKnownRecallPids,
       setStaleReferenceDate,
