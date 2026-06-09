@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -765,6 +765,33 @@ export default function RecallPage() {
   useEffect(() => {
     if (isElectron) openBrowser()
   }, [isElectron]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Liris-Kalender → Recall: User hat im eingebetteten Liris einen Patienten
+  // angeklickt. PID kommt via recallPidRequest. Passenden Recall-Patienten
+  // suchen und Edit-Popup oeffnen (ohne PID erneut an Liris zu senden — der
+  // Patient ist dort bereits offen).
+  useEffect(() => {
+    if (!recallPidRequest) return
+    if (Date.now() - recallPidRequest.at > 5000) { clearRecallPidRequest(); return }
+    const wantPid = normalizePid(recallPidRequest.pid)
+    if (!wantPid) { clearRecallPidRequest(); return }
+    // Nicht erneut oeffnen wenn dieser Patient schon im Edit-Popup ist
+    if (editTarget && editTarget !== 'new' && normalizePid(editTarget.pid) === wantPid) {
+      clearRecallPidRequest()
+      return
+    }
+    let found: RecallPatient | null = null
+    for (const list of allData.values()) {
+      const hit = list.find(p => normalizePid(p.pid) === wantPid)
+      if (hit) { found = hit; break }
+    }
+    clearRecallPidRequest()
+    if (found) {
+      openEdit(found, false)   // false = nicht zurueck an Liris senden
+    } else {
+      toast.warning(`Patient #${wantPid} ist nicht im Recall vorhanden.`)
+    }
+  }, [recallPidRequest, allData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-Fill: wenn der Liris-Webview Patient-Infos extrahiert hat und ein
   // Edit-Modal offen ist, das passt (gleiche PID) UND das jeweilige Feld
@@ -2511,7 +2538,7 @@ export default function RecallPage() {
 
   // ── Edit modal ───────────────────────────────────────────────────────────────
   function resetVorgehen() { setVorgehenTelOpen(false); setVorgehenEmailOpen(false); setVorgehenReminderOpen(false); setVorgehenTelDatum(''); setVorgehenEmailDatum(''); setVorgehenReminderDatum(''); setVorgehenTelGrund(''); setVorgehenEmailGrund(''); setVorgehenReminderGrund('') }
-  function openEdit(patient: RecallPatient) {
+  function openEdit(patient: RecallPatient, sendToLiris = true) {
     // Live-Snapshot waehrend Edit puffern -> verhindert Input-Reset beim Tippen.
     setModalBuffer(true)
     // Pflichtfelder die fehlen sofort als Fehler markieren — User sieht das
@@ -2522,12 +2549,12 @@ export default function RecallPage() {
     if (patient.doctor === ZU_BEARB) preErrors.assignDoctor = true
     setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors(preErrors); setQuickInput(''); setPidDup(null); resetVorgehen()
     // PID an Liris senden — NUR in Electron sinnvoll (CORS blockt im Browser).
-    if (isElectron) {
+    // sendToLiris=false wenn der Patient bereits aus dem Liris-Kalender heraus
+    // angeklickt wurde (er ist dort schon offen — kein erneutes Suchen noetig).
+    if (isElectron && sendToLiris) {
       const pid = normalizePid(patient.pid)
       console.log('[Recall] openEdit -> openWithPid', { pid, patientId: patient.id })
       if (pid) openWithPid(pid)
-    } else {
-      console.log('[Recall] openEdit: not Electron, skipping openWithPid')
     }
   }
   function openNew() {

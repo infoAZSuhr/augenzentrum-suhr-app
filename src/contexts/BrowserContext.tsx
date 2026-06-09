@@ -15,12 +15,20 @@ export interface LirisExtract {
   at:               number              // Timestamp damit Consumer nur frisches sehen
 }
 
+/** Anfrage aus dem Liris-Kalender: User hat einen Patienten angeklickt.
+ *  RecallPage konsumiert das und oeffnet das passende Edit-Popup. */
+export interface RecallPidRequest {
+  pid: string
+  at:  number
+}
+
 interface BrowserContextType {
   isOpen: boolean
   selectedText: string
   defaultUrl: string
   pendingPid: string | null
   lirisExtract: LirisExtract | null
+  recallPidRequest: RecallPidRequest | null
   toggle: () => void
   open: () => void
   close: () => void
@@ -29,6 +37,8 @@ interface BrowserContextType {
   openWithPid: (pid: string) => void
   clearPendingPid: () => void
   setLirisExtract: (e: LirisExtract | null) => void
+  requestRecallByPid: (pid: string) => void
+  clearRecallPidRequest: () => void
 }
 
 const BrowserContext = createContext<BrowserContextType>({
@@ -37,6 +47,7 @@ const BrowserContext = createContext<BrowserContextType>({
   defaultUrl: 'https://vip.liris.ch',
   pendingPid: null,
   lirisExtract: null,
+  recallPidRequest: null,
   toggle: () => {},
   open: () => {},
   close: () => {},
@@ -45,6 +56,8 @@ const BrowserContext = createContext<BrowserContextType>({
   openWithPid: () => {},
   clearPendingPid: () => {},
   setLirisExtract: () => {},
+  requestRecallByPid: () => {},
+  clearRecallPidRequest: () => {},
 })
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
@@ -53,6 +66,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [defaultUrl, setDefaultUrl] = useState('https://vip.liris.ch')
   const [pendingPid, setPendingPid] = useState<string | null>(null)
   const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
+  const [recallPidRequest, setRecallPidRequest] = useState<RecallPidRequest | null>(null)
 
   return (
     <BrowserContext.Provider value={{
@@ -61,6 +75,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       defaultUrl,
       pendingPid,
       lirisExtract,
+      recallPidRequest,
       toggle: () => setIsOpen(o => !o),
       open: () => setIsOpen(true),
       close: () => setIsOpen(false),
@@ -73,6 +88,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       },
       clearPendingPid: () => setPendingPid(null),
       setLirisExtract,
+      requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
+      clearRecallPidRequest: () => setRecallPidRequest(null),
     }}>
       {children}
     </BrowserContext.Provider>

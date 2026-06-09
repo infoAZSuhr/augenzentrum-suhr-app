@@ -176,7 +176,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -230,18 +230,68 @@ export default function BrowserPanel() {
     const wv = webviewRef.current as any
     if (!wv) return
 
+    // Klick-Listener im Liris-Kalender: erkennt PID des angeklickten Patienten
+    // und meldet sie via console.log('__AZ_PID__:<pid>') zurueck an den Host.
+    // Sucht die PID im angeklickten Element und bis zu 8 Eltern-Ebenen:
+    // zuerst im Text (#1234), dann in Attributen (data-pid, title, href, onclick…).
+    const PID_CLICK_INJECT = `
+      (function() {
+        if (window.__azPidClick) return 'already';
+        window.__azPidClick = true;
+        document.addEventListener('click', function(e) {
+          var node = e.target;
+          var pid = null;
+          for (var i = 0; i < 8 && node; i++) {
+            // 1) Text des Elements: "#1234" (kleinste Einheit zuerst -> richtiger Patient)
+            var txt = (node.textContent || '');
+            var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)/);
+            if (m) { pid = m[1]; break; }
+            // 2) Attribute durchsuchen
+            if (node.getAttribute) {
+              var attrs = ['data-pid','data-patient','data-patientid','data-patid','title','href','id','onclick','data-id'];
+              for (var a = 0; a < attrs.length; a++) {
+                var v = node.getAttribute(attrs[a]);
+                if (v) {
+                  var am = String(v).match(/(?:pid[=:_\\-]?|patient[=:_\\-]?|#)\\s*(\\d{1,7})(?!\\d)/i);
+                  if (am) { pid = am[1]; break; }
+                }
+              }
+              if (pid) break;
+            }
+            node = node.parentElement;
+          }
+          if (pid) console.log('__AZ_PID__:' + pid);
+        }, true);
+        return 'injected';
+      })();
+    `
+
     const onDomReady = () => {
       setLoading(false)
       webviewReady.current = true
+      wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
+    }
+    const onConsole = (e: any) => {
+      const msg = e?.message || ''
+      if (msg.indexOf('__AZ_PID__:') === 0) {
+        const pid = msg.slice('__AZ_PID__:'.length).trim()
+        if (pid) {
+          console.log('[Liris] Patient im Kalender angeklickt, PID=', pid)
+          requestRecallByPid(pid)
+        }
+      }
     }
     const onDidNavigate = (e: any) => {
       if (e.url) setInputUrl(e.url)
       setLoading(false)
+      // Nach Navigation neu injizieren (window-Flag ist auf neuer Seite weg)
+      wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
     }
     const onLoadStart = () => setLoading(true)
     const onLoadStop  = () => setLoading(false)
 
     wv.addEventListener('dom-ready', onDomReady)
+    wv.addEventListener('console-message', onConsole)
     wv.addEventListener('did-navigate', onDidNavigate)
     wv.addEventListener('did-navigate-in-page', onDidNavigate)
     wv.addEventListener('did-start-loading', onLoadStart)
@@ -249,12 +299,13 @@ export default function BrowserPanel() {
 
     return () => {
       wv.removeEventListener('dom-ready', onDomReady)
+      wv.removeEventListener('console-message', onConsole)
       wv.removeEventListener('did-navigate', onDidNavigate)
       wv.removeEventListener('did-navigate-in-page', onDidNavigate)
       wv.removeEventListener('did-start-loading', onLoadStart)
       wv.removeEventListener('did-stop-loading', onLoadStop)
     }
-  }, [isOpen])
+  }, [isOpen, requestRecallByPid])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
