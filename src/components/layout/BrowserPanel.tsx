@@ -122,12 +122,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
                 }
                 var refY = new Date(refMs).getUTCFullYear();
                 var targetY = mm[2] ? parseInt(mm[2], 10) : refY;
-                // Zieldatum = 15. des Monats
+                // Zieldatum = 15. des Monats. Ohne Jahresangabe wird das
+                // Jahr des Referenzdatums verwendet (kein Roll-Over ins
+                // naechste Jahr) — wenn der Monat dieses Jahres schon vorbei
+                // ist, wird das Intervall einfach nicht gesetzt.
                 var targetMs = Date.UTC(targetY, monIdx, 15);
-                // Wenn ohne Jahr und Zielmonat schon vorbei → naechstes Jahr
-                if (!mm[2] && targetMs <= refMs) {
-                  targetMs = Date.UTC(targetY + 1, monIdx, 15);
-                }
                 var diffWeeks = Math.round((targetMs - refMs) / (7 * 86400000));
                 if (diffWeeks > 0 && diffWeeks <= 260) result.intervalWeeks = diffWeeks;
               }
