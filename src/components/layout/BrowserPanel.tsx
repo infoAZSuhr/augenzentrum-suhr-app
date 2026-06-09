@@ -356,23 +356,59 @@ export default function BrowserPanel() {
             return 'keyboard';
           }
 
-          // Mehrere Versuche, falls das Dropdown langsam laedt.
-          var tries = 0;
-          var iv = setInterval(function() {
-            tries++;
-            var res = selectFirst();
-            // bei jedem "clicked-*"-Ergebnis aufhoeren — der Patient ist offen
-            if (res && res.indexOf('clicked') === 0) { clearInterval(iv); return; }
-            if (tries >= 6) clearInterval(iv);
-          }, 350);
+          // Prueft ob ueberhaupt Dropdown-Treffer sichtbar sind.
+          function hasDropdownItems() {
+            var sels = ['.ui-autocomplete li', '.autocomplete-suggestion',
+              '.dropdown-menu li', '[role="option"]', '.tt-suggestion', 'ul.typeahead li'];
+            for (var i = 0; i < sels.length; i++) {
+              var items = document.querySelectorAll(sels[i]);
+              for (var j = 0; j < items.length; j++) {
+                if (isVisible(items[j]) && (items[j].textContent || '').trim()) return true;
+              }
+            }
+            // Auch: ein klickbares Element das die PID enthaelt
+            var clickables = document.querySelectorAll('a, li, [role="option"], tr[onclick]');
+            for (var m = 0; m < clickables.length; m++) {
+              if (isVisible(clickables[m]) && (clickables[m].textContent || '').indexOf(pidStr) !== -1) return true;
+            }
+            return false;
+          }
 
-          return 'ok';
+          // Mehrere Versuche, falls das Dropdown langsam laedt.
+          // Promise resolved mit 'selected' (Treffer geklickt),
+          // 'navigated' (Seite hat sich geaendert) oder 'no-result' (leeres Dropdown).
+          return new Promise(function(resolve) {
+            var tries = 0;
+            var sawItems = false;
+            var iv = setInterval(function() {
+              tries++;
+              if (hasDropdownItems()) sawItems = true;
+              var res = selectFirst();
+              if (res && res.indexOf('clicked') === 0) { clearInterval(iv); resolve('selected'); return; }
+              if (tries >= 6) {
+                clearInterval(iv);
+                // Wenn nie ein Dropdown-Item erschien -> Patient nicht gefunden.
+                resolve(sawItems ? 'selected' : 'no-result');
+              }
+            }, 350);
+          });
         })();
       `
       wv.executeJavaScript(script)
         .then((res: any) => {
           console.log('[Liris] inject script done, result=', res)
           clearPendingPid()
+          // Leeres Dropdown = Patient existiert nicht in Liris -> sofort melden,
+          // ohne auf die (ergebnislose) Extraktion zu warten.
+          if (res === 'no-result') {
+            console.log('[Liris] no dropdown result -> patient not found')
+            setLirisExtract({
+              pid, pidMatchesLiris: false, vorname: null, gebDatum: null,
+              autor: null, letzteKons: null, intervalWeeks: null,
+              notFound: true, at: Date.now(),
+            })
+            return
+          }
           // Extract-Timer NICHT ueber setT (=in timers-Array) anlegen —
           // clearPendingPid loest gleich einen useEffect-Re-Run aus, dessen
           // Cleanup alle Timer abraeumt. Wir wollen aber dass dieser Timer
@@ -381,7 +417,18 @@ export default function BrowserPanel() {
             console.log('[Liris] starting extract for pid=', pid)
             extractLirisInfo(wv, pid).then(info => {
               console.log('[Liris] extract result:', info)
-              if (info) setLirisExtract({ ...info, at: Date.now() })
+              if (info) {
+                setLirisExtract({ ...info, at: Date.now() })
+              } else {
+                // Extraktion lieferte gar nichts -> als nicht gefunden werten,
+                // damit der User eine Meldung erhaelt statt stiller Stille.
+                console.log('[Liris] extract empty -> treating as not found')
+                setLirisExtract({
+                  pid, pidMatchesLiris: false, vorname: null, gebDatum: null,
+                  autor: null, letzteKons: null, intervalWeeks: null,
+                  notFound: true, at: Date.now(),
+                })
+              }
             }).catch((err: unknown) => console.warn('[Liris] extract threw:', err))
           }, 1500)
         })
