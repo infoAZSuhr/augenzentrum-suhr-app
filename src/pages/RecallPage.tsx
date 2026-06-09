@@ -2677,27 +2677,24 @@ export default function RecallPage() {
   /** Append-Klasse fuer Eingabefelder die vom Original abweichen. */
   const chCls = (f: string) => changedFields.has(f) ? ' ring-2 ring-amber-300 border-amber-300 bg-amber-50' : ''
 
-  // PIDs der Recall-Patienten die noch NICHT aktualisiert wurden (oder
-  // deren letzte Aktualisierung > 30 Tage zurueckliegt). Wird in den
-  // BrowserContext gepusht, damit BrowserPanel sie im Liris-Kalender
-  // farblich hervorhebt — Sekretariat sieht so direkt welche Patienten
-  // im Recall noch Handlungsbedarf haben.
+  // PIDs der Recall-Patienten die HEUTE noch nicht aktualisiert wurden.
+  // Wird in den BrowserContext gepusht, damit BrowserPanel sie im Liris-
+  // Kalender farblich hervorhebt — Sekretariat sieht so direkt welche
+  // Patienten heute noch zu pruefen sind.
   useEffect(() => {
-    const cutoffMs = Date.now() - 30 * 86400_000
+    const today = new Date()
+    const dd = String(today.getDate()).padStart(2, '0')
+    const mm = String(today.getMonth() + 1).padStart(2, '0')
+    const yyyy = String(today.getFullYear())
+    const todayPrefix = `${dd}.${mm}.${yyyy}` // Format wie in `aktualisiert`-Feld
     const stale: string[] = []
     for (const list of allData.values()) {
       for (const p of list) {
-        let isStale = true
-        if (p.aktualisiert) {
-          // Format: "DD.MM.YYYY HH:MM – username"
-          const m = p.aktualisiert.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
-          if (m) {
-            const ms = Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10),
-                                m[4] ? parseInt(m[4], 10) : 0, m[5] ? parseInt(m[5], 10) : 0)
-            if (ms >= cutoffMs) isStale = false
-          }
-        }
-        if (!isStale) continue
+        // Nur unauffaellig wenn das aktualisiert-Feld mit dem heutigen
+        // Datum beginnt. Alles andere (null, gestern, letzte Woche, ...)
+        // gilt als "heute noch nicht angefasst".
+        const updatedToday = !!p.aktualisiert && p.aktualisiert.startsWith(todayPrefix)
+        if (updatedToday) continue
         const norm = normalizePid(p.pid)
         if (norm) stale.push(norm)
       }

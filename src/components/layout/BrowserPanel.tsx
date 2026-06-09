@@ -405,7 +405,7 @@ export default function BrowserPanel() {
               if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
               var span = document.createElement('span');
               span.className = 'az-recall-stale';
-              span.title = 'Recall offen — seit \\u003E30 Tagen nicht aktualisiert';
+              span.title = 'Recall heute noch nicht aktualisiert';
               span.textContent = txt.slice(mt.start, mt.end);
               frag.appendChild(span);
               cursor = mt.end;
@@ -489,7 +489,7 @@ export default function BrowserPanel() {
             if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
             var span = document.createElement('span');
             span.className = 'az-recall-stale';
-            span.title = 'Recall offen — seit \\u003E30 Tagen nicht aktualisiert';
+            span.title = 'Recall heute noch nicht aktualisiert';
             span.textContent = txt.slice(mt.start, mt.end);
             frag.appendChild(span);
             cursor = mt.end;
