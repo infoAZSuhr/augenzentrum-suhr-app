@@ -2895,8 +2895,8 @@ export default function RecallPage() {
         // Update, kein Live-Snapshot-Trigger).
         const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
         if (noChanges) {
-          // No-Op: Hinweis-Banner im Header steht eh schon (showNoChangesMsg
-          // ist derived). Doc nicht ueberschreiben, kein Aktualisierungs-Update.
+          // No-Op: nichts ins Doc schreiben, einfach Modal schliessen.
+          closeEdit()
           return
         }
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
