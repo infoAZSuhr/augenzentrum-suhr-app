@@ -529,6 +529,10 @@ export default function RecallPage() {
   const [lirisMismatch, setLirisMismatch] = useState<{ patientId: string; doctor: string; vorname: string; pid: string; reason: string } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name)
   const [unknownDoctor, setUnknownDoctor] = useState<{ extractedName: string } | null>(null)
+  // Auto-schliessen sobald ein Arzt gewaehlt wurde — Popup obsolet
+  useEffect(() => {
+    if (unknownDoctor && assignDoctor) setUnknownDoctor(null)
+  }, [assignDoctor, unknownDoctor])
   const [assignDoctor, setAssignDoctor] = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
   const [quickInput, setQuickInput] = useState('')
@@ -826,6 +830,11 @@ export default function RecallPage() {
         filled = true
       }
     }
+    // Intervall auto-fill — nur wenn leer. Format "Nw" (z.B. "4w").
+    if (!form.konsInterval && lirisExtract.intervalWeeks) {
+      setField('konsInterval', `${lirisExtract.intervalWeeks}w`)
+      filled = true
+    }
     // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
     if (!assignDoctor && lirisExtract.autor && editTarget.doctor === ZU_BEARB) {
       // Aus "Dr. Max Mustermann" → versuche Nachname extrahieren und gegen doctors-Liste matchen.
@@ -849,7 +858,7 @@ export default function RecallPage() {
     if (filled) toast.success('Patient-Infos aus Liris übernommen')
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
-  }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.konsInterval, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Snapshot-Buffer/Live-Subscription entfernt — siehe init() unten.
 

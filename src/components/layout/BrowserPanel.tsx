@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; notFound: boolean } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, notFound: false, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -64,7 +64,19 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       var untersMatch = allText.match(/Untersuchung\\s+vom\\s+(\\d{2})\\.(\\d{2})\\.(19\\d{2}|20[0-2]\\d)/i);
       if (untersMatch) result.letzteKons = untersMatch[3] + '-' + untersMatch[2] + '-' + untersMatch[1];
 
-      // 4) Autor: "Autor: Dr. Name" / "Autor Prof. ..."
+      // 4) Naechster Termin in N Wochen — z.B. "Naechster Termin in 4 Wochen"
+      //    oder isoliert "4 Wochen" direkt unter "Naechster Termin".
+      //    Akzeptiert auch Monate ("in 3 Monaten") und konvertiert zu Wochen
+      //    (1 Monat ~ 4 Wochen, grob, das exakte Intervall ist eh nur Hinweis).
+      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?)/i;
+      var iv = allText.match(intervalRe);
+      if (iv) {
+        var n = parseInt(iv[1], 10);
+        if (/Monat/i.test(iv[2])) n = n * 4;   // grob in Wochen umrechnen
+        if (n > 0 && n <= 120) result.intervalWeeks = n;
+      }
+
+      // 5) Autor: "Autor: Dr. Name" / "Autor Prof. ..."
       var autorMatch = allText.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
       if (autorMatch && autorMatch[1]) {
         result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
@@ -82,16 +94,17 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
     }
     try {
       const res = await wv.executeJavaScript(script)
-      if (res?.gebDatum || res?.autor || res?.letzteKons || res?.notFound || res?.vorname || res?.pidMatchesLiris) {
+      if (res?.gebDatum || res?.autor || res?.letzteKons || res?.notFound || res?.vorname || res?.pidMatchesLiris || res?.intervalWeeks) {
         console.log('[Liris-Extract] attempt', attempt + 1, 'success:', res)
         return {
           pid,
           pidMatchesLiris: !!res.pidMatchesLiris,
-          vorname:    res.vorname    ?? null,
-          gebDatum:   res.gebDatum   ?? null,
-          autor:      res.autor      ?? null,
-          letzteKons: res.letzteKons ?? null,
-          notFound:   !!res.notFound,
+          vorname:       res.vorname       ?? null,
+          gebDatum:      res.gebDatum      ?? null,
+          autor:         res.autor         ?? null,
+          letzteKons:    res.letzteKons    ?? null,
+          intervalWeeks: res.intervalWeeks ?? null,
+          notFound:      !!res.notFound,
         }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)

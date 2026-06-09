@@ -10,6 +10,7 @@ export interface LirisExtract {
   gebDatum?:        string | null       // ISO YYYY-MM-DD — Geburtsdatum
   autor?:           string | null       // Name (oben rechts in Liris-Untersuchung)
   letzteKons?:      string | null       // ISO YYYY-MM-DD — Datum der Untersuchung
+  intervalWeeks?:   number | null       // Naechster-Termin-Intervall in Wochen (z.B. 4 fuer "in 4 Wochen")
   notFound?:        boolean             // Liris meldete "Kein Patient / nicht gefunden"
   at:               number              // Timestamp damit Consumer nur frisches sehen
 }
