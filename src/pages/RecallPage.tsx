@@ -881,6 +881,10 @@ export default function RecallPage() {
       else if (w <= 120)                      label = `${w}w`
       if (label) {
         setField('konsInterval', label)
+        // Mit gesetztem Intervall ist eine alte Stornierung obsolet —
+        // analog zur manuellen Eingabe in der Edit-Maske.
+        setField('storniert', '')
+        setField('grundStornierung', '')
         filled = true
       }
     }
