@@ -494,17 +494,26 @@ export default function BrowserPanel() {
           // Heuristik: textContent enthaelt sowohl '@HH:MM' als auch
           // '#\\d+' als auch 'DD.MM.YYYY'. Max 6 Ebenen hochgehen.
           function findRow(node) {
+            // Erst hochlaufen bis textContent Zeit+PID+Geb enthaelt -> das ist
+            // die volle Zeile. Dann WEITER hochlaufen solange die Kriterien
+            // erhalten bleiben und nicht mehrere Zeilen umfasst werden
+            // (heuristisch: zweites @HH:MM signalisiert Mehrfach-Zeile).
             var el = node.parentElement;
-            var lastSmall = el;
-            for (var lvl = 0; lvl < 6 && el; lvl++) {
+            var best = null;
+            for (var lvl = 0; lvl < 8 && el; lvl++) {
               var t = el.textContent || '';
-              if (/@\\d{2}:\\d{2}/.test(t) && /#\\s*\\d/.test(t) && /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t) && t.length < 400) {
-                return el;
+              var times = t.match(/@\\d{2}:\\d{2}/g);
+              var hasPid = /#\\s*\\d/.test(t);
+              var hasGeb = /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t);
+              if (hasPid && hasGeb && times && times.length === 1 && t.length < 500) {
+                best = el;
+              } else if (best) {
+                // weiteres Hochlaufen wuerde mehrere Zeilen erfassen -> Stop
+                break;
               }
-              if (t.length < 200) lastSmall = el;
               el = el.parentElement;
             }
-            return lastSmall;
+            return best || node.parentElement;
           }
           nodes.forEach(function(node) {
             var txt = node.nodeValue;
