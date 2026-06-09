@@ -832,10 +832,19 @@ export default function RecallPage() {
         filled = true
       }
     }
-    // Intervall auto-fill — nur wenn leer. Format "Nw" (z.B. "4w").
+    // Intervall auto-fill — nur wenn leer. Liris liefert immer in Wochen;
+    // wir waehlen die kompakteste Einheit (Jahre/Monate/Wochen), damit
+    // parseKonsInterval die 120er-Obergrenze (gilt pro Einheit) nicht reisst.
     if (!form.konsInterval && lirisExtract.intervalWeeks) {
-      setField('konsInterval', `${lirisExtract.intervalWeeks}w`)
-      filled = true
+      const w = lirisExtract.intervalWeeks
+      let label: string | null = null
+      if (w % 52 === 0 && w / 52 <= 120)      label = `${w / 52}j`
+      else if (w % 4  === 0 && w / 4  <= 120) label = `${w / 4}m`
+      else if (w <= 120)                      label = `${w}w`
+      if (label) {
+        setField('konsInterval', label)
+        filled = true
+      }
     }
     // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
     if (!assignDoctor && lirisExtract.autor && editTarget.doctor === ZU_BEARB) {

@@ -68,12 +68,36 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       //    oder isoliert "4 Wochen" direkt unter "Naechster Termin".
       //    Akzeptiert auch Monate ("in 3 Monaten") und konvertiert zu Wochen
       //    (1 Monat ~ 4 Wochen, grob, das exakte Intervall ist eh nur Hinweis).
-      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?)/i;
+      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)/i;
       var iv = allText.match(intervalRe);
       if (iv) {
         var n = parseInt(iv[1], 10);
-        if (/Monat/i.test(iv[2])) n = n * 4;   // grob in Wochen umrechnen
-        if (n > 0 && n <= 120) result.intervalWeeks = n;
+        if (/Monat/i.test(iv[2])) n = n * 4;
+        else if (/Jahr/i.test(iv[2])) n = n * 52;
+        if (n > 0 && n <= 260) result.intervalWeeks = n;
+      }
+
+      // 4b) Fallback: wenn "Naechster Termin" leer / nicht gefunden, scanne
+      //     "Beurteilung und Prozedere"-Abschnitt nach Intervallangaben wie
+      //     "Kontrolle in 6 Monaten", "Wiedervorstellung in 4 Wochen", "in 3 Wochen wieder".
+      if (!result.intervalWeeks) {
+        var bpStart = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
+        if (bpStart >= 0) {
+          // Abschnitt bis Doc-Ende (oder bis zur naechsten typischen Liris-Sektion)
+          var bpText = allText.slice(bpStart, bpStart + 4000);
+          var bpEnd = bpText.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
+          if (bpEnd > 0) bpText = bpText.slice(0, bpEnd);
+          // Schluesselwoerter die typischerweise ein Folgeintervall einleiten
+          var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder)\\D{0,40}?in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
+          var fm = bpText.match(fallbackRe);
+          if (fm) {
+            var num = parseInt(fm[1] || fm[3], 10);
+            var unit = fm[2] || fm[4];
+            if (/Monat/i.test(unit)) num = num * 4;
+            else if (/Jahr/i.test(unit)) num = num * 52;
+            if (num > 0 && num <= 260) result.intervalWeeks = num;
+          }
+        }
       }
 
       // 5) Autor: "Autor: Dr. Name" / "Autor Prof. ..."
