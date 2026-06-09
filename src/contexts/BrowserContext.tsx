@@ -30,6 +30,7 @@ interface BrowserContextType {
   lirisExtract: LirisExtract | null
   recallPidRequest: RecallPidRequest | null
   staleRecallPids: string[]                  // Normalisierte PIDs (nur Ziffern, ohne Leading-Zeros) die im Recall stehen und seit dem Referenzdatum nicht mehr aktualisiert wurden
+  knownRecallPids: string[]                  // Alle PIDs die ueberhaupt im Recall stehen — fuer Detektion "in Liris vorhanden aber nicht im Recall"
   staleReferenceDate: string                 // ISO YYYY-MM-DD — Schwellwert: Patient gilt als OK wenn aktualisiert >= diesem Datum
   toggle: () => void
   open: () => void
@@ -42,6 +43,7 @@ interface BrowserContextType {
   requestRecallByPid: (pid: string) => void
   clearRecallPidRequest: () => void
   setStaleRecallPids: (pids: string[]) => void
+  setKnownRecallPids: (pids: string[]) => void
   setStaleReferenceDate: (iso: string) => void
 }
 
@@ -53,6 +55,7 @@ const BrowserContext = createContext<BrowserContextType>({
   lirisExtract: null,
   recallPidRequest: null,
   staleRecallPids: [],
+  knownRecallPids: [],
   staleReferenceDate: new Date().toISOString().slice(0, 10),
   toggle: () => {},
   open: () => {},
@@ -65,6 +68,7 @@ const BrowserContext = createContext<BrowserContextType>({
   requestRecallByPid: () => {},
   clearRecallPidRequest: () => {},
   setStaleRecallPids: () => {},
+  setKnownRecallPids: () => {},
   setStaleReferenceDate: () => {},
 })
 
@@ -76,6 +80,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
   const [recallPidRequest, setRecallPidRequest] = useState<RecallPidRequest | null>(null)
   const [staleRecallPids, setStaleRecallPids] = useState<string[]>([])
+  const [knownRecallPids, setKnownRecallPids] = useState<string[]>([])
   const [staleReferenceDate, setStaleReferenceDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
 
   return (
@@ -87,6 +92,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       lirisExtract,
       recallPidRequest,
       staleRecallPids,
+      knownRecallPids,
       staleReferenceDate,
       toggle: () => setIsOpen(o => !o),
       open: () => setIsOpen(true),
@@ -103,6 +109,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
       clearRecallPidRequest: () => setRecallPidRequest(null),
       setStaleRecallPids,
+      setKnownRecallPids,
       setStaleReferenceDate,
     }}>
       {children}

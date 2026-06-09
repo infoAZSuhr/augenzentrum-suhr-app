@@ -179,7 +179,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, staleRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -194,6 +194,7 @@ export default function BrowserPanel() {
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
   const lastDetailPid = useRef<string | null>(null)  // zuletzt im Liris-Header erkannte PID
   const staleRecallPidsRef = useRef<string[]>([])   // wird unten via Effect synchron gehalten
+  const knownRecallPidsRef = useRef<string[]>([])
   const staleRefDateRef    = useRef<string>(staleReferenceDate)
 
   const navigate = useCallback((target: string) => {
@@ -365,43 +366,49 @@ export default function BrowserPanel() {
       [600, 1500, 3000].forEach(ms => window.setTimeout(highlightRecallPids, ms))
     }
     const highlightRecallPids = () => {
-      const pids = staleRecallPidsRef.current
-      if (!pids.length) return
+      const stalePids = staleRecallPidsRef.current
+      const knownPids = knownRecallPidsRef.current
+      if (!stalePids.length && !knownPids.length) return
       const refDate = staleRefDateRef.current
       const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
-      const tooltip = `Recall seit ${refDisplay} nicht aktualisiert`
+      const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
+      const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
       const script = `
         (function() {
-          var PIDS = ${JSON.stringify(pids)};
-          var TOOLTIP = ${JSON.stringify(tooltip)};
-          var pidSet = {};
-          for (var i = 0; i < PIDS.length; i++) { pidSet[PIDS[i]] = true; }
+          var STALE = ${JSON.stringify(stalePids)};
+          var KNOWN = ${JSON.stringify(knownPids)};
+          var T_STALE   = ${JSON.stringify(tooltipStale)};
+          var T_MISSING = ${JSON.stringify(tooltipMissing)};
+          var staleSet = {}; for (var i=0; i<STALE.length; i++) staleSet[STALE[i]] = true;
+          var knownSet = {}; for (var j=0; j<KNOWN.length; j++) knownSet[KNOWN[j]] = true;
           if (!document.getElementById('__az_recall_css')) {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
-            st.textContent = '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}';
+            st.textContent =
+              '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}'+
+              '.az-recall-missing{background:#fee2e2 !important;color:#991b1b !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #f87171;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
             acceptNode: function(n) {
               if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
               var p = n.parentNode;
-              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.classList && p.classList.contains('az-recall-stale')) return NodeFilter.FILTER_REJECT;
+              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || (p.classList && (p.classList.contains('az-recall-stale') || p.classList.contains('az-recall-missing')))) return NodeFilter.FILTER_REJECT;
               return NodeFilter.FILTER_ACCEPT;
             }
           });
-          var nodes = [];
-          var n;
-          while ((n = walker.nextNode())) nodes.push(n);
+          var nodes = []; var n; while ((n = walker.nextNode())) nodes.push(n);
           var re = /#\\s*0*(\\d+)(?!\\d)/g;
-          var count = 0;
           nodes.forEach(function(node) {
             var txt = node.nodeValue;
             re.lastIndex = 0;
-            var matches = [];
-            var m;
+            var matches = []; var m;
             while ((m = re.exec(txt)) !== null) {
-              if (pidSet[m[1]]) matches.push({ start: m.index, end: m.index + m[0].length });
+              var pid = m[1];
+              var kind = null;
+              if (staleSet[pid]) kind = 'stale';
+              else if (!knownSet[pid]) kind = 'missing';
+              if (kind) matches.push({ start: m.index, end: m.index + m[0].length, kind: kind });
             }
             if (!matches.length) return;
             var frag = document.createDocumentFragment();
@@ -409,17 +416,15 @@ export default function BrowserPanel() {
             matches.forEach(function(mt) {
               if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
               var span = document.createElement('span');
-              span.className = 'az-recall-stale';
-              span.title = TOOLTIP;
+              span.className = mt.kind === 'stale' ? 'az-recall-stale' : 'az-recall-missing';
+              span.title = mt.kind === 'stale' ? T_STALE : T_MISSING;
               span.textContent = txt.slice(mt.start, mt.end);
               frag.appendChild(span);
               cursor = mt.end;
-              count++;
             });
             if (cursor < txt.length) frag.appendChild(document.createTextNode(txt.slice(cursor)));
             node.parentNode.replaceChild(frag, node);
           });
-          return count;
         })();
       `
       wv.executeJavaScript(script).catch(() => {})
@@ -449,28 +454,32 @@ export default function BrowserPanel() {
   // erst alte Markierungen entfernen, dann mit aktuellem Set neu anwenden.
   useEffect(() => {
     staleRecallPidsRef.current = staleRecallPids
+    knownRecallPidsRef.current = knownRecallPids
     staleRefDateRef.current    = staleReferenceDate
     if (!isOpen) return
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
-    const pids = staleRecallPids
     const refDisplay = staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : ''
-    const tooltip = `Recall seit ${refDisplay} nicht aktualisiert`
+    const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
+    const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
     const script = `
       (function() {
-        // 1) Alte Markierungen entfernen
-        var olds = document.querySelectorAll('.az-recall-stale');
+        // 1) Alte Markierungen entfernen (beide Sorten)
+        var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
         olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
-        if (!${pids.length}) return 0;
-        // 2) Neu markieren
-        var PIDS = ${JSON.stringify(pids)};
-        var TOOLTIP = ${JSON.stringify(tooltip)};
-        var pidSet = {};
-        for (var i = 0; i < PIDS.length; i++) { pidSet[PIDS[i]] = true; }
+        var STALE = ${JSON.stringify(staleRecallPids)};
+        var KNOWN = ${JSON.stringify(knownRecallPids)};
+        if (!STALE.length && !KNOWN.length) return 0;
+        var T_STALE   = ${JSON.stringify(tooltipStale)};
+        var T_MISSING = ${JSON.stringify(tooltipMissing)};
+        var staleSet = {}; for (var i=0; i<STALE.length; i++) staleSet[STALE[i]] = true;
+        var knownSet = {}; for (var j=0; j<KNOWN.length; j++) knownSet[KNOWN[j]] = true;
         if (!document.getElementById('__az_recall_css')) {
           var st = document.createElement('style');
           st.id = '__az_recall_css';
-          st.textContent = '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}';
+          st.textContent =
+            '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}'+
+            '.az-recall-missing{background:#fee2e2 !important;color:#991b1b !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #f87171;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -481,15 +490,18 @@ export default function BrowserPanel() {
             return NodeFilter.FILTER_ACCEPT;
           }
         });
-        var nodes = [], n;
-        while ((n = walker.nextNode())) nodes.push(n);
-        var re = /#\\s*0*(\\d+)(?!\\d)/g, count = 0;
+        var nodes = [], n; while ((n = walker.nextNode())) nodes.push(n);
+        var re = /#\\s*0*(\\d+)(?!\\d)/g;
         nodes.forEach(function(node) {
           var txt = node.nodeValue;
           re.lastIndex = 0;
           var matches = [], m;
           while ((m = re.exec(txt)) !== null) {
-            if (pidSet[m[1]]) matches.push({ start: m.index, end: m.index + m[0].length });
+            var pid = m[1];
+            var kind = null;
+            if (staleSet[pid]) kind = 'stale';
+            else if (!knownSet[pid]) kind = 'missing';
+            if (kind) matches.push({ start: m.index, end: m.index + m[0].length, kind: kind });
           }
           if (!matches.length) return;
           var frag = document.createDocumentFragment();
@@ -497,21 +509,19 @@ export default function BrowserPanel() {
           matches.forEach(function(mt) {
             if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
             var span = document.createElement('span');
-            span.className = 'az-recall-stale';
-            span.title = TOOLTIP;
+            span.className = mt.kind === 'stale' ? 'az-recall-stale' : 'az-recall-missing';
+            span.title = mt.kind === 'stale' ? T_STALE : T_MISSING;
             span.textContent = txt.slice(mt.start, mt.end);
             frag.appendChild(span);
             cursor = mt.end;
-            count++;
           });
           if (cursor < txt.length) frag.appendChild(document.createTextNode(txt.slice(cursor)));
           node.parentNode.replaceChild(frag, node);
         });
-        return count;
       })();
     `
     window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 100)
-  }, [staleRecallPids, staleReferenceDate, isOpen])
+  }, [staleRecallPids, knownRecallPids, staleReferenceDate, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).

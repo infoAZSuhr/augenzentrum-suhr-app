@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setStaleRecallPids, staleReferenceDate } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -2691,8 +2691,12 @@ export default function RecallPage() {
     const refMs = refDate.getTime()
     if (isNaN(refMs)) return
     const stale: string[] = []
+    const known: string[] = []
     for (const list of allData.values()) {
       for (const p of list) {
+        const norm = normalizePid(p.pid)
+        if (!norm) continue
+        known.push(norm)
         let okay = false
         if (p.aktualisiert) {
           // Format: "DD.MM.YYYY HH:MM – username"
@@ -2705,13 +2709,12 @@ export default function RecallPage() {
             if (ms >= refMs) okay = true
           }
         }
-        if (okay) continue
-        const norm = normalizePid(p.pid)
-        if (norm) stale.push(norm)
+        if (!okay) stale.push(norm)
       }
     }
     setStaleRecallPids(stale)
-  }, [allData, staleReferenceDate, setStaleRecallPids])
+    setKnownRecallPids(known)
+  }, [allData, staleReferenceDate, setStaleRecallPids, setKnownRecallPids])
 
   // Hinweis "bereits aktualisiert" ist sichtbar, sobald ein bestehender
   // Patient offen ist UND nichts geaendert wurde UND kein Arzt-Wechsel
