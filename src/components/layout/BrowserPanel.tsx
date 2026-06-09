@@ -442,7 +442,7 @@ export default function BrowserPanel() {
           // unmittelbarer Naehe steht (typisches Liris-Listen-Format:
           // "✓ Name @HH:MM #PID DD.MM.YYYY"). Damit faellt der KW-Tab
           // (z.B. "#21") zuverlaessig raus.
-          var re = /#\\s*0*(\\d+)(?!\\d)(?=[^\\n#]{0,30}\\d{2}\\.\\d{2}\\.\\d{4})/g;
+          var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
           nodes.forEach(function(node) {
             var txt = node.nodeValue;
             re.lastIndex = 0;
@@ -549,7 +549,7 @@ export default function BrowserPanel() {
         var nodes = [], n; while ((n = walker.nextNode())) nodes.push(n);
         // PID nur akzeptieren wenn ein Geburtsdatum DD.MM.YYYY in
         // unmittelbarer Naehe steht. Schliesst KW-Indikatoren wie '#21' aus.
-        var re = /#\\s*0*(\\d+)(?!\\d)(?=[^\\n#]{0,30}\\d{2}\\.\\d{2}\\.\\d{4})/g;
+        var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
         nodes.forEach(function(node) {
           var txt = node.nodeValue;
           re.lastIndex = 0;
