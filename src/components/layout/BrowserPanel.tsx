@@ -179,7 +179,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, staleRecallPids } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, staleRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -194,6 +194,7 @@ export default function BrowserPanel() {
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
   const lastDetailPid = useRef<string | null>(null)  // zuletzt im Liris-Header erkannte PID
   const staleRecallPidsRef = useRef<string[]>([])   // wird unten via Effect synchron gehalten
+  const staleRefDateRef    = useRef<string>(staleReferenceDate)
 
   const navigate = useCallback((target: string) => {
     let url = target.trim()
@@ -366,9 +367,13 @@ export default function BrowserPanel() {
     const highlightRecallPids = () => {
       const pids = staleRecallPidsRef.current
       if (!pids.length) return
+      const refDate = staleRefDateRef.current
+      const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
+      const tooltip = `Recall seit ${refDisplay} nicht aktualisiert`
       const script = `
         (function() {
           var PIDS = ${JSON.stringify(pids)};
+          var TOOLTIP = ${JSON.stringify(tooltip)};
           var pidSet = {};
           for (var i = 0; i < PIDS.length; i++) { pidSet[PIDS[i]] = true; }
           if (!document.getElementById('__az_recall_css')) {
@@ -405,7 +410,7 @@ export default function BrowserPanel() {
               if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
               var span = document.createElement('span');
               span.className = 'az-recall-stale';
-              span.title = 'Recall heute noch nicht aktualisiert';
+              span.title = TOOLTIP;
               span.textContent = txt.slice(mt.start, mt.end);
               frag.appendChild(span);
               cursor = mt.end;
@@ -444,10 +449,13 @@ export default function BrowserPanel() {
   // erst alte Markierungen entfernen, dann mit aktuellem Set neu anwenden.
   useEffect(() => {
     staleRecallPidsRef.current = staleRecallPids
+    staleRefDateRef.current    = staleReferenceDate
     if (!isOpen) return
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
     const pids = staleRecallPids
+    const refDisplay = staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : ''
+    const tooltip = `Recall seit ${refDisplay} nicht aktualisiert`
     const script = `
       (function() {
         // 1) Alte Markierungen entfernen
@@ -456,6 +464,7 @@ export default function BrowserPanel() {
         if (!${pids.length}) return 0;
         // 2) Neu markieren
         var PIDS = ${JSON.stringify(pids)};
+        var TOOLTIP = ${JSON.stringify(tooltip)};
         var pidSet = {};
         for (var i = 0; i < PIDS.length; i++) { pidSet[PIDS[i]] = true; }
         if (!document.getElementById('__az_recall_css')) {
@@ -489,7 +498,7 @@ export default function BrowserPanel() {
             if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
             var span = document.createElement('span');
             span.className = 'az-recall-stale';
-            span.title = 'Recall heute noch nicht aktualisiert';
+            span.title = TOOLTIP;
             span.textContent = txt.slice(mt.start, mt.end);
             frag.appendChild(span);
             cursor = mt.end;
@@ -502,7 +511,7 @@ export default function BrowserPanel() {
       })();
     `
     window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 100)
-  }, [staleRecallPids, isOpen])
+  }, [staleRecallPids, staleReferenceDate, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
@@ -792,6 +801,21 @@ export default function BrowserPanel() {
               className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-primary-400 bg-white"
             />
           </form>
+
+          {/* Stale-Recall-Referenzdatum: PIDs werden hervorgehoben sofern
+              ihr aktualisiert-Feld vor diesem Datum liegt. Default heute,
+              kann zurueck-/vorgesetzt werden um z.B. die Liste letzter
+              Woche zu pruefen. */}
+          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-0.5"
+               title="Markiere im Liris-Kalender PIDs deren Recall seit diesem Datum nicht mehr aktualisiert wurde">
+            <span className="text-[10px] font-semibold text-amber-700 select-none">Recall ab</span>
+            <input
+              type="date"
+              value={staleReferenceDate}
+              onChange={e => setStaleReferenceDate(e.target.value || new Date().toISOString().slice(0, 10))}
+              className="text-[11px] bg-transparent border-0 text-amber-900 focus:outline-none cursor-pointer"
+            />
+          </div>
 
           <button
             onClick={close}

@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setStaleRecallPids } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setStaleRecallPids, staleReferenceDate } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -2677,30 +2677,41 @@ export default function RecallPage() {
   /** Append-Klasse fuer Eingabefelder die vom Original abweichen. */
   const chCls = (f: string) => changedFields.has(f) ? ' ring-2 ring-amber-300 border-amber-300 bg-amber-50' : ''
 
-  // PIDs der Recall-Patienten die HEUTE noch nicht aktualisiert wurden.
-  // Wird in den BrowserContext gepusht, damit BrowserPanel sie im Liris-
-  // Kalender farblich hervorhebt — Sekretariat sieht so direkt welche
-  // Patienten heute noch zu pruefen sind.
+  // PIDs der Recall-Patienten die seit dem Referenzdatum (Default: heute)
+  // nicht mehr aktualisiert wurden. Wird in den BrowserContext gepusht,
+  // damit BrowserPanel sie im Liris-Kalender farblich hervorhebt.
+  // staleReferenceDate ist ein ISO-Datum YYYY-MM-DD; der User kann
+  // im BrowserPanel-Header zurueckblaettern um z.B. die Liste letzter
+  // Woche zu pruefen ("welche Patienten von Montag haben wir bis
+  // heute nicht angefasst?").
   useEffect(() => {
-    const today = new Date()
-    const dd = String(today.getDate()).padStart(2, '0')
-    const mm = String(today.getMonth() + 1).padStart(2, '0')
-    const yyyy = String(today.getFullYear())
-    const todayPrefix = `${dd}.${mm}.${yyyy}` // Format wie in `aktualisiert`-Feld
+    // refMs = 00:00 Uhr lokal am Referenztag. Patient gilt als OK wenn
+    // aktualisiert-Datum >= refMs.
+    const refDate = new Date(staleReferenceDate + 'T00:00:00')
+    const refMs = refDate.getTime()
+    if (isNaN(refMs)) return
     const stale: string[] = []
     for (const list of allData.values()) {
       for (const p of list) {
-        // Nur unauffaellig wenn das aktualisiert-Feld mit dem heutigen
-        // Datum beginnt. Alles andere (null, gestern, letzte Woche, ...)
-        // gilt als "heute noch nicht angefasst".
-        const updatedToday = !!p.aktualisiert && p.aktualisiert.startsWith(todayPrefix)
-        if (updatedToday) continue
+        let okay = false
+        if (p.aktualisiert) {
+          // Format: "DD.MM.YYYY HH:MM – username"
+          const m = p.aktualisiert.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
+          if (m) {
+            const ms = new Date(
+              parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10),
+              m[4] ? parseInt(m[4], 10) : 0, m[5] ? parseInt(m[5], 10) : 0
+            ).getTime()
+            if (ms >= refMs) okay = true
+          }
+        }
+        if (okay) continue
         const norm = normalizePid(p.pid)
         if (norm) stale.push(norm)
       }
     }
     setStaleRecallPids(stale)
-  }, [allData, setStaleRecallPids])
+  }, [allData, staleReferenceDate, setStaleRecallPids])
 
   // Hinweis "bereits aktualisiert" ist sichtbar, sobald ein bestehender
   // Patient offen ist UND nichts geaendert wurde UND kein Arzt-Wechsel
