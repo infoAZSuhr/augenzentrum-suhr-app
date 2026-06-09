@@ -417,6 +417,16 @@ export default function BrowserPanel() {
           //    erzeugen wuerde.
           var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
           olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
+          // 1) Alte Markierungen entfernen (row + ggf. legacy spans)
+          var oldRows = document.querySelectorAll('[data-az-recall-pid]');
+          oldRows.forEach(function(el){
+            el.removeAttribute('data-az-recall-pid');
+            el.classList.remove('az-recall-row-stale','az-recall-row-missing');
+            if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
+          });
+          var oldSpans = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
+          oldSpans.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
+
           var STALE = ${JSON.stringify(stalePids)};
           var KNOWN = ${JSON.stringify(knownPids)};
           var T_STALE   = ${JSON.stringify(tooltipStale)};
@@ -427,15 +437,17 @@ export default function BrowserPanel() {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
             st.textContent =
-              '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}'+
-              '.az-recall-missing{background:#fee2e2 !important;color:#991b1b !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #f87171;}';
+              // Volle Zeile einfaerben — damit der Patient-Name sichtbar
+              // markiert ist auch wenn die PID-Spalte abgeschnitten ist.
+              '.az-recall-row-stale{background:#fef3c7 !important;outline:2px solid #fbbf24 !important;border-radius:3px;}'+
+              '.az-recall-row-missing{background:#fee2e2 !important;outline:2px solid #f87171 !important;border-radius:3px;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
             acceptNode: function(n) {
               if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
               var p = n.parentNode;
-              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || (p.classList && (p.classList.contains('az-recall-stale') || p.classList.contains('az-recall-missing')))) return NodeFilter.FILTER_REJECT;
+              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE') return NodeFilter.FILTER_REJECT;
               return NodeFilter.FILTER_ACCEPT;
             }
           });
@@ -448,28 +460,24 @@ export default function BrowserPanel() {
           nodes.forEach(function(node) {
             var txt = node.nodeValue;
             re.lastIndex = 0;
-            var matches = []; var m;
+            var m, kind = null, pid = null;
             while ((m = re.exec(txt)) !== null) {
-              var pid = m[1];
-              var kind = null;
-              if (staleSet[pid]) kind = 'stale';
-              else if (!knownSet[pid]) kind = 'missing';
-              if (kind) matches.push({ start: m.index, end: m.index + m[0].length, kind: kind });
+              var p = m[1];
+              if (staleSet[p]) { kind = 'stale'; pid = p; break; }
+              if (!knownSet[p]) { kind = 'missing'; pid = p; break; }
             }
-            if (!matches.length) return;
-            var frag = document.createDocumentFragment();
-            var cursor = 0;
-            matches.forEach(function(mt) {
-              if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
-              var span = document.createElement('span');
-              span.className = mt.kind === 'stale' ? 'az-recall-stale' : 'az-recall-missing';
-              span.title = mt.kind === 'stale' ? T_STALE : T_MISSING;
-              span.textContent = txt.slice(mt.start, mt.end);
-              frag.appendChild(span);
-              cursor = mt.end;
-            });
-            if (cursor < txt.length) frag.appendChild(document.createTextNode(txt.slice(cursor)));
-            node.parentNode.replaceChild(frag, node);
+            if (!kind) return;
+            // Statt das #PID-Stueck zu wrappen die ganze Zeile (Eltern-
+            // Element des Text-Nodes) einfaerben. Patient-Name wird damit
+            // sichtbar markiert — unabhaengig von der Spaltenbreite.
+            var row = node.parentElement;
+            if (!row || row.getAttribute('data-az-recall-pid')) return;
+            row.setAttribute('data-az-recall-pid', pid);
+            row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
+            if (!row.getAttribute('title')) {
+              row.setAttribute('title', kind === 'stale' ? T_STALE : T_MISSING);
+              row.dataset.azRecallTitle = '1';
+            }
           });
         })();
       `
@@ -522,7 +530,13 @@ export default function BrowserPanel() {
     const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
     const script = `
       (function() {
-        // 1) Alte Markierungen entfernen (beide Sorten)
+        // 1) Alte Markierungen entfernen (Row-Klassen + legacy Spans)
+        var oldRows = document.querySelectorAll('[data-az-recall-pid]');
+        oldRows.forEach(function(el){
+          el.removeAttribute('data-az-recall-pid');
+          el.classList.remove('az-recall-row-stale','az-recall-row-missing');
+          if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
+        });
         var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
         olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
         var STALE = ${JSON.stringify(staleRecallPids)};
@@ -536,8 +550,8 @@ export default function BrowserPanel() {
           var st = document.createElement('style');
           st.id = '__az_recall_css';
           st.textContent =
-            '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}'+
-            '.az-recall-missing{background:#fee2e2 !important;color:#991b1b !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #f87171;}';
+            '.az-recall-row-stale{background:#fef3c7 !important;outline:2px solid #fbbf24 !important;border-radius:3px;}'+
+            '.az-recall-row-missing{background:#fee2e2 !important;outline:2px solid #f87171 !important;border-radius:3px;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -549,34 +563,27 @@ export default function BrowserPanel() {
           }
         });
         var nodes = [], n; while ((n = walker.nextNode())) nodes.push(n);
-        // PID nur akzeptieren wenn ein Geburtsdatum DD.MM.YYYY in
-        // unmittelbarer Naehe steht. Schliesst KW-Indikatoren wie '#21' aus.
+        // PID nur akzeptieren wenn ein Geburtsdatum DD.MM.YYYY direkt
+        // nach der PID folgt. Schliesst KW-Indikatoren wie '#21' aus.
         var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
         nodes.forEach(function(node) {
           var txt = node.nodeValue;
           re.lastIndex = 0;
-          var matches = [], m;
+          var m, kind = null, pid = null;
           while ((m = re.exec(txt)) !== null) {
-            var pid = m[1];
-            var kind = null;
-            if (staleSet[pid]) kind = 'stale';
-            else if (!knownSet[pid]) kind = 'missing';
-            if (kind) matches.push({ start: m.index, end: m.index + m[0].length, kind: kind });
+            var p = m[1];
+            if (staleSet[p]) { kind = 'stale'; pid = p; break; }
+            if (!knownSet[p]) { kind = 'missing'; pid = p; break; }
           }
-          if (!matches.length) return;
-          var frag = document.createDocumentFragment();
-          var cursor = 0;
-          matches.forEach(function(mt) {
-            if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
-            var span = document.createElement('span');
-            span.className = mt.kind === 'stale' ? 'az-recall-stale' : 'az-recall-missing';
-            span.title = mt.kind === 'stale' ? T_STALE : T_MISSING;
-            span.textContent = txt.slice(mt.start, mt.end);
-            frag.appendChild(span);
-            cursor = mt.end;
-          });
-          if (cursor < txt.length) frag.appendChild(document.createTextNode(txt.slice(cursor)));
-          node.parentNode.replaceChild(frag, node);
+          if (!kind) return;
+          var row = node.parentElement;
+          if (!row || row.getAttribute('data-az-recall-pid')) return;
+          row.setAttribute('data-az-recall-pid', pid);
+          row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
+          if (!row.getAttribute('title')) {
+            row.setAttribute('title', kind === 'stale' ? T_STALE : T_MISSING);
+            row.dataset.azRecallTitle = '1';
+          }
         });
       })();
     `
