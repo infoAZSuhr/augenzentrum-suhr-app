@@ -257,17 +257,21 @@ export default function BrowserPanel() {
               else if (node.classList && node.classList.contains('az-recall-row-stale')) markedKind = 'stale';
               rowEl = node;
             }
-            // 1) Text des Elements: "#1234" (kleinste Einheit zuerst -> richtiger Patient)
+            // 1) Text des Elements: "#1234 DD.MM.YYYY" — PID nur akzeptieren
+            //    wenn ein Geburtsdatum direkt danach steht (Liris-Patient-
+            //    Format). KW-Indikatoren wie "#21" mit "sites" o.ae.
+            //    darunter werden so zuverlaessig ignoriert.
             var txt = (node.textContent || '');
-            var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)/);
+            var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/);
             if (m) { pid = m[1]; if (!rowEl) rowEl = node; break; }
-            // 2) Attribute durchsuchen
+            // 2) Attribute durchsuchen (nur bei expliziten Patient-Attributen,
+            //    nicht bei generischem '#NN').
             if (node.getAttribute) {
-              var attrs = ['data-pid','data-patient','data-patientid','data-patid','title','href','id','onclick','data-id'];
+              var attrs = ['data-pid','data-patient','data-patientid','data-patid'];
               for (var a = 0; a < attrs.length; a++) {
                 var v = node.getAttribute(attrs[a]);
                 if (v) {
-                  var am = String(v).match(/(?:pid[=:_\\-]?|patient[=:_\\-]?|#)\\s*(\\d{1,7})(?!\\d)/i);
+                  var am = String(v).match(/(\\d{1,7})/);
                   if (am) { pid = am[1]; break; }
                 }
               }
