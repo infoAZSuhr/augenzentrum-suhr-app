@@ -2780,6 +2780,7 @@ export default function RecallPage() {
         // Update, kein Live-Snapshot-Trigger).
         const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
         if (noChanges) {
+          toast.info('Keine Änderungen — Aktualisierungsdatum bleibt unverändert.')
           closeEdit()
           return
         }
