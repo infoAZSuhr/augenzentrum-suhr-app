@@ -274,20 +274,34 @@ export default function BrowserPanel() {
     // Header-Muster: "Herr Keller Peter , 10.12.1958 (67 Jahre) , Buchs AG … #05162"
     // Die PID (#NNNNN) wird nur akzeptiert wenn sie nach "(NN Jahre)" steht —
     // so wird sie eindeutig dem geoeffneten Patienten zugeordnet.
+    // Patient-PID aus dem Liris-Header lesen. Heuristik:
+    // 1) Suche im 300-Zeichen-Fenster nach "(NN Jahre)".
+    // 2) Sammle ALLE #NN-Vorkommen in diesem Fenster.
+    // 3) Waehle die laengste Zahl — echte PIDs sind typischerweise laenger
+    //    als sonstige #-Werte (Tarifnummern, Positionen, etc.) die nahebei
+    //    erscheinen koennen. Bei Gleichstand wird die erste genommen.
     const DETAIL_PID_SCRIPT = `
       (function() {
         var txt = document.body ? (document.body.innerText || '') : '';
-        var m = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)[\\s\\S]{0,120}?#\\s*0*(\\d{2,7})(?!\\d)/);
-        return m ? m[1] : null;
+        var anchor = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/);
+        if (!anchor) return null;
+        var window = txt.slice(anchor.index + anchor[0].length, anchor.index + anchor[0].length + 300);
+        var re = /#\\s*0*(\\d+)(?!\\d)/g;
+        var best = null, m;
+        while ((m = re.exec(window)) !== null) {
+          if (!best || m[1].length > best.length) best = m[1];
+        }
+        return best;
       })();
     `
     // Prueft den Detail-Header; bei NEUER PID -> Recall-Popup anfordern.
     const checkDetailPid = () => {
       wv.executeJavaScript(DETAIL_PID_SCRIPT).then((pid: string | null) => {
         if (!pid) {
-          // Kein Patient-Header sichtbar (Kalender/Suche) -> merken zuruecksetzen,
-          // damit ein erneutes Oeffnen desselben Patienten wieder ausloest.
-          lastDetailPid.current = null
+          // Kein Patient-Header sichtbar (Kalender/Suche). NICHT lastDetailPid
+          // zuruecksetzen — sonst feuert dieselbe PID nach jedem AJAX-Refresh
+          // (Header verschwindet/erscheint wieder) erneut. Der Reset
+          // passiert nur bei echter Navigation (did-navigate-Handler unten).
           return
         }
         if (pid !== lastDetailPid.current) {
@@ -330,6 +344,9 @@ export default function BrowserPanel() {
     const onDidNavigate = (e: any) => {
       if (e.url) setInputUrl(e.url)
       setLoading(false)
+      // Nach echter Navigation Detail-PID-Merker zuruecksetzen, damit derselbe
+      // Patient nach Wechsel und Rueckkehr wieder als "neu" zaehlt.
+      lastDetailPid.current = null
       // Nach Navigation neu injizieren (window-Flag ist auf neuer Seite weg)
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
       // Detail-Header pruefen — neuer Patient geoeffnet?
