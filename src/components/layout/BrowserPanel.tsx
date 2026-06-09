@@ -463,6 +463,23 @@ export default function BrowserPanel() {
           // "✓ Name @HH:MM #PID DD.MM.YYYY"). Damit faellt der KW-Tab
           // (z.B. "#21") zuverlaessig raus.
           var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
+          // Helper: nach oben gehen bis wir den Container finden, der die
+          // ganze Patient-Zeile enthaelt (Name + Zeit + #PID + Geb.datum).
+          // Heuristik: textContent enthaelt sowohl '@HH:MM' als auch
+          // '#\\d+' als auch 'DD.MM.YYYY'. Max 6 Ebenen hochgehen.
+          function findRow(node) {
+            var el = node.parentElement;
+            var lastSmall = el;
+            for (var lvl = 0; lvl < 6 && el; lvl++) {
+              var t = el.textContent || '';
+              if (/@\\d{2}:\\d{2}/.test(t) && /#\\s*\\d/.test(t) && /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t) && t.length < 400) {
+                return el;
+              }
+              if (t.length < 200) lastSmall = el;
+              el = el.parentElement;
+            }
+            return lastSmall;
+          }
           nodes.forEach(function(node) {
             var txt = node.nodeValue;
             re.lastIndex = 0;
@@ -473,10 +490,7 @@ export default function BrowserPanel() {
               if (!knownSet[p]) { kind = 'missing'; pid = p; break; }
             }
             if (!kind) return;
-            // Statt das #PID-Stueck zu wrappen die ganze Zeile (Eltern-
-            // Element des Text-Nodes) einfaerben. Patient-Name wird damit
-            // sichtbar markiert — unabhaengig von der Spaltenbreite.
-            var row = node.parentElement;
+            var row = findRow(node);
             if (!row || row.getAttribute('data-az-recall-pid')) return;
             row.setAttribute('data-az-recall-pid', pid);
             row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
@@ -572,6 +586,19 @@ export default function BrowserPanel() {
         // PID nur akzeptieren wenn ein Geburtsdatum DD.MM.YYYY direkt
         // nach der PID folgt. Schliesst KW-Indikatoren wie '#21' aus.
         var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
+        function findRow(node) {
+          var el = node.parentElement;
+          var lastSmall = el;
+          for (var lvl = 0; lvl < 6 && el; lvl++) {
+            var t = el.textContent || '';
+            if (/@\\d{2}:\\d{2}/.test(t) && /#\\s*\\d/.test(t) && /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t) && t.length < 400) {
+              return el;
+            }
+            if (t.length < 200) lastSmall = el;
+            el = el.parentElement;
+          }
+          return lastSmall;
+        }
         nodes.forEach(function(node) {
           var txt = node.nodeValue;
           re.lastIndex = 0;
@@ -582,7 +609,7 @@ export default function BrowserPanel() {
             if (!knownSet[p]) { kind = 'missing'; pid = p; break; }
           }
           if (!kind) return;
-          var row = node.parentElement;
+          var row = findRow(node);
           if (!row || row.getAttribute('data-az-recall-pid')) return;
           row.setAttribute('data-az-recall-pid', pid);
           row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
