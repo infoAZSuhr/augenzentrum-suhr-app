@@ -68,7 +68,10 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       //    oder isoliert "4 Wochen" direkt unter "Naechster Termin".
       //    Akzeptiert auch Monate ("in 3 Monaten") und konvertiert zu Wochen
       //    (1 Monat ~ 4 Wochen, grob, das exakte Intervall ist eh nur Hinweis).
-      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)/i;
+      //    Toleranter: erlaubt Zwischenwoerter wie "Kontrolle in" zwischen
+      //    "Naechster Termin" und der Zahl (z.B. "Naechster Termin: Kontrolle
+      //    in 12 Monaten" oder "Naechster Termin\\n12 Monate, Myd und OCT").
+      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*[^\\d\\n]{0,30}?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
       var iv = allText.match(intervalRe);
       if (iv) {
         var n = parseInt(iv[1], 10);
@@ -291,6 +294,15 @@ export default function BrowserPanel() {
           lastDetailPid.current = pid
           console.log('[Liris] Patient-Detail geoeffnet, PID=', pid)
           requestRecallByPid(pid)
+          // Zusaetzlich die Detail-Infos extrahieren (Intervall, Geburtsdatum,
+          // letzte Kons.) damit das Recall-Popup diese Felder auto-fuellen kann
+          // — wie beim Recall->Liris-Fluss.
+          extractLirisInfo(wv, '#' + pid).then(info => {
+            if (info) {
+              console.log('[Liris] Detail-Extract:', info)
+              setLirisExtract({ ...info, at: Date.now() })
+            }
+          }).catch(() => {})
         }
       }).catch(() => {})
     }
