@@ -4861,11 +4861,11 @@ export default function RecallPage() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              {showNoChangesMsg && editTarget !== 'new' && (
+              {showNoChangesMsg && (
                 <div className="mx-6 mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-2">
                   <Info className="w-4 h-4 shrink-0 text-amber-600" />
                   <span>
-                    Bereits aktualisiert{editTarget.aktualisiert ? ` (${editTarget.aktualisiert})` : ''} — keine Änderungen nötig. Fenster kann geschlossen werden.
+                    Bereits aktualisiert{(editTarget as RecallPatient).aktualisiert ? ` (${(editTarget as RecallPatient).aktualisiert})` : ''} — keine Änderungen nötig. Fenster kann geschlossen werden.
                   </span>
                 </div>
               )}
