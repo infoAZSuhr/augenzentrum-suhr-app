@@ -245,10 +245,13 @@ export default function UserManagementPage() {
       const uid = editUser.uid
       const nameChanged = newName !== oldName
 
+      // E-Mail wird NICHT geschrieben — sie ist der Firebase-Auth-Identifier
+      // und kann ohne Cloud-Function nicht zentral geaendert werden. Sonst
+      // hat der User Firestore-mail X, Auth-mail Y, und kann sich nicht
+      // mehr einloggen.
       await updateDoc(doc(db, 'users', uid), {
         displayName:     newName,
         username:        editForm.username.trim(),
-        email:           editForm.email.trim(),
         role:            editForm.role,
         additionalRoles: editForm.additionalRoles,
         fachtitel:       editForm.fachtitel.trim() || null,
@@ -543,11 +546,16 @@ export default function UserManagementPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail (Login-Identität)</label>
                 <input type="email" value={editForm.email}
-                  onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  readOnly disabled
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
                   placeholder="name@praxis.ch" />
+                <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 leading-snug">
+                  ⚠ E-Mail kann nicht geändert werden — sie ist der Login-Identifier im Firebase-Auth-System.
+                  Für eine andere E-Mail: Benutzer löschen und mit neuer E-Mail neu anlegen (Passwort bleibt initial gleich,
+                  per Reset-Mail einrichten lassen).
+                </p>
               </div>
               {(editForm.role === 'arzt' || editForm.additionalRoles.includes('arzt')) && (
                 <div>
