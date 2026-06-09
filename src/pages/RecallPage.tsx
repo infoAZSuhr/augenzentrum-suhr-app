@@ -2463,11 +2463,6 @@ export default function RecallPage() {
         verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
         excelAbgeglichen:  true,
       } as any, displayLabel)
-      // Lokalen Excel-Sync-Dienst triggern — nur wenn explizit aktiviert
-      // (localStorage-Flag), sonst Netzwerk-Fehler-Rauschen in der Console.
-      if (localStorage.getItem('excelSyncEnabled') === '1') {
-        fetch('http://localhost:9731/sync', { method: 'POST' }).catch(() => {})
-      }
       await reloadTab(aufgebotTarget.patient.doctor)
       setAufgebotTarget(null)
     } catch {
