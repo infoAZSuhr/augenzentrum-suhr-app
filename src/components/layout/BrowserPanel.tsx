@@ -248,7 +248,13 @@ export default function BrowserPanel() {
         document.addEventListener('click', function(e) {
           var node = e.target;
           var pid = null;
+          var isMarked = false;
           for (var i = 0; i < 8 && node; i++) {
+            // Markierte Zeile? Dann NICHT auto-oeffnen — User soll selber
+            // entscheiden ob/wann er den Recall-Eintrag bearbeitet.
+            if (node.getAttribute && node.getAttribute('data-az-recall-pid')) {
+              isMarked = true;
+            }
             // 1) Text des Elements: "#1234" (kleinste Einheit zuerst -> richtiger Patient)
             var txt = (node.textContent || '');
             var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)/);
@@ -267,7 +273,7 @@ export default function BrowserPanel() {
             }
             node = node.parentElement;
           }
-          if (pid) console.log('__AZ_PID__:' + pid);
+          if (pid && !isMarked) console.log('__AZ_PID__:' + pid);
         }, true);
         return 'injected';
       })();
