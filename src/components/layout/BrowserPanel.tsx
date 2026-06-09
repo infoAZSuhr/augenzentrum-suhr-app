@@ -79,7 +79,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 
       // 4b) Fallback: wenn "Naechster Termin" leer / nicht gefunden, scanne
       //     "Beurteilung und Prozedere"-Abschnitt nach Intervallangaben wie
-      //     "Kontrolle in 6 Monaten", "Wiedervorstellung in 4 Wochen", "in 3 Wochen wieder".
+      //     "Kontrolle in 6 Monaten", "Wiedervorstellung in 4 Wochen", "in 3 Wochen wieder",
+      //     oder auch ausgeschriebene Monatsnamen ("Kontrolle November", "VK im Mai 2027").
       if (!result.intervalWeeks) {
         var bpStart = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
         if (bpStart >= 0) {
@@ -87,7 +88,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           var bpText = allText.slice(bpStart, bpStart + 4000);
           var bpEnd = bpText.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
           if (bpEnd > 0) bpText = bpText.slice(0, bpEnd);
-          // Schluesselwoerter die typischerweise ein Folgeintervall einleiten
+          // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren"
           var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder)\\D{0,40}?in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
           var fm = bpText.match(fallbackRe);
           if (fm) {
@@ -96,6 +97,41 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
             if (/Monat/i.test(unit)) num = num * 4;
             else if (/Jahr/i.test(unit)) num = num * 52;
             if (num > 0 && num <= 260) result.intervalWeeks = num;
+          }
+          // 4b-ii) Monatsname: "Kontrolle November", "VK im Mai 2027",
+          //        "Wiedervorstellung Januar 2027". Distanz ab letzteKons
+          //        (Fallback: heute) bis zum 15. des Zielmonats → Wochen.
+          if (!result.intervalWeeks) {
+            var monthMap = { januar:0, februar:1, märz:2, maerz:2, april:3, mai:4, juni:5,
+                             juli:6, august:7, september:8, oktober:9, november:10, dezember:11 };
+            var monthRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle)\\D{0,30}?(?:im\\s+|am\\s+|ab\\s+)?(Januar|Februar|M(?:\\u00e4|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)(?:\\s+(\\d{4}))?/i;
+            var mm = bpText.match(monthRe);
+            if (mm) {
+              var monKey = mm[1].toLowerCase().replace('ä','ae');
+              var monIdx = monthMap[monKey];
+              if (monIdx === undefined) monIdx = monthMap[mm[1].toLowerCase()];
+              if (typeof monIdx === 'number') {
+                // Referenzdatum: letzteKons falls extrahiert, sonst heute
+                var refMs;
+                if (result.letzteKons) {
+                  var lk = result.letzteKons.split('-');
+                  refMs = Date.UTC(parseInt(lk[0],10), parseInt(lk[1],10)-1, parseInt(lk[2],10));
+                } else {
+                  var now = new Date();
+                  refMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+                }
+                var refY = new Date(refMs).getUTCFullYear();
+                var targetY = mm[2] ? parseInt(mm[2], 10) : refY;
+                // Zieldatum = 15. des Monats
+                var targetMs = Date.UTC(targetY, monIdx, 15);
+                // Wenn ohne Jahr und Zielmonat schon vorbei → naechstes Jahr
+                if (!mm[2] && targetMs <= refMs) {
+                  targetMs = Date.UTC(targetY + 1, monIdx, 15);
+                }
+                var diffWeeks = Math.round((targetMs - refMs) / (7 * 86400000));
+                if (diffWeeks > 0 && diffWeeks <= 260) result.intervalWeeks = diffWeeks;
+              }
+            }
           }
         }
       }
