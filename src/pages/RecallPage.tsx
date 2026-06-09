@@ -2687,9 +2687,10 @@ export default function RecallPage() {
   useEffect(() => {
     // refMs = 00:00 Uhr lokal am Referenztag. Patient gilt als OK wenn
     // aktualisiert-Datum >= refMs.
-    const refDate = new Date(staleReferenceDate + 'T00:00:00')
-    const refMs = refDate.getTime()
-    if (isNaN(refMs)) return
+    // ISO YYYY-MM-DD → DD.MM.YYYY (Prefix wie im aktualisiert-Feld).
+    const isoParts = staleReferenceDate.split('-')
+    if (isoParts.length !== 3) return
+    const refDisplay = `${isoParts[2]}.${isoParts[1]}.${isoParts[0]}`
     const stale: string[] = []
     const known: string[] = []
     for (const list of allData.values()) {
@@ -2697,18 +2698,9 @@ export default function RecallPage() {
         const norm = normalizePid(p.pid)
         if (!norm) continue
         known.push(norm)
-        let okay = false
-        if (p.aktualisiert) {
-          // Format: "DD.MM.YYYY HH:MM – username"
-          const m = p.aktualisiert.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
-          if (m) {
-            const ms = new Date(
-              parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10),
-              m[4] ? parseInt(m[4], 10) : 0, m[5] ? parseInt(m[5], 10) : 0
-            ).getTime()
-            if (ms >= refMs) okay = true
-          }
-        }
+        // OK nur wenn aktualisiert-Feld GENAU am Referenztag stattfand
+        // (Tag-Match, nicht "seit"). Format: "DD.MM.YYYY HH:MM – user".
+        const okay = !!p.aktualisiert && p.aktualisiert.startsWith(refDisplay)
         if (!okay) stale.push(norm)
       }
     }

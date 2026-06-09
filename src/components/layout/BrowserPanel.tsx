@@ -371,7 +371,7 @@ export default function BrowserPanel() {
       if (!stalePids.length && !knownPids.length) return
       const refDate = staleRefDateRef.current
       const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
-      const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
+      const tooltipStale  = `Recall am ${refDisplay} nicht aktualisiert`
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
       const script = `
         (function() {
@@ -460,7 +460,7 @@ export default function BrowserPanel() {
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
     const refDisplay = staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : ''
-    const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
+    const tooltipStale  = `Recall am ${refDisplay} nicht aktualisiert`
     const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
     const script = `
       (function() {
@@ -817,8 +817,8 @@ export default function BrowserPanel() {
               kann zurueck-/vorgesetzt werden um z.B. die Liste letzter
               Woche zu pruefen. */}
           <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-0.5"
-               title="Markiere im Liris-Kalender PIDs deren Recall seit diesem Datum nicht mehr aktualisiert wurde">
-            <span className="text-[10px] font-semibold text-amber-700 select-none">Recall ab</span>
+               title="Markiere im Liris-Kalender PIDs deren Recall am gewaehlten Tag NICHT aktualisiert wurde (exakter Tag-Match)">
+            <span className="text-[10px] font-semibold text-amber-700 select-none">Recall am</span>
             <input
               type="date"
               value={staleReferenceDate}
