@@ -857,9 +857,12 @@ export default function RecallPage() {
     }
 
     let filled = false
-    // Geburtsdatum wird NICHT auto-gefuellt — es dient nur dem Abgleich oben
-    // (Mismatch-Warnung wenn lokal ≠ Liris). So bleiben bestehende Eintraege
-    // unveraendert; falsch zugeordnete Patienten werden trotzdem erkannt.
+    // Geburtsdatum auto-fill nur wenn LOKAL leer (sonst bleibt bestehender
+    // Wert erhalten — er wurde oben schon gegen Liris validiert).
+    if (!form.gebDatum && lirisExtract.gebDatum) {
+      setField('gebDatum', lirisExtract.gebDatum)
+      filled = true
+    }
     // Letzte Konst. auto-fill nur wenn leer und ein neueres Datum
     if (lirisExtract.letzteKons) {
       if (!form.letzteKons || lirisExtract.letzteKons > form.letzteKons) {
