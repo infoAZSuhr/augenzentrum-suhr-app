@@ -179,7 +179,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, recentRecallPids } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -193,6 +193,7 @@ export default function BrowserPanel() {
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
   const lastDetailPid = useRef<string | null>(null)  // zuletzt im Liris-Header erkannte PID
+  const recentRecallPidsRef = useRef<string[]>([])   // wird unten via Effect synchron gehalten
 
   const navigate = useCallback((target: string) => {
     let url = target.trim()
@@ -330,6 +331,7 @@ export default function BrowserPanel() {
       webviewReady.current = true
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
       scheduleDetailCheck()
+      scheduleRecallHighlight()
     }
     const onConsole = (e: any) => {
       const msg = e?.message || ''
@@ -351,6 +353,71 @@ export default function BrowserPanel() {
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
       // Detail-Header pruefen — neuer Patient geoeffnet?
       scheduleDetailCheck()
+      // Recall-PIDs neu markieren
+      scheduleRecallHighlight()
+    }
+
+    // PIDs hervorheben, die in den letzten 30 Tagen im Recall aktualisiert
+    // wurden. Wird nach jeder Navigation/Refresh ausgeloest, Mehrfach-Anwendung
+    // wird ueber data-Attribut idempotent gemacht.
+    const scheduleRecallHighlight = () => {
+      [600, 1500, 3000].forEach(ms => window.setTimeout(highlightRecallPids, ms))
+    }
+    const highlightRecallPids = () => {
+      const pids = recentRecallPidsRef.current
+      if (!pids.length) return
+      const script = `
+        (function() {
+          var PIDS = ${JSON.stringify(pids)};
+          var pidSet = {};
+          for (var i = 0; i < PIDS.length; i++) { pidSet[PIDS[i]] = true; }
+          if (!document.getElementById('__az_recall_css')) {
+            var st = document.createElement('style');
+            st.id = '__az_recall_css';
+            st.textContent = '.az-recall-recent{background:#d1fae5 !important;color:#065f46 !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #6ee7b7;}';
+            document.documentElement.appendChild(st);
+          }
+          var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+            acceptNode: function(n) {
+              if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
+              var p = n.parentNode;
+              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.classList && p.classList.contains('az-recall-recent')) return NodeFilter.FILTER_REJECT;
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          });
+          var nodes = [];
+          var n;
+          while ((n = walker.nextNode())) nodes.push(n);
+          var re = /#\\s*0*(\\d+)(?!\\d)/g;
+          var count = 0;
+          nodes.forEach(function(node) {
+            var txt = node.nodeValue;
+            re.lastIndex = 0;
+            var matches = [];
+            var m;
+            while ((m = re.exec(txt)) !== null) {
+              if (pidSet[m[1]]) matches.push({ start: m.index, end: m.index + m[0].length });
+            }
+            if (!matches.length) return;
+            var frag = document.createDocumentFragment();
+            var cursor = 0;
+            matches.forEach(function(mt) {
+              if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
+              var span = document.createElement('span');
+              span.className = 'az-recall-recent';
+              span.title = 'Recall in den letzten 30 Tagen aktualisiert';
+              span.textContent = txt.slice(mt.start, mt.end);
+              frag.appendChild(span);
+              cursor = mt.end;
+              count++;
+            });
+            if (cursor < txt.length) frag.appendChild(document.createTextNode(txt.slice(cursor)));
+            node.parentNode.replaceChild(frag, node);
+          });
+          return count;
+        })();
+      `
+      wv.executeJavaScript(script).catch(() => {})
     }
     const onLoadStart = () => setLoading(true)
     const onLoadStop  = () => setLoading(false)
@@ -371,6 +438,71 @@ export default function BrowserPanel() {
       wv.removeEventListener('did-stop-loading', onLoadStop)
     }
   }, [isOpen, requestRecallByPid])
+
+  // Recall-PIDs in einer Ref spiegeln (damit der Inject-Effekt sie ohne
+  // Re-Render erreicht) UND bei jeder Aenderung Liris neu highlighten:
+  // erst alte Markierungen entfernen, dann mit aktuellem Set neu anwenden.
+  useEffect(() => {
+    recentRecallPidsRef.current = recentRecallPids
+    if (!isOpen) return
+    const wv = webviewRef.current as any
+    if (!wv?.executeJavaScript) return
+    const pids = recentRecallPids
+    const script = `
+      (function() {
+        // 1) Alte Markierungen entfernen
+        var olds = document.querySelectorAll('.az-recall-recent');
+        olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
+        if (!${pids.length}) return 0;
+        // 2) Neu markieren
+        var PIDS = ${JSON.stringify(pids)};
+        var pidSet = {};
+        for (var i = 0; i < PIDS.length; i++) { pidSet[PIDS[i]] = true; }
+        if (!document.getElementById('__az_recall_css')) {
+          var st = document.createElement('style');
+          st.id = '__az_recall_css';
+          st.textContent = '.az-recall-recent{background:#d1fae5 !important;color:#065f46 !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #6ee7b7;}';
+          document.documentElement.appendChild(st);
+        }
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: function(n) {
+            if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
+            var p = n.parentNode;
+            if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE') return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        var nodes = [], n;
+        while ((n = walker.nextNode())) nodes.push(n);
+        var re = /#\\s*0*(\\d+)(?!\\d)/g, count = 0;
+        nodes.forEach(function(node) {
+          var txt = node.nodeValue;
+          re.lastIndex = 0;
+          var matches = [], m;
+          while ((m = re.exec(txt)) !== null) {
+            if (pidSet[m[1]]) matches.push({ start: m.index, end: m.index + m[0].length });
+          }
+          if (!matches.length) return;
+          var frag = document.createDocumentFragment();
+          var cursor = 0;
+          matches.forEach(function(mt) {
+            if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
+            var span = document.createElement('span');
+            span.className = 'az-recall-recent';
+            span.title = 'Recall in den letzten 30 Tagen aktualisiert';
+            span.textContent = txt.slice(mt.start, mt.end);
+            frag.appendChild(span);
+            cursor = mt.end;
+            count++;
+          });
+          if (cursor < txt.length) frag.appendChild(document.createTextNode(txt.slice(cursor)));
+          node.parentNode.replaceChild(frag, node);
+        });
+        return count;
+      })();
+    `
+    window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 100)
+  }, [recentRecallPids, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).

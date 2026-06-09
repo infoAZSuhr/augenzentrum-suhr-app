@@ -29,6 +29,7 @@ interface BrowserContextType {
   pendingPid: string | null
   lirisExtract: LirisExtract | null
   recallPidRequest: RecallPidRequest | null
+  recentRecallPids: string[]                  // Normalisierte PIDs (nur Ziffern, ohne Leading-Zeros) die im Recall in den letzten 30 Tagen aktualisiert wurden
   toggle: () => void
   open: () => void
   close: () => void
@@ -39,6 +40,7 @@ interface BrowserContextType {
   setLirisExtract: (e: LirisExtract | null) => void
   requestRecallByPid: (pid: string) => void
   clearRecallPidRequest: () => void
+  setRecentRecallPids: (pids: string[]) => void
 }
 
 const BrowserContext = createContext<BrowserContextType>({
@@ -48,6 +50,7 @@ const BrowserContext = createContext<BrowserContextType>({
   pendingPid: null,
   lirisExtract: null,
   recallPidRequest: null,
+  recentRecallPids: [],
   toggle: () => {},
   open: () => {},
   close: () => {},
@@ -58,6 +61,7 @@ const BrowserContext = createContext<BrowserContextType>({
   setLirisExtract: () => {},
   requestRecallByPid: () => {},
   clearRecallPidRequest: () => {},
+  setRecentRecallPids: () => {},
 })
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
@@ -67,6 +71,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [pendingPid, setPendingPid] = useState<string | null>(null)
   const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
   const [recallPidRequest, setRecallPidRequest] = useState<RecallPidRequest | null>(null)
+  const [recentRecallPids, setRecentRecallPids] = useState<string[]>([])
 
   return (
     <BrowserContext.Provider value={{
@@ -76,6 +81,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       pendingPid,
       lirisExtract,
       recallPidRequest,
+      recentRecallPids,
       toggle: () => setIsOpen(o => !o),
       open: () => setIsOpen(true),
       close: () => setIsOpen(false),
@@ -90,6 +96,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setLirisExtract,
       requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
       clearRecallPidRequest: () => setRecallPidRequest(null),
+      setRecentRecallPids,
     }}>
       {children}
     </BrowserContext.Provider>
