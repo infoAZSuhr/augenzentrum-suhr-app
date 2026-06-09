@@ -283,23 +283,21 @@ export default function BrowserPanel() {
     // 3) Waehle die laengste Zahl — echte PIDs sind typischerweise laenger
     //    als sonstige #-Werte (Tarifnummern, Positionen, etc.) die nahebei
     //    erscheinen koennen. Bei Gleichstand wird die erste genommen.
+    // Strenges Pattern fuer den Liris-Detail-Header:
+    //   "DD.MM.YYYY (NN Jahre) ... #PID"
+    // alles im SELBEN Textabschnitt — keine Zeilenumbrueche, kein
+    // weiteres '#' dazwischen. Damit werden Kalenderwochen-Indikatoren
+    // (z.B. "#24" im Tab-Strip oben) zuverlaessig ausgeschlossen.
+    // Zusaetzlich: nur ein einziges "(NN Jahre)"-Vorkommen erlaubt
+    // (sonst sind wir in einer Listenansicht).
     const DETAIL_PID_SCRIPT = `
       (function() {
         var txt = document.body ? (document.body.innerText || '') : '';
-        // Mehrere "(NN Jahre)"-Vorkommen -> Liris zeigt eine LISTE
-        // (Tagesplan, Wochenplan, Suchergebnis). In dem Fall NICHT auto-
-        // open, sonst springen wir willkuerlich auf den ersten Patienten.
         var anchors = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/g);
         if (!anchors || anchors.length !== 1) return null;
-        var idx = txt.search(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/);
-        if (idx < 0) return null;
-        var window = txt.slice(idx, idx + 300);
-        var re = /#\\s*0*(\\d+)(?!\\d)/g;
-        var best = null, m;
-        while ((m = re.exec(window)) !== null) {
-          if (!best || m[1].length > best.length) best = m[1];
-        }
-        return best;
+        var headerRe = /\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)[^\\n#]{0,150}#\\s*0*(\\d+)(?!\\d)/;
+        var m = txt.match(headerRe);
+        return m ? m[1] : null;
       })();
     `
     // Prueft den Detail-Header; bei NEUER PID -> Recall-Popup anfordern.
