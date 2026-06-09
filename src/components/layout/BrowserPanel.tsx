@@ -286,9 +286,14 @@ export default function BrowserPanel() {
     const DETAIL_PID_SCRIPT = `
       (function() {
         var txt = document.body ? (document.body.innerText || '') : '';
-        var anchor = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/);
-        if (!anchor) return null;
-        var window = txt.slice(anchor.index + anchor[0].length, anchor.index + anchor[0].length + 300);
+        // Mehrere "(NN Jahre)"-Vorkommen -> Liris zeigt eine LISTE
+        // (Tagesplan, Wochenplan, Suchergebnis). In dem Fall NICHT auto-
+        // open, sonst springen wir willkuerlich auf den ersten Patienten.
+        var anchors = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/g);
+        if (!anchors || anchors.length !== 1) return null;
+        var idx = txt.search(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/);
+        if (idx < 0) return null;
+        var window = txt.slice(idx, idx + 300);
         var re = /#\\s*0*(\\d+)(?!\\d)/g;
         var best = null, m;
         while ((m = re.exec(window)) !== null) {
@@ -371,7 +376,7 @@ export default function BrowserPanel() {
       if (!stalePids.length && !knownPids.length) return
       const refDate = staleRefDateRef.current
       const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
-      const tooltipStale  = `Recall am ${refDisplay} nicht aktualisiert`
+      const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
       const script = `
         (function() {
@@ -460,7 +465,7 @@ export default function BrowserPanel() {
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
     const refDisplay = staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : ''
-    const tooltipStale  = `Recall am ${refDisplay} nicht aktualisiert`
+    const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
     const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
     const script = `
       (function() {
@@ -817,8 +822,8 @@ export default function BrowserPanel() {
               kann zurueck-/vorgesetzt werden um z.B. die Liste letzter
               Woche zu pruefen. */}
           <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-0.5"
-               title="Markiere im Liris-Kalender PIDs deren Recall am gewaehlten Tag NICHT aktualisiert wurde (exakter Tag-Match)">
-            <span className="text-[10px] font-semibold text-amber-700 select-none">Recall am</span>
+               title="Markiere im Liris-Kalender PIDs deren Recall seit diesem Datum NICHT mehr aktualisiert wurde (Patient am 12.02 -> markiert wenn aktualisiert vor dem 12.02 oder nie)">
+            <span className="text-[10px] font-semibold text-amber-700 select-none">Recall seit</span>
             <input
               type="date"
               value={staleReferenceDate}
