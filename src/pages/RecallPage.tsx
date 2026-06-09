@@ -540,6 +540,10 @@ export default function RecallPage() {
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
+  // PID des zuletzt manuell geschlossenen Popups — verhindert, dass der
+  // Liris-Watcher dasselbe Popup gleich wieder oeffnet (auch nach Wechsel
+  // zur Kalenderansicht und zurueck zum selben Patienten).
+  const lastClosedPidRef = useRef<string | null>(null)
   // Stub-Refs falls noch alte Aufrufe von setModalBuffer rumliegen — die Live-
   // Subscription wurde komplett entfernt, daher No-Op.
   function setModalBuffer(_active: boolean) { /* no-op */ }
@@ -780,6 +784,12 @@ export default function RecallPage() {
       clearRecallPidRequest()
       return
     }
+    // Nicht erneut oeffnen wenn dieses Popup gerade manuell geschlossen wurde
+    // (auch nicht nach Wechsel zur Kalenderansicht und zurueck zum Patienten).
+    if (lastClosedPidRef.current && lastClosedPidRef.current === wantPid) {
+      clearRecallPidRequest()
+      return
+    }
     let found: RecallPatient | null = null
     for (const list of allData.values()) {
       const hit = list.find(p => normalizePid(p.pid) === wantPid)
@@ -847,11 +857,9 @@ export default function RecallPage() {
     }
 
     let filled = false
-    // Geburtsdatum auto-fill nur wenn leer
-    if (!form.gebDatum && lirisExtract.gebDatum) {
-      setField('gebDatum', lirisExtract.gebDatum)
-      filled = true
-    }
+    // Geburtsdatum wird NICHT auto-gefuellt — es dient nur dem Abgleich oben
+    // (Mismatch-Warnung wenn lokal ≠ Liris). So bleiben bestehende Eintraege
+    // unveraendert; falsch zugeordnete Patienten werden trotzdem erkannt.
     // Letzte Konst. auto-fill nur wenn leer und ein neueres Datum
     if (lirisExtract.letzteKons) {
       if (!form.letzteKons || lirisExtract.letzteKons > form.letzteKons) {
@@ -2564,6 +2572,10 @@ export default function RecallPage() {
   function closeEdit() {
     // Nur Buffer freigeben wenn KEIN weiteres Modal offen ist
     if (!aufgebotTarget) setModalBuffer(false)
+    // PID merken, damit der Liris-Watcher dieses Popup nicht sofort wieder oeffnet
+    if (editTarget && editTarget !== 'new') {
+      lastClosedPidRef.current = normalizePid(editTarget.pid)
+    }
     setEditTarget(null)
   }
 
