@@ -537,6 +537,7 @@ export default function RecallPage() {
     if (unknownDoctor && assignDoctor) setUnknownDoctor(null)
   }, [assignDoctor, unknownDoctor])
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
+  const [noChangesMsg, setNoChangesMsg] = useState(false)
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
@@ -2555,7 +2556,7 @@ export default function RecallPage() {
     const preErrors: Record<string, boolean> = {}
     if (!patient.gebDatum) preErrors.gebDatum = true
     if (patient.doctor === ZU_BEARB) preErrors.assignDoctor = true
-    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors(preErrors); setQuickInput(''); setPidDup(null); resetVorgehen()
+    setEditTarget(patient); setForm(initForm(patient)); setAssignDoctor(''); setFormErrors(preErrors); setQuickInput(''); setPidDup(null); resetVorgehen(); setNoChangesMsg(false)
     // PID an Liris senden — NUR in Electron sinnvoll (CORS blockt im Browser).
     // sendToLiris=false wenn der Patient bereits aus dem Liris-Kalender heraus
     // angeklickt wurde (er ist dort schon offen — kein erneutes Suchen noetig).
@@ -2567,7 +2568,7 @@ export default function RecallPage() {
   }
   function openNew() {
     setModalBuffer(true)
-    setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
+    setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen(); setNoChangesMsg(false)
   }
   function closeEdit() {
     // Nur Buffer freigeben wenn KEIN weiteres Modal offen ist
@@ -2676,6 +2677,12 @@ export default function RecallPage() {
 
   /** Append-Klasse fuer Eingabefelder die vom Original abweichen. */
   const chCls = (f: string) => changedFields.has(f) ? ' ring-2 ring-amber-300 border-amber-300 bg-amber-50' : ''
+
+  // "Bereits aktualisiert"-Hinweis verschwinden lassen sobald wieder
+  // etwas geaendert wird (oder Arzt-Zuweisung gewaehlt wird).
+  useEffect(() => {
+    if (noChangesMsg && (changedFields.size > 0 || assignDoctor)) setNoChangesMsg(false)
+  }, [changedFields, assignDoctor, noChangesMsg])
 
   function isUserDataUnchanged(data: any, orig: RecallPatient): boolean {
     const norm = (v: any) => (v === '' || v === undefined ? null : v)
@@ -2811,8 +2818,9 @@ export default function RecallPage() {
         // Update, kein Live-Snapshot-Trigger).
         const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
         if (noChanges) {
-          toast.info('Keine Änderungen — Aktualisierungsdatum bleibt unverändert.')
-          closeEdit()
+          // Statt Auto-Close + Toast: Hinweis im Modal-Header anzeigen,
+          // damit der User das aktiv wahrnimmt und selber schliessen kann.
+          setNoChangesMsg(true)
           return
         }
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
@@ -4835,20 +4843,28 @@ export default function RecallPage() {
 
             <div
               onMouseDown={onModalDragStart}
-              className={`flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+              className={`flex flex-col gap-0 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
             >
-              <h2 className="font-bold text-gray-900 pointer-events-none">
-                {editTarget === 'new' ? 'Neuer Patient' : 'Patient bearbeiten'}
-              </h2>
-              {editTarget !== 'new' && (
-                <span className="text-xs font-bold px-2 py-1 rounded-full bg-primary-100 text-primary-700 mr-auto ml-3 pointer-events-none">
-                  {editTarget.doctor}
-                </span>
+              <div className="flex items-center justify-between px-6 py-4">
+                <h2 className="font-bold text-gray-900 pointer-events-none">
+                  {editTarget === 'new' ? 'Neuer Patient' : 'Patient bearbeiten'}
+                </h2>
+                {editTarget !== 'new' && (
+                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-primary-100 text-primary-700 mr-auto ml-3 pointer-events-none">
+                    {editTarget.doctor}
+                  </span>
+                )}
+                <button onClick={closeEdit}
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {noChangesMsg && (
+                <div className="mx-6 mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>Keine Änderungen — Aktualisierungsdatum bleibt unverändert. Fenster kann geschlossen werden.</span>
+                </div>
               )}
-              <button onClick={closeEdit}
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
             <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
