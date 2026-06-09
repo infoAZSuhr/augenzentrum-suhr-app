@@ -300,23 +300,19 @@ export default function BrowserPanel() {
         return m ? m[1] : null;
       })();
     `
-    // Prueft den Detail-Header; bei NEUER PID -> Recall-Popup anfordern.
+    // Prueft den Detail-Header. Auto-Open des Recall-Popups wird hier
+    // NICHT mehr ausgeloest — das passiert ausschliesslich beim expliziten
+    // Klick im Liris-Kalender (PID_CLICK_INJECT -> console-message ->
+    // requestRecallByPid). Beim Ansichts-Wechsel oder Polling soll kein
+    // ungewolltes Popup aufgehen. Wir extrahieren aber weiterhin die
+    // Detail-Infos (Intervall, Geburtsdatum, letzte Kons.) damit ein
+    // bereits offenes Recall-Popup auto-fuellen kann.
     const checkDetailPid = () => {
       wv.executeJavaScript(DETAIL_PID_SCRIPT).then((pid: string | null) => {
-        if (!pid) {
-          // Kein Patient-Header sichtbar (Kalender/Suche). NICHT lastDetailPid
-          // zuruecksetzen — sonst feuert dieselbe PID nach jedem AJAX-Refresh
-          // (Header verschwindet/erscheint wieder) erneut. Der Reset
-          // passiert nur bei echter Navigation (did-navigate-Handler unten).
-          return
-        }
+        if (!pid) return
         if (pid !== lastDetailPid.current) {
           lastDetailPid.current = pid
           console.log('[Liris] Patient-Detail geoeffnet, PID=', pid)
-          requestRecallByPid(pid)
-          // Zusaetzlich die Detail-Infos extrahieren (Intervall, Geburtsdatum,
-          // letzte Kons.) damit das Recall-Popup diese Felder auto-fuellen kann
-          // — wie beim Recall->Liris-Fluss.
           extractLirisInfo(wv, '#' + pid).then(info => {
             if (info) {
               console.log('[Liris] Detail-Extract:', info)
