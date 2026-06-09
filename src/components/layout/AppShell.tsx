@@ -1403,9 +1403,14 @@ export default function AppShell() {
         <main className="flex-1 overflow-auto min-w-0">
           <Outlet />
         </main>
-        {/* Liris-Webview-Panel nur in der Electron-App — im Browser blockiert
-            CORS jede Interaktion und die Seite waere ohnehin nicht nutzbar. */}
-        {typeof window !== 'undefined' && (window as any).electronApp && <BrowserPanel />}
+        {/* Liris-Webview-Panel nur in der Electron-App UND nur auf der Recall-
+            Seite — der Liris-Browser ist ausschliesslich fuer das Recall-
+            Sekretariats-Workflow gedacht. Im Browser blockiert CORS jede
+            Interaktion, daher auch hier hidden. */}
+        {typeof window !== 'undefined'
+          && (window as any).electronApp
+          && location.pathname.startsWith('/recall')
+          && <BrowserPanel />}
       </div>
 
       {/* Profile modal */}
