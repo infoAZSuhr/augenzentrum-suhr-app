@@ -287,6 +287,12 @@ export default function UserManagementPage() {
             const commentsSnap = await getDocs(query(collection(db, 'taskComments'), where('authorUid', '==', uid)))
             commentsSnap.docs.forEach(d => batch.update(d.ref, { authorName: newName }))
 
+            // recall_activity_log: user-Feld nachziehen (sonst erscheint die Person
+            // in der Recall-Auswertung doppelt — alte Eintraege unter altem Namen,
+            // neue unter neuem). Es gibt kein userUid-Feld, daher Suche per altem Namen.
+            const actSnap = await getDocs(query(collection(db, 'recall_activity_log'), where('user', '==', oldName)))
+            actSnap.docs.forEach(d => batch.update(d.ref, { user: newName }))
+
             // planungRequests: username + personName (= plan key)
             const reqSnap = await getDocs(query(collection(db, 'planungRequests'), where('uid', '==', uid)))
             reqSnap.docs.forEach(d => {
