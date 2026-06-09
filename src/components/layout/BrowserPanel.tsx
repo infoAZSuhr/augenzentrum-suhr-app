@@ -257,20 +257,32 @@ export default function BrowserPanel() {
               else if (node.classList && node.classList.contains('az-recall-row-stale')) markedKind = 'stale';
               rowEl = node;
             }
-            // 1a) Text des Elements: "#1234 DD.MM.YYYY" — PID nur akzeptieren
-            //     wenn ein Geburtsdatum direkt danach steht (Liris-Patient-
-            //     Format aus dem Kalender). KW-Indikatoren wie "#21" mit
-            //     "sites" darunter werden so zuverlaessig ignoriert.
             var txt = (node.textContent || '');
-            var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/);
-            if (m) { pid = m[1]; if (!rowEl) rowEl = node; break; }
+            // 1a) Klick auf eine konkrete Patient-Zeile (Kalender-Tagesplan).
+            //     Nur akzeptieren wenn textContent <= 300 Zeichen UND nicht
+            //     mehrere @HH:MM-Marker enthaelt — sonst handelt es sich um
+            //     einen groesseren Container mit mehreren Patienten und wir
+            //     wuerden willkuerlich den ersten PID aufgreifen.
+            if (txt.length <= 300) {
+              var times = txt.match(/@\\d{2}:\\d{2}/g);
+              if (!times || times.length <= 1) {
+                var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/);
+                if (m) { pid = m[1]; if (!rowEl) rowEl = node; break; }
+              }
+            }
             // 1b) Klick auf den Patient-Detail-Header (Name + Geburtsdatum +
-            //     "(NN Jahre)"). Im Detail-View steht die PID an einer
-            //     anderen Stelle der Seite — wir suchen sie im gesamten Body.
-            if (/\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)/.test(txt)) {
+            //     "(NN Jahre)"). Detail-Ansicht zeigt nur EINEN Patienten —
+            //     gleiches Limit auf textContent, damit grosse Layout-
+            //     Container nicht versehentlich matchen. Im Detail-View
+            //     steht die PID an anderer Stelle, also Body-weit suchen
+            //     ABER nur wenn genau ein "(NN Jahre)"-Anker existiert.
+            if (txt.length <= 300 && /\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)/.test(txt)) {
               var fullTxt = (document.body && document.body.innerText) || '';
-              var hm = fullTxt.match(/\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)[^\\n#]{0,150}#\\s*0*(\\d{1,7})(?!\\d)/);
-              if (hm) { pid = hm[1]; if (!rowEl) rowEl = node; break; }
+              var ageAnchors = fullTxt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/g);
+              if (ageAnchors && ageAnchors.length === 1) {
+                var hm = fullTxt.match(/\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)[^\\n#]{0,150}#\\s*0*(\\d{1,7})(?!\\d)/);
+                if (hm) { pid = hm[1]; if (!rowEl) rowEl = node; break; }
+              }
             }
             // 2) Attribute durchsuchen (nur bei expliziten Patient-Attributen,
             //    nicht bei generischem '#NN').
