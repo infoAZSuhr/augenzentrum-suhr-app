@@ -449,22 +449,30 @@ export default function BrowserPanel() {
           //    erzeugen wuerde.
           var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
           olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
-          // 1) Alte Markierungen entfernen (row + ggf. legacy spans)
-          var oldRows = document.querySelectorAll('[data-az-recall-pid]');
-          oldRows.forEach(function(el){
-            el.removeAttribute('data-az-recall-pid');
-            el.classList.remove('az-recall-row-stale','az-recall-row-missing');
-            if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
-          });
-          var oldSpans = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
-          oldSpans.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
-
           var STALE = ${JSON.stringify(stalePids)};
           var KNOWN = ${JSON.stringify(knownPids)};
           var T_STALE   = ${JSON.stringify(tooltipStale)};
           var T_MISSING = ${JSON.stringify(tooltipMissing)};
           var staleSet = {}; for (var i=0; i<STALE.length; i++) staleSet[STALE[i]] = true;
           var knownSet = {}; for (var j=0; j<KNOWN.length; j++) knownSet[KNOWN[j]] = true;
+
+          // 1) Bestehende Markierungen ueberpruefen: nur entfernen wenn die
+          //    PID jetzt OK ist (im Recall + heute aktualisiert). Sonst
+          //    Markierung erhalten — kein Flicker beim Polling, keine
+          //    verschwundenen Markierungen bevor der User gespeichert hat.
+          //    Legacy-Spans aus aelterem Bundle immer entfernen.
+          var oldRows = document.querySelectorAll('[data-az-recall-pid]');
+          oldRows.forEach(function(el){
+            var p = el.getAttribute('data-az-recall-pid');
+            var stillStale = !!staleSet[p];
+            var stillMissing = !knownSet[p];
+            if (stillStale || stillMissing) return; // belassen
+            el.removeAttribute('data-az-recall-pid');
+            el.classList.remove('az-recall-row-stale','az-recall-row-missing');
+            if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
+          });
+          var oldSpans = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
+          oldSpans.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
           if (!document.getElementById('__az_recall_css')) {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
@@ -587,22 +595,27 @@ export default function BrowserPanel() {
     const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
     const script = `
       (function() {
-        // 1) Alte Markierungen entfernen (Row-Klassen + legacy Spans)
+        var STALE = ${JSON.stringify(staleRecallPids)};
+        var KNOWN = ${JSON.stringify(knownRecallPids)};
+        var staleSetPre = {}; for (var ii=0; ii<STALE.length; ii++) staleSetPre[STALE[ii]] = true;
+        var knownSetPre = {}; for (var jj=0; jj<KNOWN.length; jj++) knownSetPre[KNOWN[jj]] = true;
+        // 1) Bestehende Markierungen behalten wenn PID immer noch
+        //    handlungs-relevant. Nur PIDs entfernen die jetzt OK sind.
         var oldRows = document.querySelectorAll('[data-az-recall-pid]');
         oldRows.forEach(function(el){
+          var p = el.getAttribute('data-az-recall-pid');
+          if (staleSetPre[p] || !knownSetPre[p]) return;
           el.removeAttribute('data-az-recall-pid');
           el.classList.remove('az-recall-row-stale','az-recall-row-missing');
           if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
         });
         var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
         olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
-        var STALE = ${JSON.stringify(staleRecallPids)};
-        var KNOWN = ${JSON.stringify(knownRecallPids)};
         if (!STALE.length && !KNOWN.length) return 0;
         var T_STALE   = ${JSON.stringify(tooltipStale)};
         var T_MISSING = ${JSON.stringify(tooltipMissing)};
-        var staleSet = {}; for (var i=0; i<STALE.length; i++) staleSet[STALE[i]] = true;
-        var knownSet = {}; for (var j=0; j<KNOWN.length; j++) knownSet[KNOWN[j]] = true;
+        var staleSet = staleSetPre;
+        var knownSet = knownSetPre;
         if (!document.getElementById('__az_recall_css')) {
           var st = document.createElement('style');
           st.id = '__az_recall_css';
