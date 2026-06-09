@@ -250,7 +250,9 @@ export default function BrowserPanel() {
           var pid = null;
           var markedKind = null; // 'stale' | 'missing' | null
           var rowEl = null;
-          for (var i = 0; i < 8 && node; i++) {
+          // Maximal 3 Ebenen hochlaufen — sonst springen Klicks auf
+          // Header/Filter/Sidebar willkuerlich auf irgendeinen Patient.
+          for (var i = 0; i < 3 && node; i++) {
             // Markierte Zeile?
             if (node.getAttribute && node.getAttribute('data-az-recall-pid')) {
               if (node.classList && node.classList.contains('az-recall-row-missing')) markedKind = 'missing';
@@ -259,24 +261,20 @@ export default function BrowserPanel() {
             }
             var txt = (node.textContent || '');
             // 1a) Klick auf eine konkrete Patient-Zeile (Kalender-Tagesplan).
-            //     Nur akzeptieren wenn textContent <= 300 Zeichen UND nicht
-            //     mehrere @HH:MM-Marker enthaelt — sonst handelt es sich um
-            //     einen groesseren Container mit mehreren Patienten und wir
-            //     wuerden willkuerlich den ersten PID aufgreifen.
-            if (txt.length <= 300) {
+            //     textContent <= 150 + genau ein @HH:MM = sicher eine einzelne
+            //     Patient-Row, nicht ein groesserer Container.
+            if (txt.length <= 150) {
               var times = txt.match(/@\\d{2}:\\d{2}/g);
-              if (!times || times.length <= 1) {
+              if (times && times.length === 1) {
                 var m = txt.match(/#\\s*(\\d{1,7})(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/);
                 if (m) { pid = m[1]; if (!rowEl) rowEl = node; break; }
               }
             }
             // 1b) Klick auf den Patient-Detail-Header (Name + Geburtsdatum +
-            //     "(NN Jahre)"). Detail-Ansicht zeigt nur EINEN Patienten —
-            //     gleiches Limit auf textContent, damit grosse Layout-
-            //     Container nicht versehentlich matchen. Im Detail-View
-            //     steht die PID an anderer Stelle, also Body-weit suchen
-            //     ABER nur wenn genau ein "(NN Jahre)"-Anker existiert.
-            if (txt.length <= 300 && /\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)/.test(txt)) {
+            //     "(NN Jahre)"). Nur akzeptieren wenn die geklickte Stelle
+            //     SELBST das Muster enthaelt — keine Suche im Body, sonst
+            //     loest jeder Klick auf der Detail-Seite einen Auto-Open aus.
+            if (txt.length <= 150 && /\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)/.test(txt)) {
               var fullTxt = (document.body && document.body.innerText) || '';
               var ageAnchors = fullTxt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/g);
               if (ageAnchors && ageAnchors.length === 1) {
@@ -284,8 +282,7 @@ export default function BrowserPanel() {
                 if (hm) { pid = hm[1]; if (!rowEl) rowEl = node; break; }
               }
             }
-            // 2) Attribute durchsuchen (nur bei expliziten Patient-Attributen,
-            //    nicht bei generischem '#NN').
+            // 2) Attribute durchsuchen (nur explizite Patient-Attribute).
             if (node.getAttribute) {
               var attrs = ['data-pid','data-patient','data-patientid','data-patid'];
               for (var a = 0; a < attrs.length; a++) {
