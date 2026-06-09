@@ -527,13 +527,15 @@ export default function RecallPage() {
   const [undoImportRunning,     setUndoImportRunning]     = useState(false)
   // Liris-Mismatch-Dialog (Patient nicht / falsch in Liris)
   const [lirisMismatch, setLirisMismatch] = useState<{ patientId: string; doctor: string; vorname: string; pid: string; reason: string } | null>(null)
-  // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name)
+  // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
+  // Auto-Close-useEffect ist weiter unten platziert (nach der Deklaration
+  // von assignDoctor), siehe Suche nach "unknownDoctor && assignDoctor".
   const [unknownDoctor, setUnknownDoctor] = useState<{ extractedName: string } | null>(null)
-  // Auto-schliessen sobald ein Arzt gewaehlt wurde — Popup obsolet
+  const [assignDoctor, setAssignDoctor] = useState('')
+  // Auto-schliessen des Unknown-Doctor-Popups sobald assignDoctor gesetzt wird.
   useEffect(() => {
     if (unknownDoctor && assignDoctor) setUnknownDoctor(null)
   }, [assignDoctor, unknownDoctor])
-  const [assignDoctor, setAssignDoctor] = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({})
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
