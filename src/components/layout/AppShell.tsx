@@ -19,7 +19,7 @@ import {
   buildAbsageRejectOrWithdrawUpdates,
 } from '../../lib/planungRequestUpdates'
 import { TaskNotification, subscribeTaskNotifications, markTaskNotifRead } from '../../lib/firestoreTasks'
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail } from 'firebase/auth'
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface PlanungRequest {
@@ -1427,7 +1427,7 @@ const ROLE_LABEL_MAP: Record<string, string> = {
 
 function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthContext').UserProfile; onClose: () => void; onSaved: (u: import('../../lib/AuthContext').UserProfile) => void }) {
   const { refreshProfile } = useAuth()
-  const [tab, setTab] = useState<'info' | 'pw'>('info')
+  const [tab, setTab] = useState<'info' | 'pw' | 'email'>('info')
   // Info tab
   const [username,    setUsername]    = useState(profile.username || '')
   const [displayName, setDisplayName] = useState(profile.displayName || '')
@@ -1442,6 +1442,12 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
   const [pwMsg,     setPwMsg]     = useState('')
   const [pwErr,     setPwErr]     = useState('')
   const [pwSaving,  setPwSaving]  = useState(false)
+  // Email-Change tab
+  const [newEmail,    setNewEmail]    = useState('')
+  const [emailPw,     setEmailPw]     = useState('')
+  const [emailMsg,    setEmailMsg]    = useState('')
+  const [emailErr,    setEmailErr]    = useState('')
+  const [emailSaving, setEmailSaving] = useState(false)
 
   const saveInfo = async () => {
     if (!username.trim()) { setInfoErr('Benutzername darf nicht leer sein.'); return }
@@ -1478,6 +1484,41 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
     } finally { setPwSaving(false) }
   }
 
+  const saveEmail = async () => {
+    setEmailErr(''); setEmailMsg('')
+    const trimmed = newEmail.trim().toLowerCase()
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailErr('Bitte eine gültige E-Mail eingeben.'); return
+    }
+    if (!emailPw) { setEmailErr('Bitte aktuelles Passwort eingeben.'); return }
+    setEmailSaving(true)
+    try {
+      const user = auth.currentUser
+      if (!user || !user.email) throw new Error('no user')
+      if (trimmed === user.email.toLowerCase()) {
+        setEmailErr('Neue E-Mail entspricht der aktuellen.'); setEmailSaving(false); return
+      }
+      const cred = EmailAuthProvider.credential(user.email, emailPw)
+      await reauthenticateWithCredential(user, cred)
+      // Sendet Verifizierungs-Mail an die NEUE Adresse; Auth-Email wechselt
+      // erst nachdem der User den Link in der neuen Mailbox angeklickt hat.
+      await verifyBeforeUpdateEmail(user, trimmed)
+      // Firestore-Doc gleich synchron mitnehmen, damit der Username->Email
+      // Login-Lookup nach Verifizierung passt.
+      await updateDoc(doc(db, 'users', profile.uid), { email: trimmed })
+      await refreshProfile()
+      setEmailMsg(`Verifizierungs-Mail an ${trimmed} versandt. Bitte den Link in der neuen Mailbox anklicken — danach gilt die neue E-Mail als Login.`)
+      setEmailPw(''); setNewEmail('')
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') setEmailErr('Aktuelles Passwort falsch.')
+      else if (code === 'auth/email-already-in-use') setEmailErr('Diese E-Mail wird bereits verwendet.')
+      else if (code === 'auth/invalid-email') setEmailErr('Ungültige E-Mail-Adresse.')
+      else if (code === 'auth/requires-recent-login') setEmailErr('Bitte erneut einloggen und nochmals versuchen.')
+      else setEmailErr('Fehler beim Ändern der E-Mail.')
+    } finally { setEmailSaving(false) }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -1501,11 +1542,11 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 px-4 pt-2">
-          {(['info', 'pw'] as const).map(t => (
+          {(['info', 'pw', 'email'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors mr-1
                 ${tab === t ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
-              {t === 'info' ? 'Meine Angaben' : 'Passwort ändern'}
+              {t === 'info' ? 'Meine Angaben' : t === 'pw' ? 'Passwort ändern' : 'E-Mail ändern'}
             </button>
           ))}
         </div>
@@ -1571,6 +1612,35 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
                   text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
                 <KeyRound className="w-4 h-4" />
                 {pwSaving ? 'Wird geändert…' : 'Passwort ändern'}
+              </button>
+            </>
+          )}
+
+          {tab === 'email' && (
+            <>
+              <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-snug">
+                Aktuelle E-Mail: <span className="font-mono">{auth.currentUser?.email || profile.email}</span><br />
+                Nach dem Speichern erhältst du an die <strong>neue</strong> Adresse eine Verifizierungs-Mail.
+                Erst nach Klick auf den Link wechselt der Login auf die neue E-Mail.
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Neue E-Mail</label>
+                <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="name@praxis.ch" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Aktuelles Passwort (Bestätigung)</label>
+                <input type="password" value={emailPw} onChange={e => setEmailPw(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  autoComplete="current-password" />
+              </div>
+              {emailErr && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{emailErr}</p>}
+              {emailMsg && <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">{emailMsg}</p>}
+              <button onClick={saveEmail} disabled={emailSaving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700
+                  text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+                {emailSaving ? 'Wird versandt…' : 'Verifizierungs-Mail senden'}
               </button>
             </>
           )}

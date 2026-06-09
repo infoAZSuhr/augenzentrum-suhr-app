@@ -72,7 +72,15 @@ service cloud.firestore {
         || (request.auth != null
             && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['lastSeen', 'username', 'displayName', 'mustChangePassword']));
+                 .hasOnly([
+                    'lastSeen', 'lastLogin',
+                    'username', 'displayName', 'mustChangePassword',
+                    // E-Mail ist nur Kontakt/Anzeige; Login laeuft ueber Username
+                    // und intern ueber `authEmail`. authEmail wird beim Login per
+                    // Self-Heal aus auth.currentUser.email nachgefuehrt und ist
+                    // damit immer == der echten Firebase-Auth-Identitaet.
+                    'email', 'authEmail'
+                  ]));
 
       allow delete: if isAdmin();
     }

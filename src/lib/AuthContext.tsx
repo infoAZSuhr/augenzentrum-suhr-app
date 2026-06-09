@@ -20,7 +20,8 @@ export type Arbeitszeit = Partial<Record<'mo' | 'di' | 'mi' | 'do' | 'fr' | 'sa'
 
 export interface UserProfile {
   uid: string
-  email: string
+  email: string            // Kontakt/Anzeige — Admin darf jederzeit aendern, KEIN Login-Effekt
+  authEmail?: string       // Firebase-Auth-Identifier (stabil; wechselt nur via verifyBeforeUpdateEmail)
   displayName: string
   username: string
   role: UserRole
@@ -79,8 +80,11 @@ async function loadProfile(uid: string): Promise<UserProfile | null> {
 // Lock user by email after too many failed attempts
 async function lockUserByEmail(email: string) {
   try {
-    const q = query(collection(db, 'users'), where('email', '==', email))
-    const snap = await getDocs(q)
+    // Suche bevorzugt nach authEmail (Login-Identitaet), fallback auf email.
+    let snap = await getDocs(query(collection(db, 'users'), where('authEmail', '==', email)))
+    if (snap.empty) {
+      snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)))
+    }
     if (!snap.empty) {
       await updateDoc(snap.docs[0].ref, {
         locked: true,
@@ -130,8 +134,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const profileRef = doc(db, 'users', user.uid)
     const unsub = onSnapshot(profileRef, async (snap) => {
       if (snap.exists()) {
-        setProfile(snap.data() as UserProfile)
+        const p = snap.data() as UserProfile
+        setProfile(p)
         setLoading(false)
+        // Self-heal: Auth-Email hat sich geaendert (z.B. nach
+        // verifyBeforeUpdateEmail-Link-Klick) -> `authEmail` nachfuehren,
+        // damit der Username-Login-Lookup weiter funktioniert.
+        const authMail = user.email
+        if (authMail && p.authEmail !== authMail) {
+          updateDoc(profileRef, { authEmail: authMail }).catch(() => {})
+        }
       } else {
         // No Firestore profile yet — create a pending placeholder.
         //
@@ -145,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const newProfile: UserProfile = {
           uid: user.uid,
           email: user.email ?? '',
+          authEmail: user.email ?? '',
           displayName: user.displayName ?? user.email ?? '',
           username: user.displayName ?? user.email?.split('@')[0] ?? '',
           role: 'gast',
@@ -160,20 +173,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     setProfile(null)
-    // Resolve username → email via Firestore
+    // Resolve username → Firebase-Auth-Email via Firestore.
+    // Bevorzugt das stabile `authEmail`-Feld; faellt fuer Altbestand auf `email` zurueck.
     const q = query(collection(db, 'users'), where('username', '==', username.trim()))
     const snap = await getDocs(q)
     if (snap.empty) throw { code: 'auth/user-not-found' }
-    const email = (snap.docs[0].data() as UserProfile).email
+    const data = snap.docs[0].data() as UserProfile
+    const loginEmail = data.authEmail || data.email
     try {
       const uid = snap.docs[0].id
-      await signInWithEmailAndPassword(auth, email, password)
+      await signInWithEmailAndPassword(auth, loginEmail, password)
+      // Self-heal: wenn `authEmail` noch fehlt, jetzt nachfuehren (idempotent).
+      if (!data.authEmail) {
+        updateDoc(doc(db, 'users', uid), { authEmail: loginEmail }).catch(() => {})
+      }
       updateDoc(doc(db, 'users', uid), { lastLogin: serverTimestamp() }).catch(() => {})
       window.location.hash = '/'
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code
       if (code === 'auth/too-many-requests') {
-        await lockUserByEmail(email)
+        await lockUserByEmail(loginEmail)
       }
       throw err
     }
@@ -185,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
-    const p: UserProfile = { uid: cred.user.uid, email, displayName, username, role, status: 'pending' }
+    const p: UserProfile = { uid: cred.user.uid, email, authEmail: email, displayName, username, role, status: 'pending' }
     await setDoc(doc(db, 'users', cred.user.uid), { ...p, createdAt: serverTimestamp() })
     setProfile(p)
   }
@@ -212,8 +231,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const q = query(collection(db, 'users'), where('username', '==', username.trim()))
     const snap = await getDocs(q)
     if (snap.empty) throw { code: 'auth/user-not-found' }
-    const email = (snap.docs[0].data() as UserProfile).email
-    await sendPasswordResetEmail(auth, email)
+    const data = snap.docs[0].data() as UserProfile
+    // Reset-Mail geht an die Auth-Identitaet (sonst kennt Firebase die Adresse nicht).
+    await sendPasswordResetEmail(auth, data.authEmail || data.email)
   }
 
   // Alle Permission-Booleans laufen jetzt durch die pure Helpers in
