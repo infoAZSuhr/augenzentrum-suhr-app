@@ -415,6 +415,12 @@ export default function BrowserPanel() {
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
       const script = `
         (function() {
+          // 1) Alte Markierungen entfernen (egal von welcher vorigen Regex-Version).
+          //    Sonst kleben Markierungen die von einem alten Bundle stammen bis
+          //    zum naechsten Vollreload, auch wenn die neue Regel sie nicht mehr
+          //    erzeugen wuerde.
+          var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
+          olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
           var STALE = ${JSON.stringify(stalePids)};
           var KNOWN = ${JSON.stringify(knownPids)};
           var T_STALE   = ${JSON.stringify(tooltipStale)};
