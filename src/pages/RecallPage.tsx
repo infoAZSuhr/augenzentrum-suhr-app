@@ -4871,14 +4871,14 @@ export default function RecallPage() {
 
               {/* Hinweis-Banner: fehlende Pflichtfelder bei bestehendem Patient
                   (z.B. nach Excel-Import: Geburtsdatum nicht gesetzt, kein Arzt). */}
-              {editTarget !== 'new' && (formErrors.gebDatum || formErrors.assignDoctor) && (
+              {editTarget !== 'new' && (formErrors.gebDatum || (formErrors.assignDoctor && !assignDoctor)) && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-sm text-amber-900">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                   <div className="flex-1">
                     <p className="font-semibold mb-0.5">Bitte ergänzen:</p>
                     <ul className="text-xs space-y-0.5 ml-1">
                       {formErrors.gebDatum     && <li>• Geburtsdatum eintragen</li>}
-                      {formErrors.assignDoctor && <li>• Arzt zuweisen (unten im Feld „Arzt zuweisen")</li>}
+                      {formErrors.assignDoctor && !assignDoctor && <li>• Arzt zuweisen (unten im Feld „Arzt zuweisen")</li>}
                     </ul>
                   </div>
                 </div>
@@ -5063,7 +5063,9 @@ export default function RecallPage() {
                 {(() => {
                   const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
                   const isRequired  = noDoctorYet
-                  const hasError    = formErrors.assignDoctor === true
+                  // Nur rot wenn die Zuweisung erforderlich ist UND noch kein Arzt
+                  // gewaehlt wurde. Sobald ein Arzt gewaehlt ist -> nicht mehr rot.
+                  const hasError    = formErrors.assignDoctor === true && !assignDoctor
                   return (
                     <div>
                       <label className={labelCls}>
