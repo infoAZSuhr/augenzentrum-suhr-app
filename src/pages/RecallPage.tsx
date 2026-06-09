@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setRecentRecallPids } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, setStaleRecallPids } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -2677,27 +2677,33 @@ export default function RecallPage() {
   /** Append-Klasse fuer Eingabefelder die vom Original abweichen. */
   const chCls = (f: string) => changedFields.has(f) ? ' ring-2 ring-amber-300 border-amber-300 bg-amber-50' : ''
 
-  // PIDs der Patienten die in den letzten 30 Tagen im Recall aktualisiert
-  // wurden — wird in den BrowserContext gepusht, damit BrowserPanel sie
-  // im Liris-Kalender hervorheben kann.
+  // PIDs der Recall-Patienten die noch NICHT aktualisiert wurden (oder
+  // deren letzte Aktualisierung > 30 Tage zurueckliegt). Wird in den
+  // BrowserContext gepusht, damit BrowserPanel sie im Liris-Kalender
+  // farblich hervorhebt — Sekretariat sieht so direkt welche Patienten
+  // im Recall noch Handlungsbedarf haben.
   useEffect(() => {
     const cutoffMs = Date.now() - 30 * 86400_000
-    const recent: string[] = []
+    const stale: string[] = []
     for (const list of allData.values()) {
       for (const p of list) {
-        if (!p.aktualisiert) continue
-        // Format: "DD.MM.YYYY HH:MM – username"
-        const m = p.aktualisiert.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
-        if (!m) continue
-        const ms = Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10),
-                            m[4] ? parseInt(m[4], 10) : 0, m[5] ? parseInt(m[5], 10) : 0)
-        if (ms < cutoffMs) continue
+        let isStale = true
+        if (p.aktualisiert) {
+          // Format: "DD.MM.YYYY HH:MM – username"
+          const m = p.aktualisiert.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/)
+          if (m) {
+            const ms = Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10),
+                                m[4] ? parseInt(m[4], 10) : 0, m[5] ? parseInt(m[5], 10) : 0)
+            if (ms >= cutoffMs) isStale = false
+          }
+        }
+        if (!isStale) continue
         const norm = normalizePid(p.pid)
-        if (norm) recent.push(norm)
+        if (norm) stale.push(norm)
       }
     }
-    setRecentRecallPids(recent)
-  }, [allData, setRecentRecallPids])
+    setStaleRecallPids(stale)
+  }, [allData, setStaleRecallPids])
 
   // Hinweis "bereits aktualisiert" ist sichtbar, sobald ein bestehender
   // Patient offen ist UND nichts geaendert wurde UND kein Arzt-Wechsel

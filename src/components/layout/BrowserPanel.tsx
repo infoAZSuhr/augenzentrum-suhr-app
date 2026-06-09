@@ -179,7 +179,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, recentRecallPids } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, staleRecallPids } = useBrowser()
   const { user } = useAuth()
   const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
@@ -193,7 +193,7 @@ export default function BrowserPanel() {
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
   const lastDetailPid = useRef<string | null>(null)  // zuletzt im Liris-Header erkannte PID
-  const recentRecallPidsRef = useRef<string[]>([])   // wird unten via Effect synchron gehalten
+  const staleRecallPidsRef = useRef<string[]>([])   // wird unten via Effect synchron gehalten
 
   const navigate = useCallback((target: string) => {
     let url = target.trim()
@@ -364,7 +364,7 @@ export default function BrowserPanel() {
       [600, 1500, 3000].forEach(ms => window.setTimeout(highlightRecallPids, ms))
     }
     const highlightRecallPids = () => {
-      const pids = recentRecallPidsRef.current
+      const pids = staleRecallPidsRef.current
       if (!pids.length) return
       const script = `
         (function() {
@@ -374,14 +374,14 @@ export default function BrowserPanel() {
           if (!document.getElementById('__az_recall_css')) {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
-            st.textContent = '.az-recall-recent{background:#d1fae5 !important;color:#065f46 !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #6ee7b7;}';
+            st.textContent = '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
             acceptNode: function(n) {
               if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
               var p = n.parentNode;
-              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.classList && p.classList.contains('az-recall-recent')) return NodeFilter.FILTER_REJECT;
+              if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.classList && p.classList.contains('az-recall-stale')) return NodeFilter.FILTER_REJECT;
               return NodeFilter.FILTER_ACCEPT;
             }
           });
@@ -404,8 +404,8 @@ export default function BrowserPanel() {
             matches.forEach(function(mt) {
               if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
               var span = document.createElement('span');
-              span.className = 'az-recall-recent';
-              span.title = 'Recall in den letzten 30 Tagen aktualisiert';
+              span.className = 'az-recall-stale';
+              span.title = 'Recall offen — seit \\u003E30 Tagen nicht aktualisiert';
               span.textContent = txt.slice(mt.start, mt.end);
               frag.appendChild(span);
               cursor = mt.end;
@@ -443,15 +443,15 @@ export default function BrowserPanel() {
   // Re-Render erreicht) UND bei jeder Aenderung Liris neu highlighten:
   // erst alte Markierungen entfernen, dann mit aktuellem Set neu anwenden.
   useEffect(() => {
-    recentRecallPidsRef.current = recentRecallPids
+    staleRecallPidsRef.current = staleRecallPids
     if (!isOpen) return
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
-    const pids = recentRecallPids
+    const pids = staleRecallPids
     const script = `
       (function() {
         // 1) Alte Markierungen entfernen
-        var olds = document.querySelectorAll('.az-recall-recent');
+        var olds = document.querySelectorAll('.az-recall-stale');
         olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
         if (!${pids.length}) return 0;
         // 2) Neu markieren
@@ -461,7 +461,7 @@ export default function BrowserPanel() {
         if (!document.getElementById('__az_recall_css')) {
           var st = document.createElement('style');
           st.id = '__az_recall_css';
-          st.textContent = '.az-recall-recent{background:#d1fae5 !important;color:#065f46 !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #6ee7b7;}';
+          st.textContent = '.az-recall-stale{background:#fef3c7 !important;color:#92400e !important;border-radius:3px;padding:0 3px;font-weight:600;outline:1px solid #fbbf24;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -488,8 +488,8 @@ export default function BrowserPanel() {
           matches.forEach(function(mt) {
             if (mt.start > cursor) frag.appendChild(document.createTextNode(txt.slice(cursor, mt.start)));
             var span = document.createElement('span');
-            span.className = 'az-recall-recent';
-            span.title = 'Recall in den letzten 30 Tagen aktualisiert';
+            span.className = 'az-recall-stale';
+            span.title = 'Recall offen — seit \\u003E30 Tagen nicht aktualisiert';
             span.textContent = txt.slice(mt.start, mt.end);
             frag.appendChild(span);
             cursor = mt.end;
@@ -502,7 +502,7 @@ export default function BrowserPanel() {
       })();
     `
     window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 100)
-  }, [recentRecallPids, isOpen])
+  }, [staleRecallPids, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
