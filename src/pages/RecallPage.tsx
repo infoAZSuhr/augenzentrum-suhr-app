@@ -477,7 +477,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -789,24 +789,47 @@ export default function RecallPage() {
     if (found) {
       openEdit(found, false)   // false = nicht zurueck an Liris senden
     } else {
-      toast.warning(`Patient #${wantPid} ist nicht im Recall vorhanden.`)
+      // Patient existiert nicht im Recall — Neu-Erfassung mit Liris-Daten
+      // anstossen (PID + ggf. Name/Geb/letzteKons/Intervall aus lirisExtract).
+      // recallNewRequest-Effect uebernimmt das eigentliche Modal-Oeffnen.
+      const lx = (lirisExtract && normalizePid(lirisExtract.pid) === wantPid) ? lirisExtract : null
+      requestRecallNew({
+        pid: wantPid,
+        name: lx?.vorname || '',
+        geb:  lx?.gebDatum || '',
+      })
     }
   }, [recallPidRequest, allData]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Neu-Erfassung aus Liris: rot-markierter Patient angeklickt -> Edit-Modal
-  // im NEU-Modus mit PID + Name + Geb.datum vorausgefuellt oeffnen.
+  // Neu-Erfassung aus Liris: PID nicht im Recall vorhanden -> Edit-Modal
+  // im NEU-Modus mit PID + Name + Geb.datum + Untersuchungsdatum + Intervall
+  // vorausgefuellt oeffnen (letzteKons/intervalWeeks aus lirisExtract).
   useEffect(() => {
     if (!recallNewRequest) return
     if (Date.now() - recallNewRequest.at > 5000) { clearRecallNewRequest(); return }
     const { pid, name, geb } = recallNewRequest
     clearRecallNewRequest()
+    // lirisExtract als Quelle fuer letzteKons + Intervall — nur wenn die
+    // PID matched und der Extract frisch ist (<5s).
+    const lx = (lirisExtract
+      && normalizePid(lirisExtract.pid) === normalizePid(pid)
+      && Date.now() - lirisExtract.at <= 5000) ? lirisExtract : null
+    let intervalStr = ''
+    if (lx?.intervalWeeks) {
+      const w = lx.intervalWeeks
+      if      (w % 52 === 0 && w / 52 <= 120) intervalStr = `${w / 52}j`
+      else if (w % 4  === 0 && w / 4  <= 120) intervalStr = `${w / 4}m`
+      else if (w <= 120)                      intervalStr = `${w}w`
+    }
     setModalBuffer(true)
     setEditTarget('new')
-    setForm(f => ({
+    setForm(_ => ({
       ...initForm(),
       pid: pid || '',
-      vorname: name || '',
-      gebDatum: geb || '',
+      vorname: name || lx?.vorname || '',
+      gebDatum: geb || lx?.gebDatum || '',
+      letzteKons: lx?.letzteKons || '',
+      konsInterval: intervalStr,
       neupatient: true,
     }))
     setAssignDoctor('')
