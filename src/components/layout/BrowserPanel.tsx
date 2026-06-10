@@ -501,7 +501,10 @@ export default function BrowserPanel() {
               // Volle Zeile einfaerben — damit der Patient-Name sichtbar
               // markiert ist auch wenn die PID-Spalte abgeschnitten ist.
               '.az-recall-row-stale{outline:4px solid #f59e0b !important;outline-offset:-2px;border-radius:4px;}'+
-              '.az-recall-row-missing{outline:4px solid #dc2626 !important;outline-offset:-2px;border-radius:4px;}';
+              '.az-recall-row-missing{outline:4px solid #dc2626 !important;outline-offset:-2px;border-radius:4px;}'+
+              // Verschachtelte (innere) Umrandungen ausblenden -> nur die
+              // aeussere Umrandung der ganzen Zeile bleibt sichtbar.
+              '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -556,19 +559,6 @@ export default function BrowserPanel() {
             if (!kind) return;
             var row = findRow(node);
             if (!row || row.getAttribute('data-az-recall-pid')) return;
-            // Doppel-Umrandung vermeiden: wenn ein Vorfahre schon markiert ist
-            // -> ueberspringen (die aeussere Umrandung umfasst diese Zeile bereits).
-            var anc = row.parentElement;
-            while (anc) { if (anc.getAttribute && anc.getAttribute('data-az-recall-pid')) return; anc = anc.parentElement; }
-            // Bereits markierte Nachfahren (innere Umrandung um Zeit/PID) entfernen
-            // -> nur die aeussere Umrandung der ganzen Zeile behalten.
-            var innerMarked = row.querySelectorAll('[data-az-recall-pid]');
-            for (var z = 0; z < innerMarked.length; z++) {
-              var im = innerMarked[z];
-              im.removeAttribute('data-az-recall-pid');
-              im.classList.remove('az-recall-row-stale','az-recall-row-missing');
-              if (im.dataset && im.dataset.azRecallTitle) { im.removeAttribute('title'); delete im.dataset.azRecallTitle; }
-            }
             row.setAttribute('data-az-recall-pid', pid);
             row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
             if (!row.getAttribute('title')) {
@@ -655,7 +645,8 @@ export default function BrowserPanel() {
           st.id = '__az_recall_css';
           st.textContent =
             '.az-recall-row-stale{outline:4px solid #f59e0b !important;outline-offset:-2px;border-radius:4px;}'+
-            '.az-recall-row-missing{outline:4px solid #dc2626 !important;outline-offset:-2px;border-radius:4px;}';
+            '.az-recall-row-missing{outline:4px solid #dc2626 !important;outline-offset:-2px;border-radius:4px;}'+
+            '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -695,16 +686,6 @@ export default function BrowserPanel() {
           if (!kind) return;
           var row = findRow(node);
           if (!row || row.getAttribute('data-az-recall-pid')) return;
-          // Doppel-Umrandung vermeiden (siehe Haupt-Durchlauf).
-          var anc = row.parentElement;
-          while (anc) { if (anc.getAttribute && anc.getAttribute('data-az-recall-pid')) return; anc = anc.parentElement; }
-          var innerMarked = row.querySelectorAll('[data-az-recall-pid]');
-          for (var z = 0; z < innerMarked.length; z++) {
-            var im = innerMarked[z];
-            im.removeAttribute('data-az-recall-pid');
-            im.classList.remove('az-recall-row-stale','az-recall-row-missing');
-            if (im.dataset && im.dataset.azRecallTitle) { im.removeAttribute('title'); delete im.dataset.azRecallTitle; }
-          }
           row.setAttribute('data-az-recall-pid', pid);
           row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
           if (!row.getAttribute('title')) {
