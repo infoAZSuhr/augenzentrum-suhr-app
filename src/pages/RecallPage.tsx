@@ -2147,10 +2147,18 @@ export default function RecallPage() {
     const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
     const FEMALE_DOCTORS = new Set(['Malinina','Papazoglou'])
 
-    // Address block: Liris format after normalization = "Nachname Vorname / Strasse / PLZ Ort"
+    // Address block: Liris format = "Nachname[1..n Worte] Vorname / Strasse / PLZ Ort".
+    // Beispiele:
+    //   "MUELLER Frank"          -> Nachname: MUELLER,        Vorname: Frank
+    //   "PASQUALE TEST Michael"  -> Nachname: PASQUALE TEST,  Vorname: Michael
+    //   "VON DER LIETH Hans"     -> Nachname: VON DER LIETH,  Vorname: Hans
+    // Heuristik: das LETZTE Wort ist der Vorname, alles davor der
+    // Nachname. Wird fuer die Salutation verwendet ("Sehr geehrte Frau
+    // PASQUALE TEST").
     const adressLines = form.adressBlock.trim().split('\n').map(l => l.trim()).filter(Boolean)
     const nameLine    = adressLines[0] || ''
-    const nachname    = nameLine.split(/\s+/)[0] || nameLine   // first word = Nachname (for salutation)
+    const nameWords   = nameLine.split(/\s+/).filter(Boolean)
+    const nachname    = nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine)
 
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : form.anrede === 'Frau' ? 'geehrte Frau' : 'geehrte Damen und Herren'
 

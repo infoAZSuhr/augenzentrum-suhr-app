@@ -249,6 +249,31 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         } catch (e) { /* DOM-Zugriff fehlgeschlagen — fallback hat ggf. schon gegriffen */ }
       }
 
+      // Pattern c2: Liris-Such-Suggestion-Format
+      // "Fr. 12 Juni 2026, 07:15 (MPA)" - Wochentag + DD + deutscher
+      // Monatsname + YYYY + HH:MM. Scan alle Vorkommen, nimm das
+      // naechste zukuenftige.
+      if (!result.naechsterTerminDatum) {
+        var monthsDe = { Januar:1, Februar:2, 'März':3, Maerz:3, April:4, Mai:5, Juni:6,
+                         Juli:7, August:8, September:9, Oktober:10, November:11, Dezember:12 };
+        var reSugg = /(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})\\.?\\s+(Januar|Februar|M(?:\\u00e4|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\s*,?\\s+(\\d{2}):(\\d{2})/gi;
+        var bestSuggMs = Infinity, bestSugg = null, m5;
+        while ((m5 = reSugg.exec(allText)) !== null) {
+          var key = m5[2].charAt(0).toUpperCase() + m5[2].slice(1).toLowerCase().replace('ae','ä');
+          var monIdx = monthsDe[key] || monthsDe[m5[2]];
+          if (!monIdx) continue;
+          if (!isFuture(+m5[3], monIdx, +m5[1])) continue;
+          var msSugg = new Date(+m5[3], monIdx-1, +m5[1], +m5[4], +m5[5]).getTime();
+          if (msSugg < bestSuggMs) { bestSuggMs = msSugg; bestSugg = { d: m5[1], mo: monIdx, y: m5[3], h: m5[4], min: m5[5] }; }
+        }
+        if (bestSugg) {
+          var ddPad = (+bestSugg.d < 10 ? '0' : '') + bestSugg.d;
+          var moPad = (bestSugg.mo < 10 ? '0' : '') + bestSugg.mo;
+          result.naechsterTerminDatum = bestSugg.y + '-' + moPad + '-' + ddPad;
+          result.naechsterTerminZeit  = bestSugg.h + ':' + bestSugg.min;
+        }
+      }
+
       // Pattern d: nur Datum in der Zukunft (ohne Uhrzeit), bevor wir
       // gar nichts liefern. Hilft fuer Termine deren Uhrzeit nur per
       // hover sichtbar waere und kein title gesetzt ist.
