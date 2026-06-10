@@ -18,7 +18,7 @@
  *      2. Admin → true (unabhängig von permissions-Objekt)
  *      3. permissions-Objekt explizit gesetzt → exakt das, was drinsteht
  *      4. Sonst: rollenbasierte Defaults
- *           recall  → nur GL
+ *           recall  → GL + arzt + mpa (Sekretariat-Workflow)
  *           akv     → GL + arzt + mpa
  *           rest    → arzt + mpa
  *    Diese Reihenfolge ist deliberat: ein Admin kann nicht
@@ -123,7 +123,7 @@ export function permGranted(
   if (!isApproved(profile)) return false
   if (isAdmin(profile)) return true
   if (profile!.permissions !== undefined) return profile!.permissions?.[key] === true
-  if (key === 'recall') return isGeschaeftsleitung(profile)
+  if (key === 'recall') return isGeschaeftsleitung(profile) || isArzt(profile) || isMpa(profile)
   if (key === 'akv')    return isGeschaeftsleitung(profile) || isArzt(profile) || isMpa(profile)
   return isArzt(profile) || isMpa(profile)
 }
