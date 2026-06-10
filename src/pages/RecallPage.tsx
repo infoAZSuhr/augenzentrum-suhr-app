@@ -35,6 +35,7 @@ import { ref as storageRef, uploadBytes } from 'firebase/storage'
 
 const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
 const ZU_BEARB   = 'Zu bearbeiten'
+const AUFGEBOT_TAB = '📅 Aufgebot-Plan'
 const PAGE_SIZE  = 50
 
 const STORNO_GRUENDE = ['kein Bedarf', 'Selbstmeldung', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit']
@@ -482,7 +483,7 @@ export default function RecallPage() {
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
   const [doctors, setDoctors] = useState<string[]>(DOCTORS_DEFAULT)
-  const allTabs = useMemo(() => [...doctors, ZU_BEARB], [doctors])
+  const allTabs = useMemo(() => [...doctors, ZU_BEARB, AUFGEBOT_TAB], [doctors])
 
   // Zuweisung-Konfiguration (Praxen & Gründe)
   const [zuweisungPraxen,  setZuweisungPraxen]  = useState<string[]>(ZUWEISUNG_DEFAULT_PRAXEN)
@@ -1952,7 +1953,12 @@ export default function RecallPage() {
   }, [])
 
   // ── Tab helpers ──────────────────────────────────────────────────────────────
-  function switchTab(doctor: string) { setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null) }
+  function switchTab(doctor: string) {
+    setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null)
+    // Aufgebot-Plan Tab: oeffnet das eingebettete Aufgebot-Panel; sonst zu
+    setWochenplanOpen(doctor === AUFGEBOT_TAB)
+    if (doctor === AUFGEBOT_TAB) setWochenplanWeekOffset(0)
+  }
 
   const rows = useMemo(() => {
     // When searching (≥2 chars), show cross-doctor results in the table
@@ -3167,26 +3173,33 @@ export default function RecallPage() {
             const count    = allData.get(tab)?.length ?? 0
             const isActive = activeTab === tab
             const isZuBearb = tab === ZU_BEARB
+            const isAufgebot = tab === AUFGEBOT_TAB
             return (
               <button
                 key={tab}
                 onClick={() => switchTab(tab)}
                 className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors flex items-center gap-1.5 ${
-                  isZuBearb
+                  isAufgebot
                     ? isActive
-                      ? 'border-amber-500 text-amber-700 bg-amber-50'
-                      : 'border-transparent text-amber-600 hover:text-amber-700 hover:bg-amber-50'
-                    : isActive
-                      ? 'border-primary-600 text-primary-700 bg-primary-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
+                      : 'border-transparent text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50'
+                    : isZuBearb
+                      ? isActive
+                        ? 'border-amber-500 text-amber-700 bg-amber-50'
+                        : 'border-transparent text-amber-600 hover:text-amber-700 hover:bg-amber-50'
+                      : isActive
+                        ? 'border-primary-600 text-primary-700 bg-primary-50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 {tab}
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  isZuBearb
-                    ? isActive ? 'bg-amber-100 text-amber-700' : 'bg-amber-100 text-amber-600'
-                    : isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
-                }`}>{count}</span>
+                {!isAufgebot && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isZuBearb
+                      ? isActive ? 'bg-amber-100 text-amber-700' : 'bg-amber-100 text-amber-600'
+                      : isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
+                  }`}>{count}</span>
+                )}
               </button>
             )
           })}
@@ -3278,15 +3291,7 @@ export default function RecallPage() {
             </>
           )}
 
-          {/* Aufgebot-Wochenplan */}
-          <button
-            onClick={() => { setWochenplanOpen(true); setWochenplanWeekOffset(0) }}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-primary-200 text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors shrink-0"
-            title="Wöchentlicher Aufgebot-Plan"
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span className="hidden sm:inline">Aufgebot-Plan</span>
-          </button>
+          {/* Aufgebot-Plan -> jetzt ueber den gleichnamigen Tab oben */}
 
           {/* Auswertung */}
           <button
@@ -3319,6 +3324,7 @@ export default function RecallPage() {
 
 
 
+      {activeTab !== AUFGEBOT_TAB && <>
       {/* ── Filter bar ──────────────────────────────────────────────────────── */}
       <div className="shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2 bg-white border-b border-gray-100 overflow-x-auto">
 
@@ -3833,6 +3839,7 @@ export default function RecallPage() {
       )}
 
       {/* Search popup removed — results are now shown directly in the table */}
+      </>}
 
       {/* ── Aufgebot-Dialog ────────────────────────────────────────────────────── */}
       {aufgebotTarget && (() => {
