@@ -219,15 +219,38 @@ function buildLegendHTML():string{
   return`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px">${ALL_CODES.map(c=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:8px;background:${CODE_PRINT[c]??'#f3f4f6'};-webkit-print-color-adjust:exact;print-color-adjust:exact"><b>${c}</b> ${CODE_LABELS[c]}</span>`).join('')}</div>`
 }
 function printViaIframe(html:string){
-  // Hinweis: top-level Helfer — kein React-Kontext, daher kein useToast.
-  // Pop-up-Blocker ist ein Edge-Case im direkten User-Klick-Pfad, hier
-  // ist window.alert die robusteste Lösung (Toast-Provider könnte auch
-  // gar nicht montiert sein, z.B. beim Drucken im Sub-Window).
-  const w=window.open('','_blank')
-  if(!w){window.alert('Bitte Pop-up-Blocker für diese Seite deaktivieren');return}
-  w.document.write(html)
-  w.document.close()
-  setTimeout(()=>{w.focus();w.print();w.onafterprint=()=>w.close()},500)
+  // Echtes Hidden-Iframe. Vorher wurde window.open('','_blank') verwendet —
+  // in der Electron-App (und bei aktiviertem Popup-Blocker im Browser)
+  // konnte das blockiert werden oder ein leeres Fenster aufmachen, das die
+  // Jahresansicht-Druckung scheitern liess.
+  const iframe=document.createElement('iframe')
+  iframe.style.position='fixed'
+  iframe.style.right='0'
+  iframe.style.bottom='0'
+  iframe.style.width='0'
+  iframe.style.height='0'
+  iframe.style.border='0'
+  iframe.style.visibility='hidden'
+  document.body.appendChild(iframe)
+  const cleanup=()=>{ try{document.body.removeChild(iframe)}catch{/* schon entfernt */} }
+  iframe.onload=()=>{
+    // Kurz warten damit Styles + Inhalte gerendert sind, dann print
+    setTimeout(()=>{
+      try{
+        const cw=iframe.contentWindow
+        if(!cw){cleanup();return}
+        cw.focus()
+        cw.print()
+        // afterprint feuert nicht zuverlaessig in allen Engines -> Fallback-Timeout
+        let cleaned=false
+        const doCleanup=()=>{ if(cleaned)return; cleaned=true; cleanup() }
+        cw.onafterprint=doCleanup
+        setTimeout(doCleanup,60000)
+      }catch{cleanup()}
+    },200)
+  }
+  // srcdoc statt document.write — funktioniert robuster (insbes. in Electron).
+  iframe.srcdoc=html
 }
 
 // Build year calendar HTML matching screen view (months side by side, names in cells)
