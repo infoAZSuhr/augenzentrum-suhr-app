@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useBrowser } from '../contexts/BrowserContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ArrowLeft } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
@@ -4303,8 +4303,11 @@ export default function RecallPage() {
 
         return (
           <>
-            <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setWochenplanOpen(false)} />
-            <div className="fixed inset-4 sm:inset-8 z-[51] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden max-w-3xl mx-auto">
+            {/* Inline-Panel im Hauptbereich der Recall-Seite. Liris-Panel
+                bleibt rechts daneben sichtbar (vom AppShell gerendert).
+                Kein Modal-Overlay mehr — User-Workflow: parallel zu Liris
+                aufbieten. */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mx-4 my-4">
 
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
@@ -4312,8 +4315,8 @@ export default function RecallPage() {
                   <CalendarDays className="w-5 h-5 text-primary-600" />
                   <h2 className="font-bold text-gray-900 text-lg">Aufgebot-Plan</h2>
                 </div>
-                <button onClick={() => setWochenplanOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-                  <X className="w-4 h-4" />
+                <button onClick={() => setWochenplanOpen(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors" title="Zurueck zur Recall-Liste">
+                  <ArrowLeft className="w-4 h-4" /> Zurück
                 </button>
               </div>
 
