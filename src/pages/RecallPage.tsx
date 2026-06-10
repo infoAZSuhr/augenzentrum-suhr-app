@@ -3889,11 +3889,18 @@ export default function RecallPage() {
           <>
             {/* Aufbieten-Modal — verschiebbar wie Patient-Bearbeiten.
                 Re-use modalRef/modalPos/isDragging (immer nur eines offen). */}
+            {(() => {
+            // Bei eingeklappter Vorschau: Modal schmaler darstellen,
+            // damit es nicht halbleer wirkt.
+            const widthExpanded  = 'min(72rem, calc(100vw - 2rem))'
+            const widthCollapsed = 'min(30rem, calc(100vw - 2rem))'
+            const w = previewCollapsed ? widthCollapsed : widthExpanded
+            return (
             <div
               ref={modalRef}
               style={modalPos
-                ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 61, width: 'min(72rem, calc(100vw - 2rem))', maxHeight: 'calc(100vh - 2rem)' }
-                : { position: 'fixed', left: '50%',       top: '50%',      zIndex: 61, width: 'min(72rem, calc(100vw - 2rem))', maxHeight: 'calc(100vh - 2rem)', transform: 'translate(-50%,-50%)' }
+                ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 61, width: w, maxHeight: 'calc(100vh - 2rem)' }
+                : { position: 'fixed', left: '50%',       top: '50%',      zIndex: 61, width: w, maxHeight: 'calc(100vh - 2rem)', transform: 'translate(-50%,-50%)' }
               }
               className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
             >
@@ -4292,6 +4299,8 @@ export default function RecallPage() {
                 </div>
               )}
             </div>
+            )
+            })()}
           </>
         )
       })()}
