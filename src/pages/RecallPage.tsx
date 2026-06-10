@@ -611,6 +611,7 @@ export default function RecallPage() {
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   const [emailCopied,       setEmailCopied]       = useState(false)
+  const [previewCollapsed,  setPreviewCollapsed]  = useState(false)
   const [aufgebotSaving,        setAufgebotSaving]        = useState(false)
   const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)
   const [briefPreview, setBriefPreview] = useState<string | null>(null)
@@ -4188,41 +4189,61 @@ export default function RecallPage() {
 
               </div>{/* end left form panel */}
 
-              {/* Right: versand buttons + live preview */}
-              <div className="flex-1 bg-gray-100 overflow-auto flex flex-col">
-                {af.art === 'Brief' && (
-                  <div className="shrink-0 flex gap-2 px-4 pt-3 pb-2 bg-gray-50 border-b border-gray-200">
+              {/* Right: versand buttons + live preview (klappbar) */}
+              {previewCollapsed ? (
+                <button
+                  onClick={() => setPreviewCollapsed(false)}
+                  title="Vorschau ausklappen"
+                  className="shrink-0 w-10 bg-gray-100 border-l border-gray-200 hover:bg-gray-200 flex flex-col items-center justify-center text-gray-500 transition-colors gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="text-[10px] font-semibold tracking-wider [writing-mode:vertical-rl] rotate-180">Vorschau</span>
+                </button>
+              ) : (
+                <div className="flex-1 bg-gray-100 overflow-auto flex flex-col">
+                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 pt-3 pb-2 bg-gray-50 border-b border-gray-200">
+                    {af.art === 'Brief' ? (
+                      <div className="flex gap-2 flex-1">
+                        <button
+                          onClick={() => { setAf({ versand: 'Post' }); generateBriefPDF(p, af) }}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                            af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                          }`}>
+                          <Printer className="w-4 h-4" /> Per Post (PDF)
+                        </button>
+                        <button
+                          onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, af) }}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                            emailCopied ? 'border-green-400 bg-green-50 text-green-700' :
+                            af.versand === 'Email' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                          }`}>
+                          <Mail className="w-4 h-4" />
+                          {emailCopied ? '✓ E-Mail wird geöffnet' : 'Per E-Mail'}
+                        </button>
+                      </div>
+                    ) : <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vorschau</span>}
                     <button
-                      onClick={() => { setAf({ versand: 'Post' }); generateBriefPDF(p, af) }}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                        af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                      }`}>
-                      <Printer className="w-4 h-4" /> Per Post (PDF)
-                    </button>
-                    <button
-                      onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, af) }}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                        emailCopied ? 'border-green-400 bg-green-50 text-green-700' :
-                        af.versand === 'Email' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                      }`}>
-                      <Mail className="w-4 h-4" />
-                      {emailCopied ? '✓ E-Mail wird geöffnet' : 'Per E-Mail'}
+                      onClick={() => setPreviewCollapsed(true)}
+                      title="Vorschau einklappen"
+                      className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
-                )}
-                {livePreviewHtml ? (
-                  <iframe
-                    srcDoc={livePreviewHtml}
-                    className="flex-1 w-full border-none"
-                    style={{ minHeight: '600px' }}
-                    title="Vorschau"
-                  />
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                    {af.art === 'Brief' ? 'Formular ausfüllen für Vorschau' : 'Vorschau nur für Brief verfügbar'}
-                  </div>
-                )}
-              </div>
+                  {livePreviewHtml ? (
+                    <iframe
+                      srcDoc={livePreviewHtml}
+                      className="flex-1 w-full border-none"
+                      style={{ minHeight: '600px' }}
+                      title="Vorschau"
+                    />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+                      {af.art === 'Brief' ? 'Formular ausfüllen für Vorschau' : 'Vorschau nur für Brief verfügbar'}
+                    </div>
+                  )}
+                </div>
+              )}
 
               </div>{/* end two-column */}
 

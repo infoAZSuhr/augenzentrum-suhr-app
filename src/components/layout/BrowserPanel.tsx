@@ -155,21 +155,23 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         result.anrede = a;
       }
 
-      // 7) Postadresse aus dem Kontaktangaben-Block:
-      //    "Kontaktangaben\\nStrasse\\nPLZ Ort\\n..."
+      // 7) Postadresse aus dem Kontaktangaben-Block. Liris-Format:
+      //    "Kontaktangaben\\nStrasse Nr, PLZ Ort\\n+41XXXXX (natel)\\nmail@..."
       var kStart = allText.search(/Kontaktangaben/i);
       if (kStart >= 0) {
         var kBlock = allText.slice(kStart + 'Kontaktangaben'.length, kStart + 'Kontaktangaben'.length + 400);
-        // bis Verwaltungsbereich / Telefonnummer / Email -> abschneiden
-        var kEnd = kBlock.search(/\\n\\s*(?:Verwaltungsbereich|natel|mobile|@|\\+?\\d{2,4}\\s*\\/)/i);
+        var kEnd = kBlock.search(/\\n\\s*(?:Verwaltungsbereich|@|\\+?\\d{2,4}\\s*[\\/\\s])/i);
         if (kEnd > 0) kBlock = kBlock.slice(0, kEnd);
-        // Zeilen filtern: nur Strasse (mit Hausnummer) + PLZ Ort behalten
         var addrLines = [];
         var rawLines = kBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
         for (var li = 0; li < rawLines.length; li++) {
           var l = rawLines[li];
-          if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(l)) addrLines.push(l);  // Strasse + Nr
-          else if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(l)) addrLines.push(l);  // PLZ Ort
+          // Format A: "Strasse Nr, PLZ Ort" -> in 2 Zeilen aufsplitten
+          var combo = l.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
+          if (combo) { addrLines.push(combo[1].trim(), combo[2].trim()); continue; }
+          // Format B: getrennte Zeilen
+          if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(l)) { addrLines.push(l); continue; }
+          if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(l)) { addrLines.push(l); continue; }
         }
         if (addrLines.length) result.postAdresse = addrLines.join('\\n');
       }
