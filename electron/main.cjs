@@ -200,6 +200,36 @@ ipcMain.handle('open-ics', async (_event, content, filename) => {
   }
 })
 
+// Brief-HTML zu PDF rendern und in Downloads ablegen. Anschliessend wird
+// die Datei im Explorer markiert (showItemInFolder), sodass der User sie
+// per Drag&Drop direkt in den Liris-Webview ziehen kann.
+ipcMain.handle('save-brief-pdf', async (_event, html, suggestedFilename) => {
+  let win = null
+  try {
+    win = new BrowserWindow({
+      show: false,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+    })
+    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
+    await win.loadURL(dataUrl)
+    const pdfBuffer = await win.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: { marginType: 'none' },
+    })
+    const downloads = app.getPath('downloads')
+    const safe = (suggestedFilename || 'Brief.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_')
+    const target = path.join(downloads, safe.endsWith('.pdf') ? safe : safe + '.pdf')
+    fs.writeFileSync(target, pdfBuffer)
+    try { shell.showItemInFolder(target) } catch { /* no-op */ }
+    return { ok: true, path: target }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  } finally {
+    if (win) win.destroy()
+  }
+})
+
 app.whenReady().then(() => {
   createWindow()
   setupAutoUpdater()

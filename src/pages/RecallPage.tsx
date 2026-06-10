@@ -2374,6 +2374,22 @@ export default function RecallPage() {
 
   function generateBriefPDF(patient: RecallPatient, form: AufgebotForm) {
     const html = buildBriefHtml(patient, form)
+    // In Electron: PDF direkt in Downloads ablegen und Explorer oeffnen —
+    // User kann die Datei dann per Drag&Drop ins Liris-Webview ziehen.
+    const ea = (window as unknown as { electronApp?: { saveBriefPdf?: (html: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }> } }).electronApp
+    if (ea?.saveBriefPdf) {
+      const lastName = (form.adressBlock.trim().split('\n')[0] || patient.vorname || 'Patient').split(/\s+/)[0]
+      const today = new Date().toISOString().slice(0, 10)
+      const pid = normalizePid(patient.pid)
+      const filename = `Brief_${lastName}${pid ? '_' + pid : ''}_${today}.pdf`
+      setAufgebotPdfCreated(true)
+      ea.saveBriefPdf(html, filename).then(res => {
+        if (res.ok) toast.success(`PDF gespeichert: ${res.path}`)
+        else toast.error(`PDF-Erstellung fehlgeschlagen: ${res.error}`)
+      }).catch(err => toast.error(`PDF-Fehler: ${String(err)}`))
+      return
+    }
+    // Browser-Fallback: Vorschau-Modal mit Drucken/Save-as-PDF
     setBriefPreview(html)
     setAufgebotPdfCreated(true)
   }
