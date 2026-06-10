@@ -525,8 +525,15 @@ export default function BrowserPanel() {
             st.textContent =
               // Volle Zeile einfaerben — damit der Patient-Name sichtbar
               // markiert ist auch wenn die PID-Spalte abgeschnitten ist.
+              // box-shadow:inset statt outline — robust gegen Liris-CSS
+              // das 'outline:none !important' setzt (war auf einigen PCs
+              // unsichtbar).
               '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
-              '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}';
+              '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}'+
+              // Verschachtelte Markierungen (innen liegende Patient-Zeile in
+              // einem groesseren Container) ausblenden — nur die aeusserste
+              // Umrandung sichtbar.
+              '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -667,7 +674,8 @@ export default function BrowserPanel() {
           st.id = '__az_recall_css';
           st.textContent =
             '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
-            '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}';
+            '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}'+
+            '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
