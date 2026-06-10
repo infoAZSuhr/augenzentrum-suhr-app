@@ -193,7 +193,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         result.naechsterTerminZeit  = futA[4] + ':' + futA[5];
       }
       if (!result.naechsterTerminDatum) {
-        // Pattern b: scan alle DD.MM.YYYY HH:MM Vorkommen, nimm naechstes zukuenftiges
+        // Pattern b: DD.MM.YYYY HH:MM kombiniert im Text
         var re2 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})/g;
         var bestMs = Infinity, bestM = null, m2;
         while ((m2 = re2.exec(allText)) !== null) {
@@ -204,6 +204,64 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         if (bestM) {
           result.naechsterTerminDatum = bestM[3] + '-' + bestM[2] + '-' + bestM[1];
           result.naechsterTerminZeit  = bestM[4] + ':' + bestM[5];
+        }
+      }
+
+      // Pattern c (Liris-Timeline): blaues Kalender-Icon mit zukuenftigem
+      // Datum im Text; Uhrzeit steht im title-Attribut eines benachbarten
+      // Elements ("HH:MM" oder "DD.MM.YYYY HH:MM"). Wir scannen alle
+      // Elemente mit title-Attribut, filtern auf zukuenftige Termine und
+      // nehmen den naechstgelegenen.
+      if (!result.naechsterTerminDatum) {
+        try {
+          var tipped = document.querySelectorAll('[title]');
+          var bestTipMs = Infinity, bestDate = null, bestTime = null;
+          for (var ti = 0; ti < tipped.length; ti++) {
+            var el = tipped[ti];
+            var tip = (el.getAttribute('title') || '').trim();
+            var txtNode = (el.textContent || '').trim();
+            // Datum kann im Text ODER im title stehen
+            var dm = txtNode.match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})/) || tip.match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+            if (!dm) continue;
+            if (!isFuture(+dm[3], +dm[2], +dm[1])) continue;
+            // Uhrzeit aus title
+            var tm = tip.match(/(\\d{2}):(\\d{2})/);
+            if (!tm) {
+              // evtl. auf Nachbar-/Eltern-Element schauen
+              var par = el.parentElement;
+              if (par) {
+                var ptip = par.getAttribute('title');
+                if (ptip) tm = ptip.match(/(\\d{2}):(\\d{2})/);
+              }
+            }
+            if (!tm) continue;
+            var ms3 = new Date(+dm[3], +dm[2]-1, +dm[1], +tm[1], +tm[2]).getTime();
+            if (ms3 < bestTipMs) {
+              bestTipMs = ms3;
+              bestDate = dm[3] + '-' + dm[2] + '-' + dm[1];
+              bestTime = tm[1] + ':' + tm[2];
+            }
+          }
+          if (bestDate) {
+            result.naechsterTerminDatum = bestDate;
+            result.naechsterTerminZeit  = bestTime;
+          }
+        } catch (e) { /* DOM-Zugriff fehlgeschlagen — fallback hat ggf. schon gegriffen */ }
+      }
+
+      // Pattern d: nur Datum in der Zukunft (ohne Uhrzeit), bevor wir
+      // gar nichts liefern. Hilft fuer Termine deren Uhrzeit nur per
+      // hover sichtbar waere und kein title gesetzt ist.
+      if (!result.naechsterTerminDatum) {
+        var re4 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})/g;
+        var bestDayMs = Infinity, bestDayM = null, m4;
+        while ((m4 = re4.exec(allText)) !== null) {
+          if (!isFuture(+m4[3], +m4[2], +m4[1])) continue;
+          var ms4 = new Date(+m4[3], +m4[2]-1, +m4[1]).getTime();
+          if (ms4 < bestDayMs) { bestDayMs = ms4; bestDayM = m4; }
+        }
+        if (bestDayM) {
+          result.naechsterTerminDatum = bestDayM[3] + '-' + bestDayM[2] + '-' + bestDayM[1];
         }
       }
 
