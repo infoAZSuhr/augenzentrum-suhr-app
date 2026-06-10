@@ -540,10 +540,6 @@ export default function RecallPage() {
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
-  // PID des zuletzt manuell geschlossenen Popups — verhindert, dass der
-  // Liris-Watcher dasselbe Popup gleich wieder oeffnet (auch nach Wechsel
-  // zur Kalenderansicht und zurueck zum selben Patienten).
-  const lastClosedPidRef = useRef<string | null>(null)
   // Stub-Refs falls noch alte Aufrufe von setModalBuffer rumliegen — die Live-
   // Subscription wurde komplett entfernt, daher No-Op.
   function setModalBuffer(_active: boolean) { /* no-op */ }
@@ -781,12 +777,6 @@ export default function RecallPage() {
     if (!wantPid) { clearRecallPidRequest(); return }
     // Nicht erneut oeffnen wenn dieser Patient schon im Edit-Popup ist
     if (editTarget && editTarget !== 'new' && normalizePid(editTarget.pid) === wantPid) {
-      clearRecallPidRequest()
-      return
-    }
-    // Nicht erneut oeffnen wenn dieses Popup gerade manuell geschlossen wurde
-    // (auch nicht nach Wechsel zur Kalenderansicht und zurueck zum Patienten).
-    if (lastClosedPidRef.current && lastClosedPidRef.current === wantPid) {
       clearRecallPidRequest()
       return
     }
@@ -2623,10 +2613,6 @@ export default function RecallPage() {
   function closeEdit() {
     // Nur Buffer freigeben wenn KEIN weiteres Modal offen ist
     if (!aufgebotTarget) setModalBuffer(false)
-    // PID merken, damit der Liris-Watcher dieses Popup nicht sofort wieder oeffnet
-    if (editTarget && editTarget !== 'new') {
-      lastClosedPidRef.current = normalizePid(editTarget.pid)
-    }
     setEditTarget(null)
   }
 
