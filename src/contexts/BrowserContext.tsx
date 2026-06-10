@@ -12,6 +12,9 @@ export interface LirisExtract {
   letzteKons?:      string | null       // ISO YYYY-MM-DD — Datum der Untersuchung
   intervalWeeks?:   number | null       // Naechster-Termin-Intervall in Wochen (z.B. 4 fuer "in 4 Wochen")
   notFound?:        boolean             // Liris meldete "Kein Patient / nicht gefunden"
+  anrede?:          string | null       // "Herr" / "Frau" / "Familie" aus Patient-Header
+  postAdresse?:     string | null       // Multi-line: Strasse / PLZ Ort aus Kontaktangaben-Block
+  bpKeywords?:      string[]            // Schlagwoerter aus Beurteilung+Prozedere (z.B. Myd, OCT)
   at:               number              // Timestamp damit Consumer nur frisches sehen
 }
 

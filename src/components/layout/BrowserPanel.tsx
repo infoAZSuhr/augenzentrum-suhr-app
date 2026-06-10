@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; anrede: string | null; postAdresse: string | null; bpKeywords: string[] } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, anrede: null, postAdresse: null, bpKeywords: [], _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -145,6 +145,48 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var stop = result.autor.search(/[,\\n\\r]|  /);
         if (stop > 0) result.autor = result.autor.slice(0, stop).trim();
       }
+
+      // 6) Anrede aus Patient-Header: "Herr ..." / "Frau ..." vor dem Namen.
+      var anredeMatch = allText.match(/(Frau|Herr|Familie|Fr\\.|Hr\\.)\\s+[A-Z\\u00c4\\u00d6\\u00dc]/);
+      if (anredeMatch) {
+        var a = anredeMatch[1];
+        if (a === 'Fr.') a = 'Frau';
+        else if (a === 'Hr.') a = 'Herr';
+        result.anrede = a;
+      }
+
+      // 7) Postadresse aus dem Kontaktangaben-Block:
+      //    "Kontaktangaben\\nStrasse\\nPLZ Ort\\n..."
+      var kStart = allText.search(/Kontaktangaben/i);
+      if (kStart >= 0) {
+        var kBlock = allText.slice(kStart + 'Kontaktangaben'.length, kStart + 'Kontaktangaben'.length + 400);
+        // bis Verwaltungsbereich / Telefonnummer / Email -> abschneiden
+        var kEnd = kBlock.search(/\\n\\s*(?:Verwaltungsbereich|natel|mobile|@|\\+?\\d{2,4}\\s*\\/)/i);
+        if (kEnd > 0) kBlock = kBlock.slice(0, kEnd);
+        // Zeilen filtern: nur Strasse (mit Hausnummer) + PLZ Ort behalten
+        var addrLines = [];
+        var rawLines = kBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
+        for (var li = 0; li < rawLines.length; li++) {
+          var l = rawLines[li];
+          if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(l)) addrLines.push(l);  // Strasse + Nr
+          else if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(l)) addrLines.push(l);  // PLZ Ort
+        }
+        if (addrLines.length) result.postAdresse = addrLines.join('\\n');
+      }
+
+      // 8) Beurteilung-und-Prozedere Keywords: 'Myd' -> Pupillenerweiterung,
+      //    'OCT' -> OCT, etc. Wird vom Aufbieten-Formular konsumiert.
+      var bpStart2 = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
+      if (bpStart2 >= 0) {
+        var bpTxt = allText.slice(bpStart2, bpStart2 + 4000);
+        var bpEnd2 = bpTxt.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
+        if (bpEnd2 > 0) bpTxt = bpTxt.slice(0, bpEnd2);
+        var kws = [];
+        if (/\\bMyd\\b/i.test(bpTxt))   kws.push('Myd');
+        if (/\\bOCT\\b/i.test(bpTxt))   kws.push('OCT');
+        result.bpKeywords = kws;
+      }
+
       return result;
     })();
   `
@@ -167,6 +209,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           letzteKons:    res.letzteKons    ?? null,
           intervalWeeks: res.intervalWeeks ?? null,
           notFound:      !!res.notFound,
+          anrede:        res.anrede        ?? null,
+          postAdresse:   res.postAdresse   ?? null,
+          bpKeywords:    Array.isArray(res.bpKeywords) ? res.bpKeywords : [],
         }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)

@@ -2106,7 +2106,36 @@ export default function RecallPage() {
       fachtitel: doctorFachtitelMap[doctor] ?? '',
     })
     setAufgebotPdfCreated(false)
+    // Patient gleichzeitig im Liris oeffnen — sodass Anrede/Adresse/BP-
+    // Keywords vom Liris-Extract-Handler ins Aufbieten-Formular geschrieben
+    // werden koennen.
+    const pid = normalizePid(entry.patient.pid)
+    if (pid) openWithPid(pid)
   }
+
+  // Liris-Extract -> Aufbieten-Formular auto-fuellen, sofern das Modal
+  // gerade offen ist und die PID matched. Leere Felder werden befuellt;
+  // bestehende User-Eingaben werden NICHT ueberschrieben.
+  useEffect(() => {
+    if (!lirisExtract || !aufgebotTarget) return
+    if (Date.now() - lirisExtract.at > 8000) return
+    if (normalizePid(lirisExtract.pid) !== normalizePid(aufgebotTarget.patient.pid)) return
+    setAufgebotForm(f => {
+      const patch: Partial<typeof f> = {}
+      if (!f.anrede && lirisExtract.anrede) patch.anrede = lirisExtract.anrede as any
+      if (!f.adressBlock.trim() && lirisExtract.postAdresse) {
+        // Name-Zeile vorne ergaenzen damit der Brief-Header passt
+        const name = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
+        patch.adressBlock = (name ? name + '\n' : '') + lirisExtract.postAdresse
+      }
+      const kws = lirisExtract.bpKeywords ?? []
+      if (kws.includes('Myd') && !f.pupille) patch.pupille = true
+      if (kws.includes('OCT') && !/OCT/i.test(f.voruntersuchungenSonstige)) {
+        patch.voruntersuchungenSonstige = (f.voruntersuchungenSonstige ? f.voruntersuchungenSonstige + ', ' : '') + 'OCT'
+      }
+      return Object.keys(patch).length ? { ...f, ...patch } : f
+    })
+  }, [lirisExtract, aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function buildBriefHtml(patient: RecallPatient, form: AufgebotForm): string {
     const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
@@ -3860,12 +3889,23 @@ export default function RecallPage() {
 
         return (
           <>
-            <div className="fixed inset-0 bg-black/60 z-[60]" onClick={() => setAufgebotTarget(null)} />
-            <div className="fixed inset-4 z-[61] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden max-w-6xl mx-auto">
+            {/* Aufbieten-Modal — verschiebbar wie Patient-Bearbeiten.
+                Re-use modalRef/modalPos/isDragging (immer nur eines offen). */}
+            <div
+              ref={modalRef}
+              style={modalPos
+                ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 61, width: 'min(72rem, calc(100vw - 2rem))', maxHeight: 'calc(100vh - 2rem)' }
+                : { position: 'fixed', left: '50%',       top: '50%',      zIndex: 61, width: 'min(72rem, calc(100vw - 2rem))', maxHeight: 'calc(100vh - 2rem)', transform: 'translate(-50%,-50%)' }
+              }
+              className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            >
 
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-                <div>
+              {/* Header — Drag-Handle */}
+              <div
+                onMouseDown={onModalDragStart}
+                className={`flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+              >
+                <div className="pointer-events-none">
                   <h2 className="font-bold text-gray-900">Patient aufbieten</h2>
                   <p className="text-xs text-gray-500 mt-0.5">{p.vorname} {p.pid && `· #${normalizePid(p.pid)}`} · {p.doctor}</p>
                 </div>
