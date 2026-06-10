@@ -181,7 +181,13 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 export default function BrowserPanel() {
   const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
   const { user } = useAuth()
-  const partition = user?.uid ? `persist:liris-${user.uid}` : 'persist:liris-guest'
+  // Gemeinsame Liris-Session fuer alle App-Nutzer: dieselbe Partition fuer
+  // jeden eingeloggten Mitarbeiter, damit die farbige Markierung im
+  // Webview unabhaengig von der Liris-Anmeldung greift. Frueher hatte
+  // jeder App-User seine eigene Partition (persist:liris-<uid>) und
+  // musste sich in Liris erneut anmelden — daher fehlten die
+  // Markierungen wenn Liris noch nicht eingeloggt war.
+  const partition = user?.uid ? 'persist:liris-shared' : 'persist:liris-guest'
   const [inputUrl, setInputUrl] = useState(defaultUrl)
   const [currentUrl, setCurrentUrl] = useState(defaultUrl)
   const [loading, setLoading] = useState(false)
