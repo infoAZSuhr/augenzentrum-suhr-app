@@ -611,7 +611,7 @@ export default function RecallPage() {
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   const [emailCopied,       setEmailCopied]       = useState(false)
-  const [previewCollapsed,  setPreviewCollapsed]  = useState(false)
+  const [previewCollapsed,  setPreviewCollapsed]  = useState(true)   // default eingeklappt — manuell aufklappen
   const [aufgebotSaving,        setAufgebotSaving]        = useState(false)
   const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)
   const [briefPreview, setBriefPreview] = useState<string | null>(null)
@@ -775,6 +775,10 @@ export default function RecallPage() {
   useEffect(() => {
     if (!recallPidRequest) return
     if (Date.now() - recallPidRequest.at > 5000) { clearRecallPidRequest(); return }
+    // Solange das Aufbieten-Modal offen ist, kein Auto-Open des Patient-
+    // bearbeiten-Modals — der User hat bewusst Brief/Reminder gewaehlt und
+    // bekommt die Liris-Daten via lirisExtract direkt ins Aufbieten-Formular.
+    if (aufgebotTarget) { clearRecallPidRequest(); return }
     const wantPid = normalizePid(recallPidRequest.pid)
     if (!wantPid) { clearRecallPidRequest(); return }
     // Nicht erneut oeffnen wenn dieser Patient schon im Edit-Popup ist
@@ -4122,7 +4126,7 @@ export default function RecallPage() {
                       </div>
                     </div>
 
-                    {/* Postadresse */}
+                    {/* Postadresse + Versand-Buttons direkt darunter */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                         Adresse <span className="text-amber-600 font-normal normal-case">(nicht gespeichert · hineinziehen oder einfügen)</span>
@@ -4137,6 +4141,38 @@ export default function RecallPage() {
                         placeholder={"Muster Hans\nBahnhofstrasse 12\n5034 Suhr"}
                         className="input text-sm resize-none font-mono"
                       />
+                      {/* Versand-Buttons: 'Per E-Mail' nur aktiv wenn Patient eine E-Mail hat. */}
+                      {(() => {
+                        const patientEmail = (lirisExtract && normalizePid(lirisExtract.pid) === normalizePid(aufgebotTarget!.patient.pid) ? lirisExtract.email : '') || ''
+                        const hasEmail = !!patientEmail
+                        return (
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={() => {
+                                console.log('[Brief] Per Post PDF Button geklickt — art:', af.art, 'terminDatum:', af.terminDatum)
+                                setAf({ versand: 'Post' })
+                                generateBriefPDF(p, af)
+                              }}
+                              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                                af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}>
+                              <Printer className="w-4 h-4" /> Per Post (PDF)
+                            </button>
+                            <button
+                              disabled={!hasEmail}
+                              onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, { ...af, adressBlock: af.adressBlock || patientEmail }) }}
+                              title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
+                              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                                !hasEmail ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
+                                emailCopied ? 'border-green-400 bg-green-50 text-green-700' :
+                                af.versand === 'Email' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}>
+                              <Mail className="w-4 h-4" />
+                              {!hasEmail ? 'Keine E-Mail' : emailCopied ? '✓ E-Mail wird geöffnet' : 'Per E-Mail'}
+                            </button>
+                          </div>
+                        )
+                      })()}
                     </div>
 
                   </>
@@ -4255,30 +4291,7 @@ export default function RecallPage() {
               ) : (
                 <div className="flex-1 bg-gray-100 overflow-auto flex flex-col">
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 pt-3 pb-2 bg-gray-50 border-b border-gray-200">
-                    {af.art === 'Brief' ? (
-                      <div className="flex gap-2 flex-1">
-                        <button
-                          onClick={() => {
-                            console.log('[Brief] Per Post PDF Button geklickt — art:', af.art, 'terminDatum:', af.terminDatum)
-                            setAf({ versand: 'Post' })
-                            generateBriefPDF(p, af)
-                          }}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                            af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                          }`}>
-                          <Printer className="w-4 h-4" /> Per Post (PDF)
-                        </button>
-                        <button
-                          onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, af) }}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                            emailCopied ? 'border-green-400 bg-green-50 text-green-700' :
-                            af.versand === 'Email' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                          }`}>
-                          <Mail className="w-4 h-4" />
-                          {emailCopied ? '✓ E-Mail wird geöffnet' : 'Per E-Mail'}
-                        </button>
-                      </div>
-                    ) : <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vorschau</span>}
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vorschau</span>
                     <button
                       onClick={() => setPreviewCollapsed(true)}
                       title="Vorschau einklappen"
@@ -4328,7 +4341,7 @@ export default function RecallPage() {
                   </div>
                 </div>
               ) : (
-                <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
                   <button onClick={() => { setAufgebotTarget(null); setAufgebotConfirmPending(false) }} className="btn btn-secondary text-sm">
                     Abbrechen
                   </button>
@@ -4344,7 +4357,7 @@ export default function RecallPage() {
                     className="btn btn-primary text-sm disabled:opacity-40"
                   >
                     {aufgebotSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Aufgeboten markieren
+                    Als aufgeboten markieren
                   </button>
                 </div>
               )}

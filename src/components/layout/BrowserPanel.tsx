@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; anrede: string | null; postAdresse: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, anrede: null, postAdresse: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -174,6 +174,12 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(l)) { addrLines.push(l); continue; }
         }
         if (addrLines.length) result.postAdresse = addrLines.join('\\n');
+        // Email aus dem gesamten Kontaktangaben-Bereich (inkl. Telefonbereich
+        // darunter) extrahieren. Wir greifen den 600-Zeichen-Block nach
+        // 'Kontaktangaben' und nehmen das erste E-Mail-Muster.
+        var emailBlock = allText.slice(kStart, kStart + 600);
+        var emailMatch = emailBlock.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/);
+        if (emailMatch) result.email = emailMatch[0];
       }
 
       // 8) Zukuenftiger Termin mit Datum + Uhrzeit. Heuristik:
@@ -327,6 +333,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           notFound:      !!res.notFound,
           anrede:        res.anrede        ?? null,
           postAdresse:   res.postAdresse   ?? null,
+          email:         res.email         ?? null,
           bpKeywords:    Array.isArray(res.bpKeywords) ? res.bpKeywords : [],
           naechsterTerminDatum: res.naechsterTerminDatum ?? null,
           naechsterTerminZeit:  res.naechsterTerminZeit  ?? null,

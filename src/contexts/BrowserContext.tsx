@@ -14,6 +14,7 @@ export interface LirisExtract {
   notFound?:        boolean             // Liris meldete "Kein Patient / nicht gefunden"
   anrede?:          string | null       // "Herr" / "Frau" / "Familie" aus Patient-Header
   postAdresse?:     string | null       // Multi-line: Strasse / PLZ Ort aus Kontaktangaben-Block
+  email?:           string | null       // E-Mail-Adresse aus Kontaktangaben (falls vorhanden)
   bpKeywords?:      string[]            // Schlagwoerter aus Beurteilung+Prozedere (z.B. Myd, OCT)
   naechsterTerminDatum?: string | null  // ISO YYYY-MM-DD eines zukuenftigen Liris-Termins
   naechsterTerminZeit?:  string | null  // HH:MM eines zukuenftigen Liris-Termins
