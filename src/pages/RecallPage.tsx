@@ -2162,9 +2162,9 @@ export default function RecallPage() {
 
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : form.anrede === 'Frau' ? 'geehrte Frau' : 'geehrte Damen und Herren'
 
-    // Reorder name: "Nachname Vorname" → "Vorname Nachname" for address window
+    // Reorder name: "Nachname Vorname" → "Vorname Nachname" for address window.
+    // (nameWords ist oben schon definiert — wiederverwendet)
     const escLine    = (l: string) => l.replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    const nameWords  = nameLine.split(/\s+/)
     const nameDisplay = nameWords.length >= 2
       ? `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`
       : nameLine
