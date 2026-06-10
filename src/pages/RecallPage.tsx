@@ -4315,8 +4315,8 @@ export default function RecallPage() {
                   <CalendarDays className="w-5 h-5 text-primary-600" />
                   <h2 className="font-bold text-gray-900 text-lg">Aufgebot-Plan</h2>
                 </div>
-                <button onClick={() => setWochenplanOpen(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors" title="Zurueck zur Recall-Liste">
-                  <ArrowLeft className="w-4 h-4" /> Zurück
+                <button onClick={() => setWochenplanOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Aufgebot-Plan schliessen">
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
