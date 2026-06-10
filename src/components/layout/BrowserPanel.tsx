@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; anrede: string | null; postAdresse: string | null; bpKeywords: string[] } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; anrede: string | null; postAdresse: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, anrede: null, postAdresse: null, bpKeywords: [], _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, anrede: null, postAdresse: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -176,7 +176,38 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         if (addrLines.length) result.postAdresse = addrLines.join('\\n');
       }
 
-      // 8) Beurteilung-und-Prozedere Keywords: 'Myd' -> Pupillenerweiterung,
+      // 8) Zukuenftiger Termin mit Datum + Uhrzeit. Heuristik:
+      //    a) "Naechster Termin: DD.MM.YYYY HH:MM"  (Detailansicht)
+      //    b) "DD.MM.YYYY HH:MM Konsultation/Untersuchung/..." (Listenansicht)
+      //    c) "@HH:MM ... DD.MM.YYYY" naher Patient-Name (Tagesplan)
+      //    Wir akzeptieren NUR ein Datum das in der Zukunft liegt.
+      function isFuture(yyyy, mm, dd) {
+        var today = new Date();
+        today.setHours(0,0,0,0);
+        var d = new Date(yyyy, mm-1, dd);
+        return d.getTime() >= today.getTime();
+      }
+      var futA = allText.match(/N(?:ä|ae)chster\\s+Termin\\s*:?\\s*(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})/i);
+      if (futA && isFuture(+futA[3], +futA[2], +futA[1])) {
+        result.naechsterTerminDatum = futA[3] + '-' + futA[2] + '-' + futA[1];
+        result.naechsterTerminZeit  = futA[4] + ':' + futA[5];
+      }
+      if (!result.naechsterTerminDatum) {
+        // Pattern b: scan alle DD.MM.YYYY HH:MM Vorkommen, nimm naechstes zukuenftiges
+        var re2 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})/g;
+        var bestMs = Infinity, bestM = null, m2;
+        while ((m2 = re2.exec(allText)) !== null) {
+          if (!isFuture(+m2[3], +m2[2], +m2[1])) continue;
+          var ms = new Date(+m2[3], +m2[2]-1, +m2[1], +m2[4], +m2[5]).getTime();
+          if (ms < bestMs) { bestMs = ms; bestM = m2; }
+        }
+        if (bestM) {
+          result.naechsterTerminDatum = bestM[3] + '-' + bestM[2] + '-' + bestM[1];
+          result.naechsterTerminZeit  = bestM[4] + ':' + bestM[5];
+        }
+      }
+
+      // 9) Beurteilung-und-Prozedere Keywords: 'Myd' -> Pupillenerweiterung,
       //    'OCT' -> OCT, etc. Wird vom Aufbieten-Formular konsumiert.
       var bpStart2 = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
       if (bpStart2 >= 0) {
@@ -214,6 +245,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           anrede:        res.anrede        ?? null,
           postAdresse:   res.postAdresse   ?? null,
           bpKeywords:    Array.isArray(res.bpKeywords) ? res.bpKeywords : [],
+          naechsterTerminDatum: res.naechsterTerminDatum ?? null,
+          naechsterTerminZeit:  res.naechsterTerminZeit  ?? null,
         }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)

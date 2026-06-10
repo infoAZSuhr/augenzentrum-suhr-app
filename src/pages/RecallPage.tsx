@@ -2131,6 +2131,13 @@ export default function RecallPage() {
       if (kws.includes('OCT') && !/OCT/i.test(f.voruntersuchungenSonstige)) {
         patch.voruntersuchungenSonstige = (f.voruntersuchungenSonstige ? f.voruntersuchungenSonstige + ', ' : '') + 'OCT'
       }
+      // Zukuenftiger Termin: Datum + Uhrzeit aus Liris uebernehmen.
+      if (!f.terminDatum && lirisExtract.naechsterTerminDatum) {
+        patch.terminDatum = lirisExtract.naechsterTerminDatum
+      }
+      if (!f.terminZeit && lirisExtract.naechsterTerminZeit) {
+        patch.terminZeit = lirisExtract.naechsterTerminZeit
+      }
       return Object.keys(patch).length ? { ...f, ...patch } : f
     })
   }, [lirisExtract, aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
