@@ -250,15 +250,40 @@ export default function BrowserPanel() {
           var pid = null;
           var markedKind = null; // 'stale' | 'missing' | null
           var rowEl = null;
+          // Markierte Zeile separat erkennen — bis zu 8 Ebenen hoch, damit
+          // ein Klick auf ein tiefes Kind-Element trotzdem die Markierung
+          // identifizieren kann. (Die Pattern-Suche ist drunter strenger.)
+          {
+            var markNode = node;
+            for (var mk = 0; mk < 8 && markNode; mk++) {
+              if (markNode.getAttribute && markNode.getAttribute('data-az-recall-pid')) {
+                if (markNode.classList && markNode.classList.contains('az-recall-row-missing')) markedKind = 'missing';
+                else if (markNode.classList && markNode.classList.contains('az-recall-row-stale')) markedKind = 'stale';
+                rowEl = markNode;
+                // Die PID aus dem Markierungs-Attribut lesen — sicherer als
+                // sie aus dem (evtl. trunkierten) Text zu fischen.
+                pid = markNode.getAttribute('data-az-recall-pid');
+                break;
+              }
+              markNode = markNode.parentElement;
+            }
+          }
+          // Wenn Markierung erkannt + PID schon da, direkt verzweigen
+          if (markedKind && pid) {
+            if (markedKind === 'missing') {
+              var rowTxtM = (rowEl && rowEl.textContent) || '';
+              var nameMatchM = rowTxtM.match(/([A-Z\\u00c4\\u00d6\\u00dc][\\wA-Z\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc'-]+(?:\\s+[A-Z\\u00c4\\u00d6\\u00dc][\\wA-Z\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc'-]+)*)\\s+@\\d{2}:\\d{2}/);
+              var nameM = nameMatchM ? nameMatchM[1].trim() : '';
+              var gebMatchM = rowTxtM.match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+              var gebM = gebMatchM ? (gebMatchM[3] + '-' + gebMatchM[2] + '-' + gebMatchM[1]) : '';
+              console.log('__AZ_PID_NEW__:' + JSON.stringify({ pid: pid, name: nameM, geb: gebM }));
+            }
+            // stale-Markierung -> wie zuvor nichts tun (manuell)
+            return;
+          }
           // Maximal 3 Ebenen hochlaufen — sonst springen Klicks auf
           // Header/Filter/Sidebar willkuerlich auf irgendeinen Patient.
           for (var i = 0; i < 3 && node; i++) {
-            // Markierte Zeile?
-            if (node.getAttribute && node.getAttribute('data-az-recall-pid')) {
-              if (node.classList && node.classList.contains('az-recall-row-missing')) markedKind = 'missing';
-              else if (node.classList && node.classList.contains('az-recall-row-stale')) markedKind = 'stale';
-              rowEl = node;
-            }
             var txt = (node.textContent || '');
             // 1a) Klick auf eine konkrete Patient-Zeile (Kalender-Tagesplan).
             //     textContent <= 150 + genau ein @HH:MM = sicher eine einzelne
@@ -500,8 +525,8 @@ export default function BrowserPanel() {
             st.textContent =
               // Volle Zeile einfaerben — damit der Patient-Name sichtbar
               // markiert ist auch wenn die PID-Spalte abgeschnitten ist.
-              '.az-recall-row-stale{outline:4px solid #f59e0b !important;outline-offset:-2px;border-radius:4px;}'+
-              '.az-recall-row-missing{outline:4px solid #dc2626 !important;outline-offset:-2px;border-radius:4px;}';
+              '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
+              '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}';
             document.documentElement.appendChild(st);
           }
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
@@ -641,8 +666,8 @@ export default function BrowserPanel() {
           var st = document.createElement('style');
           st.id = '__az_recall_css';
           st.textContent =
-            '.az-recall-row-stale{outline:4px solid #f59e0b !important;outline-offset:-2px;border-radius:4px;}'+
-            '.az-recall-row-missing{outline:4px solid #dc2626 !important;outline-offset:-2px;border-radius:4px;}';
+            '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
+            '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}';
           document.documentElement.appendChild(st);
         }
         var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
