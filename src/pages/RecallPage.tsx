@@ -4270,7 +4270,13 @@ export default function RecallPage() {
           const p = entry.patient
           return (
             <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
-              <div className="flex-1 min-w-0">
+              {/* Klickbarer Patient-Bereich: oeffnet 'Patient bearbeiten'. */}
+              <button
+                type="button"
+                onClick={() => openEdit(p)}
+                title="Patienten bearbeiten"
+                className="flex-1 min-w-0 text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-300 rounded-md -mx-1 px-1 py-0.5 hover:bg-primary-50/40"
+              >
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-gray-800 text-sm">{p.vorname || '—'}</span>
                   {p.pid && <span className="text-xs text-gray-400 font-mono">#{normalizePid(p.pid)}</span>}
@@ -4283,13 +4289,6 @@ export default function RecallPage() {
                 {p.aufgebotFuer && (
                   <div className="text-xs text-gray-400 mt-0.5">RC ab: {formatDate(p.aufgebotFuer)}</div>
                 )}
-              </div>
-              <button
-                onClick={() => openEdit(p)}
-                className="p-1.5 rounded-lg text-gray-400 border border-gray-200 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
-                title="Patienten bearbeiten"
-              >
-                <Pencil className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => openAufgebotDialog(entry)}
