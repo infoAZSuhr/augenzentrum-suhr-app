@@ -2106,11 +2106,8 @@ export default function RecallPage() {
       fachtitel: doctorFachtitelMap[doctor] ?? '',
     })
     setAufgebotPdfCreated(false)
-    // Patient gleichzeitig im Liris oeffnen — sodass Anrede/Adresse/BP-
-    // Keywords vom Liris-Extract-Handler ins Aufbieten-Formular geschrieben
-    // werden koennen.
-    const pid = normalizePid(entry.patient.pid)
-    if (pid) openWithPid(pid)
+    // Liris wird NICHT automatisch geoeffnet — erst wenn der User Brief
+    // oder Reminder auswaehlt, holen wir Anrede/Adresse aus der Akte.
   }
 
   // Liris-Extract -> Aufbieten-Formular auto-fuellen, sofern das Modal
@@ -3927,7 +3924,17 @@ export default function RecallPage() {
                     {ART_BUTTONS.map(({ art, Icon, label, sub, color }) => (
                       <button
                         key={art}
-                        onClick={() => setAf({ art: af.art === art ? null : art, versand: '', notiz: '', pupille: false })}
+                        onClick={() => {
+                          const next = af.art === art ? null : art
+                          setAf({ art: next, versand: '', notiz: '', pupille: false })
+                          // Bei Auswahl von Brief -> Liris-Akte oeffnen, damit
+                          // Anrede/Adresse via lirisExtract-Handler ins Formular
+                          // gefuellt werden. Tel braucht das nicht.
+                          if (next === 'Brief' && aufgebotTarget) {
+                            const pid = normalizePid(aufgebotTarget.patient.pid)
+                            if (pid) openWithPid(pid)
+                          }
+                        }}
                         className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors ${
                           af.art === art ? color + ' border-current' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                         }`}
