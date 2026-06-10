@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, ArrowRight, RotateCcw, X, GripVertical } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCcw, X, GripVertical, FileEdit } from 'lucide-react'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { useAuth } from '../../lib/AuthContext'
 
@@ -1026,6 +1026,42 @@ export default function BrowserPanel() {
               {staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : '—'}
             </span>
           </div>
+
+          {/* Recall-Bearbeiten-Button: extrahiert die PID des gerade in
+              Liris geoeffneten Patienten (Detail- oder Kalender-Header)
+              und oeffnet das Recall-Edit-Popup. */}
+          <button
+            onClick={async () => {
+              const wv = webviewRef.current as any
+              if (!wv?.executeJavaScript) return
+              try {
+                // 1) Versuche Patient-Detail-Header
+                const detailPid: string | null = await wv.executeJavaScript(`
+                  (function() {
+                    var txt = document.body ? (document.body.innerText || '') : '';
+                    var anchors = txt.match(/\\(\\s*\\d+\\s*Jahre?\\s*\\)/g);
+                    if (!anchors || anchors.length !== 1) return null;
+                    var m = txt.match(/\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(\\s*\\d+\\s*Jahre?\\s*\\)[^\\n#]{0,150}#\\s*0*(\\d{1,7})(?!\\d)/);
+                    return m ? m[1] : null;
+                  })();
+                `).catch(() => null)
+                if (detailPid) { requestRecallByPid(detailPid); return }
+                // 2) Fallback: erstes #PID DD.MM.YYYY in der Seite
+                const anyPid: string | null = await wv.executeJavaScript(`
+                  (function() {
+                    var txt = document.body ? (document.body.innerText || '') : '';
+                    var m = txt.match(/#\\s*0*(\\d{1,7})(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/);
+                    return m ? m[1] : null;
+                  })();
+                `).catch(() => null)
+                if (anyPid) requestRecallByPid(anyPid)
+              } catch { /* ignore */ }
+            }}
+            className="p-1.5 rounded hover:bg-primary-50 hover:text-primary-600 transition-colors ml-1"
+            title="Recall-Eintrag des aktuell in Liris geoeffneten Patienten bearbeiten"
+          >
+            <FileEdit className="w-3.5 h-3.5 text-gray-500" />
+          </button>
 
           <button
             onClick={close}
