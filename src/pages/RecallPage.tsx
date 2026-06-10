@@ -4316,15 +4316,12 @@ export default function RecallPage() {
                 aufbieten. */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mx-4 my-4">
 
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              {/* Header (Schliessen via Tab-Wechsel oben) */}
+              <div className="flex items-center px-6 py-4 border-b border-gray-200 shrink-0">
                 <div className="flex items-center gap-3">
                   <CalendarDays className="w-5 h-5 text-primary-600" />
                   <h2 className="font-bold text-gray-900 text-lg">Aufgebot-Plan</h2>
                 </div>
-                <button onClick={() => setWochenplanOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title="Aufgebot-Plan schliessen">
-                  <X className="w-4 h-4" />
-                </button>
               </div>
 
               {/* Week navigation */}
