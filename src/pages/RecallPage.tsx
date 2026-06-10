@@ -821,6 +821,35 @@ export default function RecallPage() {
       else if (w % 4  === 0 && w / 4  <= 120) intervalStr = `${w / 4}m`
       else if (w <= 120)                      intervalStr = `${w}w`
     }
+    // Arzt aus Liris-Autor extrahieren (gleiche Match-Logik wie beim Auto-Fill
+    // bestehender Patienten).
+    let autoDoc = ''
+    if (lx?.autor) {
+      const cleaned = lx.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+      const words = cleaned.split(/\s+/)
+      for (let n = 1; n <= words.length; n++) {
+        const cand = words.slice(-n).join(' ').toLowerCase()
+        const match = doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))
+        if (match) { autoDoc = match; break }
+      }
+    }
+    // 'RC zu erstellen ab' aus letzteKons + Intervall berechnen
+    // (gleiche Logik wie beim Auto-Fill und im manuellen onChange).
+    let autoAufgebotFuer = ''
+    if (lx?.letzteKons && intervalStr) {
+      const computed = computeNextKons(lx.letzteKons, intervalStr)
+      if (computed) {
+        const lk2 = new Date(lx.letzteKons + 'T00:00:00Z')
+        lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+        if (computed <= lk2.toISOString().slice(0, 10)) {
+          autoAufgebotFuer = new Date().toISOString().slice(0, 10)
+        } else {
+          const d = new Date(computed + 'T00:00:00Z')
+          d.setUTCMonth(d.getUTCMonth() - 2)
+          autoAufgebotFuer = d.toISOString().slice(0, 10)
+        }
+      }
+    }
     setModalBuffer(true)
     setEditTarget('new')
     setForm(_ => ({
@@ -830,9 +859,10 @@ export default function RecallPage() {
       gebDatum: geb || lx?.gebDatum || '',
       letzteKons: lx?.letzteKons || '',
       konsInterval: intervalStr,
+      aufgebotFuer: autoAufgebotFuer,
       neupatient: true,
     }))
-    setAssignDoctor('')
+    setAssignDoctor(autoDoc)
     setFormErrors({})
     setQuickInput('')
     setPidDup(null)
