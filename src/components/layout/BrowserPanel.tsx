@@ -480,11 +480,11 @@ export default function BrowserPanel() {
       scheduleRecallHighlight()
     }
 
-    // PIDs hervorheben, die in den letzten 30 Tagen im Recall aktualisiert
-    // wurden. Wird nach jeder Navigation/Refresh ausgeloest, Mehrfach-Anwendung
-    // wird ueber data-Attribut idempotent gemacht.
+    // PIDs hervorheben. Wird nach jeder Navigation/Refresh ausgeloest;
+    // mehrere Retries weil Liris seine Tabellen oft asynchron rendert.
+    // Mehrfach-Anwendung wird ueber data-Attribut idempotent gemacht.
     const scheduleRecallHighlight = () => {
-      [600, 1500, 3000].forEach(ms => window.setTimeout(highlightRecallPids, ms))
+      [300, 700, 1500, 3000, 5000, 8000].forEach(ms => window.setTimeout(highlightRecallPids, ms))
     }
     const highlightRecallPids = () => {
       const stalePids = staleRecallPidsRef.current
@@ -624,10 +624,13 @@ export default function BrowserPanel() {
     // Mismatch-/Auto-Fill-Effect, was zu wiederholt aufpoppenden Meldungen
     // fuehrt. Detail-Extract laeuft nur bei echter Navigation/dom-ready.
     const poll = window.setInterval(() => {
-      if (!webviewReady.current) return
+      // Polling laeuft auch bevor dom-ready einmal gefeuert hat — Liris
+      // koennte gerade die Login-Seite anzeigen und dabei eine andere
+      // dom-ready-Sequenz benutzen. executeJavaScript schlaegt einfach
+      // still fehl wenn die Seite noch nicht bereit ist.
       checkCalendarDay()
       highlightRecallPids()
-    }, 2500)
+    }, 1500)
 
     return () => {
       wv.removeEventListener('dom-ready', onDomReady)
