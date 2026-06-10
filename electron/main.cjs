@@ -206,25 +206,40 @@ ipcMain.handle('open-ics', async (_event, content, filename) => {
 ipcMain.handle('save-brief-pdf', async (_event, html, suggestedFilename) => {
   let win = null
   try {
+    console.log('[save-brief-pdf] starting, html.length=', html?.length, 'filename=', suggestedFilename)
     win = new BrowserWindow({
       show: false,
-      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+      width: 794,   // A4 @96dpi
+      height: 1123,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, offscreen: false }
     })
-    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
-    await win.loadURL(dataUrl)
-    const pdfBuffer = await win.webContents.printToPDF({
-      pageSize: 'A4',
-      printBackground: true,
-      margins: { marginType: 'none' },
-    })
-    const downloads = app.getPath('downloads')
-    const safe = (suggestedFilename || 'Brief.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_')
-    const target = path.join(downloads, safe.endsWith('.pdf') ? safe : safe + '.pdf')
-    fs.writeFileSync(target, pdfBuffer)
-    try { shell.showItemInFolder(target) } catch { /* no-op */ }
-    return { ok: true, path: target }
+    // dataUrl-Approach scheitert bei langem HTML (>2MB Limit). Stattdessen
+    // HTML in temp-Datei schreiben und via file:// laden.
+    const tmpHtml = path.join(os.tmpdir(), 'az-brief-' + Date.now() + '.html')
+    fs.writeFileSync(tmpHtml, html, 'utf-8')
+    try {
+      await win.loadFile(tmpHtml)
+      // Kurz warten damit CSS-Rendering komplett ist
+      await new Promise(r => setTimeout(r, 250))
+      const pdfBuffer = await win.webContents.printToPDF({
+        pageSize: 'A4',
+        printBackground: true,
+        margins: { marginType: 'none' },
+      })
+      console.log('[save-brief-pdf] PDF rendered, bytes=', pdfBuffer.length)
+      const downloads = app.getPath('downloads')
+      const safe = (suggestedFilename || 'Brief.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_')
+      const target = path.join(downloads, safe.endsWith('.pdf') ? safe : safe + '.pdf')
+      fs.writeFileSync(target, pdfBuffer)
+      console.log('[save-brief-pdf] saved to', target)
+      try { shell.showItemInFolder(target) } catch (e) { console.warn('[save-brief-pdf] showItemInFolder failed', e) }
+      return { ok: true, path: target }
+    } finally {
+      try { fs.unlinkSync(tmpHtml) } catch { /* no-op */ }
+    }
   } catch (err) {
-    return { ok: false, error: String(err) }
+    console.error('[save-brief-pdf] failed', err)
+    return { ok: false, error: String(err && err.stack || err) }
   } finally {
     if (win) win.destroy()
   }
