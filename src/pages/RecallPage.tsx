@@ -2629,6 +2629,11 @@ export default function RecallPage() {
     if (!aufgebotTarget || !aufgebotForm.art) return
     setAufgebotConfirmPending(false)
     setAufgebotSaving(true)
+    // Bei Brief: PDF automatisch in Downloads erzeugen wenn noch nicht
+    // geschehen — egal ob 'Per Post' bereits geklickt wurde oder nicht.
+    if (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum && aufgebotForm.versand !== 'Email') {
+      try { generateBriefPDF(aufgebotTarget.patient, aufgebotForm) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
+    }
     try {
       const today = new Date().toISOString().slice(0, 10)
       const existingVerlauf: VerlaufEntry[] = aufgebotTarget.patient.verlauf ?? []
@@ -4253,7 +4258,11 @@ export default function RecallPage() {
                     {af.art === 'Brief' ? (
                       <div className="flex gap-2 flex-1">
                         <button
-                          onClick={() => { setAf({ versand: 'Post' }); generateBriefPDF(p, af) }}
+                          onClick={() => {
+                            console.log('[Brief] Per Post PDF Button geklickt — art:', af.art, 'terminDatum:', af.terminDatum)
+                            setAf({ versand: 'Post' })
+                            generateBriefPDF(p, af)
+                          }}
                           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                             af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                           }`}>
