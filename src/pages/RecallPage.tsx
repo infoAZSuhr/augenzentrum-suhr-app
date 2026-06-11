@@ -2134,6 +2134,11 @@ export default function RecallPage() {
       if (kws.includes('Myd') && !f.pupille) patch.pupille = true
       if (kws.includes('OCT') && !/OCT/i.test(f.voruntersuchungenSonstige)) {
         patch.voruntersuchungenSonstige = (f.voruntersuchungenSonstige ? f.voruntersuchungenSonstige + ', ' : '') + 'OCT'
+        // 'Sonstige'-Checkbox setzen damit OCT in der Brief-Liste UND in
+        // der Zeit-Berechnung erscheint.
+        if (!f.voruntersuchungen.includes('Sonstige')) {
+          patch.voruntersuchungen = [...(patch.voruntersuchungen ?? f.voruntersuchungen), 'Sonstige']
+        }
       }
       // BP-Keywords auf vordefinierte Voruntersuchungen mappen — Haken
       // setzen wenn das Item noch nicht gewaehlt ist.
@@ -2238,11 +2243,13 @@ export default function RecallPage() {
     // 'Sonstige' kann mehrere komma-getrennte Items enthalten — jedes
     // Item zaehlt separat als +15 Min.
     const hasZykloplegie   = vuItems.includes('Zykloplegie')
-    const knownVuCount     = vuItems.filter(v => v in VU_DAUER && v !== 'Zykloplegie').length
+    // Wir zaehlen direkt aus dem Original-Form, damit es nicht relevant
+    // ist ob 'Sonstige' angekreuzt ist oder nicht.
+    const definedVuCount   = form.voruntersuchungen.filter(v => v in VU_DAUER && v !== 'Zykloplegie').length
     const sonstigeCount    = form.voruntersuchungenSonstige
       ? form.voruntersuchungenSonstige.split(/[,;]/).map(s => s.trim()).filter(Boolean).length
       : 0
-    const otherKnownCount  = knownVuCount + sonstigeCount
+    const otherKnownCount  = definedVuCount + sonstigeCount
     const vuZeitHinweis    = hasZykloplegie
       ? 'bis 2 Stunden'
       : otherKnownCount > 0 ? `ca. ${otherKnownCount * 15} Minuten` : null
