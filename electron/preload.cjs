@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('electronApp', {
   deletePdfTmp: (filePath) => ipcRenderer.invoke('delete-pdf-tmp', filePath),
   startPdfDrag: (filePath) => { ipcRenderer.send('start-pdf-drag', filePath); return Promise.resolve({ ok: true }) },
   openMailWithAttachments: (filePaths, subject) => ipcRenderer.invoke('open-mail-with-attachments', filePaths, subject),
+  // PDF via CDP direkt ins Liris-Webview-Upload-Feld setzen
+  uploadPdfToLiris: (webContentsId, filePath) => ipcRenderer.invoke('upload-pdf-to-liris', webContentsId, filePath),
   // Subscribe to updater status events. Callback bekommt
   //   { state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error', ...payload }
   // Liefert unsubscribe-Funktion.

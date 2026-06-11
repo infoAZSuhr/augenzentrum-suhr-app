@@ -357,7 +357,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId } = useBrowser()
 
   // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
   // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
@@ -638,6 +638,8 @@ export default function BrowserPanel() {
     const onDomReady = () => {
       setLoading(false)
       webviewReady.current = true
+      // WebContents-ID des Webviews fuer CDP-Upload bereitstellen
+      try { if (wv.getWebContentsId) setLirisWebContentsId(wv.getWebContentsId()) } catch { /* no-op */ }
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
       scheduleDetailCheck()
       scheduleCalendarDayCheck()

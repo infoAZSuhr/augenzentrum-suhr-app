@@ -61,6 +61,10 @@ interface BrowserContextType {
    *  Termins in Liris, damit der frische Termin sichtbar wird). */
   reloadLiris: () => void
   reloadLirisAt: number
+  /** WebContents-ID des Liris-<webview> — von BrowserPanel gesetzt,
+   *  vom Postausgang fuer den CDP-Upload benoetigt. */
+  lirisWebContentsId: number | null
+  setLirisWebContentsId: (id: number | null) => void
   clearRecallPidRequest: () => void
   requestRecallNew: (data: { pid: string; name?: string; geb?: string }) => void
   clearRecallNewRequest: () => void
@@ -91,6 +95,8 @@ const BrowserContext = createContext<BrowserContextType>({
   requestRecallByPid: () => {},
   reloadLiris: () => {},
   reloadLirisAt: 0,
+  lirisWebContentsId: null,
+  setLirisWebContentsId: () => {},
   clearRecallPidRequest: () => {},
   requestRecallNew: () => {},
   clearRecallNewRequest: () => {},
@@ -110,6 +116,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   // Reload-Trigger: jede Inkrementierung loest in BrowserPanel ein
   // webview.reload() aus. State statt Ref damit Effekte feuern.
   const [reloadLirisAt, setReloadLirisAt] = useState(0)
+  const [lirisWebContentsId, setLirisWebContentsId] = useState<number | null>(null)
   const [staleRecallPids, setStaleRecallPids] = useState<string[]>([])
   const [knownRecallPids, setKnownRecallPids] = useState<string[]>([])
   const [staleReferenceDate, setStaleReferenceDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
@@ -141,6 +148,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
       reloadLiris: () => setReloadLirisAt(n => n + 1),
       reloadLirisAt,
+      lirisWebContentsId,
+      setLirisWebContentsId,
       clearRecallPidRequest: () => setRecallPidRequest(null),
       requestRecallNew: (data) => setRecallNewRequest({ pid: data.pid, name: data.name || '', geb: data.geb || '', at: Date.now() }),
       clearRecallNewRequest: () => setRecallNewRequest(null),

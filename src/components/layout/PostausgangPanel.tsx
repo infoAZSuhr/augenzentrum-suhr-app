@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Mail, Trash2, X, FileText, Inbox } from 'lucide-react'
+import { Mail, Trash2, X, FileText, Inbox, Upload } from 'lucide-react'
 import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
+import { useBrowser } from '../../contexts/BrowserContext'
 
 interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openMailWithAttachments?: (filePaths: string[], subject: string) => Promise<{ ok: boolean; error?: string }>
+  uploadPdfToLiris?: (webContentsId: number, filePath: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 /** Schwebendes Mini-Panel unten rechts. Zeigt die Liste vorbereiteter
@@ -12,8 +14,29 @@ interface ElectronPostausgangApi {
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
   const { items, remove } = usePostausgang()
+  const { lirisWebContentsId } = useBrowser()
   const [open, setOpen] = useState(false)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
+
+  const uploadToLiris = async (it: PostausgangItem) => {
+    if (!it.tmpPath || !electronApi?.uploadPdfToLiris) { alert('Nur in der Electron-App verfuegbar.'); return }
+    if (!lirisWebContentsId) { alert('Liris-Browser ist nicht offen. Bitte zuerst Liris oeffnen (Recall-Seite).'); return }
+    setUploadingId(it.id)
+    try {
+      const res = await electronApi.uploadPdfToLiris(lirisWebContentsId, it.tmpPath)
+      if (res.ok) {
+        // Bei Erfolg aus dem Postausgang nehmen
+        remove(it.id)
+      } else {
+        alert('Hochladen fehlgeschlagen: ' + (res.error || 'unbekannt') + '\n\nBitte in Liris zuerst "Dokument importieren" oeffnen (Arzt + Mail gesendet waehlen), dann erneut versuchen.')
+      }
+    } catch (e) {
+      alert('Hochladen fehlgeschlagen: ' + String(e))
+    } finally {
+      setUploadingId(null)
+    }
+  }
 
   // Panel ist immer sichtbar — auch leer — damit der User direkt sieht
   // wo Briefe landen. Bei leerem Postausgang verkleinert sich der Button
@@ -94,6 +117,9 @@ export default function PostausgangPanel() {
                     <div className="text-xs font-semibold text-gray-800 truncate">{it.vorname || it.filename}</div>
                     <div className="text-[10px] text-gray-400 truncate">{it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}</div>
                   </div>
+                  <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Ins Liris hochladen" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
+                    <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
+                  </button>
                   <button onClick={() => mailOne(it)} title="Per E-Mail" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
                     <Mail className="w-3.5 h-3.5" />
                   </button>

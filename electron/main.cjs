@@ -254,6 +254,55 @@ ipcMain.on('start-pdf-drag', (event, filePath) => {
   }
 })
 
+// PDF direkt ins Liris-Webview hochladen via Chrome DevTools Protocol.
+// Vorbedingung: der Liris-Upload-Dialog ist offen (nach 'Dokument
+// importieren' -> Arzt -> Mail gesendet), sodass ein <input type=file>
+// im DOM existiert. Normales JS darf file-inputs nicht befuellen — das
+// CDP-Kommando DOM.setFileInputFiles schon.
+ipcMain.handle('upload-pdf-to-liris', async (_event, webContentsId, filePath) => {
+  const { webContents } = require('electron')
+  let wc = null
+  let attached = false
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return { ok: false, error: 'Datei nicht gefunden' }
+    wc = webContents.fromId(webContentsId)
+    if (!wc) return { ok: false, error: 'Liris-Webview nicht gefunden' }
+
+    try { wc.debugger.attach('1.3') ; attached = true }
+    catch (e) {
+      // evtl. schon attached (z.B. DevTools offen)
+      return { ok: false, error: 'Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e) + ')' }
+    }
+
+    const { root } = await wc.debugger.sendCommand('DOM.getDocument', { depth: -1, pierce: true })
+
+    // file-input suchen — auch in Frames (pierce:true liefert Shadow/Frame-Knoten).
+    // Wir nutzen DOM.querySelectorAll auf dem Root.
+    const { nodeIds } = await wc.debugger.sendCommand('DOM.querySelectorAll', {
+      nodeId: root.nodeId,
+      selector: 'input[type="file"]',
+    })
+
+    if (!nodeIds || nodeIds.length === 0) {
+      return { ok: false, error: 'Kein Upload-Feld in Liris gefunden. Bitte zuerst "Dokument importieren" oeffnen.' }
+    }
+
+    // Letztes file-input nehmen (der zuletzt geoeffnete Upload-Dialog).
+    const targetNodeId = nodeIds[nodeIds.length - 1]
+    await wc.debugger.sendCommand('DOM.setFileInputFiles', {
+      nodeId: targetNodeId,
+      files: [filePath],
+    })
+
+    return { ok: true }
+  } catch (err) {
+    console.error('[upload-pdf-to-liris] failed', err)
+    return { ok: false, error: String(err && err.message || err) }
+  } finally {
+    if (wc && attached) { try { wc.debugger.detach() } catch { /* no-op */ } }
+  }
+})
+
 // Outlook (oder Default-Mailclient) mit Attachments oeffnen.
 // Strategie: HTML-Email-Datei mit mailto-Trick funktioniert nicht
 // universell mit Attachments. Wir oeffnen den Default-Client mit
