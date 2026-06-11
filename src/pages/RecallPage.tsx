@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBrowser } from '../contexts/BrowserContext'
+import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
 import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ArrowLeft } from 'lucide-react'
@@ -491,6 +492,7 @@ export default function RecallPage() {
   const toast = useToast()
   const navigate     = useNavigate()
   const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
+  const postausgang = usePostausgang()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
@@ -2442,34 +2444,44 @@ export default function RecallPage() {
 
   function generateBriefPDF(patient: RecallPatient, form: AufgebotForm) {
     const html = buildBriefHtml(patient, form)
-    // In Electron: PDF direkt in Downloads ablegen und Explorer oeffnen —
-    // User kann die Datei dann per Drag&Drop ins Liris-Webview ziehen.
-    const ea = (window as unknown as { electronApp?: { saveBriefPdf?: (html: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }> } }).electronApp
-    console.log('[Brief] electronApp.saveBriefPdf available?', !!ea?.saveBriefPdf, 'electronApp:', ea)
+    const ea = (window as unknown as { electronApp?: {
+      renderPdfBlob?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
+      saveBriefPdf?: (html: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
+    } }).electronApp
+    const lastName = (form.adressBlock.trim().split('\n')[0] || patient.vorname || 'Patient').split(/\s+/)[0]
+    const today = new Date().toISOString().slice(0, 10)
+    const pid = normalizePid(patient.pid)
+    const filename = `Brief_${lastName}${pid ? '_' + pid : ''}_${today}.pdf`
+    setAufgebotPdfCreated(true)
+
     if (ea?.saveBriefPdf) {
-      const lastName = (form.adressBlock.trim().split('\n')[0] || patient.vorname || 'Patient').split(/\s+/)[0]
-      const today = new Date().toISOString().slice(0, 10)
-      const pid = normalizePid(patient.pid)
-      const filename = `Brief_${lastName}${pid ? '_' + pid : ''}_${today}.pdf`
-      setAufgebotPdfCreated(true)
-      toast.info('PDF wird erstellt…')
-      ea.saveBriefPdf(html, filename).then(res => {
-        console.log('[Brief] saveBriefPdf result:', res)
-        if (res.ok) toast.success(`PDF gespeichert: ${res.path}`)
-        else toast.error(`PDF-Erstellung fehlgeschlagen: ${res.error}`)
-      }).catch(err => {
-        console.error('[Brief] saveBriefPdf error:', err)
-        toast.error(`PDF-Fehler: ${String(err)}`)
-      })
+      // PDF erzeugen lassen, Buffer holen, in den Postausgang einreihen
+      // statt direkt in Downloads abzulegen.
+      toast.info('PDF wird vorbereitet…')
+      ea.saveBriefPdf(html, filename).then(async res => {
+        if (!res.ok || !res.path) { toast.error(`PDF-Fehler: ${res.error}`); return }
+        // Datei wieder lesen damit wir den Blob haben (electron schreibt nach Downloads)
+        try {
+          const fileUrl = 'file://' + res.path.replace(/\\/g, '/')
+          const blob = await fetch(fileUrl).then(r => r.blob())
+          await postausgang.add({
+            pid:      pid || null,
+            vorname:  patient.vorname || lastName,
+            arzt:     patient.doctor,
+            filename, blob,
+          })
+          toast.success('In Postausgang abgelegt')
+        } catch (e) {
+          console.error('[Brief] Postausgang-Add fehlgeschlagen', e)
+          toast.error('PDF erstellt, aber Postausgang-Ablage fehlgeschlagen')
+        }
+      }).catch(err => toast.error(`PDF-Fehler: ${String(err)}`))
       return
     }
-    // Browser-/Alt-Electron-Fallback: Vorschau-Modal mit Drucken/Save-as-PDF.
-    // Hinweis, damit User weiss warum die direkte PDF-Erstellung nicht greift.
     if ((window as any).electronApp) {
       toast.info('Direkte PDF-Erstellung erfordert App-Update — Vorschau wird geöffnet.')
     }
     setBriefPreview(html)
-    setAufgebotPdfCreated(true)
   }
 
   function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm) {

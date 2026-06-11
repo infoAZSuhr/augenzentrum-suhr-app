@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { NoticesProvider } from './lib/NoticesContext'
 import { BrowserProvider } from './contexts/BrowserContext'
+import { PostausgangProvider } from './contexts/PostausgangContext'
 import { GlossarProvider } from './lib/GlossarContext'
 import { ToastProvider } from './lib/ToastContext'
 import AppShell from './components/layout/AppShell'
@@ -210,7 +211,9 @@ export default function App() {
         <AuthProvider>
           <GlossarProvider>
             <BrowserProvider>
-              <AppRoutes />
+              <PostausgangProvider>
+                <AppRoutes />
+              </PostausgangProvider>
             </BrowserProvider>
           </GlossarProvider>
         </AuthProvider>

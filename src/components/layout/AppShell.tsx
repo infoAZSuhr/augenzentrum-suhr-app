@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
 import BrowserPanel from './BrowserPanel'
+import PostausgangPanel from './PostausgangPanel'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { Eye, Package, CalendarDays, Users, LogOut, Menu, X, ChevronDown, Bell, Check, UserX, Scissors, Layers, UserCog, KeyRound, Save, Mail, MessageSquare, BookOpen, ClipboardList, LayoutList, Phone, ArrowRightLeft, Library, FileText } from 'lucide-react'
 import GlossarModal from '../ui/GlossarModal'
@@ -1412,6 +1413,9 @@ export default function AppShell() {
           && location.pathname.startsWith('/recall')
           && <BrowserPanel />}
       </div>
+
+      {/* Schwebendes Postausgang-Panel — unten rechts, app-weit sichtbar */}
+      <PostausgangPanel />
 
       {/* Profile modal */}
       {showProfile && profile && (

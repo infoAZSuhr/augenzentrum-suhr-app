@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('electronApp', {
   openLiris: (pid) => ipcRenderer.invoke('open-liris', pid),
   // Brief-HTML -> PDF in Downloads schreiben + Explorer oeffnen
   saveBriefPdf: (html, filename) => ipcRenderer.invoke('save-brief-pdf', html, filename),
+  // Postausgang: PDF aus Blob in tmp ablegen / Drag starten / Mail oeffnen / loeschen
+  writePdfTmp: (buf, filename) => ipcRenderer.invoke('write-pdf-tmp', buf, filename),
+  deletePdfTmp: (filePath) => ipcRenderer.invoke('delete-pdf-tmp', filePath),
+  startPdfDrag: (filePath) => { ipcRenderer.send('start-pdf-drag', filePath); return Promise.resolve({ ok: true }) },
+  openMailWithAttachments: (filePaths, subject) => ipcRenderer.invoke('open-mail-with-attachments', filePaths, subject),
   // Subscribe to updater status events. Callback bekommt
   //   { state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error', ...payload }
   // Liefert unsubscribe-Funktion.

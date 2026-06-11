@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, shell, ipcMain, dialog, nativeImage } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -203,6 +203,79 @@ ipcMain.handle('open-ics', async (_event, content, filename) => {
 // Brief-HTML zu PDF rendern und in Downloads ablegen. Anschliessend wird
 // die Datei im Explorer markiert (showItemInFolder), sodass der User sie
 // per Drag&Drop direkt in den Liris-Webview ziehen kann.
+// PDF aus Brief-HTML rendern und in tmp ablegen (Postausgang-Workflow).
+// Gibt den Pfad zurueck — die Datei wird spaeter via startPdfDrag oder
+// openMailWithAttachments referenziert und am Schluss via deletePdfTmp
+// wieder geloescht.
+ipcMain.handle('write-pdf-tmp', async (_event, arrayBuffer, suggestedFilename) => {
+  try {
+    const safe = (suggestedFilename || 'Brief.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_')
+    const name = safe.endsWith('.pdf') ? safe : safe + '.pdf'
+    const dir  = path.join(os.tmpdir(), 'azs-postausgang')
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const target = path.join(dir, Date.now() + '-' + name)
+    fs.writeFileSync(target, Buffer.from(arrayBuffer))
+    return { ok: true, path: target }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('delete-pdf-tmp', async (_event, filePath) => {
+  try { if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath); return { ok: true } }
+  catch (err) { return { ok: false, error: String(err) } }
+})
+
+// Startet einen Drag-Vorgang im sendenden Fenster mit der PDF als Datei.
+// Muss im 'dragstart'-Lifecycle aufgerufen werden, sonst wirkt es nicht.
+ipcMain.on('start-pdf-drag', (event, filePath) => {
+  try {
+    event.sender.startDrag({
+      file: filePath,
+      // Generic File-Icon — Electron rendert ein Mini-Preview ueber dem Cursor
+      icon: nativeImage.createEmpty(),
+    })
+  } catch (err) {
+    console.warn('[start-pdf-drag] failed:', err)
+  }
+})
+
+// Outlook (oder Default-Mailclient) mit Attachments oeffnen.
+// Strategie: HTML-Email-Datei mit mailto-Trick funktioniert nicht
+// universell mit Attachments. Wir oeffnen den Default-Client mit
+// 'attachment=' Parameter, was nur Outlook unterstuetzt. Fallback:
+// Wir markieren die Dateien im Explorer, User zieht selbst ins Mail.
+ipcMain.handle('open-mail-with-attachments', async (_event, filePaths, subject) => {
+  try {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) return { ok: false, error: 'keine Dateien' }
+    if (process.platform === 'win32') {
+      // Outlook via /a-Switch
+      const { spawn } = require('child_process')
+      const outlookPaths = [
+        'C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE',
+        'C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE',
+        'C:\\Program Files\\Microsoft Office\\Office16\\OUTLOOK.EXE',
+        'C:\\Program Files (x86)\\Microsoft Office\\Office16\\OUTLOOK.EXE',
+      ]
+      const outlookExe = outlookPaths.find(p => fs.existsSync(p))
+      if (outlookExe) {
+        // /a kann nur eine Datei zugleich -> wir hangen alle als zusaetzliche
+        // /a-Argumente an; Outlook akzeptiert das.
+        const args = []
+        for (const f of filePaths) { args.push('/a', f) }
+        spawn(outlookExe, args, { detached: true, stdio: 'ignore' }).unref()
+        return { ok: true }
+      }
+    }
+    // Fallback: Ordner mit den Dateien oeffnen + leere mailto
+    try { shell.showItemInFolder(filePaths[0]) } catch { /* no-op */ }
+    shell.openExternal('mailto:?subject=' + encodeURIComponent(subject || 'Briefe'))
+    return { ok: true, fallback: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+})
+
 ipcMain.handle('save-brief-pdf', async (_event, html, suggestedFilename) => {
   let win = null
   try {

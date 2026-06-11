@@ -1,0 +1,119 @@
+import { useState } from 'react'
+import { Mail, Trash2, X, FileText, Inbox } from 'lucide-react'
+import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
+
+interface ElectronPostausgangApi {
+  startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
+  openMailWithAttachments?: (filePaths: string[], subject: string) => Promise<{ ok: boolean; error?: string }>
+}
+
+/** Schwebendes Mini-Panel unten rechts. Zeigt die Liste vorbereiteter
+ *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
+ *  versenden, loeschen. */
+export default function PostausgangPanel() {
+  const { items, remove } = usePostausgang()
+  const [open, setOpen] = useState(false)
+  const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
+
+  if (items.length === 0 && !open) return null
+
+  const handleDragStart = (e: React.DragEvent, it: PostausgangItem) => {
+    if (it.tmpPath && electronApi?.startPdfDrag) {
+      // Electron-spezifisches startDrag — Renderer reicht die Datei-Pfad
+      // ueber IPC an Main weiter, dort wird webContents.startDrag aufgerufen.
+      e.preventDefault()
+      electronApi.startPdfDrag(it.tmpPath).catch(() => {})
+      return
+    }
+    // Browser-Fallback: blob als URL anbieten (kein echter File-Drop ins
+    // Liris-Webview moeglich, aber Drag innerhalb der Seite funktioniert).
+    try {
+      const url = URL.createObjectURL(it.blob)
+      e.dataTransfer.setData('DownloadURL', `application/pdf:${it.filename}:${url}`)
+      e.dataTransfer.setData('text/uri-list', url)
+    } catch { /* ignore */ }
+  }
+
+  const mailOne = async (it: PostausgangItem) => {
+    if (!it.tmpPath) { alert('Datei nicht verfuegbar — in Electron-App nutzen.'); return }
+    if (electronApi?.openMailWithAttachments) {
+      await electronApi.openMailWithAttachments([it.tmpPath], `Brief ${it.vorname}${it.pid ? ' #' + it.pid : ''}`)
+    }
+  }
+
+  const mailAll = async () => {
+    const paths = items.map(i => i.tmpPath).filter(Boolean) as string[]
+    if (paths.length === 0) return
+    if (electronApi?.openMailWithAttachments) {
+      await electronApi.openMailWithAttachments(paths, `${paths.length} Briefe aus Augenzentrum Suhr`)
+    }
+  }
+
+  return (
+    <div className="fixed bottom-4 right-4 z-40">
+      {open ? (
+        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-[340px] max-h-[60vh] flex flex-col">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <Inbox className="w-4 h-4 text-primary-600" />
+              <span className="text-sm font-bold text-gray-800">Postausgang</span>
+              <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-semibold">{items.length}</span>
+            </div>
+            <div className="flex gap-1">
+              {items.length > 1 && (
+                <button onClick={mailAll} title="Alle per E-Mail" className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600">
+                  <Mail className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          {items.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-xs py-8 px-4 text-center gap-2">
+              <Inbox className="w-8 h-8 opacity-50" />
+              <span>Keine vorbereiteten Briefe</span>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto">
+              {items.map(it => (
+                <div
+                  key={it.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, it)}
+                  title="Ziehen zum Hochladen ins Liris"
+                  className="group flex items-center gap-2 px-3 py-2 border-b border-gray-100 hover:bg-primary-50 cursor-grab active:cursor-grabbing"
+                >
+                  <FileText className="w-4 h-4 shrink-0 text-primary-500" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800 truncate">{it.vorname || it.filename}</div>
+                    <div className="text-[10px] text-gray-400 truncate">{it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}</div>
+                  </div>
+                  <button onClick={() => mailOne(it)} title="Per E-Mail" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
+                    <Mail className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => remove(it.id)} title="Loeschen" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-red-500 transition-opacity">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="px-3 py-1.5 border-t border-gray-100 bg-gray-50 text-[10px] text-gray-400 text-center">
+            Eintraege ziehen oder klicken
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 bg-primary-600 text-white px-3 py-2 rounded-full shadow-lg hover:bg-primary-700 transition-colors"
+          title={`${items.length} Brief${items.length === 1 ? '' : 'e'} im Postausgang`}
+        >
+          <Inbox className="w-4 h-4" />
+          <span className="text-xs font-bold">{items.length}</span>
+        </button>
+      )}
+    </div>
+  )
+}
