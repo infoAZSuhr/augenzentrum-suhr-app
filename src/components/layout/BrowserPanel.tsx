@@ -600,13 +600,12 @@ export default function BrowserPanel() {
         var mm = parseInt(m[2], 10);
         var yy = m[3] ? parseInt(m[3], 10) : null;
         if (yy === null) {
-          // Liris zeigt im Wochenheader links das Jahr nur an wenn es vom
-          // laufenden abweicht (z.B. "2025#6" = Woche 6 in 2025). Wir lesen
-          // diesen YYYY#NN-Marker (max 200 Zeichen vor dem Wochentag-Match)
-          // und nehmen das angegebene Jahr — sonst das aktuelle.
-          var beforeIdx = txt.indexOf(m[0]);
-          var ctx = beforeIdx > 0 ? txt.slice(Math.max(0, beforeIdx - 200), beforeIdx) : '';
-          var yrM = ctx.match(/(\\d{4})\\s*#\\s*\\d{1,2}/);
+          // Liris zeigt links neben dem Wochenheader den 'YYYY#KW'-Marker
+          // (z.B. '2025#6' = Woche 6 in 2025) nur dann an, wenn das Jahr
+          // vom laufenden abweicht. Wir suchen den Marker im gesamten
+          // sichtbaren Text — er kann im DOM vor ODER nach dem Wochentag-
+          // Match stehen. Akzeptiert nur plausible Jahre (1990-2099).
+          var yrM = txt.match(/(?:^|[^\\d])((?:19|20)\\d{2})\\s*#\\s*\\d{1,2}\\b/);
           yy = yrM ? parseInt(yrM[1], 10) : new Date().getFullYear();
         }
         if (yy < 100) yy += 2000;
