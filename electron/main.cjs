@@ -228,13 +228,27 @@ ipcMain.handle('delete-pdf-tmp', async (_event, filePath) => {
 
 // Startet einen Drag-Vorgang im sendenden Fenster mit der PDF als Datei.
 // Muss im 'dragstart'-Lifecycle aufgerufen werden, sonst wirkt es nicht.
+// 16x16 transparentes PNG (Base64) als Default-Drag-Icon. Electron's
+// startDrag verlangt ein nicht-leeres NativeImage — createEmpty() schlaegt
+// auf manchen Versionen still fehl und der Drag-Vorgang startet erst gar nicht.
+const DRAG_ICON_PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAFElEQVR4nGNgGAWjYBSMglEwCgAABZgAAU01H1cAAAAASUVORK5CYII='
+
 ipcMain.on('start-pdf-drag', (event, filePath) => {
   try {
-    event.sender.startDrag({
-      file: filePath,
-      // Generic File-Icon — Electron rendert ein Mini-Preview ueber dem Cursor
-      icon: nativeImage.createEmpty(),
-    })
+    if (!filePath || !fs.existsSync(filePath)) {
+      console.warn('[start-pdf-drag] Datei nicht gefunden:', filePath)
+      return
+    }
+    let icon = nativeImage.createFromBuffer(Buffer.from(DRAG_ICON_PNG_B64, 'base64'))
+    if (icon.isEmpty()) {
+      // Fallback: App-Icon aus den Build-Assets
+      try {
+        const iconPath = path.join(__dirname, 'assets', 'icon.ico')
+        if (fs.existsSync(iconPath)) icon = nativeImage.createFromPath(iconPath)
+      } catch { /* ignore */ }
+    }
+    console.log('[start-pdf-drag] starting drag for', filePath)
+    event.sender.startDrag({ file: filePath, icon })
   } catch (err) {
     console.warn('[start-pdf-drag] failed:', err)
   }

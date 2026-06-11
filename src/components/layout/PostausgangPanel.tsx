@@ -20,11 +20,13 @@ export default function PostausgangPanel() {
   // und wirkt dezenter (kein Anzahl-Badge).
 
   const handleDragStart = (e: React.DragEvent, it: PostausgangItem) => {
+    // Drag muss synchron initiiert werden — preventDefault() + IPC-send
+    // moeglichst im selben Tick, sonst startDrag kommt zu spaet und der
+    // Browser-Default-Drag wird abgebrochen.
+    console.log('[Postausgang] dragstart', it.filename, 'tmpPath:', it.tmpPath)
     if (it.tmpPath && electronApi?.startPdfDrag) {
-      // Electron-spezifisches startDrag — Renderer reicht die Datei-Pfad
-      // ueber IPC an Main weiter, dort wird webContents.startDrag aufgerufen.
       e.preventDefault()
-      electronApi.startPdfDrag(it.tmpPath).catch(() => {})
+      electronApi.startPdfDrag(it.tmpPath).catch(err => console.warn('[Postausgang] startPdfDrag failed', err))
       return
     }
     // Browser-Fallback: blob als URL anbieten (kein echter File-Drop ins
@@ -33,7 +35,7 @@ export default function PostausgangPanel() {
       const url = URL.createObjectURL(it.blob)
       e.dataTransfer.setData('DownloadURL', `application/pdf:${it.filename}:${url}`)
       e.dataTransfer.setData('text/uri-list', url)
-    } catch { /* ignore */ }
+    } catch (err) { console.warn('[Postausgang] DataTransfer fallback failed', err) }
   }
 
   const mailOne = async (it: PostausgangItem) => {
