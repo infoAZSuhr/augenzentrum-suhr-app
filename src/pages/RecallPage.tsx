@@ -975,10 +975,13 @@ export default function RecallPage() {
         filled = true
       }
     }
-    // Intervall auto-fill — nur wenn leer. Liris liefert immer in Wochen;
-    // wir waehlen die kompakteste Einheit (Jahre/Monate/Wochen), damit
-    // parseKonsInterval die 120er-Obergrenze (gilt pro Einheit) nicht reisst.
-    if (!form.konsInterval && lirisExtract.intervalWeeks) {
+    // Intervall auto-fill — nur wenn leer UND wenn noch kein 'Nächste
+    // Konst.' eingetragen ist. Falls der Patient bereits einen konkreten
+    // Folgetermin hat, brauchen wir kein Intervall + RC-Datum mehr.
+    // Liris liefert immer in Wochen; wir waehlen die kompakteste Einheit
+    // (Jahre/Monate/Wochen) damit parseKonsInterval die 120er-Obergrenze
+    // (gilt pro Einheit) nicht reisst.
+    if (!form.konsInterval && !form.naechsteKons && lirisExtract.intervalWeeks) {
       const w = lirisExtract.intervalWeeks
       let label: string | null = null
       if (w % 52 === 0 && w / 52 <= 120)      label = `${w / 52}j`
