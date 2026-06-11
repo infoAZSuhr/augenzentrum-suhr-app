@@ -4515,7 +4515,7 @@ export default function RecallPage() {
               </button>
               <button
                 onClick={() => openAufgebotDialog(entry)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0"
               >
                 <CalendarDays className="w-3.5 h-3.5" />
                 Aufbieten
