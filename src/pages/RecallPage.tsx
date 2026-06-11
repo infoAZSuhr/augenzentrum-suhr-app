@@ -36,7 +36,8 @@ import { ref as storageRef, uploadBytes } from 'firebase/storage'
 
 const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
 const ZU_BEARB   = 'Zu bearbeiten'
-const OFFEN_TAB  = 'offen'
+const OFFEN_TAB  = 'offen'                       // interner Doctor-Wert in der DB
+const OFFEN_LABEL = 'Keinem Arzt zugewiesen'     // sichtbares Label im UI
 const AUFGEBOT_TAB = '📅 Aufgebot-Plan'
 const PAGE_SIZE  = 50
 
@@ -3361,7 +3362,7 @@ export default function RecallPage() {
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                {tab}
+                {isOffen ? OFFEN_LABEL : tab}
                 {!isAufgebot && (
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                     isZuBearb
@@ -5532,7 +5533,7 @@ export default function RecallPage() {
                         {/* Spezial-Zuweisung 'offen' — Patient bleibt sichtbar
                             ohne festen Arzt, eigener Tab in der Register-Leiste. */}
                         {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
-                          <option value={OFFEN_TAB}>offen (kein fester Arzt)</option>
+                          <option value={OFFEN_TAB}>{OFFEN_LABEL}</option>
                         )}
                       </select>
                       {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte Arzt wählen.</p>}
