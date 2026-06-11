@@ -598,7 +598,17 @@ export default function BrowserPanel() {
         if (!m) return null;
         var dd = parseInt(m[1], 10);
         var mm = parseInt(m[2], 10);
-        var yy = m[3] ? parseInt(m[3], 10) : new Date().getFullYear();
+        var yy = m[3] ? parseInt(m[3], 10) : null;
+        if (yy === null) {
+          // Liris zeigt im Wochenheader links das Jahr nur an wenn es vom
+          // laufenden abweicht (z.B. "2025#6" = Woche 6 in 2025). Wir lesen
+          // diesen YYYY#NN-Marker (max 200 Zeichen vor dem Wochentag-Match)
+          // und nehmen das angegebene Jahr — sonst das aktuelle.
+          var beforeIdx = txt.indexOf(m[0]);
+          var ctx = beforeIdx > 0 ? txt.slice(Math.max(0, beforeIdx - 200), beforeIdx) : '';
+          var yrM = ctx.match(/(\\d{4})\\s*#\\s*\\d{1,2}/);
+          yy = yrM ? parseInt(yrM[1], 10) : new Date().getFullYear();
+        }
         if (yy < 100) yy += 2000;
         if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return null;
         function p(n){return n<10?'0'+n:''+n;}
