@@ -7,6 +7,7 @@ interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openMailWithAttachments?: (filePaths: string[], subject: string) => Promise<{ ok: boolean; error?: string }>
   uploadPdfToLiris?: (webContentsId: number, filePath: string) => Promise<{ ok: boolean; error?: string }>
+  autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 /** Schwebendes Mini-Panel unten rechts. Zeigt die Liste vorbereiteter
@@ -19,20 +20,21 @@ export default function PostausgangPanel() {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
 
+  // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei. Vorbedingung:
+  // User hat in Liris "Dokument importieren" geoeffnet (Arzt-Auswahl sichtbar).
   const uploadToLiris = async (it: PostausgangItem) => {
-    if (!it.tmpPath || !electronApi?.uploadPdfToLiris) { alert('Nur in der Electron-App verfuegbar.'); return }
+    if (!it.tmpPath || !electronApi?.autoImportToLiris) { alert('Nur in der Electron-App verfuegbar (App-Update noetig).'); return }
     if (!lirisWebContentsId) { alert('Liris-Browser ist nicht offen. Bitte zuerst Liris oeffnen (Recall-Seite).'); return }
     setUploadingId(it.id)
     try {
-      const res = await electronApi.uploadPdfToLiris(lirisWebContentsId, it.tmpPath)
+      const res = await electronApi.autoImportToLiris(lirisWebContentsId, it.tmpPath, it.arzt || '')
       if (res.ok) {
-        // Bei Erfolg aus dem Postausgang nehmen
         remove(it.id)
       } else {
-        alert('Hochladen fehlgeschlagen: ' + (res.error || 'unbekannt') + '\n\nBitte in Liris zuerst "Dokument importieren" oeffnen (Arzt + Mail gesendet waehlen), dann erneut versuchen.')
+        alert('Auto-Import fehlgeschlagen:\n' + (res.error || 'unbekannt') + '\n\nAblauf: in Liris auf "Dokument importieren" klicken (sodass die Arzt-Auswahl erscheint), dann hier erneut auf ↑ klicken. Der Rest (Arzt, Mail gesendet, Datei) laeuft automatisch.')
       }
     } catch (e) {
-      alert('Hochladen fehlgeschlagen: ' + String(e))
+      alert('Auto-Import fehlgeschlagen: ' + String(e))
     } finally {
       setUploadingId(null)
     }
@@ -117,7 +119,7 @@ export default function PostausgangPanel() {
                     <div className="text-xs font-semibold text-gray-800 truncate">{it.vorname || it.filename}</div>
                     <div className="text-[10px] text-gray-400 truncate">{it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}</div>
                   </div>
-                  <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Ins Liris hochladen" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
+                  <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris (Arzt + Mail gesendet + Datei). Vorher in Liris 'Dokument importieren' oeffnen." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
                     <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
                   </button>
                   <button onClick={() => mailOne(it)} title="Per E-Mail" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">

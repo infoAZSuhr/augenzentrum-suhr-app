@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electronApp', {
   openMailWithAttachments: (filePaths, subject) => ipcRenderer.invoke('open-mail-with-attachments', filePaths, subject),
   // PDF via CDP direkt ins Liris-Webview-Upload-Feld setzen
   uploadPdfToLiris: (webContentsId, filePath) => ipcRenderer.invoke('upload-pdf-to-liris', webContentsId, filePath),
+  // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei setzen
+  autoImportToLiris: (webContentsId, filePath, doctorLastName) => ipcRenderer.invoke('auto-import-to-liris', webContentsId, filePath, doctorLastName),
   // Subscribe to updater status events. Callback bekommt
   //   { state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error', ...payload }
   // Liefert unsubscribe-Funktion.

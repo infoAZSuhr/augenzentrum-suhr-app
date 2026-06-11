@@ -303,6 +303,106 @@ ipcMain.handle('upload-pdf-to-liris', async (_event, webContentsId, filePath) =>
   }
 })
 
+// Voll-Automatik: Brief ins Liris importieren.
+// Vorbedingung: User hat in Liris "Dokument importieren" geoeffnet, sodass
+// die Arzt-Auswahl sichtbar ist. Sequenz:
+//   1. Arzt-Link klicken (eindeutiger Match auf doctorLastName, sonst Abbruch)
+//   2. Dokumenttyp 'Mail gesendet'-Link klicken
+//   3. file-input via DOM.setFileInputFiles befuellen
+// Bricht bei Mehrdeutigkeit/fehlendem Element kontrolliert ab (Akten-Sicherheit).
+ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, doctorLastName) => {
+  const { webContents } = require('electron')
+  let wc = null, attached = false
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return { ok: false, error: 'Datei nicht gefunden' }
+    wc = webContents.fromId(webContentsId)
+    if (!wc) return { ok: false, error: 'Liris-Webview nicht gefunden' }
+    try { wc.debugger.attach('1.3'); attached = true }
+    catch (e) { return { ok: false, error: 'Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e) + ')' } }
+
+    const evalJs = async (expr) => {
+      const r = await wc.debugger.sendCommand('Runtime.evaluate', { expression: expr, returnByValue: true })
+      if (r.exceptionDetails) throw new Error('JS-Fehler in Liris: ' + JSON.stringify(r.exceptionDetails.exception || r.exceptionDetails))
+      return r.result.value
+    }
+
+    // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
+    const ln = (doctorLastName || '').trim()
+    const isOffen = !ln || ln.toLowerCase() === 'offen' || ln.toLowerCase() === 'keinem arzt zugewiesen'
+    if (isOffen) {
+      // Kein fester Arzt -> 'Gleich wie verantwortlicher Arzt'-Shortcut nutzen.
+      let okShortcut = false
+      for (let i = 0; i < 8 && !okShortcut; i++) {
+        okShortcut = await evalJs(`(function(){
+          var as=[].slice.call(document.querySelectorAll('a'));
+          for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='gleich wie verantwortlicher arzt'){ as[k].click(); return true; } }
+          return false;
+        })()`)
+        if (!okShortcut) await sleep(300)
+      }
+      if (!okShortcut) return { ok: false, error: 'Arzt-Auswahl nicht gefunden. Bitte "Dokument importieren" oeffnen, dann erneut.' }
+    } else {
+      // Eindeutigen Arzt-Link finden (Nachname als Wort, Text beginnt mit Dr/Prof).
+      const lnEsc = ln.replace(/[.*+?^${}()|[\]\\]/g, '')
+      let res = null
+      for (let i = 0; i < 8 && res !== 'ok'; i++) {
+        res = await evalJs(`(function(){
+          var ln=${JSON.stringify(lnEsc.toLowerCase())};
+          var re=new RegExp('\\\\b'+ln+'\\\\b');
+          var as=[].slice.call(document.querySelectorAll('a'));
+          var hits=[];
+          for(var k=0;k<as.length;k++){
+            var t=(as[k].innerText||'').trim(); if(!t)continue;
+            var low=t.toLowerCase();
+            if(/(^|\\s)(dr|prof|med|medic)\\b|\\bdr\\.?\\s|prof\\.?\\s/.test(low) && re.test(low)) hits.push(as[k]);
+          }
+          if(hits.length===1){ hits[0].click(); return 'ok'; }
+          if(hits.length===0) return 'none';
+          return 'multiple';
+        })()`)
+        if (res !== 'ok' && res !== 'multiple') await sleep(300)
+        if (res === 'multiple') break
+      }
+      if (res === 'multiple') return { ok: false, error: 'Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.' }
+      if (res !== 'ok') return { ok: false, error: 'Arzt "' + ln + '" nicht in Liris-Auswahl gefunden. Bitte manuell waehlen.' }
+    }
+    await sleep(600)
+
+    // ── Schritt 2: Dokumenttyp 'Mail gesendet' ──────────────────────────────
+    let mailOk = false
+    for (let i = 0; i < 8 && !mailOk; i++) {
+      mailOk = await evalJs(`(function(){
+        var as=[].slice.call(document.querySelectorAll('a'));
+        for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
+        return false;
+      })()`)
+      if (!mailOk) await sleep(350)
+    }
+    if (!mailOk) return { ok: false, error: '"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?' }
+    await sleep(700)
+
+    // ── Schritt 3: Datei ins file-input ─────────────────────────────────────
+    let fileSet = false
+    for (let i = 0; i < 8 && !fileSet; i++) {
+      const { root } = await wc.debugger.sendCommand('DOM.getDocument', { depth: -1, pierce: true })
+      const { nodeIds } = await wc.debugger.sendCommand('DOM.querySelectorAll', { nodeId: root.nodeId, selector: 'input[type="file"]' })
+      if (nodeIds && nodeIds.length) {
+        await wc.debugger.sendCommand('DOM.setFileInputFiles', { nodeId: nodeIds[nodeIds.length - 1], files: [filePath] })
+        fileSet = true
+      } else { await sleep(400) }
+    }
+    if (!fileSet) return { ok: false, error: 'Upload-Feld nicht gefunden.' }
+
+    return { ok: true }
+  } catch (err) {
+    console.error('[auto-import-to-liris] failed', err)
+    return { ok: false, error: String(err && err.message || err) }
+  } finally {
+    if (wc && attached) { try { wc.debugger.detach() } catch { /* no-op */ } }
+  }
+})
+
 // Outlook (oder Default-Mailclient) mit Attachments oeffnen.
 // Strategie: HTML-Email-Datei mit mailto-Trick funktioniert nicht
 // universell mit Attachments. Wir oeffnen den Default-Client mit
