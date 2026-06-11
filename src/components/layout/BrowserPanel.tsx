@@ -304,8 +304,16 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var bpEnd2 = bpTxt.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
         if (bpEnd2 > 0) bpTxt = bpTxt.slice(0, bpEnd2);
         var kws = [];
-        if (/\\bMyd\\b/i.test(bpTxt))   kws.push('Myd');
-        if (/\\bOCT\\b/i.test(bpTxt))   kws.push('OCT');
+        if (/\\bMyd\\b/i.test(bpTxt))                                kws.push('Myd');
+        if (/\\bOCT\\b/i.test(bpTxt))                                kws.push('OCT');
+        if (/\\bGF\\b|Gesichtsfeld|Perimetrie/i.test(bpTxt))         kws.push('GF');
+        if (/Biometrie/i.test(bpTxt))                                kws.push('Biometrie');
+        if (/Pachymetrie/i.test(bpTxt))                              kws.push('Pachymetrie');
+        if (/Hornhaut[- ]?Topographie|Topographie/i.test(bpTxt))     kws.push('Topographie');
+        if (/Tr(?:ä|ae)nenfilm/i.test(bpTxt))                        kws.push('Traenenfilm');
+        if (/Funduskopie/i.test(bpTxt))                              kws.push('Funduskopie');
+        if (/Tonometrie/i.test(bpTxt))                               kws.push('Tonometrie');
+        if (/Zykloplegie/i.test(bpTxt))                              kws.push('Zykloplegie');
         result.bpKeywords = kws;
       }
 

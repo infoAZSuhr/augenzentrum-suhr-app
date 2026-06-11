@@ -2135,6 +2135,24 @@ export default function RecallPage() {
       if (kws.includes('OCT') && !/OCT/i.test(f.voruntersuchungenSonstige)) {
         patch.voruntersuchungenSonstige = (f.voruntersuchungenSonstige ? f.voruntersuchungenSonstige + ', ' : '') + 'OCT'
       }
+      // BP-Keywords auf vordefinierte Voruntersuchungen mappen — Haken
+      // setzen wenn das Item noch nicht gewaehlt ist.
+      const KW_TO_VU: Record<string, string> = {
+        GF:           'Perimetrie',
+        Biometrie:    'Biometrie',
+        Pachymetrie:  'Pachymetrie',
+        Topographie:  'Hornhaut-Topographie',
+        Traenenfilm:  'Tränenfilm-Analyse',
+        Funduskopie:  'Funduskopie',
+        Tonometrie:   'Tonometrie',
+        Zykloplegie:  'Zykloplegie',
+      }
+      const addVu: string[] = []
+      for (const kw of kws) {
+        const vu = KW_TO_VU[kw]
+        if (vu && !f.voruntersuchungen.includes(vu) && !addVu.includes(vu)) addVu.push(vu)
+      }
+      if (addVu.length) patch.voruntersuchungen = [...f.voruntersuchungen, ...addVu]
       // Zukuenftiger Termin: Datum + Uhrzeit aus Liris uebernehmen.
       if (!f.terminDatum && lirisExtract.naechsterTerminDatum) {
         patch.terminDatum = lirisExtract.naechsterTerminDatum
