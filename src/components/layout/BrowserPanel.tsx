@@ -1272,6 +1272,52 @@ export default function BrowserPanel() {
             <FileEdit className="w-3.5 h-3.5 text-gray-500" />
           </button>
 
+          {/* DEBUG: Liris-Import-Dialog analysieren — gibt die DOM-Struktur
+              (Buttons, Selects+Optionen, Inputs, Labels) in die Console aus,
+              damit die Vollautomatik darauf aufbauen kann. */}
+          <button
+            onClick={async () => {
+              const wv = webviewRef.current as any
+              if (!wv?.executeJavaScript) return
+              try {
+                const struct = await wv.executeJavaScript(`
+                  (function() {
+                    function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}
+                    var out = { buttons: [], selects: [], inputs: [], labels: [] };
+                    document.querySelectorAll('button, a[role=button], [onclick]').forEach(function(b){
+                      if(!vis(b))return;
+                      var t=(b.innerText||b.title||b.getAttribute('aria-label')||'').trim().slice(0,60);
+                      if(t) out.buttons.push({ t:t, id:b.id||null, cls:(b.className||'').toString().slice(0,80) });
+                    });
+                    document.querySelectorAll('select').forEach(function(s){
+                      if(!vis(s))return;
+                      out.selects.push({ id:s.id||null, name:s.name||null, cls:(s.className||'').toString().slice(0,80),
+                        options:[].slice.call(s.options).map(function(o){return o.text.trim().slice(0,50)}).slice(0,40) });
+                    });
+                    document.querySelectorAll('input').forEach(function(i){
+                      if(!vis(i)&&i.type!=='file')return;
+                      out.inputs.push({ type:i.type, id:i.id||null, name:i.name||null, value:(i.value||'').slice(0,40),
+                        cls:(i.className||'').toString().slice(0,80) });
+                    });
+                    document.querySelectorAll('label').forEach(function(l){
+                      if(!vis(l))return;
+                      var t=(l.innerText||'').trim().slice(0,50); if(t) out.labels.push(t);
+                    });
+                    return JSON.stringify(out, null, 2);
+                  })();
+                `)
+                console.log('%c[Liris-Inspektor] Import-Dialog DOM-Struktur:', 'color:#16a34a;font-weight:bold')
+                console.log(struct)
+                try { await navigator.clipboard.writeText(String(struct)) } catch { /* ignore */ }
+                window.alert('Liris-Dialog analysiert — Struktur in Console (F12) + in Zwischenablage kopiert.')
+              } catch (e) { window.alert('Analyse fehlgeschlagen: ' + String(e)) }
+            }}
+            className="p-1.5 rounded hover:bg-emerald-50 hover:text-emerald-600 transition-colors ml-1"
+            title="DEBUG: Liris-Import-Dialog analysieren (Struktur in Console)"
+          >
+            <span className="text-xs font-bold">🔍</span>
+          </button>
+
           <button
             onClick={close}
             className="p-1.5 rounded hover:bg-red-50 hover:text-red-500 transition-colors ml-1"
