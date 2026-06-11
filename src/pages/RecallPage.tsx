@@ -2233,9 +2233,16 @@ export default function RecallPage() {
     ).filter(v => v !== 'Sonstige' || form.voruntersuchungenSonstige.trim())
     const hasVU = vuItems.length > 0
 
-    // Total additional time for VU note
+    // Total additional time for VU note.
+    // Regel: jede Voruntersuchung = +15 Min, ausser Zykloplegie (bis 2h).
+    // 'Sonstige' kann mehrere komma-getrennte Items enthalten — jedes
+    // Item zaehlt separat als +15 Min.
     const hasZykloplegie   = vuItems.includes('Zykloplegie')
-    const otherKnownCount  = vuItems.filter(v => v in VU_DAUER && v !== 'Zykloplegie').length
+    const knownVuCount     = vuItems.filter(v => v in VU_DAUER && v !== 'Zykloplegie').length
+    const sonstigeCount    = form.voruntersuchungenSonstige
+      ? form.voruntersuchungenSonstige.split(/[,;]/).map(s => s.trim()).filter(Boolean).length
+      : 0
+    const otherKnownCount  = knownVuCount + sonstigeCount
     const vuZeitHinweis    = hasZykloplegie
       ? 'bis 2 Stunden'
       : otherKnownCount > 0 ? `ca. ${otherKnownCount * 15} Minuten` : null
