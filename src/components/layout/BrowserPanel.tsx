@@ -1300,38 +1300,45 @@ export default function BrowserPanel() {
                         attrs: attrs(el),
                       };
                     }
-                    var out = { inputs: [], clickable: [], keyword: [] };
-                    // alle inputs (inkl. file/hidden)
-                    document.querySelectorAll('input,textarea').forEach(function(i){
-                      out.inputs.push({ type:i.type||i.tagName.toLowerCase(), id:i.id||null, name:i.name||null,
-                        value:(i.value||'').slice(0,40), cls:(i.className||'').toString().slice(0,90),
-                        attrs:attrs(i), visible:vis(i) });
+                    // SVG-Interna ausblenden — nur Rauschen.
+                    var SKIP=/^(svg|path|g|rect|circle|polygon|polyline|line|defs|use|ellipse|mask|clippath)$/;
+                    var out = { inputs: [], icons: [], clickableText: [], keyword: [] };
+                    // alle inputs/textarea/select (inkl. file/hidden)
+                    document.querySelectorAll('input,textarea,select').forEach(function(i){
+                      var o = { type:i.type||i.tagName.toLowerCase(), id:i.id||null, name:i.name||null,
+                        value:(i.value||'').slice(0,40), attrs:attrs(i), visible:vis(i) };
+                      if(i.tagName.toLowerCase()==='select'){
+                        o.options=[].slice.call(i.options).map(function(x){return x.text.trim().slice(0,40)}).slice(0,40);
+                      }
+                      out.inputs.push(o);
                     });
-                    // klickbare Elemente: cursor:pointer ODER role=button ODER onclick
-                    var seen = [];
-                    document.querySelectorAll('*').forEach(function(el){
+                    // Action-Icons: svg-icon mit name + data-tooltip (= die Buttons)
+                    document.querySelectorAll('svg-icon,[data-tooltip]').forEach(function(el){
                       if(!vis(el))return;
-                      if(seen.length>=120)return;
-                      var cur='';
-                      try{ cur=getComputedStyle(el).cursor; }catch(e){}
-                      var clickable = cur==='pointer' || el.getAttribute('role')==='button' || el.onclick || el.getAttribute('onclick');
-                      if(!clickable)return;
-                      // nur Blatt-naheste klickbare (kein riesiger Container)
+                      var name=el.getAttribute('name'), tip=el.getAttribute('data-tooltip');
+                      if(name||tip) out.icons.push({ name:name||null, tooltip:tip||null,
+                        cls:(el.className||'').toString().slice(0,60) });
+                    });
+                    // klickbare Elemente MIT Text (Links, Listen, Buttons)
+                    var seen=[];
+                    document.querySelectorAll('a,li,button,[role=button],[onclick]').forEach(function(el){
+                      if(!vis(el)||SKIP.test(el.tagName.toLowerCase()))return;
+                      if(seen.length>=80)return;
                       var t=(el.innerText||'').trim().replace(/\\s+/g,' ');
-                      if(t.length>80)return;
+                      if(!t||t.length>70)return;
                       seen.push(desc(el));
                     });
-                    out.clickable = seen;
-                    // Elemente mit Schluesselwoertern (Mail/gesendet/Arzt/Versand/Post/Brief)
-                    var kw=/mail|gesendet|arzt|\\u00e4rzt|versand|post|brief|importieren|hochladen/i;
+                    out.clickableText=seen;
+                    // Elemente mit Schluesselwoertern
+                    var kw=/mail|gesendet|arzt|\\u00e4rzt|versand|post|brief|importieren|hochladen|bericht|dokument/i;
                     var kwSeen=[];
                     document.querySelectorAll('*').forEach(function(el){
-                      if(!vis(el)||kwSeen.length>=60)return;
-                      if(el.children.length>3)return; // nur kleine/Blatt-Elemente
+                      if(!vis(el)||kwSeen.length>=60||SKIP.test(el.tagName.toLowerCase()))return;
+                      if(el.children.length>3)return;
                       var t=(el.innerText||'').trim().replace(/\\s+/g,' ');
-                      if(t&&t.length<=50&&kw.test(t)){ kwSeen.push(desc(el)); }
+                      if(t&&t.length<=60&&kw.test(t)){ kwSeen.push(desc(el)); }
                     });
-                    out.keyword = kwSeen;
+                    out.keyword=kwSeen;
                     return JSON.stringify(out, null, 2);
                   })();
                 `)
