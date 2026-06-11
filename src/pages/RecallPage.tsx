@@ -2448,8 +2448,8 @@ export default function RecallPage() {
   function generateBriefPDF(patient: RecallPatient, form: AufgebotForm) {
     const html = buildBriefHtml(patient, form)
     const ea = (window as unknown as { electronApp?: {
-      renderPdfBlob?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
-      saveBriefPdf?: (html: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
+      renderBriefPdf?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
+      saveBriefPdf?:   (html: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
     } }).electronApp
     const lastName = (form.adressBlock.trim().split('\n')[0] || patient.vorname || 'Patient').split(/\s+/)[0]
     const today = new Date().toISOString().slice(0, 10)
@@ -2457,16 +2457,14 @@ export default function RecallPage() {
     const filename = `Brief_${lastName}${pid ? '_' + pid : ''}_${today}.pdf`
     setAufgebotPdfCreated(true)
 
-    if (ea?.saveBriefPdf) {
-      // PDF erzeugen lassen, Buffer holen, in den Postausgang einreihen
-      // statt direkt in Downloads abzulegen.
+    // Bevorzugter Pfad: PDF-Buffer direkt aus Main-Prozess holen und in
+    // den Postausgang legen — keine Schreib-/Re-Lese-Schleife ueber Disk.
+    if (ea?.renderBriefPdf) {
       toast.info('PDF wird vorbereitet…')
-      ea.saveBriefPdf(html, filename).then(async res => {
-        if (!res.ok || !res.path) { toast.error(`PDF-Fehler: ${res.error}`); return }
-        // Datei wieder lesen damit wir den Blob haben (electron schreibt nach Downloads)
+      ea.renderBriefPdf(html).then(async res => {
+        if (!res.ok || !res.buffer) { toast.error(`PDF-Fehler: ${res.error}`); return }
+        const blob = new Blob([res.buffer], { type: 'application/pdf' })
         try {
-          const fileUrl = 'file://' + res.path.replace(/\\/g, '/')
-          const blob = await fetch(fileUrl).then(r => r.blob())
           await postausgang.add({
             pid:      pid || null,
             vorname:  patient.vorname || lastName,
@@ -2478,6 +2476,15 @@ export default function RecallPage() {
           console.error('[Brief] Postausgang-Add fehlgeschlagen', e)
           toast.error('PDF erstellt, aber Postausgang-Ablage fehlgeschlagen')
         }
+      }).catch(err => toast.error(`PDF-Fehler: ${String(err)}`))
+      return
+    }
+    // Aelterer Electron-Pfad: saveBriefPdf legt direkt nach Downloads ab.
+    if (ea?.saveBriefPdf) {
+      toast.info('PDF wird in Downloads abgelegt (App-Update fuer Postausgang noetig)…')
+      ea.saveBriefPdf(html, filename).then(res => {
+        if (res.ok) toast.success(`PDF gespeichert: ${res.path}`)
+        else toast.error(`PDF-Fehler: ${res.error}`)
       }).catch(err => toast.error(`PDF-Fehler: ${String(err)}`))
       return
     }

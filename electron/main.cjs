@@ -276,6 +276,39 @@ ipcMain.handle('open-mail-with-attachments', async (_event, filePaths, subject) 
   }
 })
 
+// PDF aus Brief-HTML rendern und Buffer zurueckliefern (kein Schreiben).
+// Wird vom Postausgang-Workflow genutzt — Renderer erstellt einen Blob,
+// gibt ihn an PostausgangContext weiter, der via write-pdf-tmp eine
+// temporaere Datei fuer Drag&Drop / Mail-Attach anlegt.
+ipcMain.handle('render-brief-pdf', async (_event, html) => {
+  let win = null
+  try {
+    win = new BrowserWindow({
+      show: false, width: 794, height: 1123,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+    })
+    const tmpHtml = path.join(os.tmpdir(), 'az-brief-' + Date.now() + '.html')
+    fs.writeFileSync(tmpHtml, html, 'utf-8')
+    try {
+      await win.loadFile(tmpHtml)
+      await new Promise(r => setTimeout(r, 250))
+      const pdfBuffer = await win.webContents.printToPDF({
+        pageSize: 'A4', printBackground: true, margins: { marginType: 'none' },
+      })
+      // Buffer in ArrayBuffer konvertieren damit der IPC-Channel ihn sauber transportiert
+      const ab = pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength)
+      return { ok: true, buffer: ab }
+    } finally {
+      try { fs.unlinkSync(tmpHtml) } catch { /* no-op */ }
+    }
+  } catch (err) {
+    console.error('[render-brief-pdf] failed', err)
+    return { ok: false, error: String(err && err.stack || err) }
+  } finally {
+    if (win) win.destroy()
+  }
+})
+
 ipcMain.handle('save-brief-pdf', async (_event, html, suggestedFilename) => {
   let win = null
   try {
