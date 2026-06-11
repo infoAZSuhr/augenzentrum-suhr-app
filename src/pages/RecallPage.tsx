@@ -2251,18 +2251,21 @@ export default function RecallPage() {
     const hasVU = vuItems.length > 0
 
     // Total additional time for VU note.
-    // Regel: jede Voruntersuchung = +15 Min, ausser Zykloplegie (bis 2h).
-    // 'Sonstige' kann mehrere komma-getrennte Items enthalten — jedes
-    // Item zaehlt separat als +15 Min.
+    // Regel:
+    //  - Zykloplegie dominiert: 'bis 2 Stunden'
+    //  - 15-Min-Items (Perimetrie, Biometrie) werden bei Mehrfachauswahl
+    //    kummuliert (z.B. beide -> 30 Min).
+    //  - 5-Min-Items (Pachymetrie, Topographie, Traenenfilm, Funduskopie,
+    //    Tonometrie) + 'Sonstige' werden NICHT kummuliert: sobald MIND.
+    //    eines davon gewaehlt ist, gilt pauschal +15 Min zusaetzlich.
     const hasZykloplegie   = vuItems.includes('Zykloplegie')
-    // Minuten pro VU aus VU_MIN aufsummieren; Sonstige-Eintraege je 5 Min.
-    const definedMin       = form.voruntersuchungen
-      .filter(v => v !== 'Zykloplegie' && v in VU_MIN)
+    const fifteenMinSum    = form.voruntersuchungen
+      .filter(v => v !== 'Zykloplegie' && VU_MIN[v] === 15)
       .reduce((sum, v) => sum + VU_MIN[v], 0)
-    const sonstigeMin      = form.voruntersuchungenSonstige
-      ? form.voruntersuchungenSonstige.split(/[,;]/).map(s => s.trim()).filter(Boolean).length * SONSTIGE_MIN
-      : 0
-    const totalMin         = definedMin + sonstigeMin
+    const hasShortVu       = form.voruntersuchungen.some(v => v !== 'Zykloplegie' && VU_MIN[v] === SONSTIGE_MIN)
+    const hasSonstige      = !!(form.voruntersuchungenSonstige && form.voruntersuchungenSonstige.trim())
+    const shortMinFlat     = (hasShortVu || hasSonstige) ? 15 : 0
+    const totalMin         = fifteenMinSum + shortMinFlat
     const vuZeitHinweis    = hasZykloplegie
       ? 'bis 2 Stunden'
       : totalMin > 0 ? `ca. ${totalMin} Minuten` : null
