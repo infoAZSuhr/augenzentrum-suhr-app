@@ -15,7 +15,9 @@ export default function PostausgangPanel() {
   const [open, setOpen] = useState(false)
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
 
-  if (items.length === 0 && !open) return null
+  // Panel ist immer sichtbar — auch leer — damit der User direkt sieht
+  // wo Briefe landen. Bei leerem Postausgang verkleinert sich der Button
+  // und wirkt dezenter (kein Anzahl-Badge).
 
   const handleDragStart = (e: React.DragEvent, it: PostausgangItem) => {
     if (it.tmpPath && electronApi?.startPdfDrag) {
@@ -107,11 +109,15 @@ export default function PostausgangPanel() {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-2 bg-primary-600 text-white px-3 py-2 rounded-full shadow-lg hover:bg-primary-700 transition-colors"
-          title={`${items.length} Brief${items.length === 1 ? '' : 'e'} im Postausgang`}
+          className={`flex items-center gap-2 px-3 py-2 rounded-full shadow-lg transition-colors ${
+            items.length > 0
+              ? 'bg-primary-600 text-white hover:bg-primary-700'
+              : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-50'
+          }`}
+          title={items.length > 0 ? `${items.length} Brief${items.length === 1 ? '' : 'e'} im Postausgang` : 'Postausgang (leer)'}
         >
           <Inbox className="w-4 h-4" />
-          <span className="text-xs font-bold">{items.length}</span>
+          {items.length > 0 && <span className="text-xs font-bold">{items.length}</span>}
         </button>
       )}
     </div>
