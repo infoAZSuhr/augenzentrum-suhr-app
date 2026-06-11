@@ -2365,14 +2365,14 @@ export default function RecallPage() {
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;background:#fff}
   .page{width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
-  .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.2cm}
-  .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end}
-  .lh-logo{height:2.2cm;width:auto;max-width:8cm;object-fit:contain;display:block;margin-bottom:.25cm}
+  .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.1cm}
+  .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;max-width:7.5cm}
+  .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm}
   .lh-name{font-size:14pt;font-weight:bold;margin-bottom:.12cm}
   .lh-title{font-size:11.5pt;font-weight:bold;color:#1a3a6e;margin-bottom:.15cm}
   .lh-praxisname{font-size:12pt;font-weight:bold;color:#1a3a6e;margin-bottom:.1cm;letter-spacing:.02em}
-  .lh-addr{font-size:10pt;color:#1a3a6e;margin-bottom:.1cm}
-  .lh-contact-left{font-size:9.5pt;line-height:1.7;color:#1a3a6e}
+  .lh-addr{font-size:9.5pt;color:#1a3a6e;letter-spacing:.03em;margin-bottom:.18cm;font-weight:600}
+  .lh-contact-left{font-size:9pt;line-height:1.5;color:#1a3a6e}
   .lh-right{display:flex;flex-direction:column;align-items:flex-end}
   .lh-praxis{margin-bottom:.15cm;font-size:10.5pt;font-weight:bold;color:#1a3a6e}
   .lh-contact{font-size:9.5pt;line-height:1.7;color:#1a3a6e;text-align:right}
