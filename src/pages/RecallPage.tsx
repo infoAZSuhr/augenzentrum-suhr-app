@@ -3335,8 +3335,13 @@ export default function RecallPage() {
         </div>
         <nav className="flex gap-1 flex-wrap">
           {allTabs.map(tab => {
-            const count    = allData.get(tab)?.length ?? 0
+            const rawCount = allData.get(tab)?.length ?? 0
             const isActive = activeTab === tab
+            // Aktiver Tab: zeige die nach Filter sichtbare Anzahl (rows.length)
+            // damit Badge mit dem tatsaechlich angezeigten Listeninhalt
+            // uebereinstimmt. Andere Tabs: Roh-Anzahl (Filter waren ja nicht
+            // angewandt).
+            const count = isActive ? rows.length : rawCount
             const isZuBearb = tab === ZU_BEARB
             const isAufgebot = tab === AUFGEBOT_TAB
             const isOffen   = tab === OFFEN_TAB
@@ -3344,6 +3349,7 @@ export default function RecallPage() {
               <button
                 key={tab}
                 onClick={() => switchTab(tab)}
+                title={isActive && rawCount !== count ? `${count} sichtbar von ${rawCount} insgesamt (inaktive/verstorbene ausgeblendet)` : undefined}
                 className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors flex items-center gap-1.5 ${
                   isAufgebot
                     ? isActive
