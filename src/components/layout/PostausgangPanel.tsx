@@ -31,7 +31,7 @@ export default function PostausgangPanel() {
       if (res.ok) {
         remove(it.id)
       } else {
-        alert('Auto-Import fehlgeschlagen:\n' + (res.error || 'unbekannt') + '\n\nAblauf: in Liris auf "Dokument importieren" klicken (sodass die Arzt-Auswahl erscheint), dann hier erneut auf ↑ klicken. Der Rest (Arzt, Mail gesendet, Datei) laeuft automatisch.')
+        alert('Auto-Import fehlgeschlagen:\n' + (res.error || 'unbekannt') + '\n\nBitte sicherstellen, dass der richtige Patient in Liris geoeffnet ist. Der Rest (Dokument importieren, Arzt, Mail gesendet, Datei) laeuft automatisch.')
       }
     } catch (e) {
       alert('Auto-Import fehlgeschlagen: ' + String(e))
@@ -119,7 +119,7 @@ export default function PostausgangPanel() {
                     <div className="text-xs font-semibold text-gray-800 truncate">{it.vorname || it.filename}</div>
                     <div className="text-[10px] text-gray-400 truncate">{it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}</div>
                   </div>
-                  <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris (Arzt + Mail gesendet + Datei). Vorher in Liris 'Dokument importieren' oeffnen." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
+                  <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris: Dokument importieren + Arzt + Mail gesendet + Datei. Patient muss in Liris geoeffnet sein." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
                     <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
                   </button>
                   <button onClick={() => mailOne(it)} title="Per E-Mail" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">

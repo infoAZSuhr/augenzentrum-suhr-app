@@ -368,7 +368,7 @@ export default function BrowserPanel() {
       try { wv.reload() } catch { /* no-op */ }
     }
   }, [reloadLirisAt])
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   // Pro-User Webview-Partition: jeder Mitarbeiter loggt sich selber bei
   // Liris ein. Die farbigen Recall-Markierungen werden per Injection
   // (siehe highlightRecallPids weiter unten) angewendet — sie funktionieren
@@ -1272,9 +1272,10 @@ export default function BrowserPanel() {
             <FileEdit className="w-3.5 h-3.5 text-gray-500" />
           </button>
 
-          {/* DEBUG: Liris-Import-Dialog analysieren — gibt die DOM-Struktur
-              (Buttons, Selects+Optionen, Inputs, Labels) in die Console aus,
-              damit die Vollautomatik darauf aufbauen kann. */}
+          {/* DEBUG: Liris-Import-Dialog analysieren — nur fuer Admins sichtbar.
+              Gibt die DOM-Struktur in die Console aus, damit die Vollautomatik
+              bei Liris-Layout-Aenderungen nachgezogen werden kann. */}
+          {isAdmin && (
           <button
             onClick={async () => {
               const wv = webviewRef.current as any
@@ -1353,6 +1354,7 @@ export default function BrowserPanel() {
           >
             <span className="text-xs font-bold">🔍</span>
           </button>
+          )}
 
           <button
             onClick={close}

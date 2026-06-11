@@ -326,6 +326,41 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       if (r.exceptionDetails) throw new Error('JS-Fehler in Liris: ' + JSON.stringify(r.exceptionDetails.exception || r.exceptionDetails))
       return r.result.value
     }
+    // Pruefen ob die Arzt-Auswahl (Import-Dialog) bereits sichtbar ist.
+    const arztAuswahlDa = () => evalJs(`(function(){
+      var as=[].slice.call(document.querySelectorAll('a'));
+      for(var k=0;k<as.length;k++){
+        var t=(as[k].innerText||'').trim().toLowerCase();
+        if(t==='gleich wie verantwortlicher arzt') return true;
+      }
+      return /einen (ausf(?:ü|ue)hrenden|verantwortlichen) arzt/i.test(document.body?document.body.innerText:'');
+    })()`)
+
+    // ── Schritt 0: 'Dokument importieren' oeffnen (falls noch nicht offen) ───
+    if (!(await arztAuswahlDa())) {
+      const opened = await evalJs(`(function(){
+        // Trigger via data-tooltip 'Dokument importieren' (svg-icon) oder Text.
+        var cands=[].slice.call(document.querySelectorAll('[data-tooltip],a,button'));
+        for(var k=0;k<cands.length;k++){
+          var el=cands[k];
+          var tip=(el.getAttribute&&el.getAttribute('data-tooltip')||'').toLowerCase();
+          var txt=(el.innerText||'').trim().toLowerCase();
+          if(tip.indexOf('dokument importieren')>=0 || txt==='dokument importieren'){
+            var clickTarget = el.closest ? (el.closest('a,button')||el) : el;
+            clickTarget.click();
+            // svg-icon: ggf. auch direkt dispatchen
+            try{ el.click(); }catch(e){}
+            return true;
+          }
+        }
+        return false;
+      })()`)
+      if (!opened) return { ok: false, error: '"Dokument importieren" nicht gefunden. Bitte den Patienten in Liris oeffnen.' }
+      // auf Arzt-Auswahl warten
+      let appeared = false
+      for (let i = 0; i < 12 && !appeared; i++) { await sleep(350); appeared = await arztAuswahlDa() }
+      if (!appeared) return { ok: false, error: 'Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".' }
+    }
 
     // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
     const ln = (doctorLastName || '').trim()
