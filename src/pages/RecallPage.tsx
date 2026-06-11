@@ -493,7 +493,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris } = useBrowser()
   const postausgang = usePostausgang()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
@@ -2794,6 +2794,9 @@ export default function RecallPage() {
         excelAbgeglichen:  true,
       } as any, displayLabel)
       await reloadTab(aufgebotTarget.patient.doctor)
+      // Liris-Webview neu laden — damit ein soeben in Liris angelegter
+      // Termin auch dort sichtbar wird (Liris aktualisiert von selbst nicht).
+      reloadLiris()
       setAufgebotTarget(null)
     } catch {
       toast.error('Fehler beim Speichern. Bitte erneut versuchen.')

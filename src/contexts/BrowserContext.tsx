@@ -57,6 +57,10 @@ interface BrowserContextType {
   clearPendingPid: () => void
   setLirisExtract: (e: LirisExtract | null) => void
   requestRecallByPid: (pid: string) => void
+  /** Loest ein Reload der Liris-Webview aus (z.B. nach Anlegen eines
+   *  Termins in Liris, damit der frische Termin sichtbar wird). */
+  reloadLiris: () => void
+  reloadLirisAt: number
   clearRecallPidRequest: () => void
   requestRecallNew: (data: { pid: string; name?: string; geb?: string }) => void
   clearRecallNewRequest: () => void
@@ -85,6 +89,8 @@ const BrowserContext = createContext<BrowserContextType>({
   clearPendingPid: () => {},
   setLirisExtract: () => {},
   requestRecallByPid: () => {},
+  reloadLiris: () => {},
+  reloadLirisAt: 0,
   clearRecallPidRequest: () => {},
   requestRecallNew: () => {},
   clearRecallNewRequest: () => {},
@@ -101,6 +107,9 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
   const [recallPidRequest, setRecallPidRequest] = useState<RecallPidRequest | null>(null)
   const [recallNewRequest, setRecallNewRequest] = useState<RecallNewRequest | null>(null)
+  // Reload-Trigger: jede Inkrementierung loest in BrowserPanel ein
+  // webview.reload() aus. State statt Ref damit Effekte feuern.
+  const [reloadLirisAt, setReloadLirisAt] = useState(0)
   const [staleRecallPids, setStaleRecallPids] = useState<string[]>([])
   const [knownRecallPids, setKnownRecallPids] = useState<string[]>([])
   const [staleReferenceDate, setStaleReferenceDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
@@ -130,6 +139,8 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       clearPendingPid: () => setPendingPid(null),
       setLirisExtract,
       requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
+      reloadLiris: () => setReloadLirisAt(n => n + 1),
+      reloadLirisAt,
       clearRecallPidRequest: () => setRecallPidRequest(null),
       requestRecallNew: (data) => setRecallNewRequest({ pid: data.pid, name: data.name || '', geb: data.geb || '', at: Date.now() }),
       clearRecallNewRequest: () => setRecallNewRequest(null),

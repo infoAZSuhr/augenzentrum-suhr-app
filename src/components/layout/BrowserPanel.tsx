@@ -357,7 +357,17 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt } = useBrowser()
+
+  // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
+  // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
+  useEffect(() => {
+    if (reloadLirisAt === 0) return
+    const wv = webviewRef.current as any
+    if (wv?.reload) {
+      try { wv.reload() } catch { /* no-op */ }
+    }
+  }, [reloadLirisAt])
   const { user } = useAuth()
   // Pro-User Webview-Partition: jeder Mitarbeiter loggt sich selber bei
   // Liris ein. Die farbigen Recall-Markierungen werden per Injection
