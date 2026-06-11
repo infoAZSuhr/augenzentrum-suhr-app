@@ -71,12 +71,24 @@ const VU_DAUER: Record<string, string> = {
   'Perimetrie':           '+15 Min.',
   'Biometrie':            '+15 Min.',
   'Zykloplegie':          'bis 2 Std.',
-  'Pachymetrie':          '+15 Min.',
-  'Hornhaut-Topographie': '+15 Min.',
-  'Tränenfilm-Analyse':   '+15 Min.',
-  'Funduskopie':          '+15 Min.',
-  'Tonometrie':           '+15 Min.',
+  'Pachymetrie':          '+5 Min.',
+  'Hornhaut-Topographie': '+5 Min.',
+  'Tränenfilm-Analyse':   '+5 Min.',
+  'Funduskopie':          '+5 Min.',
+  'Tonometrie':           '+5 Min.',
 }
+
+/** Minuten-Mapping fuer die Brief-Zeit-Berechnung (Zykloplegie separat). */
+const VU_MIN: Record<string, number> = {
+  'Perimetrie':           15,
+  'Biometrie':            15,
+  'Pachymetrie':           5,
+  'Hornhaut-Topographie':  5,
+  'Tränenfilm-Analyse':    5,
+  'Funduskopie':           5,
+  'Tonometrie':            5,
+}
+const SONSTIGE_MIN = 5
 
 type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin'
 type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot' | 'wartetBericht'
@@ -2243,16 +2255,17 @@ export default function RecallPage() {
     // 'Sonstige' kann mehrere komma-getrennte Items enthalten — jedes
     // Item zaehlt separat als +15 Min.
     const hasZykloplegie   = vuItems.includes('Zykloplegie')
-    // Wir zaehlen direkt aus dem Original-Form, damit es nicht relevant
-    // ist ob 'Sonstige' angekreuzt ist oder nicht.
-    const definedVuCount   = form.voruntersuchungen.filter(v => v in VU_DAUER && v !== 'Zykloplegie').length
-    const sonstigeCount    = form.voruntersuchungenSonstige
-      ? form.voruntersuchungenSonstige.split(/[,;]/).map(s => s.trim()).filter(Boolean).length
+    // Minuten pro VU aus VU_MIN aufsummieren; Sonstige-Eintraege je 5 Min.
+    const definedMin       = form.voruntersuchungen
+      .filter(v => v !== 'Zykloplegie' && v in VU_MIN)
+      .reduce((sum, v) => sum + VU_MIN[v], 0)
+    const sonstigeMin      = form.voruntersuchungenSonstige
+      ? form.voruntersuchungenSonstige.split(/[,;]/).map(s => s.trim()).filter(Boolean).length * SONSTIGE_MIN
       : 0
-    const otherKnownCount  = definedVuCount + sonstigeCount
+    const totalMin         = definedMin + sonstigeMin
     const vuZeitHinweis    = hasZykloplegie
       ? 'bis 2 Stunden'
-      : otherKnownCount > 0 ? `ca. ${otherKnownCount * 15} Minuten` : null
+      : totalMin > 0 ? `ca. ${totalMin} Minuten` : null
 
     const vuSatzItems = vuItems.map(v => escLine(v))
     const vuSatz = vuSatzItems.length === 1
