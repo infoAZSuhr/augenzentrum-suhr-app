@@ -36,6 +36,7 @@ import { ref as storageRef, uploadBytes } from 'firebase/storage'
 
 const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
 const ZU_BEARB   = 'Zu bearbeiten'
+const OFFEN_TAB  = 'offen'
 const AUFGEBOT_TAB = '📅 Aufgebot-Plan'
 const PAGE_SIZE  = 50
 
@@ -497,7 +498,7 @@ export default function RecallPage() {
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
   const [doctors, setDoctors] = useState<string[]>(DOCTORS_DEFAULT)
-  const allTabs = useMemo(() => [...doctors, ZU_BEARB, AUFGEBOT_TAB], [doctors])
+  const allTabs = useMemo(() => [...doctors, OFFEN_TAB, ZU_BEARB, AUFGEBOT_TAB], [doctors])
 
   // Zuweisung-Konfiguration (Praxen & Gründe)
   const [zuweisungPraxen,  setZuweisungPraxen]  = useState<string[]>(ZUWEISUNG_DEFAULT_PRAXEN)
@@ -1055,7 +1056,7 @@ export default function RecallPage() {
 
       const exists = await hasRecallData()
       if (!exists) { setStatus('empty'); return }
-      await loadAll([...docList, ZU_BEARB])
+      await loadAll([...docList, OFFEN_TAB, ZU_BEARB])
       // Live-Subscription entfernt — sorgte fuer Re-Renders waehrend des
       // Tippens und blockierte Tastatureingaben. Aktualisierung jetzt nur
       // nach eigenen Aktionen (reloadTab) oder manuell via "Erneut versuchen".
@@ -3337,6 +3338,7 @@ export default function RecallPage() {
             const isActive = activeTab === tab
             const isZuBearb = tab === ZU_BEARB
             const isAufgebot = tab === AUFGEBOT_TAB
+            const isOffen   = tab === OFFEN_TAB
             return (
               <button
                 key={tab}
@@ -3350,9 +3352,13 @@ export default function RecallPage() {
                       ? isActive
                         ? 'border-amber-500 text-amber-700 bg-amber-50'
                         : 'border-transparent text-amber-600 hover:text-amber-700 hover:bg-amber-50'
-                      : isActive
-                        ? 'border-primary-600 text-primary-700 bg-primary-50'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      : isOffen
+                        ? isActive
+                          ? 'border-slate-500 text-slate-700 bg-slate-100'
+                          : 'border-transparent text-slate-600 hover:text-slate-700 hover:bg-slate-50'
+                        : isActive
+                          ? 'border-primary-600 text-primary-700 bg-primary-50'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 {tab}
@@ -3360,7 +3366,9 @@ export default function RecallPage() {
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                     isZuBearb
                       ? isActive ? 'bg-amber-100 text-amber-700' : 'bg-amber-100 text-amber-600'
-                      : isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
+                      : isOffen
+                        ? isActive ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-600'
+                        : isActive ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
                   }`}>{count}</span>
                 )}
               </button>
@@ -5520,6 +5528,11 @@ export default function RecallPage() {
                         </option>
                         {doctors.filter(d => editTarget === 'new' || d !== (editTarget as RecallPatient).doctor).map(d =>
                           <option key={d} value={d}>{d}</option>
+                        )}
+                        {/* Spezial-Zuweisung 'offen' — Patient bleibt sichtbar
+                            ohne festen Arzt, eigener Tab in der Register-Leiste. */}
+                        {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
+                          <option value={OFFEN_TAB}>offen (kein fester Arzt)</option>
                         )}
                       </select>
                       {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte Arzt wählen.</p>}
