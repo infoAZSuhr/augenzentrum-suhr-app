@@ -624,6 +624,24 @@ export default function RecallPage() {
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed,  setPreviewCollapsed]  = useState(true)   // default eingeklappt — manuell aufklappen
+  // Logo als Base64-DataURL — wird einmalig beim Mount geladen. Inline
+  // im Brief noetig damit Electron-printToPDF (loadet temp .html via
+  // file://) das Bild auch ohne Internet darstellen kann.
+  const [logoDataUrl, setLogoDataUrl] = useState<string>('')
+  useEffect(() => {
+    let aborted = false
+    fetch('/logo-azs.png')
+      .then(r => r.ok ? r.blob() : Promise.reject(r.status))
+      .then(b => new Promise<string>((res, rej) => {
+        const fr = new FileReader()
+        fr.onload = () => res(String(fr.result))
+        fr.onerror = () => rej(fr.error)
+        fr.readAsDataURL(b)
+      }))
+      .then(url => { if (!aborted) setLogoDataUrl(url) })
+      .catch(err => console.warn('[Brief] Logo konnte nicht geladen werden', err))
+    return () => { aborted = true }
+  }, [])
   const [aufgebotSaving,        setAufgebotSaving]        = useState(false)
   const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)
   const [briefPreview, setBriefPreview] = useState<string | null>(null)
@@ -2387,9 +2405,7 @@ export default function RecallPage() {
 
   <div class="letterhead">
     <div class="lh-left">
-      <div class="lh-name">${escLine(letterheadDoctor)}</div>
-      <div class="lh-title">${escLine(fachtitelDisplay)}</div>
-      <div class="lh-praxisname">Augenzentrum Suhr</div>
+      ${logoDataUrl ? `<img class="lh-logo" src="${logoDataUrl}" alt="Augenzentrum Suhr">` : '<div class="lh-praxisname">Augenzentrum Suhr</div>'}
       <div class="lh-addr">Tramstrasse 2, 5034 Suhr</div>
       <div class="lh-contact-left">
         Tel. +41 62 842 18 46<br>
