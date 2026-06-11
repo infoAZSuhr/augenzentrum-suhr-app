@@ -1283,26 +1283,55 @@ export default function BrowserPanel() {
                 const struct = await wv.executeJavaScript(`
                   (function() {
                     function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}
-                    var out = { buttons: [], selects: [], inputs: [], labels: [] };
-                    document.querySelectorAll('button, a[role=button], [onclick]').forEach(function(b){
-                      if(!vis(b))return;
-                      var t=(b.innerText||b.title||b.getAttribute('aria-label')||'').trim().slice(0,60);
-                      if(t) out.buttons.push({ t:t, id:b.id||null, cls:(b.className||'').toString().slice(0,80) });
+                    function attrs(el){
+                      var a={};
+                      for(var i=0;i<el.attributes.length;i++){
+                        var n=el.attributes[i].name, v=el.attributes[i].value;
+                        if(n==='class'||n==='style')continue;
+                        a[n]=(v||'').slice(0,60);
+                      }
+                      return a;
+                    }
+                    function desc(el){
+                      return {
+                        tag: el.tagName.toLowerCase(),
+                        text: (el.innerText||'').trim().replace(/\\s+/g,' ').slice(0,60),
+                        cls: (el.className||'').toString().slice(0,90),
+                        attrs: attrs(el),
+                      };
+                    }
+                    var out = { inputs: [], clickable: [], keyword: [] };
+                    // alle inputs (inkl. file/hidden)
+                    document.querySelectorAll('input,textarea').forEach(function(i){
+                      out.inputs.push({ type:i.type||i.tagName.toLowerCase(), id:i.id||null, name:i.name||null,
+                        value:(i.value||'').slice(0,40), cls:(i.className||'').toString().slice(0,90),
+                        attrs:attrs(i), visible:vis(i) });
                     });
-                    document.querySelectorAll('select').forEach(function(s){
-                      if(!vis(s))return;
-                      out.selects.push({ id:s.id||null, name:s.name||null, cls:(s.className||'').toString().slice(0,80),
-                        options:[].slice.call(s.options).map(function(o){return o.text.trim().slice(0,50)}).slice(0,40) });
+                    // klickbare Elemente: cursor:pointer ODER role=button ODER onclick
+                    var seen = [];
+                    document.querySelectorAll('*').forEach(function(el){
+                      if(!vis(el))return;
+                      if(seen.length>=120)return;
+                      var cur='';
+                      try{ cur=getComputedStyle(el).cursor; }catch(e){}
+                      var clickable = cur==='pointer' || el.getAttribute('role')==='button' || el.onclick || el.getAttribute('onclick');
+                      if(!clickable)return;
+                      // nur Blatt-naheste klickbare (kein riesiger Container)
+                      var t=(el.innerText||'').trim().replace(/\\s+/g,' ');
+                      if(t.length>80)return;
+                      seen.push(desc(el));
                     });
-                    document.querySelectorAll('input').forEach(function(i){
-                      if(!vis(i)&&i.type!=='file')return;
-                      out.inputs.push({ type:i.type, id:i.id||null, name:i.name||null, value:(i.value||'').slice(0,40),
-                        cls:(i.className||'').toString().slice(0,80) });
+                    out.clickable = seen;
+                    // Elemente mit Schluesselwoertern (Mail/gesendet/Arzt/Versand/Post/Brief)
+                    var kw=/mail|gesendet|arzt|\\u00e4rzt|versand|post|brief|importieren|hochladen/i;
+                    var kwSeen=[];
+                    document.querySelectorAll('*').forEach(function(el){
+                      if(!vis(el)||kwSeen.length>=60)return;
+                      if(el.children.length>3)return; // nur kleine/Blatt-Elemente
+                      var t=(el.innerText||'').trim().replace(/\\s+/g,' ');
+                      if(t&&t.length<=50&&kw.test(t)){ kwSeen.push(desc(el)); }
                     });
-                    document.querySelectorAll('label').forEach(function(l){
-                      if(!vis(l))return;
-                      var t=(l.innerText||'').trim().slice(0,50); if(t) out.labels.push(t);
-                    });
+                    out.keyword = kwSeen;
                     return JSON.stringify(out, null, 2);
                   })();
                 `)
