@@ -1033,10 +1033,9 @@ export default function RecallPage() {
       if (match) {
         setAssignDoctor(match)
         filled = true
-      } else {
-        // Arzt-Name kein Match in der doctors-Liste -> Popup, User muss manuell waehlen.
-        setUnknownDoctor({ extractedName: cleaned })
       }
+      // Kein Match -> Popup entfernt; der rote Inline-Hinweis am Arzt-Feld
+      // ('Bitte Arzt waehlen') macht klar dass der User selber auswaehlen muss.
     }
     if (filled) toast.success('Patient-Infos aus Liris übernommen')
     // Extract konsumiert -> nicht erneut anwenden
@@ -6507,34 +6506,8 @@ export default function RecallPage() {
         )
       })()}
 
-      {/* Letzte Einlesung rückgängig — Confirmation */}
-      {/* Arzt-nicht-in-Liste-Dialog */}
-      {unknownDoctor && (
-        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
-             onClick={() => setUnknownDoctor(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
-               onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                <span className="font-bold text-gray-900">Arzt nicht in Auswahlliste</span>
-              </div>
-              <button onClick={() => setUnknownDoctor(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4 text-sm text-gray-700">
-              <strong>{unknownDoctor.extractedName}</strong> ist inaktiv — bitte manuell auswählen.
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
-              <button onClick={() => setUnknownDoctor(null)}
-                className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition-colors">
-                Verstanden
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Unknown-Doctor-Popup entfernt — der inline-Hinweis am Arzt-Feld
+          reicht (rote Border + 'Bitte Arzt waehlen' unter dem Dropdown). */}
 
       {/* Liris-Mismatch-Dialog: Patient existiert nicht (mehr) in Liris.
           Bietet "Patient loeschen" oder "Schliessen" an. */}
