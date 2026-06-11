@@ -1,6 +1,6 @@
 {
   "name": "Augenzentrum-suhr",
-  "version": "1.1.18",
+  "version": "1.1.19",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
