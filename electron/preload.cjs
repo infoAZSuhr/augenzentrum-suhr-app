@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('electronApp', {
   writePdfTmp: (buf, filename) => ipcRenderer.invoke('write-pdf-tmp', buf, filename),
   deletePdfTmp: (filePath) => ipcRenderer.invoke('delete-pdf-tmp', filePath),
   startPdfDrag: (filePath) => { ipcRenderer.send('start-pdf-drag', filePath); return Promise.resolve({ ok: true }) },
-  openMailWithAttachments: (filePaths, subject) => ipcRenderer.invoke('open-mail-with-attachments', filePaths, subject),
+  openMailWithAttachments: (filePaths, subject, recipient, bodyText) => ipcRenderer.invoke('open-mail-with-attachments', filePaths, subject, recipient, bodyText),
   // PDF via CDP direkt ins Liris-Webview-Upload-Feld setzen
   uploadPdfToLiris: (webContentsId, filePath) => ipcRenderer.invoke('upload-pdf-to-liris', webContentsId, filePath),
   // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei setzen

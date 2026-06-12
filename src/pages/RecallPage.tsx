@@ -2522,6 +2522,9 @@ export default function RecallPage() {
             vorname:  patient.vorname || lastName,
             arzt:     patient.doctor,
             filename, blob,
+            // Payload fuer automatisches 'aufgeboten markieren' nach
+            // Verarbeitung (Liris-Upload oder Mail an Praxis).
+            aufgebot: { patient, form },
           })
           toast.success('In Postausgang abgelegt')
         } catch (e) {
@@ -2767,86 +2770,67 @@ export default function RecallPage() {
     setTimeout(() => setEmailCopied(false), 4000)
   }
 
+  // Reine Save-Logik (ohne Modal/PDF): markiert den Recall-Patienten als
+  // aufgeboten. Wird sowohl manuell (handleAufgebotSave) als auch
+  // automatisch (nach Postausgang-Verarbeitung) aufgerufen.
+  async function persistAufgebot(patient: RecallPatient, form: AufgebotForm) {
+    const today = new Date().toISOString().slice(0, 10)
+    const existingVerlauf: VerlaufEntry[] = patient.verlauf ?? []
+    const effectiveArt: AufgebotArt =
+      form.art === 'Brief' && !form.terminDatum ? 'Reminder' : (form.art as AufgebotArt)
+    const telResultLabel =
+      form.telResult === 'erreicht'      ? 'Erreicht' :
+      form.telResult === 'nichtErreicht' ? 'Nicht erreicht' :
+      form.telResult === 'nichtGueltig'  ? 'Nr. nicht mehr gültig' : ''
+    const telErgebnis = effectiveArt === 'Tel'
+      ? [telResultLabel, form.notiz.trim()].filter(Boolean).join(' — ') || 'Anruf'
+      : null
+    const logEntry: VerlaufEntry = {
+      datum: today,
+      aktion: effectiveArt === 'Brief' ? 'Briefaufgebot' :
+              effectiveArt === 'Reminder' ? 'Reminder' : 'Telefonaufgebot',
+      ergebnis: telErgebnis ?? (form.versand ? `Via ${form.versand}` : 'Erstellt'),
+      von: displayLabel,
+    }
+    const followupEntries: VerlaufEntry[] = []
+    let followupAufgebotFuer: string | null = null
+    if (effectiveArt === 'Tel' && form.telResult === 'nichtErreicht') {
+      const fd = form.telFollowupDatum
+      if (form.telFollowup === 'erneutAnrufen' && fd) {
+        followupEntries.push({ datum: today, aktion: 'Telefonanruf', ergebnis: `Geplant: ${fd}`, von: displayLabel })
+      } else if (form.telFollowup === 'reminderSetzen' && fd) {
+        followupEntries.push({ datum: today, aktion: 'Reminder', ergebnis: `Geplant: ${fd}`, von: displayLabel })
+        followupAufgebotFuer = fd
+      } else if (form.telFollowup === 'briefVersenden') {
+        followupEntries.push({ datum: today, aktion: 'Notiz', ergebnis: 'Brief versenden — folgt', von: displayLabel })
+      }
+    }
+    const telDate = form.art === 'Tel' ? form.terminFixiert || null : null
+    await updateRecallPatient(patient.id, {
+      aufgebotArt:       effectiveArt,
+      aufgebotErstellt:  today,
+      aufgebotVersand:   form.versand       || null,
+      aufgebotNotiz:     form.notiz          || null,
+      terminFixiert:     (form.art === 'Brief' ? form.terminDatum : form.terminFixiert) || null,
+      ...(telDate ? { naechsteKons: telDate } : {}),
+      ...(followupAufgebotFuer ? { aufgebotFuer: followupAufgebotFuer } : {}),
+      verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
+      excelAbgeglichen:  true,
+    } as any, displayLabel)
+    await reloadTab(patient.doctor)
+  }
+
   async function handleAufgebotSave() {
     if (!aufgebotTarget || !aufgebotForm.art) return
     setAufgebotConfirmPending(false)
     setAufgebotSaving(true)
-    // Bei Brief: PDF automatisch in Downloads erzeugen wenn noch nicht
+    // Bei Brief: PDF automatisch erzeugen (in Postausgang) wenn noch nicht
     // geschehen — egal ob 'Per Post' bereits geklickt wurde oder nicht.
     if (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum && aufgebotForm.versand !== 'Email') {
       try { generateBriefPDF(aufgebotTarget.patient, aufgebotForm) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
     }
     try {
-      const today = new Date().toISOString().slice(0, 10)
-      const existingVerlauf: VerlaufEntry[] = aufgebotTarget.patient.verlauf ?? []
-      // Brief without date → save as Reminder
-      const effectiveArt: AufgebotArt =
-        aufgebotForm.art === 'Brief' && !aufgebotForm.terminDatum ? 'Reminder' : aufgebotForm.art
-      // Telefon-Ergebnis ins ergebnis-Feld einbauen, sodass die "Nicht erreicht"-
-      // Markierung im Verlauf eindeutig nachvollziehbar bleibt.
-      const telResultLabel =
-        aufgebotForm.telResult === 'erreicht'      ? 'Erreicht' :
-        aufgebotForm.telResult === 'nichtErreicht' ? 'Nicht erreicht' :
-        aufgebotForm.telResult === 'nichtGueltig'  ? 'Nr. nicht mehr gültig' : ''
-      const telErgebnis = effectiveArt === 'Tel'
-        ? [telResultLabel, aufgebotForm.notiz.trim()].filter(Boolean).join(' — ') || 'Anruf'
-        : null
-
-      const logEntry: VerlaufEntry = {
-        datum: today,
-        aktion: effectiveArt === 'Brief' ? 'Briefaufgebot' :
-                effectiveArt === 'Reminder' ? 'Reminder' : 'Telefonaufgebot',
-        ergebnis: telErgebnis ??
-          (aufgebotForm.versand ? `Via ${aufgebotForm.versand}` : 'Erstellt'),
-        von: displayLabel,
-      }
-
-      // Folge-Aktion bei "Nicht erreicht": automatisch passenden Verlaufseintrag
-      // anlegen ODER Felder vorbelegen, damit das weitere Vorgehen sichtbar ist.
-      const followupEntries: VerlaufEntry[] = []
-      let followupAufgebotFuer: string | null = null
-      if (effectiveArt === 'Tel' && aufgebotForm.telResult === 'nichtErreicht') {
-        const fd = aufgebotForm.telFollowupDatum
-        if (aufgebotForm.telFollowup === 'erneutAnrufen' && fd) {
-          followupEntries.push({
-            datum: today,
-            aktion: 'Telefonanruf',
-            ergebnis: `Geplant: ${fd}`,
-            von: displayLabel,
-          })
-        } else if (aufgebotForm.telFollowup === 'reminderSetzen' && fd) {
-          followupEntries.push({
-            datum: today,
-            aktion: 'Reminder',
-            ergebnis: `Geplant: ${fd}`,
-            von: displayLabel,
-          })
-          followupAufgebotFuer = fd
-        } else if (aufgebotForm.telFollowup === 'briefVersenden') {
-          followupEntries.push({
-            datum: today,
-            aktion: 'Notiz',
-            ergebnis: 'Brief versenden — folgt',
-            von: displayLabel,
-          })
-        }
-      }
-
-      const telDate = aufgebotForm.art === 'Tel' ? aufgebotForm.terminFixiert || null : null
-      await updateRecallPatient(aufgebotTarget.patient.id, {
-        aufgebotArt:       effectiveArt,
-        aufgebotErstellt:  today,
-        aufgebotVersand:   aufgebotForm.versand       || null,
-        aufgebotNotiz:     aufgebotForm.notiz          || null,
-        terminFixiert:     (aufgebotForm.art === 'Brief' ? aufgebotForm.terminDatum : aufgebotForm.terminFixiert) || null,
-        ...(telDate ? { naechsteKons: telDate } : {}),
-        ...(followupAufgebotFuer ? { aufgebotFuer: followupAufgebotFuer } : {}),
-        verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
-        excelAbgeglichen:  true,
-      } as any, displayLabel)
-      await reloadTab(aufgebotTarget.patient.doctor)
-      // Liris-Webview neu laden — damit ein soeben in Liris angelegter
-      // Termin auch dort sichtbar wird (Liris aktualisiert von selbst nicht).
+      await persistAufgebot(aufgebotTarget.patient, aufgebotForm)
       reloadLiris()
       setAufgebotTarget(null)
     } catch {
@@ -2855,6 +2839,30 @@ export default function RecallPage() {
       setAufgebotSaving(false)
     }
   }
+
+  // Auto-'aufgeboten markieren': sobald ein Postausgang-Brief verarbeitet
+  // ist (ins Liris hochgeladen ODER per E-Mail an die Praxis versandt) und
+  // ein Aufgebot-Payload traegt, wird der Recall-Patient automatisch als
+  // aufgeboten markiert.
+  useEffect(() => {
+    const pending = postausgang.items.filter(it =>
+      (it.uploaded || it.versendet) && it.aufgebot && !it.recallSaved
+    )
+    if (pending.length === 0) return
+    ;(async () => {
+      for (const it of pending) {
+        const payload = it.aufgebot as { patient: RecallPatient; form: AufgebotForm } | undefined
+        if (!payload?.patient || !payload?.form) { postausgang.markRecallSaved(it.id); continue }
+        try {
+          await persistAufgebot(payload.patient, payload.form)
+          postausgang.markRecallSaved(it.id)
+        } catch (e) {
+          console.warn('[auto-aufgeboten] fehlgeschlagen fuer', it.id, e)
+          // nicht markieren -> beim naechsten Render erneut versuchen
+        }
+      }
+    })()
+  }, [postausgang.items]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages  = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const pageRows    = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)

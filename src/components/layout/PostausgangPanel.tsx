@@ -5,16 +5,18 @@ import { useBrowser } from '../../contexts/BrowserContext'
 
 interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
-  openMailWithAttachments?: (filePaths: string[], subject: string) => Promise<{ ok: boolean; error?: string }>
+  openMailWithAttachments?: (filePaths: string[], subject: string, recipient?: string, bodyText?: string) => Promise<{ ok: boolean; error?: string }>
   uploadPdfToLiris?: (webContentsId: number, filePath: string) => Promise<{ ok: boolean; error?: string }>
   autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string) => Promise<{ ok: boolean; error?: string; log?: string[] }>
 }
+
+const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
 
 /** Schwebendes Mini-Panel unten rechts. Zeigt die Liste vorbereiteter
  *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
-  const { items, remove, markUploaded } = usePostausgang()
+  const { items, remove, markUploaded, markVersendet } = usePostausgang()
   const { lirisWebContentsId } = useBrowser()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -78,17 +80,28 @@ export default function PostausgangPanel() {
   }
 
   const mailOne = async (it: PostausgangItem) => {
-    if (!it.tmpPath) { alert('Datei nicht verfuegbar — in Electron-App nutzen.'); return }
-    if (electronApi?.openMailWithAttachments) {
-      await electronApi.openMailWithAttachments([it.tmpPath], `Brief ${it.vorname}${it.pid ? ' #' + it.pid : ''}`)
-    }
+    if (!it.tmpPath || !electronApi?.openMailWithAttachments) { setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar.' }); return }
+    const res = await electronApi.openMailWithAttachments([it.tmpPath], `Aufgebotsbrief ${it.vorname}${it.pid ? ' #' + it.pid : ''}`, PRAXIS_EMAIL, 'Aufgebotsbrief im Anhang zum Drucken/Versenden.')
+    if (res.ok) { markVersendet([it.id]); setStatusMsg({ kind: 'ok', text: `✓ E-Mail an ${PRAXIS_EMAIL} vorbereitet — bitte in Outlook senden.` }) }
+    else setStatusMsg({ kind: 'err', text: 'E-Mail fehlgeschlagen: ' + (res.error || 'unbekannt') })
   }
 
-  const mailAll = async () => {
-    const paths = items.map(i => i.tmpPath).filter(Boolean) as string[]
-    if (paths.length === 0) return
-    if (electronApi?.openMailWithAttachments) {
-      await electronApi.openMailWithAttachments(paths, `${paths.length} Briefe aus Augenzentrum Suhr`)
+  // Gebuendelt an die Praxis (info@augenzentrum-suhr.ch) — fuer Home-Office-
+  // Mitarbeiter die Briefe erstellt aber nicht drucken konnten. Nach dem
+  // Versand gelten die Patienten als aufgeboten (markVersendet -> RecallPage
+  // loest 'aufgeboten markieren' aus).
+  const mailAllToPraxis = async () => {
+    const offen = items.filter(i => !i.versendet && !i.uploaded)
+    const paths = offen.map(i => i.tmpPath).filter(Boolean) as string[]
+    if (paths.length === 0) { setStatusMsg({ kind: 'ok', text: 'Keine offenen Briefe zum Senden.' }); return }
+    if (!electronApi?.openMailWithAttachments) { setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar.' }); return }
+    const body = `Beigefügt ${paths.length} Aufgebotsbrief(e) zum Drucken/Versenden.\n\nErstellt im Recall-Tool.`
+    const res = await electronApi.openMailWithAttachments(paths, `${paths.length} Aufgebotsbriefe — bitte drucken/versenden`, PRAXIS_EMAIL, body)
+    if (res.ok) {
+      markVersendet(offen.map(i => i.id))
+      setStatusMsg({ kind: 'ok', text: `✓ E-Mail an ${PRAXIS_EMAIL} vorbereitet (${paths.length}) — bitte in Outlook senden.` })
+    } else {
+      setStatusMsg({ kind: 'err', text: 'E-Mail fehlgeschlagen: ' + (res.error || 'unbekannt') })
     }
   }
 
@@ -138,8 +151,8 @@ export default function PostausgangPanel() {
                   {merging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
                 </button>
               )}
-              {items.length > 1 && (
-                <button onClick={mailAll} title="Alle per E-Mail" className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600">
+              {items.some(i => !i.versendet && !i.uploaded) && (
+                <button onClick={mailAllToPraxis} title={`Alle offenen Briefe gebündelt an ${PRAXIS_EMAIL} senden`} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600">
                   <Mail className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -163,14 +176,15 @@ export default function PostausgangPanel() {
                   title="Ziehen zum Hochladen ins Liris"
                   className="group flex items-center gap-2 px-3 py-2 border-b border-gray-100 hover:bg-primary-50 cursor-grab active:cursor-grabbing"
                 >
-                  {it.uploaded
+                  {(it.uploaded || it.versendet)
                     ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-500" />
                     : <FileText className="w-4 h-4 shrink-0 text-blue-500" />}
                   <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-semibold truncate ${it.uploaded ? 'text-green-700' : 'text-blue-700'}`}>{it.vorname || it.filename}</div>
+                    <div className={`text-xs font-semibold truncate ${(it.uploaded || it.versendet) ? 'text-green-700' : 'text-blue-700'}`}>{it.vorname || it.filename}</div>
                     <div className="text-[10px] text-gray-400 truncate">
                       {it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}
                       {it.uploaded && <span className="ml-1 text-green-600 font-semibold">· hochgeladen</span>}
+                      {!it.uploaded && it.versendet && <span className="ml-1 text-green-600 font-semibold">· an Praxis gesendet</span>}
                     </div>
                   </div>
                   {!it.uploaded && (
@@ -178,9 +192,11 @@ export default function PostausgangPanel() {
                       <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
                     </button>
                   )}
-                  <button onClick={() => mailOne(it)} title="Per E-Mail" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
-                    <Mail className="w-3.5 h-3.5" />
-                  </button>
+                  {!it.versendet && !it.uploaded && (
+                    <button onClick={() => mailOne(it)} title={`An ${PRAXIS_EMAIL} senden`} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
+                      <Mail className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button onClick={() => remove(it.id)} title="Loeschen" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-red-500 transition-opacity">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

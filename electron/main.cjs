@@ -477,32 +477,39 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
 // universell mit Attachments. Wir oeffnen den Default-Client mit
 // 'attachment=' Parameter, was nur Outlook unterstuetzt. Fallback:
 // Wir markieren die Dateien im Explorer, User zieht selbst ins Mail.
-ipcMain.handle('open-mail-with-attachments', async (_event, filePaths, subject) => {
+ipcMain.handle('open-mail-with-attachments', async (_event, filePaths, subject, recipient, bodyText) => {
   try {
     if (!Array.isArray(filePaths) || filePaths.length === 0) return { ok: false, error: 'keine Dateien' }
-    if (process.platform === 'win32') {
-      // Outlook via /a-Switch
-      const { spawn } = require('child_process')
-      const outlookPaths = [
-        'C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE',
-        'C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE',
-        'C:\\Program Files\\Microsoft Office\\Office16\\OUTLOOK.EXE',
-        'C:\\Program Files (x86)\\Microsoft Office\\Office16\\OUTLOOK.EXE',
-      ]
-      const outlookExe = outlookPaths.find(p => fs.existsSync(p))
-      if (outlookExe) {
-        // /a kann nur eine Datei zugleich -> wir hangen alle als zusaetzliche
-        // /a-Argumente an; Outlook akzeptiert das.
-        const args = []
-        for (const f of filePaths) { args.push('/a', f) }
-        spawn(outlookExe, args, { detached: true, stdio: 'ignore' }).unref()
-        return { ok: true }
-      }
+    // Mit Empfaenger ODER mehreren Anhaengen: .eml-Entwurf bauen (Outlook
+    // oeffnet ihn dank X-Unsent:1 als bearbeitbaren, sendebereiten Entwurf
+    // mit ALLEN Attachments + Empfaenger). Outlook /a kann das nicht
+    // zuverlaessig kombinieren.
+    const boundary = 'azs_' + Date.now()
+    const CRLF = '\r\n'
+    let eml = ''
+    if (recipient) eml += 'To: ' + recipient + CRLF
+    eml += 'Subject: ' + (subject || 'Briefe Augenzentrum Suhr') + CRLF
+    eml += 'X-Unsent: 1' + CRLF
+    eml += 'MIME-Version: 1.0' + CRLF
+    eml += 'Content-Type: multipart/mixed; boundary="' + boundary + '"' + CRLF + CRLF
+    eml += '--' + boundary + CRLF
+    eml += 'Content-Type: text/plain; charset=utf-8' + CRLF + CRLF
+    eml += (bodyText || 'Briefe im Anhang zum Drucken / Versenden.') + CRLF + CRLF
+    for (const f of filePaths) {
+      if (!fs.existsSync(f)) continue
+      const b64 = fs.readFileSync(f).toString('base64')
+      const name = path.basename(f)
+      eml += '--' + boundary + CRLF
+      eml += 'Content-Type: application/pdf; name="' + name + '"' + CRLF
+      eml += 'Content-Transfer-Encoding: base64' + CRLF
+      eml += 'Content-Disposition: attachment; filename="' + name + '"' + CRLF + CRLF
+      eml += b64.replace(/(.{76})/g, '$1' + CRLF) + CRLF
     }
-    // Fallback: Ordner mit den Dateien oeffnen + leere mailto
-    try { shell.showItemInFolder(filePaths[0]) } catch { /* no-op */ }
-    shell.openExternal('mailto:?subject=' + encodeURIComponent(subject || 'Briefe'))
-    return { ok: true, fallback: true }
+    eml += '--' + boundary + '--' + CRLF
+    const emlPath = path.join(os.tmpdir(), 'azs-mail-' + Date.now() + '.eml')
+    fs.writeFileSync(emlPath, eml)
+    await shell.openPath(emlPath)
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
   }

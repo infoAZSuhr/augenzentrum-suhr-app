@@ -12,6 +12,9 @@ export interface PostausgangItem {
   blob:        Blob
   tmpPath?:    string         // gesetzt durch Electron-IPC (write-pdf-tmp)
   uploaded?:   boolean        // true sobald erfolgreich ins Liris hochgeladen
+  versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
+  recallSaved?: boolean       // true sobald der Recall-Patient als 'aufgeboten' markiert wurde
+  aufgebot?:   unknown        // Payload (patient + form) fuer das automatische 'aufgeboten markieren'
   createdAt:   number
 }
 
@@ -20,6 +23,8 @@ interface PostausgangContextType {
   add: (item: Omit<PostausgangItem, 'id' | 'createdAt'>) => Promise<PostausgangItem>
   remove: (id: string) => void
   markUploaded: (id: string) => void
+  markVersendet: (ids: string[]) => void
+  markRecallSaved: (id: string) => void
   clear: () => void
 }
 
@@ -28,6 +33,8 @@ const PostausgangContext = createContext<PostausgangContextType>({
   add: async () => { throw new Error('Provider missing') },
   remove: () => {},
   markUploaded: () => {},
+  markVersendet: () => {},
+  markRecallSaved: () => {},
   clear: () => {},
 })
 
@@ -77,6 +84,15 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, uploaded: true } : i))
   }, [])
 
+  const markVersendet = useCallback((ids: string[]) => {
+    const set = new Set(ids)
+    setItems(prev => prev.map(i => set.has(i.id) ? { ...i, versendet: true } : i))
+  }, [])
+
+  const markRecallSaved = useCallback((id: string) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, recallSaved: true } : i))
+  }, [])
+
   const clear = useCallback(() => {
     if (electronApi?.deletePdfTmp) {
       items.forEach(i => { if (i.tmpPath) electronApi.deletePdfTmp!(i.tmpPath).catch(() => {}) })
@@ -85,7 +101,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
   }, [items, electronApi])
 
   // Warnung beim Schliessen nur wenn noch NICHT hochgeladene Briefe haengen
-  const pendingCount = items.filter(i => !i.uploaded).length
+  const pendingCount = items.filter(i => !i.uploaded && !i.versendet).length
   useEffect(() => {
     if (pendingCount === 0) return
     const onUnload = (e: BeforeUnloadEvent) => {
@@ -98,7 +114,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
   }, [pendingCount])
 
   return (
-    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, clear }}>
+    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markVersendet, markRecallSaved, clear }}>
       {children}
     </PostausgangContext.Provider>
   )
