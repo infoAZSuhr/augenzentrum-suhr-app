@@ -1,6 +1,6 @@
 {
   "name": "Augenzentrum-suhr",
-  "version": "1.1.35",
+  "version": "1.1.36",
   "author": "Saran Pasquale",
   "license": "UNLICENSED",
   "main": "electron/main.cjs",

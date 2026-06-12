@@ -6074,13 +6074,17 @@ export default function RecallPage() {
                       if (v === 'ja' || v === 'nein' || v === 'Terminverschiebung') {
                         setField('aufgebotFuer', '')
                       }
-                      // Storniert = 'ja' UND der bisher zugewiesene Arzt ist
-                      // nicht mehr aktiv (nicht in der aktuellen Arztliste)
-                      // -> 'Keinem Arzt zugewiesen' vorwaehlen.
+                      // Storniert = 'ja': wenn der relevante Arzt nicht mehr
+                      // aktiv ist (weder der zugewiesene noch der aktuell
+                      // gewaehlte in der Arztliste), -> 'Keinem Arzt
+                      // zugewiesen'. Greift auch wenn assignDoctor schon
+                      // (per Auto-Fill) gesetzt war.
                       if (v === 'ja' && editTarget && editTarget !== 'new') {
                         const cur = (editTarget as RecallPatient).doctor
-                        const inactive = cur && cur !== OFFEN_TAB && cur !== ZU_BEARB && !doctors.includes(cur)
-                        if (inactive && !assignDoctor) setAssignDoctor(OFFEN_TAB)
+                        const relevant = assignDoctor || cur
+                        const isActive = !!relevant && (relevant === ZU_BEARB || doctors.includes(relevant))
+                        console.log('[Storniert] relevant Arzt=', relevant, 'aktiv?', isActive, 'doctors=', doctors)
+                        if (!isActive && relevant !== OFFEN_TAB) setAssignDoctor(OFFEN_TAB)
                       }
                       if (v === 'Terminverschiebung') {
                         setField('grundStornierung', '')
