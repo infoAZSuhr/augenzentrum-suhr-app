@@ -18,26 +18,35 @@ export default function PostausgangPanel() {
   const { lirisWebContentsId } = useBrowser()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
+  const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
 
   // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei. Vorbedingung:
-  // User hat in Liris "Dokument importieren" geoeffnet (Arzt-Auswahl sichtbar).
+  // Patient ist in Liris geoeffnet.
   const uploadToLiris = async (it: PostausgangItem) => {
-    if (!it.tmpPath || !electronApi?.autoImportToLiris) { alert('Nur in der Electron-App verfuegbar (App-Update noetig).'); return }
-    if (!lirisWebContentsId) { alert('Liris-Browser ist nicht offen. Bitte zuerst Liris oeffnen (Recall-Seite).'); return }
+    setStatusMsg(null)
+    if (!it.tmpPath || !electronApi?.autoImportToLiris) {
+      setStatusMsg({ kind: 'err', text: `Auto-Import nicht verfügbar — App-Update nötig (aktuell v${appVersion}, mind. v1.1.22).` })
+      return
+    }
+    if (!lirisWebContentsId) {
+      setStatusMsg({ kind: 'err', text: 'Liris-Browser ist nicht offen. Bitte auf der Recall-Seite Liris öffnen.' })
+      return
+    }
     setUploadingId(it.id)
+    setStatusMsg({ kind: 'ok', text: 'Auto-Import läuft…' })
     try {
       const res = await electronApi.autoImportToLiris(lirisWebContentsId, it.tmpPath, it.arzt || '')
-      // Schritt-Log immer in die Console — zum Nachvollziehen wo es haengt.
       if (res.log) { console.log('%c[Auto-Import] Ablauf:', 'color:#16a34a;font-weight:bold'); res.log.forEach(l => console.log('  ' + l)) }
       if (res.ok) {
+        setStatusMsg({ kind: 'ok', text: '✓ Ins Liris hochgeladen' })
         remove(it.id)
       } else {
-        const logTxt = res.log && res.log.length ? '\n\nAblauf:\n' + res.log.map(l => '• ' + l).join('\n') : ''
-        alert('Auto-Import fehlgeschlagen:\n' + (res.error || 'unbekannt') + logTxt + '\n\n(Patient muss in Liris geoeffnet sein.)')
+        setStatusMsg({ kind: 'err', text: res.error || 'Unbekannter Fehler', log: res.log })
       }
     } catch (e) {
-      alert('Auto-Import fehlgeschlagen: ' + String(e))
+      setStatusMsg({ kind: 'err', text: String(e) })
     } finally {
       setUploadingId(null)
     }
@@ -135,8 +144,26 @@ export default function PostausgangPanel() {
               ))}
             </div>
           )}
-          <div className="px-3 py-1.5 border-t border-gray-100 bg-gray-50 text-[10px] text-gray-400 text-center">
-            Eintraege ziehen oder klicken
+          {/* Status / Fehler-Anzeige (statt window.alert) */}
+          {statusMsg && (
+            <div className={`px-3 py-2 border-t text-xs ${statusMsg.kind === 'ok' ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-semibold">{statusMsg.text}</span>
+                <button onClick={() => setStatusMsg(null)} className="shrink-0 text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
+              </div>
+              {statusMsg.log && statusMsg.log.length > 0 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-[10px] text-gray-500">Ablauf anzeigen</summary>
+                  <ul className="mt-1 text-[10px] text-gray-500 leading-relaxed">
+                    {statusMsg.log.map((l, i) => <li key={i}>• {l}</li>)}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+          <div className="px-3 py-1.5 border-t border-gray-100 bg-gray-50 text-[10px] text-gray-400 text-center flex items-center justify-between">
+            <span>Eintraege ziehen oder klicken</span>
+            <span className="text-gray-300">v{appVersion}</span>
           </div>
         </div>
       ) : (
