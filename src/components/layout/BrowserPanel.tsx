@@ -815,11 +815,16 @@ export default function BrowserPanel() {
           // Datepicker wuerde dauernd zuruckspringen.
           var bodyTxt = document.body ? document.body.innerText : '';
           if (/Termin\\s+bearbeiten/i.test(bodyTxt)) return 'skip-edit';
-          // Dirty-Check: nichts geaendert (gleiches PID-Set + gleiche
-          // Seitengroesse) -> teuren TreeWalker ueberspringen.
+          // Dirty-Check: nur ueberspringen wenn Signatur (PID-Set + Datum +
+          // Seitengroesse) UND die Anzahl bestehender Markierungen unveraendert
+          // sind. Liris re-rendert seine Liste oft und entfernt dabei unsere
+          // Markierungen — die Textlaenge bleibt aber gleich. Darum zaehlen
+          // wir die Markierungen mit, damit wir nach einem Re-Render neu
+          // markieren statt faelschlich zu skippen.
           var len = bodyTxt.length;
+          var curCount = document.querySelectorAll('[data-az-recall-pid]').length;
           var sig = ${JSON.stringify(hlSig)} + ':' + len;
-          if (window.__azHlSig === sig) return 'skip';
+          if (window.__azHlSig === sig && window.__azHlCount === curCount) return 'skip';
           window.__azHlSig = sig;
           // 1) Alte Markierungen entfernen (egal von welcher vorigen Regex-Version).
           var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
@@ -924,6 +929,10 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
+          // Markierungs-Anzahl merken — Basis fuer den Dirty-Check beim
+          // naechsten Pass (erkennt von Liris entfernte Markierungen).
+          window.__azHlCount = document.querySelectorAll('[data-az-recall-pid]').length;
+          return 'done';
         })();
       `
       wv.executeJavaScript(script).catch(() => {})
