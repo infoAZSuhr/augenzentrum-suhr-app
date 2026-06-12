@@ -4580,7 +4580,7 @@ export default function RecallPage() {
               </button>
               <button
                 onClick={() => startTerminFlow(p)}
-                title="Termin in Liris vorbereiten: Akte lesen (Myd/OCT/GF…), dann Terminkalender mit Patient + Grund vorbefuellen. Datum/Slot waehlst du manuell."
+                title="Termin anlegen"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shrink-0"
               >
                 <CalendarClock className="w-3.5 h-3.5" />
@@ -4588,6 +4588,7 @@ export default function RecallPage() {
               </button>
               <button
                 onClick={() => openAufgebotDialog(entry)}
+                title="Aufgebot erstellen"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0"
               >
                 <CalendarDays className="w-3.5 h-3.5" />
