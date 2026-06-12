@@ -628,6 +628,23 @@ export default function RecallPage() {
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed,  setPreviewCollapsed]  = useState(true)   // default eingeklappt — manuell aufklappen
+  // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),
+  // lokal gespeichert damit haeufige eigene Eintraege als Buttons bleiben.
+  const [customVUs, setCustomVUs] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('recall-custom-vu') || '[]') } catch { return [] }
+  })
+  const persistCustomVUs = (next: string[]) => {
+    setCustomVUs(next)
+    try { localStorage.setItem('recall-custom-vu', JSON.stringify(next)) } catch { /* ignore */ }
+  }
+  const addCustomVU = () => {
+    const name = window.prompt('Neue Voruntersuchung hinzufügen:')?.trim()
+    if (!name) return
+    if ((VORUNTERSUCHUNGEN as readonly string[]).includes(name) || customVUs.includes(name)) {
+      toast.info('Diese Voruntersuchung existiert bereits.'); return
+    }
+    persistCustomVUs([...customVUs, name])
+  }
   // Logo als Base64-DataURL — wird einmalig beim Mount geladen. Inline
   // im Brief noetig damit Electron-printToPDF (loadet temp .html via
   // file://) das Bild auch ohne Internet darstellen kann.
@@ -2318,7 +2335,9 @@ export default function RecallPage() {
     const fifteenMinSum    = form.voruntersuchungen
       .filter(v => v !== 'Zykloplegie' && VU_MIN[v] === 15)
       .reduce((sum, v) => sum + VU_MIN[v], 0)
-    const hasShortVu       = form.voruntersuchungen.some(v => v !== 'Zykloplegie' && VU_MIN[v] === SONSTIGE_MIN)
+    // short = jede gewaehlte VU die nicht 15-Min, nicht Zykloplegie und
+    // nicht 'Sonstige' ist (inkl. benutzerdefinierter VUs).
+    const hasShortVu       = form.voruntersuchungen.some(v => v !== 'Zykloplegie' && v !== 'Sonstige' && VU_MIN[v] !== 15)
     const hasSonstige      = !!(form.voruntersuchungenSonstige && form.voruntersuchungenSonstige.trim())
     const shortMinFlat     = (hasShortVu || hasSonstige) ? 15 : 0
     const totalMin         = fifteenMinSum + shortMinFlat
@@ -4199,6 +4218,34 @@ export default function RecallPage() {
                             </button>
                           )
                         })}
+                        {/* Benutzerdefinierte Voruntersuchungen */}
+                        {customVUs.map(v => {
+                          const active = af.voruntersuchungen.includes(v)
+                          return (
+                            <span key={v} className={`inline-flex items-center rounded-lg text-xs font-medium border transition-colors ${
+                              active ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'
+                            }`}>
+                              <button
+                                onClick={() => setAf({ voruntersuchungen: active
+                                  ? af.voruntersuchungen.filter(x => x !== v)
+                                  : [...af.voruntersuchungen, v] })}
+                                className="pl-2.5 pr-1 py-1.5 hover:bg-gray-50 rounded-l-lg">
+                                {v}
+                              </button>
+                              <button
+                                onClick={() => { persistCustomVUs(customVUs.filter(x => x !== v)); setAf({ voruntersuchungen: af.voruntersuchungen.filter(x => x !== v) }) }}
+                                title="Aus Liste entfernen"
+                                className="px-1.5 py-1.5 text-gray-400 hover:text-red-500 rounded-r-lg">×</button>
+                            </span>
+                          )
+                        })}
+                        {/* Eigene Voruntersuchung hinzufuegen */}
+                        <button
+                          onClick={addCustomVU}
+                          title="Eigene Voruntersuchung hinzufügen (bleibt gespeichert)"
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors">
+                          + Hinzufügen
+                        </button>
                         {/* Sonstige toggle */}
                         <button
                           onClick={() => setAf({ voruntersuchungen: af.voruntersuchungen.includes('Sonstige')
