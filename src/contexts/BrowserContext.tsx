@@ -28,6 +28,15 @@ export interface RecallPidRequest {
   at:  number
 }
 
+/** Anfrage: im Liris-Terminkalender das 'Termin anlegen'-Panel mit
+ *  Patient (per PID) und Grund-Text vorbefuellen. Der Termin selbst
+ *  wird vom User manuell gesetzt. */
+export interface TerminAnlegenRequest {
+  pid:   string
+  grund: string
+  at:    number
+}
+
 /** Anfrage: Patient ist in Liris vorhanden aber nicht im Recall —
  *  RecallPage soll die Neu-Erfassung mit den vorhandenen Daten oeffnen. */
 export interface RecallNewRequest {
@@ -68,6 +77,9 @@ interface BrowserContextType {
   clearRecallPidRequest: () => void
   requestRecallNew: (data: { pid: string; name?: string; geb?: string }) => void
   clearRecallNewRequest: () => void
+  terminAnlegenRequest: TerminAnlegenRequest | null
+  requestTerminAnlegen: (pid: string, grund: string) => void
+  clearTerminAnlegenRequest: () => void
   setStaleRecallPids: (pids: string[]) => void
   setKnownRecallPids: (pids: string[]) => void
   setStaleReferenceDate: (iso: string) => void
@@ -100,6 +112,9 @@ const BrowserContext = createContext<BrowserContextType>({
   clearRecallPidRequest: () => {},
   requestRecallNew: () => {},
   clearRecallNewRequest: () => {},
+  terminAnlegenRequest: null,
+  requestTerminAnlegen: () => {},
+  clearTerminAnlegenRequest: () => {},
   setStaleRecallPids: () => {},
   setKnownRecallPids: () => {},
   setStaleReferenceDate: () => {},
@@ -113,6 +128,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [lirisExtract, setLirisExtract] = useState<LirisExtract | null>(null)
   const [recallPidRequest, setRecallPidRequest] = useState<RecallPidRequest | null>(null)
   const [recallNewRequest, setRecallNewRequest] = useState<RecallNewRequest | null>(null)
+  const [terminAnlegenRequest, setTerminAnlegenRequest] = useState<TerminAnlegenRequest | null>(null)
   // Reload-Trigger: jede Inkrementierung loest in BrowserPanel ein
   // webview.reload() aus. State statt Ref damit Effekte feuern.
   const [reloadLirisAt, setReloadLirisAt] = useState(0)
@@ -153,6 +169,9 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       clearRecallPidRequest: () => setRecallPidRequest(null),
       requestRecallNew: (data) => setRecallNewRequest({ pid: data.pid, name: data.name || '', geb: data.geb || '', at: Date.now() }),
       clearRecallNewRequest: () => setRecallNewRequest(null),
+      terminAnlegenRequest,
+      requestTerminAnlegen: (pid: string, grund: string) => setTerminAnlegenRequest({ pid, grund, at: Date.now() }),
+      clearTerminAnlegenRequest: () => setTerminAnlegenRequest(null),
       setStaleRecallPids,
       setKnownRecallPids,
       setStaleReferenceDate,

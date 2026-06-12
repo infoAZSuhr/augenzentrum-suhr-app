@@ -165,9 +165,9 @@ export default function PostausgangPanel() {
                 >
                   {it.uploaded
                     ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-500" />
-                    : <FileText className="w-4 h-4 shrink-0 text-primary-500" />}
+                    : <FileText className="w-4 h-4 shrink-0 text-blue-500" />}
                   <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-semibold truncate ${it.uploaded ? 'text-gray-400' : 'text-gray-800'}`}>{it.vorname || it.filename}</div>
+                    <div className={`text-xs font-semibold truncate ${it.uploaded ? 'text-green-700' : 'text-blue-700'}`}>{it.vorname || it.filename}</div>
                     <div className="text-[10px] text-gray-400 truncate">
                       {it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}
                       {it.uploaded && <span className="ml-1 text-green-600 font-semibold">· hochgeladen</span>}

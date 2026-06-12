@@ -357,7 +357,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest } = useBrowser()
 
   // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
   // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
@@ -368,6 +368,92 @@ export default function BrowserPanel() {
       try { wv.reload() } catch { /* no-op */ }
     }
   }, [reloadLirisAt])
+
+  // 'Termin anlegen'-Vorbereitung: zum Terminkalender wechseln, im
+  // rechten Panel den Patienten (per PID) suchen + auswaehlen und das
+  // Grund-Feld mit den aus der Akte gelesenen Infos fuellen. Den Termin
+  // selbst setzt der User manuell (Datum/Slot klicken).
+  useEffect(() => {
+    if (!terminAnlegenRequest) return
+    if (Date.now() - terminAnlegenRequest.at > 15000) { clearTerminAnlegenRequest(); return }
+    const { pid, grund } = terminAnlegenRequest
+    clearTerminAnlegenRequest()
+    const wv = webviewRef.current as any
+    if (!wv?.executeJavaScript) return
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+    ;(async () => {
+      try {
+        console.log('[TerminAnlegen] start, pid=', pid, 'grund=', grund)
+        // 1) Zum Terminkalender wechseln (Link oben links in Liris)
+        const navOk = await wv.executeJavaScript(`(function(){
+          var as=[].slice.call(document.querySelectorAll('a'));
+          for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim()==='Terminkalender'){ as[k].click(); return true; } }
+          // evtl. sind wir schon im Kalender
+          return !!document.querySelector('input[placeholder*="Patientensuche"], input[placeholder*="atientensuche"]');
+        })()`)
+        console.log('[TerminAnlegen] Terminkalender-Klick/da:', navOk)
+        // 2) Auf das Patient-Suchfeld im 'Termin anlegen'-Panel warten
+        let fieldDa = false
+        for (let i = 0; i < 16 && !fieldDa; i++) {
+          await sleep(450)
+          fieldDa = await wv.executeJavaScript(`!!document.querySelector('input[placeholder*="atientensuche"]')`).catch(() => false)
+        }
+        console.log('[TerminAnlegen] Patient-Feld da:', fieldDa)
+        if (!fieldDa) return
+        await sleep(600)
+        // 3) PID ins Patient-Feld tippen (native setter + input-Event)
+        await wv.executeJavaScript(`(function(){
+          var el=document.querySelector('input[placeholder*="atientensuche"]');
+          if(!el) return false;
+          el.focus();
+          var set=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+          set.call(el, ${JSON.stringify('#' + pid)});
+          el.dispatchEvent(new Event('input',{bubbles:true}));
+          el.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true}));
+          return true;
+        })()`)
+        // 4) Dropdown-Vorschlag mit der PID anklicken
+        let picked = false
+        for (let i = 0; i < 10 && !picked; i++) {
+          await sleep(450)
+          picked = await wv.executeJavaScript(`(function(){
+            var pidRe=new RegExp('#\\\\s*0*' + ${JSON.stringify(pid)} + '(?!\\\\d)');
+            var all=[].slice.call(document.querySelectorAll('li,a,div'));
+            var best=null;
+            for(var k=0;k<all.length;k++){
+              var el=all[k];
+              if(el.tagName==='INPUT')continue;
+              var r=el.getBoundingClientRect(); if(r.width<=0||r.height<=0)continue;
+              var t=(el.innerText||'').trim();
+              if(!t||t.length>120)continue;
+              if(pidRe.test(t)){ if(!best || t.length<(best.innerText||'').length) best=el; }
+            }
+            if(best){ best.click(); return true; }
+            return false;
+          })()`).catch(() => false)
+        }
+        console.log('[TerminAnlegen] Patient ausgewaehlt:', picked)
+        await sleep(600)
+        // 5) Grund-Feld fuellen
+        if (grund) {
+          const grundOk = await wv.executeJavaScript(`(function(){
+            var el=document.querySelector('input[placeholder="Grund"], input[placeholder*="Grund"], textarea[placeholder*="Grund"]');
+            if(!el) return false;
+            el.focus();
+            var proto = el.tagName==='TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+            var set=Object.getOwnPropertyDescriptor(proto,'value').set;
+            set.call(el, ${JSON.stringify(grund)});
+            el.dispatchEvent(new Event('input',{bubbles:true}));
+            el.dispatchEvent(new Event('change',{bubbles:true}));
+            return true;
+          })()`).catch(() => false)
+          console.log('[TerminAnlegen] Grund gesetzt:', grundOk)
+        }
+      } catch (e) {
+        console.warn('[TerminAnlegen] fehlgeschlagen:', e)
+      }
+    })()
+  }, [terminAnlegenRequest]) // eslint-disable-line react-hooks/exhaustive-deps
   const { user, isAdmin } = useAuth()
   // Pro-User Webview-Partition: jeder Mitarbeiter loggt sich selber bei
   // Liris ein. Die farbigen Recall-Markierungen werden per Injection

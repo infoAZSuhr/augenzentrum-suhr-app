@@ -493,7 +493,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris, requestTerminAnlegen } = useBrowser()
   const postausgang = usePostausgang()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
@@ -2137,6 +2137,44 @@ export default function RecallPage() {
       weekLabel: fmtWeekLabel(start, end),
     }
   }, [allData, wochenplanWeekOffset]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Termin-anlegen-Flow (Liris) ───────────────────────────────────────────
+  // Klick auf 'Termin' im Aufgebot-Plan: Patient-Akte in Liris oeffnen,
+  // Extract lesen (Myd/OCT/GF...), dann via terminAnlegenRequest zurueck in
+  // den Terminkalender wechseln und Patient + Grund vorbefuellen.
+  const terminFlowRef = useRef<{ pid: string; at: number; timer: number } | null>(null)
+  const BP_TO_GRUND: Record<string, string> = {
+    Myd: 'mit Pupillenerweiterung', OCT: 'OCT', GF: 'GF',
+    Biometrie: 'Biometrie', Pachymetrie: 'Pachymetrie',
+    Topographie: 'Hornhaut-Topographie', Traenenfilm: 'Tränenfilm-Analyse',
+    Funduskopie: 'Funduskopie', Tonometrie: 'Tonometrie', Zykloplegie: 'Zykloplegie',
+  }
+  function startTerminFlow(p: RecallPatient) {
+    const pid = normalizePid(p.pid)
+    if (!pid) { toast.warning('Patient hat keine PID.'); return }
+    // Fallback: wenn nach 9s kein Extract kam, trotzdem in den Kalender
+    // wechseln — Grund bleibt dann leer.
+    const timer = window.setTimeout(() => {
+      if (terminFlowRef.current?.pid === pid) {
+        terminFlowRef.current = null
+        requestTerminAnlegen(pid, '')
+      }
+    }, 9000)
+    terminFlowRef.current = { pid, at: Date.now(), timer }
+    toast.info('Patient wird in Liris geöffnet — Termin-Daten werden gelesen…')
+    openWithPid(pid)
+  }
+  useEffect(() => {
+    const flow = terminFlowRef.current
+    if (!flow || !lirisExtract) return
+    if (normalizePid(lirisExtract.pid) !== flow.pid) return
+    if (Date.now() - lirisExtract.at > 10000) return
+    window.clearTimeout(flow.timer)
+    terminFlowRef.current = null
+    const kws = lirisExtract.bpKeywords ?? []
+    const grund = kws.map(k => BP_TO_GRUND[k]).filter(Boolean).join(', ')
+    requestTerminAnlegen(flow.pid, grund)
+  }, [lirisExtract]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openAufgebotDialog(entry: WPEntry) {
     setAufgebotTarget(entry)
@@ -4539,6 +4577,14 @@ export default function RecallPage() {
                 {p.aufgebotFuer && (
                   <div className="text-xs text-gray-400 mt-0.5">RC ab: {formatDate(p.aufgebotFuer)}</div>
                 )}
+              </button>
+              <button
+                onClick={() => startTerminFlow(p)}
+                title="Termin in Liris vorbereiten: Akte lesen (Myd/OCT/GF…), dann Terminkalender mit Patient + Grund vorbefuellen. Datum/Slot waehlst du manuell."
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shrink-0"
+              >
+                <CalendarClock className="w-3.5 h-3.5" />
+                Termin
               </button>
               <button
                 onClick={() => openAufgebotDialog(entry)}
