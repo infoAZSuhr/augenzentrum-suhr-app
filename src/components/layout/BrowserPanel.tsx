@@ -87,9 +87,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       if (!result.intervalWeeks) {
         var bpStart = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
         if (bpStart >= 0) {
-          // Abschnitt bis Doc-Ende (oder bis zur naechsten typischen Liris-Sektion)
-          var bpText = allText.slice(bpStart, bpStart + 4000);
-          var bpEnd = bpText.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
+          // 'Diagnose' ist Nachbar-Spaltenheader -> nicht als Ende werten.
+          var bpText = allText.slice(bpStart, bpStart + 800);
+          var bpEnd = bpText.search(/\\n\\s*(?:Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
           if (bpEnd > 0) bpText = bpText.slice(0, bpEnd);
           // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren"
           var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder)\\D{0,40}?in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
@@ -300,8 +300,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       //    'OCT' -> OCT, etc. Wird vom Aufbieten-Formular konsumiert.
       var bpStart2 = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
       if (bpStart2 >= 0) {
-        var bpTxt = allText.slice(bpStart2, bpStart2 + 4000);
-        var bpEnd2 = bpTxt.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
+        // 'Diagnose' steht als Nachbar-Spaltenheader oft direkt nach
+        // 'Beurteilung und Prozedere' — NICHT als Abschnitt-Ende werten,
+        // sonst wird der eigentliche Inhalt (mit Myd/OCT/Pachy) verpasst.
+        var bpTxt = allText.slice(bpStart2, bpStart2 + 800);
+        var bpEnd2 = bpTxt.search(/\\n\\s*(?:Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
         if (bpEnd2 > 0) bpTxt = bpTxt.slice(0, bpEnd2);
         // Toleranter matchen — Liris-Kuerzel wie 'Mydr', 'OCT MP', 'Pachy'
         // (keine harten Wortgrenzen am Ende, damit Wortstaemme greifen).
