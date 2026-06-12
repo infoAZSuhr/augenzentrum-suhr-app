@@ -927,6 +927,20 @@ export default function BrowserPanel() {
     // Klick im Liris (waehrend ein Recall-Modal offen ist) alle 2.5s der
     // Mismatch-/Auto-Fill-Effect, was zu wiederholt aufpoppenden Meldungen
     // fuehrt. Detail-Extract laeuft nur bei echter Navigation/dom-ready.
+    // Blendet das globale 'Allgemeine Suche'-Feld (pirca-search) aus,
+    // sobald eine Patientenakte offen ist (erkannt am Patient-Header).
+    const toggleGlobalSearch = () => {
+      wv.executeJavaScript(`(function(){
+        var akteOffen = !!document.querySelector('#patient-settings, #soft-id, .patient-header-navigation');
+        var search = document.querySelector('input[name="pirca-search"]');
+        if(!search) return;
+        // Nur enge Wrapper ausblenden (form/.search), sonst das Input selbst —
+        // kein generischer div-Container (koennte zuviel verstecken).
+        var box = search.closest('form, .search') || search;
+        box.style.display = akteOffen ? 'none' : '';
+      })()`).catch(() => {})
+    }
+
     const poll = window.setInterval(() => {
       // Polling laeuft auch bevor dom-ready einmal gefeuert hat — Liris
       // koennte gerade die Login-Seite anzeigen und dabei eine andere
@@ -934,6 +948,7 @@ export default function BrowserPanel() {
       // still fehl wenn die Seite noch nicht bereit ist.
       checkCalendarDay()
       highlightRecallPids()
+      toggleGlobalSearch()
     }, 1500)
 
     return () => {
