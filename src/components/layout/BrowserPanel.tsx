@@ -303,17 +303,19 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var bpTxt = allText.slice(bpStart2, bpStart2 + 4000);
         var bpEnd2 = bpTxt.search(/\\n\\s*(?:Diagnose|Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
         if (bpEnd2 > 0) bpTxt = bpTxt.slice(0, bpEnd2);
+        // Toleranter matchen — Liris-Kuerzel wie 'Mydr', 'OCT MP', 'Pachy'
+        // (keine harten Wortgrenzen am Ende, damit Wortstaemme greifen).
         var kws = [];
-        if (/\\bMyd\\b/i.test(bpTxt))                                kws.push('Myd');
-        if (/\\bOCT\\b/i.test(bpTxt))                                kws.push('OCT');
+        if (/\\bMyd/i.test(bpTxt))                                    kws.push('Myd');          // Myd, Mydr, Mydriasis
+        if (/\\bOCT\\b|\\bOCT[- ]?MP\\b/i.test(bpTxt))               kws.push('OCT');          // OCT, OCT MP
         if (/\\bGF\\b|Gesichtsfeld|Perimetrie/i.test(bpTxt))         kws.push('GF');
-        if (/Biometrie/i.test(bpTxt))                                kws.push('Biometrie');
-        if (/Pachymetrie/i.test(bpTxt))                              kws.push('Pachymetrie');
-        if (/Hornhaut[- ]?Topographie|Topographie/i.test(bpTxt))     kws.push('Topographie');
+        if (/Biometrie|\\bBiom/i.test(bpTxt))                        kws.push('Biometrie');
+        if (/Pachy/i.test(bpTxt))                                    kws.push('Pachymetrie');  // Pachy, Pachymetrie
+        if (/Hornhaut[- ]?Topographie|Topographie|\\bTopo/i.test(bpTxt)) kws.push('Topographie');
         if (/Tr(?:ä|ae)nenfilm/i.test(bpTxt))                        kws.push('Traenenfilm');
-        if (/Funduskopie/i.test(bpTxt))                              kws.push('Funduskopie');
-        if (/Tonometrie/i.test(bpTxt))                               kws.push('Tonometrie');
-        if (/Zykloplegie/i.test(bpTxt))                              kws.push('Zykloplegie');
+        if (/Funduskopie|\\bFundus/i.test(bpTxt))                    kws.push('Funduskopie');
+        if (/Tonometrie|\\bTono\\b/i.test(bpTxt))                    kws.push('Tonometrie');
+        if (/Zykloplegie|\\bZyklo/i.test(bpTxt))                     kws.push('Zykloplegie');
         result.bpKeywords = kws;
       }
 
@@ -931,13 +933,17 @@ export default function BrowserPanel() {
     // sobald eine Patientenakte offen ist (erkannt am Patient-Header).
     const toggleGlobalSearch = () => {
       wv.executeJavaScript(`(function(){
+        var body = document.body ? document.body.innerText : '';
+        // a) Globale 'Allgemeine Suche' ausblenden wenn Patientenakte offen
         var akteOffen = !!document.querySelector('#patient-settings, #soft-id, .patient-header-navigation');
         var search = document.querySelector('input[name="pirca-search"]');
-        if(!search) return;
-        // Nur enge Wrapper ausblenden (form/.search), sonst das Input selbst —
-        // kein generischer div-Container (koennte zuviel verstecken).
-        var box = search.closest('form, .search') || search;
-        box.style.display = akteOffen ? 'none' : '';
+        if(search){ var box = search.closest('form, .search') || search; box.style.display = akteOffen ? 'none' : ''; }
+        // b) Patient-Suchfeld im 'Termin anlegen'-Panel ausblenden sobald
+        //    ein Patient gewaehlt ist (erkennbar an 'Patientenakte'/
+        //    'Beauftragter Arzt'/'Zugewiesener Standort' im Panel-Text).
+        var patientSel = /Patientenakte\\s*:?\\s*#|Beauftragter Arzt|Zugewiesener Standort/i.test(body);
+        var pf = document.querySelector('input[placeholder*="atientensuche"]');
+        if(pf){ var pbox = pf.closest('form, .search') || pf; pbox.style.display = patientSel ? 'none' : ''; }
       })()`).catch(() => {})
     }
 
