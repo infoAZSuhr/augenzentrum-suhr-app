@@ -366,6 +366,9 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       step('Schritt 0: Arzt-Auswahl erschienen? ' + appeared)
       if (!appeared) return fail('Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".')
     }
+    // Settle-Pause: die Links existieren oft schon im DOM bevor Liris die
+    // Klick-Handler gebunden hat — zu fruehe Klicks verpuffen wirkungslos.
+    await sleep(1000)
 
     // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
     const ln = (doctorLastName || '').trim()
@@ -408,22 +411,30 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       if (res === 'multiple') return fail('Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.')
       if (res !== 'ok') return fail('Arzt "' + ln + '" nicht in Liris-Auswahl gefunden. Bitte manuell waehlen.')
     }
-    await sleep(600)
+    await sleep(1200)
 
     // ── Schritt 2: Dokumenttyp 'Mail gesendet' ──────────────────────────────
+    // Erst warten bis der Link EXISTIERT (ohne Klick), dann Settle-Pause,
+    // dann klicken — sonst trifft der Klick einen noch nicht gebundenen Link.
     step('Schritt 2: "Mail gesendet" suchen…')
-    let mailOk = false
-    for (let i = 0; i < 8 && !mailOk; i++) {
-      mailOk = await evalJs(`(function(){
-        var as=[].slice.call(document.querySelectorAll('a'));
-        for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
-        return false;
-      })()`)
-      if (!mailOk) await sleep(350)
-    }
+    const mailLinkDa = () => evalJs(`(function(){
+      var as=[].slice.call(document.querySelectorAll('a'));
+      for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet') return true; }
+      return false;
+    })()`)
+    let mailVisible = false
+    for (let i = 0; i < 10 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
+    step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
+    if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?')
+    await sleep(800)
+    const mailOk = await evalJs(`(function(){
+      var as=[].slice.call(document.querySelectorAll('a'));
+      for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
+      return false;
+    })()`)
     step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
-    if (!mailOk) return fail('"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?')
-    await sleep(700)
+    if (!mailOk) return fail('"Mail gesendet"-Klick fehlgeschlagen.')
+    await sleep(1200)
 
     // ── Schritt 3: Datei ins file-input ─────────────────────────────────────
     step('Schritt 3: file-input suchen…')
@@ -439,6 +450,17 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     }
     step('Schritt 3: file-inputs gefunden=' + foundCount + ', gesetzt=' + fileSet)
     if (!fileSet) return fail('Upload-Feld nicht gefunden.')
+    // Manche Frameworks hoeren nur auf input/change — sicherheitshalber
+    // beide Events auf dem letzten file-input nachfeuern.
+    await sleep(300)
+    const evFired = await evalJs(`(function(){
+      var ins=document.querySelectorAll('input[type="file"]');
+      if(!ins.length) return false;
+      var el=ins[ins.length-1];
+      try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); return el.files?el.files.length:0; }
+      catch(e){ return 'ev-error:'+e; }
+    })()`)
+    step('Schritt 3: change-Events gefeuert, files.length=' + evFired)
 
     step('Fertig — Upload gesetzt.')
     return { ok: true, log }
