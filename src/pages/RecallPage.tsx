@@ -2006,6 +2006,19 @@ export default function RecallPage() {
     if (search.trim().length >= 2) return searchResults
 
     let base = allData.get(activeTab) ?? []
+    // 'Keinem Arzt zugewiesen': zusaetzlich alle Verstorbenen aus allen
+    // anderen Buckets hier einblenden (verschoben zur Sammelansicht).
+    if (activeTab === OFFEN_TAB) {
+      const seen = new Set(base.map(p => p.id))
+      const verstorbene: RecallPatient[] = []
+      for (const [tab, list] of allData) {
+        if (tab === OFFEN_TAB || tab === AUFGEBOT_TAB) continue
+        for (const p of list) {
+          if (p.patientenStatus === 'verstorben' && !seen.has(p.id)) { seen.add(p.id); verstorbene.push(p) }
+        }
+      }
+      base = [...base, ...verstorbene]
+    }
     if (filterNeupatient) base = base.filter(p => p.neupatient === true)
     if (filterStatus === 'storniert') {
       base = base.filter(isStorniert)
@@ -2017,6 +2030,12 @@ export default function RecallPage() {
       base = base.filter(p => p.patientenStatus === 'kein Aufgebot')
     } else if (filterStatus === 'wartetBericht') {
       base = base.filter(isAwaitingZuweisungsBericht)
+    } else if (activeTab === ZU_BEARB) {
+      // 'Zu bearbeiten': inaktive sichtbar lassen, nur Verstorbene ausblenden.
+      base = base.filter(p => p.patientenStatus !== 'verstorben')
+    } else if (activeTab === OFFEN_TAB) {
+      // 'Keinem Arzt zugewiesen': Verstorbene sichtbar lassen, inaktive aus.
+      base = base.filter(p => p.patientenStatus !== 'inaktiv')
     } else {
       // Standard: inaktive/verstorbene ausblenden
       base = base.filter(p => p.patientenStatus !== 'inaktiv' && p.patientenStatus !== 'verstorben')
@@ -2139,17 +2158,39 @@ export default function RecallPage() {
   }, [allData, wochenplanWeekOffset]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Termin-anlegen-Flow (Liris) ───────────────────────────────────────────
-  // Klick auf 'Termin' im Aufgebot-Plan: NICHT in die Akte gehen — nur das
-  // Liris-Panel oeffnen und im Terminkalender die PID ins Patient-Feld
-  // tippen + den Vorschlag anklicken. Liris zeigt die Termin-Infos (OCT/
-  // Gonio/...) danach selbst an. Den Termin setzt der User manuell.
+  // Klick auf 'Termin' im Aufgebot-Plan: kurz die Akte lesen (letzte Konst.
+  // -> Myd/OCT/GF...), dann zum Terminkalender wechseln, Patient per PID
+  // auswaehlen. Den 'Grund' fuellt der BrowserPanel-Handler nur dann mit
+  // den gelesenen Infos, wenn Liris NICHT selbst die gelbe Termin-Box zeigt.
+  const terminFlowRef = useRef<{ pid: string; timer: number } | null>(null)
+  const BP_TO_GRUND: Record<string, string> = {
+    Myd: 'mit Pupillenerweiterung', OCT: 'OCT', GF: 'GF',
+    Biometrie: 'Biometrie', Pachymetrie: 'Pachymetrie',
+    Topographie: 'Hornhaut-Topographie', Traenenfilm: 'Tränenfilm-Analyse',
+    Funduskopie: 'Funduskopie', Tonometrie: 'Tonometrie', Zykloplegie: 'Zykloplegie',
+  }
   function startTerminFlow(p: RecallPatient) {
     const pid = normalizePid(p.pid)
     if (!pid) { toast.warning('Patient hat keine PID.'); return }
-    openBrowser()                 // Liris-Panel oeffnen (ohne Akte zu laden)
-    requestTerminAnlegen(pid, '') // Terminkalender: Patient per PID auswaehlen
+    openWithPid(pid) // Akte kurz laden -> Extract triggern (letzte Konst.)
+    const timer = window.setTimeout(() => {
+      // Fallback: kommt kein Extract, trotzdem zum Kalender (Grund leer).
+      if (terminFlowRef.current?.pid === pid) { terminFlowRef.current = null; requestTerminAnlegen(pid, '') }
+    }, 9000)
+    terminFlowRef.current = { pid, timer }
     toast.info('Termin anlegen wird in Liris vorbereitet…')
   }
+  useEffect(() => {
+    const flow = terminFlowRef.current
+    if (!flow || !lirisExtract) return
+    if (normalizePid(lirisExtract.pid) !== flow.pid) return
+    if (Date.now() - lirisExtract.at > 10000) return
+    window.clearTimeout(flow.timer)
+    terminFlowRef.current = null
+    const kws = lirisExtract.bpKeywords ?? []
+    const grund = kws.map(k => BP_TO_GRUND[k]).filter(Boolean).join(', ')
+    requestTerminAnlegen(flow.pid, grund) // wechselt zum Terminkalender
+  }, [lirisExtract]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openAufgebotDialog(entry: WPEntry) {
     setAufgebotTarget(entry)

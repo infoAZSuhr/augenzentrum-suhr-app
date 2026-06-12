@@ -434,8 +434,11 @@ export default function BrowserPanel() {
         }
         console.log('[TerminAnlegen] Patient ausgewaehlt:', picked)
         await sleep(600)
-        // 5) Grund-Feld fuellen
-        if (grund) {
+        // 5) Grund-Feld nur fuellen wenn Liris NICHT selbst die gelbe
+        //    Termin-Info-Box zeigt ('Naechster Termin (von ...): ...').
+        const hasYellow = await wv.executeJavaScript(`/N(?:ä|ae)chster\\s+Termin\\s*\\(\\s*von/i.test(document.body?document.body.innerText:'')`).catch(() => false)
+        console.log('[TerminAnlegen] gelbe Box vorhanden?', hasYellow)
+        if (grund && !hasYellow) {
           const grundOk = await wv.executeJavaScript(`(function(){
             var el=document.querySelector('input[placeholder="Grund"], input[placeholder*="Grund"], textarea[placeholder*="Grund"]');
             if(!el) return false;
