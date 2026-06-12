@@ -11,6 +11,7 @@ export interface PostausgangItem {
   filename:    string
   blob:        Blob
   tmpPath?:    string         // gesetzt durch Electron-IPC (write-pdf-tmp)
+  uploaded?:   boolean        // true sobald erfolgreich ins Liris hochgeladen
   createdAt:   number
 }
 
@@ -18,6 +19,7 @@ interface PostausgangContextType {
   items: PostausgangItem[]
   add: (item: Omit<PostausgangItem, 'id' | 'createdAt'>) => Promise<PostausgangItem>
   remove: (id: string) => void
+  markUploaded: (id: string) => void
   clear: () => void
 }
 
@@ -25,6 +27,7 @@ const PostausgangContext = createContext<PostausgangContextType>({
   items: [],
   add: async () => { throw new Error('Provider missing') },
   remove: () => {},
+  markUploaded: () => {},
   clear: () => {},
 })
 
@@ -70,6 +73,10 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     })
   }, [electronApi])
 
+  const markUploaded = useCallback((id: string) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, uploaded: true } : i))
+  }, [])
+
   const clear = useCallback(() => {
     if (electronApi?.deletePdfTmp) {
       items.forEach(i => { if (i.tmpPath) electronApi.deletePdfTmp!(i.tmpPath).catch(() => {}) })
@@ -77,20 +84,21 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     setItems([])
   }, [items, electronApi])
 
-  // Warnung beim Schliessen wenn Postausgang nicht leer
+  // Warnung beim Schliessen nur wenn noch NICHT hochgeladene Briefe haengen
+  const pendingCount = items.filter(i => !i.uploaded).length
   useEffect(() => {
-    if (items.length === 0) return
+    if (pendingCount === 0) return
     const onUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
-      e.returnValue = `Es liegen noch ${items.length} unbearbeitete Briefe im Postausgang. Wirklich schliessen?`
+      e.returnValue = `Es liegen noch ${pendingCount} unbearbeitete Briefe im Postausgang. Wirklich schliessen?`
       return e.returnValue
     }
     window.addEventListener('beforeunload', onUnload)
     return () => window.removeEventListener('beforeunload', onUnload)
-  }, [items.length])
+  }, [pendingCount])
 
   return (
-    <PostausgangContext.Provider value={{ items, add, remove, clear }}>
+    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, clear }}>
       {children}
     </PostausgangContext.Provider>
   )

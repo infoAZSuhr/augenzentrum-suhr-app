@@ -1,6 +1,6 @@
 {
   "name": "Augenzentrum-suhr",
-  "version": "1.1.24",
+  "version": "1.1.25",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
@@ -50,6 +50,7 @@
     "firebase": "^10.8.0",
     "lucide-react": "^0.323.0",
     "mermaid": "^11.15.0",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.6.205",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

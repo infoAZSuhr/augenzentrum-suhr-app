@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail, Trash2, X, FileText, Inbox, Upload } from 'lucide-react'
+import { Mail, Trash2, X, FileText, Inbox, Upload, Printer, CheckCircle2, Loader2 } from 'lucide-react'
 import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
 import { useBrowser } from '../../contexts/BrowserContext'
 
@@ -14,11 +14,13 @@ interface ElectronPostausgangApi {
  *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
-  const { items, remove } = usePostausgang()
+  const { items, remove, markUploaded } = usePostausgang()
   const { lirisWebContentsId } = useBrowser()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
+  const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null)
+  const [merging, setMerging] = useState(false)
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
   const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
 
@@ -41,7 +43,7 @@ export default function PostausgangPanel() {
       if (res.log) { console.log('%c[Auto-Import] Ablauf:', 'color:#16a34a;font-weight:bold'); res.log.forEach(l => console.log('  ' + l)) }
       if (res.ok) {
         setStatusMsg({ kind: 'ok', text: '✓ Ins Liris hochgeladen' })
-        remove(it.id)
+        markUploaded(it.id)
       } else {
         setStatusMsg({ kind: 'err', text: res.error || 'Unbekannter Fehler', log: res.log })
       }
@@ -90,6 +92,36 @@ export default function PostausgangPanel() {
     }
   }
 
+  // Alle Briefe zu EINEM PDF buendeln (pdf-lib) und als Vorschau anzeigen —
+  // von dort kann gesammelt gedruckt werden.
+  const printAll = async () => {
+    if (items.length === 0 || merging) return
+    setMerging(true)
+    setStatusMsg(null)
+    try {
+      const { PDFDocument } = await import('pdf-lib')
+      const merged = await PDFDocument.create()
+      for (const it of items) {
+        const bytes = await it.blob.arrayBuffer()
+        const src = await PDFDocument.load(bytes)
+        const pages = await merged.copyPages(src, src.getPageIndices())
+        pages.forEach(p => merged.addPage(p))
+      }
+      const out = await merged.save()
+      const url = URL.createObjectURL(new Blob([out.buffer as ArrayBuffer], { type: 'application/pdf' }))
+      setPrintPreviewUrl(url)
+    } catch (e) {
+      setStatusMsg({ kind: 'err', text: 'Buendeln fehlgeschlagen: ' + String(e) })
+    } finally {
+      setMerging(false)
+    }
+  }
+
+  const closePrintPreview = () => {
+    if (printPreviewUrl) URL.revokeObjectURL(printPreviewUrl)
+    setPrintPreviewUrl(null)
+  }
+
   return (
     <div className="fixed bottom-4 right-4 z-40">
       {open ? (
@@ -101,6 +133,11 @@ export default function PostausgangPanel() {
               <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-semibold">{items.length}</span>
             </div>
             <div className="flex gap-1">
+              {items.length > 0 && (
+                <button onClick={printAll} disabled={merging} title="Alle Briefe gebuendelt drucken (mit Vorschau)" className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600 disabled:opacity-50">
+                  {merging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                </button>
+              )}
               {items.length > 1 && (
                 <button onClick={mailAll} title="Alle per E-Mail" className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600">
                   <Mail className="w-3.5 h-3.5" />
@@ -126,14 +163,21 @@ export default function PostausgangPanel() {
                   title="Ziehen zum Hochladen ins Liris"
                   className="group flex items-center gap-2 px-3 py-2 border-b border-gray-100 hover:bg-primary-50 cursor-grab active:cursor-grabbing"
                 >
-                  <FileText className="w-4 h-4 shrink-0 text-primary-500" />
+                  {it.uploaded
+                    ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-500" />
+                    : <FileText className="w-4 h-4 shrink-0 text-primary-500" />}
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-gray-800 truncate">{it.vorname || it.filename}</div>
-                    <div className="text-[10px] text-gray-400 truncate">{it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}</div>
+                    <div className={`text-xs font-semibold truncate ${it.uploaded ? 'text-gray-400' : 'text-gray-800'}`}>{it.vorname || it.filename}</div>
+                    <div className="text-[10px] text-gray-400 truncate">
+                      {it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}
+                      {it.uploaded && <span className="ml-1 text-green-600 font-semibold">· hochgeladen</span>}
+                    </div>
                   </div>
-                  <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris: Dokument importieren + Arzt + Mail gesendet + Datei. Patient muss in Liris geoeffnet sein." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
-                    <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
-                  </button>
+                  {!it.uploaded && (
+                    <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris: Dokument importieren + Arzt + Mail gesendet + Datei. Patient muss in Liris geoeffnet sein." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
+                      <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
+                    </button>
+                  )}
                   <button onClick={() => mailOne(it)} title="Per E-Mail" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
                     <Mail className="w-3.5 h-3.5" />
                   </button>
@@ -179,6 +223,37 @@ export default function PostausgangPanel() {
           <Inbox className="w-4 h-4" />
           {items.length > 0 && <span className="text-xs font-bold">{items.length}</span>}
         </button>
+      )}
+
+      {/* Sammeldruck-Vorschau: alle Briefe zu einem PDF gebuendelt */}
+      {printPreviewUrl && (
+        <div className="fixed inset-0 z-[80] flex flex-col bg-black/60">
+          <div className="shrink-0 flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shadow-sm">
+            <span className="font-semibold text-gray-800 text-sm">
+              Sammeldruck — {items.length} Brief{items.length === 1 ? '' : 'e'}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const frame = document.getElementById('postausgang-print-frame') as HTMLIFrameElement | null
+                  frame?.contentWindow?.print()
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors"
+              >
+                <Printer className="w-4 h-4" /> Drucken
+              </button>
+              <button onClick={closePrintPreview} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <iframe
+            id="postausgang-print-frame"
+            src={printPreviewUrl}
+            className="flex-1 w-full border-none bg-gray-200"
+            title="Sammeldruck-Vorschau"
+          />
+        </div>
       )}
     </div>
   )
