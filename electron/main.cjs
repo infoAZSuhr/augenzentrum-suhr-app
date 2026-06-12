@@ -314,12 +314,16 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
   const { webContents } = require('electron')
   let wc = null, attached = false
   const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+  const log = []
+  const step = (msg) => { log.push(msg); console.log('[auto-import] ' + msg) }
+  const fail = (error) => ({ ok: false, error, log })
   try {
-    if (!filePath || !fs.existsSync(filePath)) return { ok: false, error: 'Datei nicht gefunden' }
+    step('Start. doctor="' + (doctorLastName || '') + '" file=' + filePath)
+    if (!filePath || !fs.existsSync(filePath)) return fail('Datei nicht gefunden: ' + filePath)
     wc = webContents.fromId(webContentsId)
-    if (!wc) return { ok: false, error: 'Liris-Webview nicht gefunden' }
-    try { wc.debugger.attach('1.3'); attached = true }
-    catch (e) { return { ok: false, error: 'Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e) + ')' } }
+    if (!wc) return fail('Liris-Webview nicht gefunden (id=' + webContentsId + ')')
+    try { wc.debugger.attach('1.3'); attached = true; step('Debugger attached') }
+    catch (e) { return fail('Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e) + ')') }
 
     const evalJs = async (expr) => {
       const r = await wc.debugger.sendCommand('Runtime.evaluate', { expression: expr, returnByValue: true })
@@ -337,9 +341,10 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     })()`)
 
     // ── Schritt 0: 'Dokument importieren' oeffnen (falls noch nicht offen) ───
-    if (!(await arztAuswahlDa())) {
+    const alreadyOpen = await arztAuswahlDa()
+    step('Schritt 0: Arzt-Auswahl bereits offen? ' + alreadyOpen)
+    if (!alreadyOpen) {
       const opened = await evalJs(`(function(){
-        // Trigger via data-tooltip 'Dokument importieren' (svg-icon) oder Text.
         var cands=[].slice.call(document.querySelectorAll('[data-tooltip],a,button'));
         for(var k=0;k<cands.length;k++){
           var el=cands[k];
@@ -348,25 +353,25 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
           if(tip.indexOf('dokument importieren')>=0 || txt==='dokument importieren'){
             var clickTarget = el.closest ? (el.closest('a,button')||el) : el;
             clickTarget.click();
-            // svg-icon: ggf. auch direkt dispatchen
             try{ el.click(); }catch(e){}
-            return true;
+            return tip||txt||'gefunden';
           }
         }
         return false;
       })()`)
-      if (!opened) return { ok: false, error: '"Dokument importieren" nicht gefunden. Bitte den Patienten in Liris oeffnen.' }
-      // auf Arzt-Auswahl warten
+      step('Schritt 0: "Dokument importieren" geklickt? ' + opened)
+      if (!opened) return fail('"Dokument importieren" nicht gefunden. Ist der Patient in Liris geoeffnet?')
       let appeared = false
       for (let i = 0; i < 12 && !appeared; i++) { await sleep(350); appeared = await arztAuswahlDa() }
-      if (!appeared) return { ok: false, error: 'Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".' }
+      step('Schritt 0: Arzt-Auswahl erschienen? ' + appeared)
+      if (!appeared) return fail('Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".')
     }
 
     // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
     const ln = (doctorLastName || '').trim()
     const isOffen = !ln || ln.toLowerCase() === 'offen' || ln.toLowerCase() === 'keinem arzt zugewiesen'
+    step('Schritt 1: Arzt waehlen (isOffen=' + isOffen + ')')
     if (isOffen) {
-      // Kein fester Arzt -> 'Gleich wie verantwortlicher Arzt'-Shortcut nutzen.
       let okShortcut = false
       for (let i = 0; i < 8 && !okShortcut; i++) {
         okShortcut = await evalJs(`(function(){
@@ -376,9 +381,9 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         })()`)
         if (!okShortcut) await sleep(300)
       }
-      if (!okShortcut) return { ok: false, error: 'Arzt-Auswahl nicht gefunden. Bitte "Dokument importieren" oeffnen, dann erneut.' }
+      step('Schritt 1: Shortcut "Gleich wie verantwortlicher Arzt" geklickt? ' + okShortcut)
+      if (!okShortcut) return fail('Arzt-Shortcut nicht gefunden.')
     } else {
-      // Eindeutigen Arzt-Link finden (Nachname als Wort, Text beginnt mit Dr/Prof).
       const lnEsc = ln.replace(/[.*+?^${}()|[\]\\]/g, '')
       let res = null
       for (let i = 0; i < 8 && res !== 'ok'; i++) {
@@ -399,12 +404,14 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         if (res !== 'ok' && res !== 'multiple') await sleep(300)
         if (res === 'multiple') break
       }
-      if (res === 'multiple') return { ok: false, error: 'Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.' }
-      if (res !== 'ok') return { ok: false, error: 'Arzt "' + ln + '" nicht in Liris-Auswahl gefunden. Bitte manuell waehlen.' }
+      step('Schritt 1: Arzt-Match-Ergebnis = ' + res)
+      if (res === 'multiple') return fail('Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.')
+      if (res !== 'ok') return fail('Arzt "' + ln + '" nicht in Liris-Auswahl gefunden. Bitte manuell waehlen.')
     }
     await sleep(600)
 
     // ── Schritt 2: Dokumenttyp 'Mail gesendet' ──────────────────────────────
+    step('Schritt 2: "Mail gesendet" suchen…')
     let mailOk = false
     for (let i = 0; i < 8 && !mailOk; i++) {
       mailOk = await evalJs(`(function(){
@@ -414,25 +421,30 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       })()`)
       if (!mailOk) await sleep(350)
     }
-    if (!mailOk) return { ok: false, error: '"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?' }
+    step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
+    if (!mailOk) return fail('"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?')
     await sleep(700)
 
     // ── Schritt 3: Datei ins file-input ─────────────────────────────────────
-    let fileSet = false
+    step('Schritt 3: file-input suchen…')
+    let fileSet = false, foundCount = 0
     for (let i = 0; i < 8 && !fileSet; i++) {
       const { root } = await wc.debugger.sendCommand('DOM.getDocument', { depth: -1, pierce: true })
       const { nodeIds } = await wc.debugger.sendCommand('DOM.querySelectorAll', { nodeId: root.nodeId, selector: 'input[type="file"]' })
+      foundCount = (nodeIds || []).length
       if (nodeIds && nodeIds.length) {
         await wc.debugger.sendCommand('DOM.setFileInputFiles', { nodeId: nodeIds[nodeIds.length - 1], files: [filePath] })
         fileSet = true
       } else { await sleep(400) }
     }
-    if (!fileSet) return { ok: false, error: 'Upload-Feld nicht gefunden.' }
+    step('Schritt 3: file-inputs gefunden=' + foundCount + ', gesetzt=' + fileSet)
+    if (!fileSet) return fail('Upload-Feld nicht gefunden.')
 
-    return { ok: true }
+    step('Fertig — Upload gesetzt.')
+    return { ok: true, log }
   } catch (err) {
     console.error('[auto-import-to-liris] failed', err)
-    return { ok: false, error: String(err && err.message || err) }
+    return fail(String(err && err.message || err))
   } finally {
     if (wc && attached) { try { wc.debugger.detach() } catch { /* no-op */ } }
   }

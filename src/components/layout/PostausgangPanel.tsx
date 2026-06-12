@@ -7,7 +7,7 @@ interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openMailWithAttachments?: (filePaths: string[], subject: string) => Promise<{ ok: boolean; error?: string }>
   uploadPdfToLiris?: (webContentsId: number, filePath: string) => Promise<{ ok: boolean; error?: string }>
-  autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string) => Promise<{ ok: boolean; error?: string }>
+  autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string) => Promise<{ ok: boolean; error?: string; log?: string[] }>
 }
 
 /** Schwebendes Mini-Panel unten rechts. Zeigt die Liste vorbereiteter
@@ -28,10 +28,13 @@ export default function PostausgangPanel() {
     setUploadingId(it.id)
     try {
       const res = await electronApi.autoImportToLiris(lirisWebContentsId, it.tmpPath, it.arzt || '')
+      // Schritt-Log immer in die Console — zum Nachvollziehen wo es haengt.
+      if (res.log) { console.log('%c[Auto-Import] Ablauf:', 'color:#16a34a;font-weight:bold'); res.log.forEach(l => console.log('  ' + l)) }
       if (res.ok) {
         remove(it.id)
       } else {
-        alert('Auto-Import fehlgeschlagen:\n' + (res.error || 'unbekannt') + '\n\nBitte sicherstellen, dass der richtige Patient in Liris geoeffnet ist. Der Rest (Dokument importieren, Arzt, Mail gesendet, Datei) laeuft automatisch.')
+        const logTxt = res.log && res.log.length ? '\n\nAblauf:\n' + res.log.map(l => '• ' + l).join('\n') : ''
+        alert('Auto-Import fehlgeschlagen:\n' + (res.error || 'unbekannt') + logTxt + '\n\n(Patient muss in Liris geoeffnet sein.)')
       }
     } catch (e) {
       alert('Auto-Import fehlgeschlagen: ' + String(e))
