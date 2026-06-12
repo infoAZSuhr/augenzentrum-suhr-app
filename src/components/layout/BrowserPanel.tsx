@@ -1087,9 +1087,13 @@ export default function BrowserPanel() {
             row.dataset.azRecallTitle = '1';
           }
         });
+        window.__azHlSig = undefined;
+        window.__azHlCount = undefined;
       })();
     `
     window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 100)
+    window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 500)
+    window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 1500)
   }, [staleRecallPids, knownRecallPids, staleReferenceDate, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.

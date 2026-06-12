@@ -159,7 +159,7 @@ export default function PostausgangPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-40">
+    <div className="fixed bottom-4 left-4 z-40">
       {open ? (
         <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-[340px] max-h-[60vh] flex flex-col">
           <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
