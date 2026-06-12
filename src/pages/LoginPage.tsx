@@ -229,6 +229,11 @@ export default function LoginPage() {
             Administrator kontaktieren
           </button>
         </p>
+
+        {/* Entwickler-Credit */}
+        <p className="mt-6 text-center text-[10px] text-gray-300">
+          © {new Date().getFullYear()} Saran Pasquale · Entwicklung
+        </p>
       </div>
 
       {/* Passwort vergessen Modal */}
