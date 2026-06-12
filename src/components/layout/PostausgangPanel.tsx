@@ -6,6 +6,7 @@ import { useBrowser } from '../../contexts/BrowserContext'
 interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openMailWithAttachments?: (filePaths: string[], subject: string, recipient?: string, bodyText?: string) => Promise<{ ok: boolean; error?: string }>
+  writePdfTmp?: (buf: ArrayBuffer, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
   uploadPdfToLiris?: (webContentsId: number, filePath: string) => Promise<{ ok: boolean; error?: string }>
   autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string) => Promise<{ ok: boolean; error?: string; log?: string[] }>
 }
@@ -92,16 +93,38 @@ export default function PostausgangPanel() {
   // loest 'aufgeboten markieren' aus).
   const mailAllToPraxis = async () => {
     const offen = items.filter(i => !i.versendet && !i.uploaded)
-    const paths = offen.map(i => i.tmpPath).filter(Boolean) as string[]
-    if (paths.length === 0) { setStatusMsg({ kind: 'ok', text: 'Keine offenen Briefe zum Senden.' }); return }
-    if (!electronApi?.openMailWithAttachments) { setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar.' }); return }
-    const body = `Beigefügt ${paths.length} Aufgebotsbrief(e) zum Drucken/Versenden.\n\nErstellt im Recall-Tool.`
-    const res = await electronApi.openMailWithAttachments(paths, `${paths.length} Aufgebotsbriefe — bitte drucken/versenden`, PRAXIS_EMAIL, body)
-    if (res.ok) {
-      markVersendet(offen.map(i => i.id))
-      setStatusMsg({ kind: 'ok', text: `✓ E-Mail an ${PRAXIS_EMAIL} vorbereitet (${paths.length}) — bitte in Outlook senden.` })
-    } else {
-      setStatusMsg({ kind: 'err', text: 'E-Mail fehlgeschlagen: ' + (res.error || 'unbekannt') })
+    if (offen.length === 0) { setStatusMsg({ kind: 'ok', text: 'Keine offenen Briefe zum Senden.' }); return }
+    if (!electronApi?.openMailWithAttachments || !electronApi?.writePdfTmp) {
+      setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar (App-Update nötig).' }); return
+    }
+    setMerging(true)
+    setStatusMsg({ kind: 'ok', text: 'E-Mail wird vorbereitet…' })
+    try {
+      // Alle offenen Briefe zu EINER PDF buendeln (wie beim Drucken).
+      const { PDFDocument } = await import('pdf-lib')
+      const merged = await PDFDocument.create()
+      for (const it of offen) {
+        const bytes = await it.blob.arrayBuffer()
+        const src = await PDFDocument.load(bytes)
+        const pages = await merged.copyPages(src, src.getPageIndices())
+        pages.forEach(p => merged.addPage(p))
+      }
+      const out = await merged.save()
+      const today = new Date().toISOString().slice(0, 10)
+      const tmp = await electronApi.writePdfTmp(out.buffer as ArrayBuffer, `Aufgebotsbriefe_${today}.pdf`)
+      if (!tmp.ok || !tmp.path) { setStatusMsg({ kind: 'err', text: 'PDF-Buendelung fehlgeschlagen: ' + (tmp.error || 'unbekannt') }); return }
+      const body = `Beigefügt ${offen.length} Aufgebotsbrief(e) in einer PDF zum Ausdrucken und Versenden.`
+      const res = await electronApi.openMailWithAttachments([tmp.path], 'E-Mail zum Ausdrucken und Versenden', PRAXIS_EMAIL, body)
+      if (res.ok) {
+        markVersendet(offen.map(i => i.id))
+        setStatusMsg({ kind: 'ok', text: `✓ E-Mail an ${PRAXIS_EMAIL} vorbereitet (${offen.length} Briefe in 1 PDF) — bitte in Outlook senden.` })
+      } else {
+        setStatusMsg({ kind: 'err', text: 'E-Mail fehlgeschlagen: ' + (res.error || 'unbekannt') })
+      }
+    } catch (e) {
+      setStatusMsg({ kind: 'err', text: 'Fehler: ' + String(e) })
+    } finally {
+      setMerging(false)
     }
   }
 
