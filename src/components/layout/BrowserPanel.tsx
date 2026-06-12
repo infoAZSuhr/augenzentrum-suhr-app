@@ -803,12 +803,19 @@ export default function BrowserPanel() {
       const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
       const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
+      // Signatur aus PID-Set + Referenzdatum — aendert sich diese nicht UND
+      // bleibt die Seitengroesse gleich, ist kein erneuter (teurer) TreeWalker
+      // noetig. Spart im Poll die Volldurchlaeufe wenn nichts passiert.
+      const hlSig = stalePids.length + ':' + knownPids.length + ':' + refDate
       const script = `
         (function() {
+          // Dirty-Check: nichts geaendert (gleiches PID-Set + gleiche
+          // Seitengroesse) -> teuren TreeWalker ueberspringen.
+          var len = document.body ? document.body.innerText.length : 0;
+          var sig = ${JSON.stringify(hlSig)} + ':' + len;
+          if (window.__azHlSig === sig) return 'skip';
+          window.__azHlSig = sig;
           // 1) Alte Markierungen entfernen (egal von welcher vorigen Regex-Version).
-          //    Sonst kleben Markierungen die von einem alten Bundle stammen bis
-          //    zum naechsten Vollreload, auch wenn die neue Regel sie nicht mehr
-          //    erzeugen wuerde.
           var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
           olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
           var STALE = ${JSON.stringify(stalePids)};
@@ -955,10 +962,12 @@ export default function BrowserPanel() {
       // koennte gerade die Login-Seite anzeigen und dabei eine andere
       // dom-ready-Sequenz benutzen. executeJavaScript schlaegt einfach
       // still fehl wenn die Seite noch nicht bereit ist.
+      // 3s statt 1.5s — halbiert die Webview-IPC-Last. highlightRecallPids
+      // hat zusaetzlich einen Dirty-Check (laeuft nur bei Aenderungen).
       checkCalendarDay()
       highlightRecallPids()
       toggleGlobalSearch()
-    }, 1500)
+    }, 3000)
 
     return () => {
       wv.removeEventListener('dom-ready', onDomReady)
