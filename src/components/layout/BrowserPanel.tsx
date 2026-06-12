@@ -809,9 +809,15 @@ export default function BrowserPanel() {
       const hlSig = stalePids.length + ':' + knownPids.length + ':' + refDate
       const script = `
         (function() {
+          // Bearbeitungs-Dialog offen ('Termin bearbeiten'/'Termin anlegen'
+          // mit Datepicker)? Dann NICHT ins DOM eingreifen — das Markieren
+          // des Patient-Headers wuerde Liris zum Re-Render zwingen und der
+          // Datepicker wuerde dauernd zuruckspringen.
+          var bodyTxt = document.body ? document.body.innerText : '';
+          if (/Termin\\s+bearbeiten/i.test(bodyTxt)) return 'skip-edit';
           // Dirty-Check: nichts geaendert (gleiches PID-Set + gleiche
           // Seitengroesse) -> teuren TreeWalker ueberspringen.
-          var len = document.body ? document.body.innerText.length : 0;
+          var len = bodyTxt.length;
           var sig = ${JSON.stringify(hlSig)} + ':' + len;
           if (window.__azHlSig === sig) return 'skip';
           window.__azHlSig = sig;
@@ -995,6 +1001,9 @@ export default function BrowserPanel() {
     const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
     const script = `
       (function() {
+        // Kein DOM-Eingriff waehrend eines 'Termin bearbeiten'-Dialogs —
+        // sonst springt der Liris-Datepicker durch das Re-Render.
+        if (/Termin\\s+bearbeiten/i.test(document.body?document.body.innerText:'')) return 'skip-edit';
         var STALE = ${JSON.stringify(staleRecallPids)};
         var KNOWN = ${JSON.stringify(knownRecallPids)};
         var staleSetPre = {}; for (var ii=0; ii<STALE.length; ii++) staleSetPre[STALE[ii]] = true;
