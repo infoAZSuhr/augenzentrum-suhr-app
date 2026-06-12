@@ -2158,39 +2158,17 @@ export default function RecallPage() {
   }, [allData, wochenplanWeekOffset]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Termin-anlegen-Flow (Liris) ───────────────────────────────────────────
-  // Klick auf 'Termin' im Aufgebot-Plan: kurz die Akte lesen (letzte Konst.
-  // -> Myd/OCT/GF...), dann zum Terminkalender wechseln, Patient per PID
-  // auswaehlen. Den 'Grund' fuellt der BrowserPanel-Handler nur dann mit
-  // den gelesenen Infos, wenn Liris NICHT selbst die gelbe Termin-Box zeigt.
-  const terminFlowRef = useRef<{ pid: string; timer: number } | null>(null)
-  const BP_TO_GRUND: Record<string, string> = {
-    Myd: 'mit Pupillenerweiterung', OCT: 'OCT', GF: 'GF',
-    Biometrie: 'Biometrie', Pachymetrie: 'Pachymetrie',
-    Topographie: 'Hornhaut-Topographie', Traenenfilm: 'Tränenfilm-Analyse',
-    Funduskopie: 'Funduskopie', Tonometrie: 'Tonometrie', Zykloplegie: 'Zykloplegie',
-  }
+  // Klick auf 'Termin' im Aufgebot-Plan: NUR das Liris-Panel oeffnen und im
+  // Terminkalender die PID ins Patient-Feld tippen + den Vorschlag anklicken.
+  // KEINE Akte, KEINE Auslesung, KEIN Bearbeiten-Modal. Termin + Grund setzt
+  // der User manuell; die Termin-Infos zeigt Liris selbst (gelbe Box).
   function startTerminFlow(p: RecallPatient) {
     const pid = normalizePid(p.pid)
     if (!pid) { toast.warning('Patient hat keine PID.'); return }
-    openWithPid(pid) // Akte kurz laden -> Extract triggern (letzte Konst.)
-    const timer = window.setTimeout(() => {
-      // Fallback: kommt kein Extract, trotzdem zum Kalender (Grund leer).
-      if (terminFlowRef.current?.pid === pid) { terminFlowRef.current = null; requestTerminAnlegen(pid, '') }
-    }, 9000)
-    terminFlowRef.current = { pid, timer }
+    openBrowser()                 // nur Panel oeffnen (keine Akte)
+    requestTerminAnlegen(pid, '') // Terminkalender: Patient per PID auswaehlen
     toast.info('Termin anlegen wird in Liris vorbereitet…')
   }
-  useEffect(() => {
-    const flow = terminFlowRef.current
-    if (!flow || !lirisExtract) return
-    if (normalizePid(lirisExtract.pid) !== flow.pid) return
-    if (Date.now() - lirisExtract.at > 10000) return
-    window.clearTimeout(flow.timer)
-    terminFlowRef.current = null
-    const kws = lirisExtract.bpKeywords ?? []
-    const grund = kws.map(k => BP_TO_GRUND[k]).filter(Boolean).join(', ')
-    requestTerminAnlegen(flow.pid, grund) // wechselt zum Terminkalender
-  }, [lirisExtract]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openAufgebotDialog(entry: WPEntry) {
     setAufgebotTarget(entry)
