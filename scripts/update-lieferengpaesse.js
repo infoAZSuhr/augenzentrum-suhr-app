@@ -6,6 +6,10 @@
  * Lädt die aktuelle Versorgungsstörungen-Excel vom BWL herunter,
  * extrahiert die Heilmittel-Einträge und speichert public/lieferengpaesse-data.json.
  * BWL aktualisiert die Liste laufend (mehrmals wöchentlich).
+ *
+ * Die BWL-Seite verlinkt die Excel nicht immer zuverlässig. Daher:
+ * 1) HTML-Seite scrapen nach .xlsx-Links
+ * 2) Fallback: letzte bekannte dam-URL aus Meta nochmal abrufen
  */
 
 const https = require('https')
@@ -14,7 +18,7 @@ const fs    = require('fs')
 const path  = require('path')
 const xlsx  = require('../node_modules/xlsx')
 
-const BWL_PAGE = 'https://www.bwl.admin.ch/de/meldestelle-heilmittel'
+const BWL_PAGE  = 'https://www.bwl.admin.ch/de/meldestelle-heilmittel'
 const OUT_FILE  = path.join(__dirname, '..', 'public', 'lieferengpaesse-data.json')
 const META_FILE = path.join(__dirname, '..', 'public', 'lieferengpaesse-meta.json')
 
@@ -28,9 +32,17 @@ function get(url) {
         res.destroy()
         return get(next).then(resolve).catch(reject)
       }
+      if (res.statusCode >= 400) {
+        res.destroy()
+        return reject(new Error(`HTTP ${res.statusCode} für ${url}`))
+      }
       const chunks = []
       res.on('data', c => chunks.push(c))
-      res.on('end', () => resolve({ buf: Buffer.concat(chunks), size: chunks.reduce((s, c) => s + c.length, 0) }))
+      res.on('end', () => resolve({
+        buf: Buffer.concat(chunks),
+        size: chunks.reduce((s, c) => s + c.length, 0),
+        headers: res.headers,
+      }))
       res.on('error', reject)
     }).on('error', reject)
   })
@@ -38,21 +50,52 @@ function get(url) {
 
 async function findXlsxUrl() {
   console.log('Suche aktuelle Excel-URL auf BWL-Seite...')
-  const { buf } = await get(BWL_PAGE)
-  const html = buf.toString('utf8')
-  // Suche nach .xlsx Download-Link
-  const match = html.match(/href="(https?:\/\/[^"]*\.xlsx[^"]*)"/i)
-    || html.match(/href="([^"]*Versorgungsst[^"]*\.xlsx[^"]*)"/i)
-    || html.match(/"(https?:\/\/[^"]*bwl[^"]*\.xlsx[^"]*)"/i)
-  if (match) {
-    const url = match[1].replace(/&amp;/g, '&')
-    console.log('Gefunden:', url)
-    return url
+  try {
+    const { buf } = await get(BWL_PAGE)
+    const html = buf.toString('utf8')
+    const match = html.match(/href="(https?:\/\/[^"]*\.xlsx[^"]*)"/i)
+      || html.match(/href="([^"]*Versorgungsst[^"]*\.xlsx[^"]*)"/i)
+      || html.match(/"(https?:\/\/[^"]*bwl[^"]*\.xlsx[^"]*)"/i)
+    if (match) {
+      const url = match[1].replace(/&amp;/g, '&')
+      console.log('Gefunden:', url)
+      return url
+    }
+    const damMatch = html.match(/https:\/\/www\.bwl\.admin\.ch\/dam\/[^"'\s]+\.xlsx/i)
+    if (damMatch) {
+      console.log('Gefunden (dam):', damMatch[0])
+      return damMatch[0]
+    }
+  } catch (e) {
+    console.warn('Warnung: BWL-Seite nicht erreichbar:', e.message)
   }
-  // Fallback: suche nach dam-Links
-  const damMatch = html.match(/https:\/\/www\.bwl\.admin\.ch\/dam\/[^"'\s]+\.xlsx/i)
-  if (damMatch) return damMatch[0]
-  throw new Error('Konnte Excel-URL nicht auf BWL-Seite finden.\nBitte manuell prüfen: ' + BWL_PAGE)
+
+  // Fallback: letzte bekannte URL aus Meta-Datei
+  if (fs.existsSync(META_FILE)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8'))
+      if (meta.sourceUrl) {
+        console.log('Kein .xlsx-Link auf BWL-Seite gefunden — versuche letzte bekannte URL...')
+        console.log('  ', meta.sourceUrl)
+        // Prüfen ob die URL noch erreichbar ist (HEAD-Request)
+        const { headers } = await get(meta.sourceUrl)
+        if (headers['content-type']?.includes('spreadsheet') || headers['content-type']?.includes('excel')) {
+          console.log('  ✓ URL noch erreichbar (Content-Type:', headers['content-type'] + ')')
+          return meta.sourceUrl
+        }
+        // Auch ohne passenden Content-Type akzeptieren wenn die Datei gross genug ist
+        console.log('  ✓ URL noch erreichbar')
+        return meta.sourceUrl
+      }
+    } catch {}
+  }
+
+  throw new Error(
+    'Konnte Excel-URL nicht finden.\n' +
+    '  → BWL-Seite verlinkt keine .xlsx mehr\n' +
+    '  → Letzte bekannte URL nicht verfügbar\n' +
+    'Bitte manuell prüfen: ' + BWL_PAGE
+  )
 }
 
 async function main() {
