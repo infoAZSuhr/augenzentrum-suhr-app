@@ -887,7 +887,8 @@ export default function BrowserPanel() {
             }
           });
           var marked = document.querySelectorAll('[data-az-recall-pid]');
-          return 'done: nodes=' + nodes.length + ' marked=' + marked.length;
+          var samples = nodes.slice(0, 5).map(function(nd) { return (nd.nodeValue || '').substring(0, 120); });
+          return 'done: nodes=' + nodes.length + ' marked=' + marked.length + ' samples=' + JSON.stringify(samples);
         })();
       `
       wv.executeJavaScript(script).then(function(r: any) { console.log('[Liris-HL] result:', r) }).catch(() => {})
