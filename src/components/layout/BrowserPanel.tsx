@@ -63,10 +63,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       // 2b) Verstorben: Kreuz vor dem Anrede-Block
       var herrIdx = allText.search(/(?:Herr|Frau)/);
       if (herrIdx >= 0) {
-        console.log('__AZ_DEBUG_HEADER__: ' + JSON.stringify(allText.substring(Math.max(0, herrIdx - 20), herrIdx + 60)));
+        result._debug.headerContext = allText.substring(Math.max(0, herrIdx - 20), herrIdx + 60);
       }
       if (/[†✝\\u2020\\u271D\\u2694\\u2628\\u0086]/.test(allText) || /verstorben/i.test(allText)) {
-        console.log('__AZ_DEBUG_KREUZ__: found');
         result.verstorben = true;
       }
 
