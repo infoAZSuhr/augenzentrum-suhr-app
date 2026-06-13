@@ -713,7 +713,7 @@ export default function BrowserPanel() {
     // ausgefuehrt damit das stale-Referenzdatum dem gezeigten Tag folgt.
     const CALENDAR_DAY_SCRIPT = `
       (function() {
-        var txt = document.body ? (document.body.innerText || '') : '';
+        var txt = document.body ? (document.body.textContent || '') : '';
         // Prio 1: Patienten-Akte offen -> "Untersuchung vom DD.MM.YYYY"
         var m = txt.match(/Untersuchung\\s+vom\\s+(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/i);
         // Prio 2: Kalender-Tagesheader "Mi. 20/05" / "Mi 20.05.2026"
@@ -912,17 +912,13 @@ export default function BrowserPanel() {
     // sobald eine Patientenakte offen ist (erkannt am Patient-Header).
     const toggleGlobalSearch = () => {
       wv.executeJavaScript(`(function(){
-        var body = document.body ? document.body.innerText : '';
-        // a) Globale 'Allgemeine Suche' ausblenden wenn Patientenakte offen
+        var body = document.body ? (document.body.textContent || '') : '';
         var akteOffen = !!document.querySelector('#patient-settings, #soft-id, .patient-header-navigation');
         var search = document.querySelector('input[name="pirca-search"]');
-        if(search){ var box = search.closest('form, .search') || search; box.style.display = akteOffen ? 'none' : ''; }
-        // b) Patient-Suchfeld im 'Termin anlegen'-Panel ausblenden sobald
-        //    ein Patient gewaehlt ist (erkennbar an 'Patientenakte'/
-        //    'Beauftragter Arzt'/'Zugewiesener Standort' im Panel-Text).
+        if(search){ var box = search.closest('form, .search') || search; var want = akteOffen ? 'none' : ''; if(box.style.display !== want) box.style.display = want; }
         var patientSel = /Patientenakte\\s*:?\\s*#|Beauftragter Arzt|Zugewiesener Standort/i.test(body);
         var pf = document.querySelector('input[placeholder*="atientensuche"]');
-        if(pf){ var pbox = pf.closest('form, .search') || pf; pbox.style.display = patientSel ? 'none' : ''; }
+        if(pf){ var pbox = pf.closest('form, .search') || pf; var w2 = patientSel ? 'none' : ''; if(pbox.style.display !== w2) pbox.style.display = w2; }
       })()`).catch(() => {})
     }
 
