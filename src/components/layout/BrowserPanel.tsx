@@ -808,6 +808,7 @@ export default function BrowserPanel() {
       const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
       const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
+      console.log('[Liris-HL] highlightRecallPids called, stale=', stalePids.length, 'known=', knownPids.length)
       const script = `
         (function() {
           var STALE = ${JSON.stringify(stalePids)};
@@ -885,10 +886,11 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
-          return 'done';
+          var marked = document.querySelectorAll('[data-az-recall-pid]');
+          return 'done: nodes=' + nodes.length + ' marked=' + marked.length;
         })();
       `
-      wv.executeJavaScript(script).catch(() => {})
+      wv.executeJavaScript(script).then(function(r: any) { console.log('[Liris-HL] result:', r) }).catch(() => {})
     }
     highlightRef.current = highlightRecallPids
     const onLoadStart = () => setLoading(true)
