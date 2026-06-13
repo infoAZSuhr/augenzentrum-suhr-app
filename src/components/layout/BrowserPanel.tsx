@@ -60,12 +60,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       var nm = allText.match(nameRe);
       if (nm) result.vorname = nm[1].trim();
 
-      // 2b) Verstorben: Kreuz vor dem Anrede-Block
-      var herrIdx = allText.search(/(?:Herr|Frau)/);
-      if (herrIdx >= 0) {
-        result._debug.headerContext = allText.substring(Math.max(0, herrIdx - 20), herrIdx + 60);
-      }
-      if (/[†✝\\u2020\\u271D\\u2694\\u2628\\u0086]/.test(allText) || /verstorben/i.test(allText)) {
+      // 2b) Verstorben: Kreuz vor dem Anrede-Block.
+      var dagger = String.fromCharCode(0x2020);
+      var cross  = String.fromCharCode(0x271D);
+      var kreuzRe = new RegExp('[' + dagger + cross + ']\\\\s*(?:Herr|Frau|Fr\\\\.|Hr\\\\.)', 'i');
+      if (kreuzRe.test(allText)) {
         result.verstorben = true;
       }
 
