@@ -981,6 +981,13 @@ export default function RecallPage() {
     }
 
     let filled = false
+    // Verstorben: † im Liris-Header erkannt
+    if (lirisExtract.verstorben && form.patientenStatus !== 'verstorben') {
+      setField('storniert', 'ja')
+      setField('patientenStatus', 'verstorben')
+      setField('grundStornierung', 'verstorben')
+      filled = true
+    }
     // Geburtsdatum auto-fill nur wenn LOKAL leer (sonst bleibt bestehender
     // Wert erhalten — er wurde oben schon gegen Liris validiert).
     if (!form.gebDatum && lirisExtract.gebDatum) {
@@ -1051,8 +1058,6 @@ export default function RecallPage() {
         setAssignDoctor(match)
         filled = true
       }
-      // Kein Match -> Popup entfernt; der rote Inline-Hinweis am Arzt-Feld
-      // ('Bitte Arzt waehlen') macht klar dass der User selber auswaehlen muss.
     }
     if (filled) toast.success('Patient-Infos aus Liris übernommen')
     // Extract konsumiert -> nicht erneut anwenden
