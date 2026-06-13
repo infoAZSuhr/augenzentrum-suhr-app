@@ -60,8 +60,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       var nm = allText.match(nameRe);
       if (nm) result.vorname = nm[1].trim();
 
-      // 2b) Verstorben: Kreuz (†) vor dem Anrede-Block
-      if (/\\u2020\\s*(?:Herr|Frau|Fr\\.|Hr\\.)/i.test(allText) || /(?:Herr|Frau|Fr\\.|Hr\\.).*\\u2020/i.test(allText)) {
+      // 2b) Verstorben: Kreuz vor dem Anrede-Block
+      if (/[†✝\\u2020\\u271D]\\s*(?:Herr|Frau|Fr\\.|Hr\\.)/i.test(allText)) {
         result.verstorben = true;
       }
 
