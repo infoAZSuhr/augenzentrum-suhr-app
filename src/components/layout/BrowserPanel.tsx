@@ -691,7 +691,11 @@ export default function BrowserPanel() {
           extractLirisInfo(wv, '#' + pid).then(info => {
             if (info) {
               console.log('[Liris] Detail-Extract:', info)
-              setLirisExtract({ ...info, at: Date.now() })
+              // pidMatchesLiris + notFound erzwingen: die PID wurde soeben
+              // aus dem Liris-Header gelesen — der Patient IST vorhanden.
+              // Der Extract kann trotzdem false liefern wenn die Seite noch
+              // nicht fertig geladen ist.
+              setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
             }
           }).catch(() => {})
           requestRecallByPid(pid)
