@@ -806,8 +806,6 @@ export default function BrowserPanel() {
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
       const script = `
         (function() {
-          var bodyTxt = document.body ? document.body.innerText : '';
-          if (/Termin\\s+bearbeiten/i.test(bodyTxt)) return 'skip-edit';
           var STALE = ${JSON.stringify(stalePids)};
           var KNOWN = ${JSON.stringify(knownPids)};
           var T_STALE   = ${JSON.stringify(tooltipStale)};
