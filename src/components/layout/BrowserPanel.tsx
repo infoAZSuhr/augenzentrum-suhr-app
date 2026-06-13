@@ -498,6 +498,7 @@ export default function BrowserPanel() {
   const staleRecallPidsRef = useRef<string[]>([])   // wird unten via Effect synchron gehalten
   const knownRecallPidsRef = useRef<string[]>([])
   const staleRefDateRef    = useRef<string>(staleReferenceDate)
+  const highlightRef       = useRef<(() => void) | null>(null)
 
   const navigate = useCallback((target: string) => {
     let url = target.trim()
@@ -803,73 +804,39 @@ export default function BrowserPanel() {
       const refDisplay = refDate ? refDate.split('-').reverse().join('.') : ''
       const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
       const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
-      // Signatur aus PID-Set + Referenzdatum — aendert sich diese nicht UND
-      // bleibt die Seitengroesse gleich, ist kein erneuter (teurer) TreeWalker
-      // noetig. Spart im Poll die Volldurchlaeufe wenn nichts passiert.
-      const hlSig = stalePids.length + ':' + knownPids.length + ':' + refDate
       const script = `
         (function() {
-          // Bearbeitungs-Dialog offen ('Termin bearbeiten'/'Termin anlegen'
-          // mit Datepicker)? Dann NICHT ins DOM eingreifen — das Markieren
-          // des Patient-Headers wuerde Liris zum Re-Render zwingen und der
-          // Datepicker wuerde dauernd zuruckspringen.
           var bodyTxt = document.body ? document.body.innerText : '';
           if (/Termin\\s+bearbeiten/i.test(bodyTxt)) return 'skip-edit';
-          // Dirty-Check: nur ueberspringen wenn Signatur (PID-Set + Datum +
-          // Seitengroesse) UND die Anzahl bestehender Markierungen unveraendert
-          // sind. Liris re-rendert seine Liste oft und entfernt dabei unsere
-          // Markierungen — die Textlaenge bleibt aber gleich. Darum zaehlen
-          // wir die Markierungen mit, damit wir nach einem Re-Render neu
-          // markieren statt faelschlich zu skippen.
-          var len = bodyTxt.length;
-          var curCount = document.querySelectorAll('[data-az-recall-pid]').length;
-          var sig = ${JSON.stringify(hlSig)} + ':' + len;
-          if (window.__azHlSig === sig && window.__azHlCount === curCount) return 'skip';
-          window.__azHlSig = sig;
-          // 1) Alte Markierungen entfernen (egal von welcher vorigen Regex-Version).
-          var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
-          olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
           var STALE = ${JSON.stringify(stalePids)};
           var KNOWN = ${JSON.stringify(knownPids)};
           var T_STALE   = ${JSON.stringify(tooltipStale)};
           var T_MISSING = ${JSON.stringify(tooltipMissing)};
           var staleSet = {}; for (var i=0; i<STALE.length; i++) staleSet[STALE[i]] = true;
           var knownSet = {}; for (var j=0; j<KNOWN.length; j++) knownSet[KNOWN[j]] = true;
-
-          // 1) Bestehende Markierungen ueberpruefen: nur entfernen wenn die
-          //    PID jetzt OK ist (im Recall + heute aktualisiert). Sonst
-          //    Markierung erhalten — kein Flicker beim Polling, keine
-          //    verschwundenen Markierungen bevor der User gespeichert hat.
-          //    Legacy-Spans aus aelterem Bundle immer entfernen.
+          // Bestehende Markierungen: nur entfernen wenn PID jetzt OK ist.
           var oldRows = document.querySelectorAll('[data-az-recall-pid]');
           oldRows.forEach(function(el){
             var p = el.getAttribute('data-az-recall-pid');
-            var stillStale = !!staleSet[p];
-            var stillMissing = !knownSet[p];
-            if (stillStale || stillMissing) return; // belassen
+            if (staleSet[p] || !knownSet[p]) return;
             el.removeAttribute('data-az-recall-pid');
             el.classList.remove('az-recall-row-stale','az-recall-row-missing');
             if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
           });
+          // Legacy-Spans entfernen (aeltere Bundle-Versionen).
           var oldSpans = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
           oldSpans.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
+          // CSS sicherstellen
           if (!document.getElementById('__az_recall_css')) {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
             st.textContent =
-              // Volle Zeile einfaerben — damit der Patient-Name sichtbar
-              // markiert ist auch wenn die PID-Spalte abgeschnitten ist.
-              // box-shadow:inset statt outline — robust gegen Liris-CSS
-              // das 'outline:none !important' setzt (war auf einigen PCs
-              // unsichtbar).
               '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
               '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}'+
-              // Verschachtelte Markierungen (innen liegende Patient-Zeile in
-              // einem groesseren Container) ausblenden — nur die aeusserste
-              // Umrandung sichtbar.
               '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;}';
             document.documentElement.appendChild(st);
           }
+          // TreeWalker: alle Text-Nodes mit '#' scannen
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
             acceptNode: function(n) {
               if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
@@ -879,20 +846,8 @@ export default function BrowserPanel() {
             }
           });
           var nodes = []; var n; while ((n = walker.nextNode())) nodes.push(n);
-          // PID nur akzeptieren wenn ein Geburtsdatum DD.MM.YYYY in
-          // unmittelbarer Naehe steht (typisches Liris-Listen-Format:
-          // "✓ Name @HH:MM #PID DD.MM.YYYY"). Damit faellt der KW-Tab
-          // (z.B. "#21") zuverlaessig raus.
           var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
-          // Helper: nach oben gehen bis wir den Container finden, der die
-          // ganze Patient-Zeile enthaelt (Name + Zeit + #PID + Geb.datum).
-          // Heuristik: textContent enthaelt sowohl '@HH:MM' als auch
-          // '#\\d+' als auch 'DD.MM.YYYY'. Max 6 Ebenen hochgehen.
           function findRow(node) {
-            // Erst hochlaufen bis textContent Zeit+PID+Geb enthaelt -> das ist
-            // die volle Zeile. Dann WEITER hochlaufen solange die Kriterien
-            // erhalten bleiben und nicht mehrere Zeilen umfasst werden
-            // (heuristisch: zweites @HH:MM signalisiert Mehrfach-Zeile).
             var el = node.parentElement;
             var best = null;
             for (var lvl = 0; lvl < 8 && el; lvl++) {
@@ -903,7 +858,6 @@ export default function BrowserPanel() {
               if (hasPid && hasGeb && times && times.length === 1 && t.length < 500) {
                 best = el;
               } else if (best) {
-                // weiteres Hochlaufen wuerde mehrere Zeilen erfassen -> Stop
                 break;
               }
               el = el.parentElement;
@@ -929,14 +883,12 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
-          // Markierungs-Anzahl merken — Basis fuer den Dirty-Check beim
-          // naechsten Pass (erkennt von Liris entfernte Markierungen).
-          window.__azHlCount = document.querySelectorAll('[data-az-recall-pid]').length;
           return 'done';
         })();
       `
       wv.executeJavaScript(script).catch(() => {})
     }
+    highlightRef.current = highlightRecallPids
     const onLoadStart = () => setLoading(true)
     const onLoadStop  = () => setLoading(false)
 
@@ -995,105 +947,21 @@ export default function BrowserPanel() {
     }
   }, [isOpen, requestRecallByPid, setStaleReferenceDate])
 
-  // Recall-PIDs in einer Ref spiegeln (damit der Inject-Effekt sie ohne
-  // Re-Render erreicht) UND bei jeder Aenderung Liris neu highlighten:
-  // erst alte Markierungen entfernen, dann mit aktuellem Set neu anwenden.
+  // Recall-PIDs in Refs spiegeln (der Poll liest daraus) UND bei Aenderung
+  // sofort einen Highlight-Pass anstossen. Der Poll uebernimmt ab dann alle 3s.
   useEffect(() => {
     staleRecallPidsRef.current = staleRecallPids
     knownRecallPidsRef.current = knownRecallPids
     staleRefDateRef.current    = staleReferenceDate
+    // Sofort highlighten wenn Liris offen — wartet nicht auf den naechsten
+    // Poll-Tick (3s). Mehrere Retries weil Liris asynchron re-rendert.
     if (!isOpen) return
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
-    const refDisplay = staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : ''
-    const tooltipStale  = `Recall seit ${refDisplay} nicht aktualisiert`
-    const tooltipMissing = 'Patient ist nicht im Recall erfasst — noch aufzunehmen'
-    const script = `
-      (function() {
-        // Kein DOM-Eingriff waehrend eines 'Termin bearbeiten'-Dialogs —
-        // sonst springt der Liris-Datepicker durch das Re-Render.
-        if (/Termin\\s+bearbeiten/i.test(document.body?document.body.innerText:'')) return 'skip-edit';
-        var STALE = ${JSON.stringify(staleRecallPids)};
-        var KNOWN = ${JSON.stringify(knownRecallPids)};
-        var staleSetPre = {}; for (var ii=0; ii<STALE.length; ii++) staleSetPre[STALE[ii]] = true;
-        var knownSetPre = {}; for (var jj=0; jj<KNOWN.length; jj++) knownSetPre[KNOWN[jj]] = true;
-        // 1) Bestehende Markierungen behalten wenn PID immer noch
-        //    handlungs-relevant. Nur PIDs entfernen die jetzt OK sind.
-        var oldRows = document.querySelectorAll('[data-az-recall-pid]');
-        oldRows.forEach(function(el){
-          var p = el.getAttribute('data-az-recall-pid');
-          if (staleSetPre[p] || !knownSetPre[p]) return;
-          el.removeAttribute('data-az-recall-pid');
-          el.classList.remove('az-recall-row-stale','az-recall-row-missing');
-          if (el.dataset.azRecallTitle) { el.removeAttribute('title'); delete el.dataset.azRecallTitle; }
-        });
-        var olds = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
-        olds.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
-        if (!STALE.length && !KNOWN.length) return 0;
-        var T_STALE   = ${JSON.stringify(tooltipStale)};
-        var T_MISSING = ${JSON.stringify(tooltipMissing)};
-        var staleSet = staleSetPre;
-        var knownSet = knownSetPre;
-        if (!document.getElementById('__az_recall_css')) {
-          var st = document.createElement('style');
-          st.id = '__az_recall_css';
-          st.textContent =
-            '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
-            '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}'+
-            '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;}';
-          document.documentElement.appendChild(st);
-        }
-        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-          acceptNode: function(n) {
-            if (!n.nodeValue || n.nodeValue.indexOf('#') < 0) return NodeFilter.FILTER_REJECT;
-            var p = n.parentNode;
-            if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE') return NodeFilter.FILTER_REJECT;
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        });
-        var nodes = [], n; while ((n = walker.nextNode())) nodes.push(n);
-        // PID nur akzeptieren wenn ein Geburtsdatum DD.MM.YYYY direkt
-        // nach der PID folgt. Schliesst KW-Indikatoren wie '#21' aus.
-        var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
-        function findRow(node) {
-          var el = node.parentElement;
-          var lastSmall = el;
-          for (var lvl = 0; lvl < 6 && el; lvl++) {
-            var t = el.textContent || '';
-            if (/@\\d{2}:\\d{2}/.test(t) && /#\\s*\\d/.test(t) && /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t) && t.length < 400) {
-              return el;
-            }
-            if (t.length < 200) lastSmall = el;
-            el = el.parentElement;
-          }
-          return lastSmall;
-        }
-        nodes.forEach(function(node) {
-          var txt = node.nodeValue;
-          re.lastIndex = 0;
-          var m, kind = null, pid = null;
-          while ((m = re.exec(txt)) !== null) {
-            var p = m[1];
-            if (staleSet[p]) { kind = 'stale'; pid = p; break; }
-            if (!knownSet[p]) { kind = 'missing'; pid = p; break; }
-          }
-          if (!kind) return;
-          var row = findRow(node);
-          if (!row || row.getAttribute('data-az-recall-pid')) return;
-          row.setAttribute('data-az-recall-pid', pid);
-          row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
-          if (!row.getAttribute('title')) {
-            row.setAttribute('title', kind === 'stale' ? T_STALE : T_MISSING);
-            row.dataset.azRecallTitle = '1';
-          }
-        });
-        window.__azHlSig = undefined;
-        window.__azHlCount = undefined;
-      })();
-    `
-    window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 100)
-    window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 500)
-    window.setTimeout(() => { wv.executeJavaScript(script).catch(() => {}) }, 1500)
+    const ids = [150, 700, 2000].map(ms =>
+      window.setTimeout(() => highlightRef.current?.(), ms)
+    )
+    return () => ids.forEach(id => window.clearTimeout(id))
   }, [staleRecallPids, knownRecallPids, staleReferenceDate, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
