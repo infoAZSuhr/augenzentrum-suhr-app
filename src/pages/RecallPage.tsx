@@ -5400,9 +5400,22 @@ export default function RecallPage() {
                   {editTarget === 'new' ? 'Neuer Patient' : 'Patient bearbeiten'}
                 </h2>
                 {editTarget !== 'new' && (
-                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-primary-100 text-primary-700 mr-auto ml-3 pointer-events-none">
-                    {editTarget.doctor}
-                  </span>
+                  <>
+                    <span className="text-xs font-bold px-2 py-1 rounded-full bg-primary-100 text-primary-700 ml-3 pointer-events-none">
+                      {editTarget.doctor}
+                    </span>
+                    {form.patientenStatus && form.patientenStatus !== 'aktiv' && (
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ml-1.5 mr-auto pointer-events-none ${
+                        form.patientenStatus === 'verstorben' ? 'bg-red-100 text-red-700'
+                        : form.patientenStatus === 'inaktiv' ? 'bg-gray-200 text-gray-600'
+                        : form.patientenStatus === 'kein Aufgebot' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        {form.patientenStatus}
+                      </span>
+                    )}
+                    {(!form.patientenStatus || form.patientenStatus === 'aktiv') && <span className="mr-auto" />}
+                  </>
                 )}
                 <button onClick={closeEdit}
                   className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
