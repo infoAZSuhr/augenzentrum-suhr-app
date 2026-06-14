@@ -1062,6 +1062,7 @@ export default function RecallPage() {
         setField('storniert', 'ja')
         setField('patientenStatus', 'verstorben')
         setField('grundStornierung', 'Verstorben')
+        setField('aufgebotFuer', '')
         if (lirisExtract.autor) {
           const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
           const words = cleaned.split(/\s+/)
@@ -1094,6 +1095,7 @@ export default function RecallPage() {
     setField('storniert', 'ja')
     setField('patientenStatus', 'verstorben')
     setField('grundStornierung', 'Verstorben')
+    setField('aufgebotFuer', '')
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
   }, [lirisExtract, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
