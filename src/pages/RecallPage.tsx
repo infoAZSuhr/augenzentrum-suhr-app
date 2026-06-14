@@ -2180,10 +2180,17 @@ export default function RecallPage() {
     const thisWeek: WPEntry[] = []
     const overdue:  WPEntry[] = []
 
+    const anrufenSet = new Set<string>()
     for (const patients of allData.values()) {
       for (const p of patients) {
         if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') continue
+        // Patienten mit offenen Telefonanrufen ("noch zu erledigen")
+        if (p.verlauf?.some(v => v.aktion === 'Telefonanruf' && v.ergebnis === 'noch zu erledigen')) {
+          thisWeek.push({ patient: p })
+          anrufenSet.add(p.id)
+        }
         if (!p.aufgebotFuer || p.aufgebotErstellt) continue
+        if (anrufenSet.has(p.id)) continue
         const d = new Date(p.aufgebotFuer + 'T00:00:00')
         if (d >= start && d <= end) thisWeek.push({ patient: p })
         else if (d < start && wochenplanWeekOffset === 0) overdue.push({ patient: p })
@@ -2198,7 +2205,7 @@ export default function RecallPage() {
     function groupByArt(entries: WPEntry[]): Groups {
       const g: Groups = {}
       for (const e of entries) {
-        const art = e.patient.aufgebotArt ?? 'kein'
+        const art = anrufenSet.has(e.patient.id) ? 'Anrufen' : (e.patient.aufgebotArt ?? 'kein')
         if (!g[art]) g[art] = []
         g[art].push(e)
       }
@@ -4639,9 +4646,10 @@ export default function RecallPage() {
           Reminder: { label: 'Reminder',      Icon: Bell,      color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
           Tel:      { label: 'Telefon',       Icon: Phone,     color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200' },
           Praxis:   { label: 'Praxis',        Icon: Building2, color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+          Anrufen:  { label: 'Anrufen',        Icon: PhoneCall, color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200' },
           kein:     { label: 'Kein Aufgebot', Icon: BellOff,   color: 'text-gray-500',   bg: 'bg-gray-50',   border: 'border-gray-200' },
         }
-        const ART_ORDER = ['Brief', 'Reminder', 'Tel', 'Praxis', 'kein']
+        const ART_ORDER = ['Anrufen', 'Brief', 'Reminder', 'Tel', 'Praxis', 'kein']
 
         function WPRow({ entry }: { entry: WPEntry }) {
           const p = entry.patient
