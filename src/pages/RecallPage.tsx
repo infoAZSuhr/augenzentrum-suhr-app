@@ -37,7 +37,7 @@ import { ref as storageRef, uploadBytes } from 'firebase/storage'
 const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
 const ZU_BEARB   = 'Zu bearbeiten'
 const OFFEN_TAB  = 'offen'                       // interner Doctor-Wert in der DB
-const OFFEN_LABEL = 'Keinem Arzt zugewiesen'     // sichtbares Label im UI
+const OFFEN_LABEL = 'Inaktive Ärzte'              // sichtbares Label im UI
 const AUFGEBOT_TAB = '📅 Aufgebot-Plan'
 const PAGE_SIZE  = 50
 
@@ -2103,9 +2103,12 @@ export default function RecallPage() {
       if (!byNachname.has(nachname)) byNachname.set(nachname, [])
       byNachname.get(nachname)!.push(d)
     }
-    return [...byNachname.entries()]
+    const result = [...byNachname.entries()]
       .map(([nachname, docs]) => ({ nachname, doctors: docs }))
       .sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'))
+    const hasOffen = offenList.some(p => p.doctor === OFFEN_TAB)
+    if (hasOffen) result.push({ nachname: 'Ohne Zuordnung', doctors: [OFFEN_TAB] })
+    return result
   }, [allData, activeTab, doctors])
 
   const rows = useMemo(() => {
@@ -2115,7 +2118,7 @@ export default function RecallPage() {
     let base = allData.get(activeTab) ?? []
     // 'Keinem Arzt zugewiesen': zusaetzlich alle Verstorbenen aus allen
     // anderen Buckets hier einblenden (verschoben zur Sammelansicht).
-    if (activeTab === OFFEN_TAB && filterInaktivArzt) {
+    if (activeTab === OFFEN_TAB) {
       const seen = new Set(base.map(p => p.id))
       const extra: RecallPatient[] = []
       for (const [tab, list] of allData) {
@@ -2141,8 +2144,7 @@ export default function RecallPage() {
       // 'Zu bearbeiten': inaktive sichtbar lassen, nur Verstorbene ausblenden.
       base = base.filter(p => p.patientenStatus !== 'verstorben')
     } else if (activeTab === OFFEN_TAB) {
-      // 'Keinem Arzt zugewiesen': Verstorbene sichtbar lassen, inaktive aus.
-      base = base.filter(p => p.patientenStatus !== 'inaktiv')
+      // Inaktive Ärzte: alle zeigen (inaktive + verstorbene)
     } else {
       // Standard: inaktive/verstorbene ausblenden
       base = base.filter(p => p.patientenStatus !== 'inaktiv' && p.patientenStatus !== 'verstorben')
@@ -2174,7 +2176,13 @@ export default function RecallPage() {
         }
       })
     }
-    return [...base].sort((a, b) => {
+    const sorted = [...base].sort((a, b) => {
+      if (activeTab === OFFEN_TAB) {
+        const da = a.doctor === OFFEN_TAB ? 'zzz' : a.doctor
+        const db = b.doctor === OFFEN_TAB ? 'zzz' : b.doctor
+        const dc = da.localeCompare(db, 'de')
+        if (dc !== 0) return dc
+      }
       for (const { col, dir } of sortKeys) {
         const av = sortVal(a, col)
         const bv = sortVal(b, col)
@@ -2186,6 +2194,7 @@ export default function RecallPage() {
       }
       return 0
     })
+    return sorted
   }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, inaktiveAerzte, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Per-tab statistics for the filter bar chips
@@ -3907,13 +3916,24 @@ export default function RecallPage() {
                 </td>
               </tr>
             ) : (
-              pageRows.map(row => {
+              pageRows.map((row, idx) => {
                 const storniert  = isStorniert(row)
                 const keinTermin = isKeinTermin(row.naechsteKons)
                 const futureNext = isFutureDate(row.naechsteKons)
                 const patStatus  = s(row.patientenStatus)
                 const isInaktiv  = patStatus === 'inaktiv' || patStatus === 'verstorben'
-                return (
+                const showGroupHeader = activeTab === OFFEN_TAB && (idx === 0 || pageRows[idx - 1].doctor !== row.doctor)
+                return (<React.Fragment key={row.id}>
+                  {showGroupHeader && (
+                    <tr className="bg-slate-100 border-t-2 border-slate-300">
+                      <td colSpan={11} className="px-4 py-2 text-sm font-bold text-slate-700">
+                        {row.doctor === OFFEN_TAB ? 'Ohne Zuordnung' : row.doctor}
+                        <span className="ml-2 text-xs font-normal text-slate-500">
+                          ({pageRows.filter(r => r.doctor === row.doctor).length})
+                        </span>
+                      </td>
+                    </tr>
+                  )}
                   <tr
                     key={row.id}
                     onClick={() => openEdit(row)}
@@ -4138,7 +4158,7 @@ export default function RecallPage() {
                       {row.aktualisiert || row.erstellt || '—'}
                     </td>
                   </tr>
-                )
+                </React.Fragment>)
               })
             )}
           </tbody>
