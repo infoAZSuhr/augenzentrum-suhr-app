@@ -1053,38 +1053,47 @@ export default function RecallPage() {
       }
     }
     if (filled) toast.success('Patient-Infos aus Liris übernommen')
+    // Verstorben-Check: NACH Intervall/aufgebotFuer-Fill prüfen
+    if (lirisExtract.verstorben) {
+      const alreadySet = form.patientenStatus === 'verstorben'
+        && form.storniert?.toLowerCase() === 'ja'
+        && form.grundStornierung === 'Verstorben'
+      if (!alreadySet) {
+        setField('storniert', 'ja')
+        setField('patientenStatus', 'verstorben')
+        setField('grundStornierung', 'Verstorben')
+        if (lirisExtract.autor) {
+          const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+          const words = cleaned.split(/\s+/)
+          let arztAktiv = false
+          for (let n = 1; n <= words.length; n++) {
+            const cand = words.slice(-n).join(' ').toLowerCase()
+            if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+          }
+          if (!arztAktiv) {
+            setAssignDoctor(lirisExtract.autor!)
+          }
+        }
+        toast.success('Patient als verstorben markiert († in Liris erkannt)')
+      }
+    }
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
   }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.konsInterval, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Verstorben-Auto-Fill: laeuft unabhaengig vom Typ (neu/bestehend).
-  // Sobald lirisExtract.verstorben true ist und ein Edit-Modal offen ist
-  // (egal ob new oder bestehend), werden die Felder gesetzt.
+  // Verstorben-Auto-Fill fuer neue Patienten (editTarget === 'new'):
+  // Der Haupt-Effect oben bricht bei 'new' ab, deshalb separater Check.
   useEffect(() => {
     if (!lirisExtract?.verstorben) return
-    if (!editTarget) return
+    if (editTarget !== 'new') return
     if (Date.now() - lirisExtract.at > 5000) return
     const alreadySet = form.patientenStatus === 'verstorben'
       && form.storniert?.toLowerCase() === 'ja'
       && form.grundStornierung === 'Verstorben'
     if (alreadySet) return
-    if (form.storniert?.toLowerCase() !== 'ja') setField('storniert', 'ja')
-    if (form.patientenStatus !== 'verstorben') setField('patientenStatus', 'verstorben')
-    if (form.grundStornierung?.toLowerCase() !== 'verstorben') setField('grundStornierung', 'Verstorben')
-    // Arzt-Check: wenn der Liris-Autor nicht in der aktiven Ärzteliste ist,
-    // Patient auf "Zu bearbeiten" verschieben.
-    if (lirisExtract.autor) {
-      const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
-      const words = cleaned.split(/\s+/)
-      let arztAktiv = false
-      for (let n = 1; n <= words.length; n++) {
-        const cand = words.slice(-n).join(' ').toLowerCase()
-        if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
-      }
-      if (!arztAktiv) {
-        setAssignDoctor(lirisExtract.autor!)
-      }
-    }
+    setField('storniert', 'ja')
+    setField('patientenStatus', 'verstorben')
+    setField('grundStornierung', 'Verstorben')
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
   }, [lirisExtract, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
