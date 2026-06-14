@@ -557,6 +557,7 @@ export default function RecallPage() {
   const [quickInput, setQuickInput] = useState('')
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
+  const lastLirisAutor = useRef<string | null>(null)
   // Stub-Refs falls noch alte Aufrufe von setModalBuffer rumliegen — die Live-
   // Subscription wurde komplett entfernt, daher No-Op.
   function setModalBuffer(_active: boolean) { /* no-op */ }
@@ -1091,6 +1092,8 @@ export default function RecallPage() {
         setAssignDoctor(lirisExtract.autor!)
       }
     }
+    // Autor merken fuer spaeteren Status-Wechsel (z.B. inaktiv)
+    if (lirisExtract.autor) lastLirisAutor.current = lirisExtract.autor
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
   }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.konsInterval, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -6213,6 +6216,16 @@ export default function RecallPage() {
                               setField('verlauf', form.verlauf.map(ve =>
                                 ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
                               ))
+                              if (lastLirisAutor.current) {
+                                const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+                                const words = cleaned.split(/\s+/)
+                                let arztAktiv = false
+                                for (let n = 1; n <= words.length; n++) {
+                                  const cand = words.slice(-n).join(' ').toLowerCase()
+                                  if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+                                }
+                                if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
+                              }
                             }
                           }}
                           className={(formErrors.grundStornierung ? inputClsErr : inputCls) + chCls('grundStornierung')}>
@@ -6578,6 +6591,16 @@ export default function RecallPage() {
                     if (v !== 'aktiv') {
                       setField('naechsteKons', '')
                       setField('keinTermin', false)
+                    }
+                    if ((v === 'inaktiv' || v === 'verstorben') && lastLirisAutor.current) {
+                      const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+                      const words = cleaned.split(/\s+/)
+                      let arztAktiv = false
+                      for (let n = 1; n <= words.length; n++) {
+                        const cand = words.slice(-n).join(' ').toLowerCase()
+                        if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+                      }
+                      if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
                     }
                   }}
                   className={inputCls + chCls('patientenStatus')}>
