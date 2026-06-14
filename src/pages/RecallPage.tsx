@@ -1081,8 +1081,8 @@ export default function RecallPage() {
         const cand = words.slice(-n).join(' ').toLowerCase()
         if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
       }
-      if (!arztAktiv && editTarget !== 'new' && editTarget.doctor !== OFFEN_TAB) {
-        setAssignDoctor(OFFEN_TAB)
+      if (!arztAktiv && editTarget !== 'new') {
+        setAssignDoctor(lirisExtract.autor)
       }
     }
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
@@ -5668,6 +5668,32 @@ export default function RecallPage() {
                         {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
                           <option value={OFFEN_TAB}>{OFFEN_LABEL}</option>
                         )}
+                        {/* Inaktive Ärzte: nur sichtbar wenn Patient verstorben ist.
+                            Werden ausgegraut dargestellt zur Unterscheidung. */}
+                        {form.patientenStatus === 'verstorben' && (() => {
+                          const inaktive = new Set<string>()
+                          if (assignDoctor && !doctors.includes(assignDoctor) && assignDoctor !== OFFEN_TAB && assignDoctor !== ZU_BEARB) {
+                            inaktive.add(assignDoctor)
+                          }
+                          if (editTarget !== 'new' && (editTarget as RecallPatient).doctor && !doctors.includes((editTarget as RecallPatient).doctor) && (editTarget as RecallPatient).doctor !== OFFEN_TAB && (editTarget as RecallPatient).doctor !== ZU_BEARB) {
+                            inaktive.add((editTarget as RecallPatient).doctor)
+                          }
+                          if (lirisExtract?.autor) {
+                            const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/gi, '').trim()
+                            if (!doctors.find(d => d.toLowerCase().includes(cleaned.toLowerCase()))) {
+                              inaktive.add(lirisExtract.autor)
+                            }
+                          }
+                          if (!inaktive.size) return null
+                          return <>
+                            <option disabled>──── inaktiv ────</option>
+                            {[...inaktive].map(name =>
+                              <option key={name} value={name} style={{ color: '#9ca3af', fontStyle: 'italic' }}>
+                                {name} (inaktiv)
+                              </option>
+                            )}
+                          </>
+                        })()}
                       </select>
                       {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte Arzt wählen.</p>}
                       {editTarget !== 'new' && assignDoctor && !noDoctorYet && (
