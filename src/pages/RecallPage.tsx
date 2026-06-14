@@ -573,6 +573,7 @@ export default function RecallPage() {
   // Badges in der Aktivitäts-Tabelle, die nicht über patientenseitiges aufgebotArt
   // abgedeckt sind.
   const [filterVerlaufAktion, setFilterVerlaufAktion] = useState<string | null>(null)
+  const [filterInaktivArzt, setFilterInaktivArzt] = useState<string | null>(null)
 
   // ── Weiteres Vorgehen (Kontakt-Protokoll UI state) ───────────────────────────
   const [vorgehenTelOpen,       setVorgehenTelOpen]       = useState(false)
@@ -2072,7 +2073,7 @@ export default function RecallPage() {
 
   // ── Tab helpers ──────────────────────────────────────────────────────────────
   function switchTab(doctor: string) {
-    setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null)
+    setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterInaktivArzt(null)
     // Aufgebot-Plan Tab: oeffnet das eingebettete Aufgebot-Panel; sonst zu
     setWochenplanOpen(doctor === AUFGEBOT_TAB)
     if (doctor === AUFGEBOT_TAB) setWochenplanWeekOffset(0)
@@ -2087,14 +2088,14 @@ export default function RecallPage() {
     // anderen Buckets hier einblenden (verschoben zur Sammelansicht).
     if (activeTab === OFFEN_TAB) {
       const seen = new Set(base.map(p => p.id))
-      const verstorbene: RecallPatient[] = []
+      const extra: RecallPatient[] = []
       for (const [tab, list] of allData) {
         if (tab === OFFEN_TAB || tab === AUFGEBOT_TAB) continue
         for (const p of list) {
-          if (p.patientenStatus === 'verstorben' && !seen.has(p.id)) { seen.add(p.id); verstorbene.push(p) }
+          if ((p.patientenStatus === 'verstorben' || p.patientenStatus === 'inaktiv') && !seen.has(p.id)) { seen.add(p.id); extra.push(p) }
         }
       }
-      base = [...base, ...verstorbene]
+      base = [...base, ...extra]
     }
     if (filterNeupatient) base = base.filter(p => p.neupatient === true)
     if (filterStatus === 'storniert') {
@@ -2123,6 +2124,7 @@ export default function RecallPage() {
     if (filterVerlaufAktion) base = base.filter(p => p.verlauf?.some(v => v.aktion === filterVerlaufAktion && v.von !== 'System'))
     if (filterReminderFaellig) base = base.filter(p => getReminderDueDate(p) !== null)
     if (filterReminderGeplant) base = base.filter(p => getUpcomingReminderDate(p) !== null)
+    if (filterInaktivArzt) base = base.filter(p => p.doctor === filterInaktivArzt)
     if (filterTermin) {
       const now = new Date()
       const in7  = new Date(now); in7.setDate(now.getDate() + 7)
@@ -2152,7 +2154,24 @@ export default function RecallPage() {
       }
       return 0
     })
-  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const inaktiveAerzte = useMemo(() => {
+    if (activeTab !== OFFEN_TAB) return []
+    const set = new Set<string>()
+    for (const [tab, list] of allData) {
+      if (tab === OFFEN_TAB || tab === AUFGEBOT_TAB) continue
+      if (doctors.includes(tab)) continue
+      for (const p of list) {
+        if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') set.add(p.doctor)
+      }
+    }
+    const offenList = allData.get(OFFEN_TAB) ?? []
+    for (const p of offenList) {
+      if (p.doctor !== OFFEN_TAB && !doctors.includes(p.doctor)) set.add(p.doctor)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'de'))
+  }, [allData, activeTab, doctors])
 
   // Per-tab statistics for the filter bar chips
   const tabStats = useMemo(() => {
@@ -3616,9 +3635,9 @@ export default function RecallPage() {
               ? `${rows.length} Treffer`
               : `${rows.length} Einträge`}
           </span>
-          {(filterTermin || filterNeupatient || filterStatus || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion) && (
+          {(filterTermin || filterNeupatient || filterStatus || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion || filterInaktivArzt) && (
             <button
-              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setPage(1) }}
+              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setFilterInaktivArzt(null); setPage(1) }}
               className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200 font-medium hover:bg-gray-200 transition-colors"
             >
               <X className="w-3 h-3" /> Filter zurücksetzen
@@ -3738,6 +3757,19 @@ export default function RecallPage() {
           <option value="Praxis">Praxis</option>
           <option value="kein">Kein RC</option>
         </select>
+
+        {activeTab === OFFEN_TAB && inaktiveAerzte.length > 0 && (
+          <select
+            value={filterInaktivArzt ?? ''}
+            onChange={e => { setFilterInaktivArzt(e.target.value || null); setPage(1) }}
+            className={`text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-300 cursor-pointer ${
+              filterInaktivArzt ? 'border-orange-300 bg-orange-50 text-orange-700 font-semibold' : 'border-gray-200 bg-white text-gray-500'
+            }`}
+          >
+            <option value="">Inaktive Ärzte…</option>
+            {inaktiveAerzte.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        )}
 
       </div>
 
