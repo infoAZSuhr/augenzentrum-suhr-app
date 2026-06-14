@@ -1071,6 +1071,20 @@ export default function RecallPage() {
     if (form.storniert?.toLowerCase() !== 'ja') setField('storniert', 'ja')
     if (form.patientenStatus !== 'verstorben') setField('patientenStatus', 'verstorben')
     if (form.grundStornierung?.toLowerCase() !== 'verstorben') setField('grundStornierung', 'verstorben')
+    // Arzt-Check: wenn der Liris-Autor nicht in der aktiven Ärzteliste ist,
+    // Patient auf "Zu bearbeiten" verschieben.
+    if (lirisExtract.autor) {
+      const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+      const words = cleaned.split(/\s+/)
+      let arztAktiv = false
+      for (let n = 1; n <= words.length; n++) {
+        const cand = words.slice(-n).join(' ').toLowerCase()
+        if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+      }
+      if (!arztAktiv && editTarget !== 'new' && editTarget.doctor !== ZU_BEARB) {
+        setAssignDoctor(ZU_BEARB)
+      }
+    }
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
   }, [lirisExtract, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
