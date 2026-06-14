@@ -981,13 +981,6 @@ export default function RecallPage() {
     }
 
     let filled = false
-    // Verstorben: † im Liris-Header erkannt
-    if (lirisExtract.verstorben && form.patientenStatus !== 'verstorben') {
-      setField('storniert', 'ja')
-      setField('patientenStatus', 'verstorben')
-      setField('grundStornierung', 'verstorben')
-      filled = true
-    }
     // Geburtsdatum auto-fill nur wenn LOKAL leer (sonst bleibt bestehender
     // Wert erhalten — er wurde oben schon gegen Liris validiert).
     if (!form.gebDatum && lirisExtract.gebDatum) {
@@ -1063,6 +1056,20 @@ export default function RecallPage() {
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
   }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.konsInterval, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Verstorben-Auto-Fill: laeuft unabhaengig vom Typ (neu/bestehend).
+  // Sobald lirisExtract.verstorben true ist und ein Edit-Modal offen ist
+  // (egal ob new oder bestehend), werden die Felder gesetzt.
+  useEffect(() => {
+    if (!lirisExtract?.verstorben) return
+    if (!editTarget) return
+    if (Date.now() - lirisExtract.at > 5000) return
+    if (form.patientenStatus === 'verstorben') return
+    setField('storniert', 'ja')
+    setField('patientenStatus', 'verstorben')
+    setField('grundStornierung', 'verstorben')
+    toast.success('Patient als verstorben markiert († in Liris erkannt)')
+  }, [lirisExtract, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Snapshot-Buffer/Live-Subscription entfernt — siehe init() unten.
 
