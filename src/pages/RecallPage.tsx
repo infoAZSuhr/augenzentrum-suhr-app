@@ -5404,17 +5404,15 @@ export default function RecallPage() {
                     <span className="text-xs font-bold px-2 py-1 rounded-full bg-primary-100 text-primary-700 ml-3 pointer-events-none">
                       {editTarget.doctor}
                     </span>
-                    {form.patientenStatus && form.patientenStatus !== 'aktiv' && (
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ml-1.5 mr-auto pointer-events-none ${
-                        form.patientenStatus === 'verstorben' ? 'bg-red-100 text-red-700'
-                        : form.patientenStatus === 'inaktiv' ? 'bg-gray-200 text-gray-600'
-                        : form.patientenStatus === 'kein Aufgebot' ? 'bg-amber-100 text-amber-700'
-                        : 'bg-indigo-100 text-indigo-700'
-                      }`}>
-                        {form.patientenStatus}
-                      </span>
-                    )}
-                    {(!form.patientenStatus || form.patientenStatus === 'aktiv') && <span className="mr-auto" />}
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ml-1.5 mr-auto pointer-events-none ${
+                      form.patientenStatus === 'verstorben' ? 'bg-red-100 text-red-700'
+                      : form.patientenStatus === 'inaktiv' ? 'bg-gray-200 text-gray-600'
+                      : form.patientenStatus === 'kein Aufgebot' ? 'bg-amber-100 text-amber-700'
+                      : form.patientenStatus === 'Reminder' ? 'bg-indigo-100 text-indigo-700'
+                      : 'bg-green-100 text-green-700'
+                    }`}>
+                      {form.patientenStatus || 'aktiv'}
+                    </span>
                   </>
                 )}
                 <button onClick={closeEdit}
