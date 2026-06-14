@@ -3219,10 +3219,19 @@ export default function RecallPage() {
     const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
     if (noDoctorYet && !assignDoctor) errors.assignDoctor = true
     if (form.patientenStatus === 'inaktiv' && !form.grundStornierung?.trim()) errors.grundStornierung = true
+    // Aktiver Arzt Pflicht wenn Aufgebot oder Intervall+RC-Datum gesetzt
+    const hatAufgebot = !!form.aufgebotArt?.trim()
+    const hatIntervallUndRc = !!form.konsInterval?.trim() && !!form.aufgebotFuer?.trim()
+    if (hatAufgebot || hatIntervallUndRc) {
+      const effDoctor = assignDoctor || (editTarget !== 'new' ? (editTarget as RecallPatient).doctor : '')
+      const istAktiverArzt = doctors.includes(effDoctor)
+      if (!istAktiverArzt) errors.assignDoctor = true
+    }
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       if (errors.grundStornierung) toast.error('Bitte einen Grund angeben — bei inaktiven Patienten ist das Pflicht.')
-      if (errors.assignDoctor) toast.error('Bitte einen Arzt auswählen — der Patient braucht eine Zuweisung.')
+      if (errors.assignDoctor && (hatAufgebot || hatIntervallUndRc)) toast.error('Bitte einen aktiven Arzt zuweisen — bei gesetztem Aufgebot oder Intervall ist das Pflicht.')
+      else if (errors.assignDoctor) toast.error('Bitte einen Arzt auswählen — der Patient braucht eine Zuweisung.')
       return
     }
 
