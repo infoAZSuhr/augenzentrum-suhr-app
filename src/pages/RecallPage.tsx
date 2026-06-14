@@ -1078,6 +1078,19 @@ export default function RecallPage() {
         toast.success('Patient als verstorben markiert († in Liris erkannt)')
       }
     }
+    // Inaktiver Patient: ebenfalls inaktiven Arzt aus Liris übernehmen
+    if (!lirisExtract.verstorben && form.patientenStatus === 'inaktiv' && lirisExtract.autor) {
+      const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+      const words = cleaned.split(/\s+/)
+      let arztAktiv = false
+      for (let n = 1; n <= words.length; n++) {
+        const cand = words.slice(-n).join(' ').toLowerCase()
+        if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+      }
+      if (!arztAktiv) {
+        setAssignDoctor(lirisExtract.autor!)
+      }
+    }
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
   }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.konsInterval, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -5687,8 +5700,8 @@ export default function RecallPage() {
                         {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
                           <option value={OFFEN_TAB}>{OFFEN_LABEL}</option>
                         )}
-                        {/* Inaktive Ärzte: sichtbar wenn Patient verstorben ist */}
-                        {form.patientenStatus === 'verstorben' && (() => {
+                        {/* Inaktive Ärzte: sichtbar wenn Patient verstorben oder inaktiv ist */}
+                        {(form.patientenStatus === 'verstorben' || form.patientenStatus === 'inaktiv') && (() => {
                           const inaktive = new Set<string>()
                           if (assignDoctor && !doctors.includes(assignDoctor) && assignDoctor !== OFFEN_TAB && assignDoctor !== ZU_BEARB) {
                             inaktive.add(assignDoctor)
