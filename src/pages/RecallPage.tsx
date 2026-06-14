@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBrowser } from '../contexts/BrowserContext'
 import { usePostausgang } from '../contexts/PostausgangContext'
@@ -13,6 +13,7 @@ import {
   VerlaufEntry,
   zuBearbStableId,
   getRecallPatients,
+  getInactiveRecallPatients,
   updateRecallPatient,
   createRecallPatient,
   deleteRecallPatient,
@@ -1157,6 +1158,24 @@ export default function RecallPage() {
         else { anyError = true; if (tabs[i] === ZU_BEARB) zuBearbFailed = true }
       })
       if (anyError && map.size === 0) { setLoadError(true); setStatus('ready'); return }
+
+      // Inaktive/verstorbene Patienten nachladen — diese können einem Arzt
+      // zugewiesen sein, der nicht in der aktiven Ärzte-Liste ist.
+      try {
+        const inaktive = await getInactiveRecallPatients()
+        const byDoctor = new Map<string, RecallPatient[]>()
+        const loadedIds = new Set<string>()
+        for (const [, list] of map) for (const p of list) loadedIds.add(p.id)
+        for (const p of inaktive) {
+          if (loadedIds.has(p.id)) continue
+          if (!byDoctor.has(p.doctor)) byDoctor.set(p.doctor, [])
+          byDoctor.get(p.doctor)!.push(p)
+        }
+        for (const [doc, list] of byDoctor) {
+          const existing = map.get(doc) ?? []
+          map.set(doc, [...existing, ...list])
+        }
+      } catch { /* inaktive nicht geladen — kein Blocker */ }
 
       // Auto-sync: only if query succeeded AND returned 0 AND hasn't run today already
       const syncKey = 'recall_autosync_date'
@@ -3923,7 +3942,7 @@ export default function RecallPage() {
                 const patStatus  = s(row.patientenStatus)
                 const isInaktiv  = patStatus === 'inaktiv' || patStatus === 'verstorben'
                 const showGroupHeader = activeTab === OFFEN_TAB && (idx === 0 || pageRows[idx - 1].doctor !== row.doctor)
-                return (<React.Fragment key={row.id}>
+                return (<Fragment key={row.id}>
                   {showGroupHeader && (
                     <tr className="bg-slate-100 border-t-2 border-slate-300">
                       <td colSpan={11} className="px-4 py-2 text-sm font-bold text-slate-700">
@@ -4158,7 +4177,7 @@ export default function RecallPage() {
                       {row.aktualisiert || row.erstellt || '—'}
                     </td>
                   </tr>
-                </React.Fragment>)
+                </Fragment>)
               })
             )}
           </tbody>

@@ -123,6 +123,17 @@ export async function getRecallPatients(doctor: string): Promise<RecallPatient[]
     .sort((a, b) => String(a.vorname ?? '').localeCompare(String(b.vorname ?? ''), 'de'))
 }
 
+export async function getInactiveRecallPatients(): Promise<RecallPatient[]> {
+  const q = query(
+    collection(db, 'recall_patients'),
+    where('patientenStatus', 'in', ['inaktiv', 'verstorben'])
+  )
+  const snap = await getDocsFromServer(q)
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as RecallPatient))
+    .sort((a, b) => String(a.vorname ?? '').localeCompare(String(b.vorname ?? ''), 'de'))
+}
+
 export async function updateRecallPatient(
   id: string,
   data: Partial<Omit<RecallPatient, 'id' | 'doctor' | 'aktualisiert'>>,
