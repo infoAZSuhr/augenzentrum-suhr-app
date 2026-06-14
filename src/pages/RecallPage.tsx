@@ -5780,10 +5780,9 @@ export default function RecallPage() {
                         {doctors.filter(d => editTarget === 'new' || d !== (editTarget as RecallPatient).doctor).map(d =>
                           <option key={d} value={d}>{d}</option>
                         )}
-                        {/* Spezial-Zuweisung 'offen' — Patient bleibt sichtbar
-                            ohne festen Arzt, eigener Tab in der Register-Leiste. */}
-                        {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
-                          <option value={OFFEN_TAB}>Keinem Arzt zugewiesen</option>
+                        {/* 'offen' nur anzeigen wenn Patient bereits dort ist — nicht aktiv wählbar */}
+                        {editTarget !== 'new' && (editTarget as RecallPatient).doctor === OFFEN_TAB && !assignDoctor && (
+                          <option value="" disabled>Keinem Arzt zugewiesen (aktuell)</option>
                         )}
                         {/* Inaktive Ärzte: sichtbar wenn Patient verstorben oder inaktiv ist */}
                         {(form.patientenStatus === 'verstorben' || form.patientenStatus === 'inaktiv') && (() => {
@@ -6255,7 +6254,7 @@ export default function RecallPage() {
                         const relevant = assignDoctor || cur
                         const isActive = !!relevant && (relevant === ZU_BEARB || doctors.includes(relevant))
                         console.log('[Storniert] relevant Arzt=', relevant, 'aktiv?', isActive, 'doctors=', doctors)
-                        if (!isActive && relevant !== OFFEN_TAB) setAssignDoctor(OFFEN_TAB)
+                        // Inaktiver Arzt bleibt — nicht mehr auf 'offen' umhängen
                       }
                       if (v === 'Terminverschiebung') {
                         setField('grundStornierung', '')
