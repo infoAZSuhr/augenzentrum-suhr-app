@@ -1081,8 +1081,8 @@ export default function RecallPage() {
         const cand = words.slice(-n).join(' ').toLowerCase()
         if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
       }
-      if (!arztAktiv && editTarget !== 'new' && editTarget.doctor !== ZU_BEARB) {
-        setAssignDoctor(ZU_BEARB)
+      if (!arztAktiv && editTarget !== 'new' && editTarget.doctor !== OFFEN_TAB) {
+        setAssignDoctor(OFFEN_TAB)
       }
     }
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
