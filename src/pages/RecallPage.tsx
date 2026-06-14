@@ -1229,6 +1229,10 @@ export default function RecallPage() {
     setAllData(prev => new Map(prev).set(doctor, fresh))
   }
 
+  async function reloadAllTabs() {
+    await loadAll()
+  }
+
   /** Aus einer Duplikat-Gruppe den Eintrag bestimmen der HEUTE erfasst wurde.
    *  Schutz für historische Duplikate (z.B. aus alten Excel-Imports) — die
    *  bleiben unberührt und müssen manuell entschieden werden. Wenn mehrere
@@ -2880,7 +2884,7 @@ export default function RecallPage() {
       verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
       excelAbgeglichen:  true,
     } as any, displayLabel)
-    await reloadTab(patient.doctor)
+    await reloadAllTabs()
   }
 
   async function handleAufgebotSave() {
@@ -3247,7 +3251,7 @@ export default function RecallPage() {
       if (editTarget === 'new') {
         const targetTab = assignDoctor || activeTab
         await createRecallPatient(targetTab, data, displayLabel)
-        await reloadTab(targetTab)
+        await reloadAllTabs()
         closeEdit()
       } else if (editTarget) {
         // No-Op-Check: wenn keine User-Eingabe geaendert wurde UND keine Arzt-
@@ -3262,12 +3266,9 @@ export default function RecallPage() {
         await updateRecallPatient(editTarget.id, { ...data, excelAbgeglichen: true } as any, displayLabel)
         if (assignDoctor) {
           await assignRecallPatient(editTarget.id, assignDoctor, displayLabel)
-          await Promise.all([reloadTab(editTarget.doctor), reloadTab(assignDoctor)])
-          closeEdit()
-        } else {
-          await reloadTab(editTarget.doctor)
-          closeEdit()
         }
+        await reloadAllTabs()
+        closeEdit()
       }
     } catch {
       toast.error('Speichern fehlgeschlagen.')
@@ -3328,9 +3329,9 @@ export default function RecallPage() {
       const payload: any = { aufgebotArt: newValue, aufgebotErstellt: newErstellt }
       if (inlineEntry) payload.verlauf = finalVerlauf
       await updateRecallPatient(rowId, payload, displayLabel)
-      await reloadTab(doctor)
+      await reloadAllTabs()
     } catch {
-      await reloadTab(doctor)
+      await reloadAllTabs()
     }
   }
 
@@ -3347,9 +3348,9 @@ export default function RecallPage() {
     })
     try {
       await updateRecallPatient(row.id, { verlauf: newVerlauf }, displayLabel)
-      await reloadTab(row.doctor)
+      await reloadAllTabs()
     } catch {
-      await reloadTab(row.doctor)
+      await reloadAllTabs()
     }
   }
 
@@ -3368,9 +3369,9 @@ export default function RecallPage() {
     })
     try {
       await updateRecallPatient(row.id, { storniert: 'ja', grundStornierung: 'no Show', verlauf: newVerlauf }, displayLabel)
-      await reloadTab(row.doctor)
+      await reloadAllTabs()
     } catch {
-      await reloadTab(row.doctor)
+      await reloadAllTabs()
     }
   }
 
@@ -3387,9 +3388,9 @@ export default function RecallPage() {
     })
     try {
       await updateRecallPatient(row.id, { excelAbgeglichen: newVal || null } as any, displayLabel)
-      await reloadTab(row.doctor)
+      await reloadAllTabs()
     } catch {
-      await reloadTab(row.doctor)
+      await reloadAllTabs()
     }
   }
 
@@ -3400,7 +3401,7 @@ export default function RecallPage() {
     setSaving(true)
     try {
       await deleteRecallPatient(editTarget.id)
-      await reloadTab(editTarget.doctor)
+      await reloadAllTabs()
       closeEdit()
     } catch {
       toast.error('Löschen fehlgeschlagen.')
