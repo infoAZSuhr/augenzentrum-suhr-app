@@ -1081,8 +1081,8 @@ export default function RecallPage() {
         const cand = words.slice(-n).join(' ').toLowerCase()
         if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
       }
-      if (!arztAktiv && editTarget !== 'new' && editTarget.doctor !== OFFEN_TAB) {
-        setAssignDoctor(OFFEN_TAB)
+      if (!arztAktiv) {
+        setAssignDoctor(lirisExtract.autor!)
       }
     }
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
@@ -5668,15 +5668,13 @@ export default function RecallPage() {
                         {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
                           <option value={OFFEN_TAB}>{OFFEN_LABEL}</option>
                         )}
-                        {/* Inaktive Ärzte: nur sichtbar wenn Patient verstorben ist
-                            UND unter "keinem Arzt zugewiesen" steht.
-                            Werden ausgegraut dargestellt zur Unterscheidung. */}
-                        {form.patientenStatus === 'verstorben' && editTarget !== 'new' && typeof editTarget === 'object' && editTarget.doctor === OFFEN_TAB && (() => {
+                        {/* Inaktive Ärzte: sichtbar wenn Patient verstorben ist */}
+                        {form.patientenStatus === 'verstorben' && (() => {
                           const inaktive = new Set<string>()
                           if (assignDoctor && !doctors.includes(assignDoctor) && assignDoctor !== OFFEN_TAB && assignDoctor !== ZU_BEARB) {
                             inaktive.add(assignDoctor)
                           }
-                          if (editTarget.doctor && !doctors.includes(editTarget.doctor) && editTarget.doctor !== OFFEN_TAB && editTarget.doctor !== ZU_BEARB) {
+                          if (editTarget && editTarget !== 'new' && editTarget.doctor && !doctors.includes(editTarget.doctor) && editTarget.doctor !== OFFEN_TAB && editTarget.doctor !== ZU_BEARB) {
                             inaktive.add(editTarget.doctor)
                           }
                           if (lirisExtract?.autor) {
