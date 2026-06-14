@@ -5783,7 +5783,7 @@ export default function RecallPage() {
                         {/* Spezial-Zuweisung 'offen' — Patient bleibt sichtbar
                             ohne festen Arzt, eigener Tab in der Register-Leiste. */}
                         {(editTarget === 'new' || (editTarget as RecallPatient).doctor !== OFFEN_TAB) && (
-                          <option value={OFFEN_TAB}>{OFFEN_LABEL}</option>
+                          <option value={OFFEN_TAB}>Keinem Arzt zugewiesen</option>
                         )}
                         {/* Inaktive Ärzte: sichtbar wenn Patient verstorben oder inaktiv ist */}
                         {(form.patientenStatus === 'verstorben' || form.patientenStatus === 'inaktiv') && (() => {
