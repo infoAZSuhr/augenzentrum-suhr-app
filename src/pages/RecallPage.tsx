@@ -2115,7 +2115,7 @@ export default function RecallPage() {
     let base = allData.get(activeTab) ?? []
     // 'Keinem Arzt zugewiesen': zusaetzlich alle Verstorbenen aus allen
     // anderen Buckets hier einblenden (verschoben zur Sammelansicht).
-    if (activeTab === OFFEN_TAB) {
+    if (activeTab === OFFEN_TAB && filterInaktivArzt) {
       const seen = new Set(base.map(p => p.id))
       const extra: RecallPatient[] = []
       for (const [tab, list] of allData) {
