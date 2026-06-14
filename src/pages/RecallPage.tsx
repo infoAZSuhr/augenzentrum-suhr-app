@@ -1064,10 +1064,13 @@ export default function RecallPage() {
     if (!lirisExtract?.verstorben) return
     if (!editTarget) return
     if (Date.now() - lirisExtract.at > 5000) return
-    if (form.patientenStatus === 'verstorben') return
-    setField('storniert', 'ja')
-    setField('patientenStatus', 'verstorben')
-    setField('grundStornierung', 'verstorben')
+    const alreadySet = form.patientenStatus === 'verstorben'
+      && form.storniert?.toLowerCase() === 'ja'
+      && form.grundStornierung?.toLowerCase() === 'verstorben'
+    if (alreadySet) return
+    if (form.storniert?.toLowerCase() !== 'ja') setField('storniert', 'ja')
+    if (form.patientenStatus !== 'verstorben') setField('patientenStatus', 'verstorben')
+    if (form.grundStornierung?.toLowerCase() !== 'verstorben') setField('grundStornierung', 'verstorben')
     toast.success('Patient als verstorben markiert († in Liris erkannt)')
   }, [lirisExtract, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
