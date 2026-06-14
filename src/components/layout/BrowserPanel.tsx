@@ -1113,16 +1113,11 @@ export default function BrowserPanel() {
         .then((res: any) => {
           console.log('[Liris] inject script done, result=', res)
           clearPendingPid()
-          // Leeres Dropdown = Patient existiert nicht in Liris -> sofort melden,
-          // ohne auf die (ergebnislose) Extraktion zu warten.
-          if (res === 'no-result') {
-            console.log('[Liris] no dropdown result -> patient not found')
-            setLirisExtract({
-              pid, pidMatchesLiris: false, vorname: null, gebDatum: null,
-              autor: null, letzteKons: null, intervalWeeks: null,
-              notFound: true, at: Date.now(),
-            })
-            return
+          // Kein Suchfeld oder kein Dropdown-Treffer: Retry nach kurzer
+          // Wartezeit statt sofort notFound — Liris braucht manchmal
+          // laenger bis das Suchfeld sichtbar ist.
+          if (res === 'no-result' || res === 'no-input-found') {
+            console.log('[Liris] inject got', res, '— will retry extract')
           }
           // Extract-Timer NICHT ueber setT (=in timers-Array) anlegen —
           // clearPendingPid loest gleich einen useEffect-Re-Run aus, dessen
