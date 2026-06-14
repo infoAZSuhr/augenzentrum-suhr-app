@@ -1066,11 +1066,11 @@ export default function RecallPage() {
     if (Date.now() - lirisExtract.at > 5000) return
     const alreadySet = form.patientenStatus === 'verstorben'
       && form.storniert?.toLowerCase() === 'ja'
-      && form.grundStornierung?.toLowerCase() === 'verstorben'
+      && form.grundStornierung === 'Verstorben'
     if (alreadySet) return
     if (form.storniert?.toLowerCase() !== 'ja') setField('storniert', 'ja')
     if (form.patientenStatus !== 'verstorben') setField('patientenStatus', 'verstorben')
-    if (form.grundStornierung?.toLowerCase() !== 'verstorben') setField('grundStornierung', 'verstorben')
+    if (form.grundStornierung?.toLowerCase() !== 'verstorben') setField('grundStornierung', 'Verstorben')
     // Arzt-Check: wenn der Liris-Autor nicht in der aktiven Ärzteliste ist,
     // Patient auf "Zu bearbeiten" verschieben.
     if (lirisExtract.autor) {
@@ -5671,13 +5671,13 @@ export default function RecallPage() {
                         {/* Inaktive Ärzte: nur sichtbar wenn Patient verstorben ist
                             UND unter "keinem Arzt zugewiesen" steht.
                             Werden ausgegraut dargestellt zur Unterscheidung. */}
-                        {form.patientenStatus === 'verstorben' && editTarget !== 'new' && (editTarget as RecallPatient).doctor === OFFEN_TAB && (() => {
+                        {form.patientenStatus === 'verstorben' && editTarget !== 'new' && typeof editTarget === 'object' && editTarget.doctor === OFFEN_TAB && (() => {
                           const inaktive = new Set<string>()
                           if (assignDoctor && !doctors.includes(assignDoctor) && assignDoctor !== OFFEN_TAB && assignDoctor !== ZU_BEARB) {
                             inaktive.add(assignDoctor)
                           }
-                          if (editTarget !== 'new' && (editTarget as RecallPatient).doctor && !doctors.includes((editTarget as RecallPatient).doctor) && (editTarget as RecallPatient).doctor !== OFFEN_TAB && (editTarget as RecallPatient).doctor !== ZU_BEARB) {
-                            inaktive.add((editTarget as RecallPatient).doctor)
+                          if (editTarget.doctor && !doctors.includes(editTarget.doctor) && editTarget.doctor !== OFFEN_TAB && editTarget.doctor !== ZU_BEARB) {
+                            inaktive.add(editTarget.doctor)
                           }
                           if (lirisExtract?.autor) {
                             const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/gi, '').trim()
