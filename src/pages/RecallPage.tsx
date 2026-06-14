@@ -1065,19 +1065,21 @@ export default function RecallPage() {
         setField('patientenStatus', 'verstorben')
         setField('grundStornierung', 'Verstorben')
         setField('aufgebotFuer', '')
-        if (lirisExtract.autor) {
-          const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
-          const words = cleaned.split(/\s+/)
-          let arztAktiv = false
-          for (let n = 1; n <= words.length; n++) {
-            const cand = words.slice(-n).join(' ').toLowerCase()
-            if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
-          }
-          if (!arztAktiv) {
-            setAssignDoctor(lirisExtract.autor!)
-          }
-        }
         toast.success('Patient als verstorben markiert († in Liris erkannt)')
+      }
+      const currentDoctor = (editTarget as RecallPatient).doctor
+      const hatKeinenArzt = !assignDoctor && (!currentDoctor || currentDoctor === OFFEN_TAB)
+      if (lirisExtract.autor && hatKeinenArzt) {
+        const cleaned = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+        const words = cleaned.split(/\s+/)
+        let arztAktiv = false
+        for (let n = 1; n <= words.length; n++) {
+          const cand = words.slice(-n).join(' ').toLowerCase()
+          if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+        }
+        if (!arztAktiv) {
+          setAssignDoctor(lirisExtract.autor!)
+        }
       }
     }
     // Inaktiver Patient: ebenfalls inaktiven Arzt aus Liris übernehmen
