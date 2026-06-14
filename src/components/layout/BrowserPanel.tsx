@@ -1133,7 +1133,10 @@ export default function BrowserPanel() {
             extractLirisInfo(wv, pid).then(info => {
               console.log('[Liris] extract result:', info)
               if (info) {
-                setLirisExtract({ ...info, at: Date.now() })
+                // PID wurde ueber Dropdown ausgewaehlt — Patient existiert
+                // definitiv in Liris. pidMatchesLiris erzwingen falls die
+                // Seite beim Extract noch nicht fertig geladen war.
+                setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
               } else {
                 // Extraktion lieferte gar nichts -> als nicht gefunden werten,
                 // damit der User eine Meldung erhaelt statt stiller Stille.
