@@ -2079,6 +2079,33 @@ export default function RecallPage() {
     if (doctor === AUFGEBOT_TAB) setWochenplanWeekOffset(0)
   }
 
+  const inaktiveAerzte = useMemo(() => {
+    if (activeTab !== OFFEN_TAB) return [] as { nachname: string; doctors: string[] }[]
+    const allDocs = new Set<string>()
+    for (const [tab, list] of allData) {
+      if (tab === OFFEN_TAB || tab === AUFGEBOT_TAB) continue
+      if (doctors.includes(tab)) continue
+      for (const p of list) {
+        if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') allDocs.add(p.doctor)
+      }
+    }
+    const offenList = allData.get(OFFEN_TAB) ?? []
+    for (const p of offenList) {
+      if (p.doctor !== OFFEN_TAB && !doctors.includes(p.doctor)) allDocs.add(p.doctor)
+    }
+    const byNachname = new Map<string, string[]>()
+    for (const d of allDocs) {
+      const cleaned = d.replace(/^(?:Dr|Prof|med)\.?\s+/gi, '').trim()
+      const words = cleaned.split(/\s+/)
+      const nachname = words[words.length - 1] || d
+      if (!byNachname.has(nachname)) byNachname.set(nachname, [])
+      byNachname.get(nachname)!.push(d)
+    }
+    return [...byNachname.entries()]
+      .map(([nachname, docs]) => ({ nachname, doctors: docs }))
+      .sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'))
+  }, [allData, activeTab, doctors])
+
   const rows = useMemo(() => {
     // When searching (≥2 chars), show cross-doctor results in the table
     if (search.trim().length >= 2) return searchResults
@@ -2124,7 +2151,10 @@ export default function RecallPage() {
     if (filterVerlaufAktion) base = base.filter(p => p.verlauf?.some(v => v.aktion === filterVerlaufAktion && v.von !== 'System'))
     if (filterReminderFaellig) base = base.filter(p => getReminderDueDate(p) !== null)
     if (filterReminderGeplant) base = base.filter(p => getUpcomingReminderDate(p) !== null)
-    if (filterInaktivArzt) base = base.filter(p => p.doctor === filterInaktivArzt)
+    if (filterInaktivArzt) {
+      const match = inaktiveAerzte.find(a => a.nachname === filterInaktivArzt)
+      if (match) base = base.filter(p => match.doctors.includes(p.doctor))
+    }
     if (filterTermin) {
       const now = new Date()
       const in7  = new Date(now); in7.setDate(now.getDate() + 7)
@@ -2154,24 +2184,7 @@ export default function RecallPage() {
       }
       return 0
     })
-  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const inaktiveAerzte = useMemo(() => {
-    if (activeTab !== OFFEN_TAB) return []
-    const set = new Set<string>()
-    for (const [tab, list] of allData) {
-      if (tab === OFFEN_TAB || tab === AUFGEBOT_TAB) continue
-      if (doctors.includes(tab)) continue
-      for (const p of list) {
-        if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') set.add(p.doctor)
-      }
-    }
-    const offenList = allData.get(OFFEN_TAB) ?? []
-    for (const p of offenList) {
-      if (p.doctor !== OFFEN_TAB && !doctors.includes(p.doctor)) set.add(p.doctor)
-    }
-    return [...set].sort((a, b) => a.localeCompare(b, 'de'))
-  }, [allData, activeTab, doctors])
+  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, inaktiveAerzte, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Per-tab statistics for the filter bar chips
   const tabStats = useMemo(() => {
@@ -3767,7 +3780,7 @@ export default function RecallPage() {
             }`}
           >
             <option value="">Inaktive Ärzte…</option>
-            {inaktiveAerzte.map(a => <option key={a} value={a}>{a}</option>)}
+            {inaktiveAerzte.map(a => <option key={a.nachname} value={a.nachname}>{a.nachname}</option>)}
           </select>
         )}
 
