@@ -1128,27 +1128,32 @@ export default function BrowserPanel() {
           // clearPendingPid loest gleich einen useEffect-Re-Run aus, dessen
           // Cleanup alle Timer abraeumt. Wir wollen aber dass dieser Timer
           // fest steht. Daher window.setTimeout direkt + KEIN tracking.
-          window.setTimeout(() => {
-            console.log('[Liris] starting extract for pid=', pid)
-            extractLirisInfo(wv, pid).then(info => {
-              console.log('[Liris] extract result:', info)
-              if (info) {
-                // PID wurde ueber Dropdown ausgewaehlt — Patient existiert
-                // definitiv in Liris. pidMatchesLiris erzwingen falls die
-                // Seite beim Extract noch nicht fertig geladen war.
-                setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
-              } else {
-                // Extraktion lieferte gar nichts -> als nicht gefunden werten,
-                // damit der User eine Meldung erhaelt statt stiller Stille.
-                console.log('[Liris] extract empty -> treating as not found')
-                setLirisExtract({
-                  pid, pidMatchesLiris: false, vorname: null, gebDatum: null,
-                  autor: null, letzteKons: null, intervalWeeks: null,
-                  notFound: true, at: Date.now(),
-                })
-              }
-            }).catch((err: unknown) => console.warn('[Liris] extract threw:', err))
-          }, 1500)
+          // Mehrere Versuche mit steigender Wartezeit — Liris braucht
+          // manchmal lange bis die Detailseite fertig gerendert ist.
+          const tryExtract = (attempt: number) => {
+            const delay = attempt === 0 ? 1500 : attempt === 1 ? 3000 : 5000
+            window.setTimeout(() => {
+              console.log('[Liris] starting extract for pid=', pid, 'attempt', attempt + 1)
+              extractLirisInfo(wv, pid).then(info => {
+                console.log('[Liris] extract result:', info)
+                if (info) {
+                  // PID wurde ueber Dropdown ausgewaehlt — Patient existiert
+                  // definitiv in Liris. pidMatchesLiris erzwingen falls die
+                  // Seite beim Extract noch nicht fertig geladen war.
+                  setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
+                } else if (attempt < 2) {
+                  console.log('[Liris] extract empty, retrying...')
+                  tryExtract(attempt + 1)
+                } else {
+                  // Patient wurde ueber Dropdown gefunden, also existiert er.
+                  // Extract lieferte trotzdem nichts — kein notFound setzen,
+                  // einfach ohne Auto-Fill weitermachen.
+                  console.log('[Liris] extract empty after all retries, skipping')
+                }
+              }).catch((err: unknown) => console.warn('[Liris] extract threw:', err))
+            }, delay)
+          }
+          tryExtract(0)
         })
         .catch((err: unknown) => {
           console.warn('[Liris] inject script error:', err)

@@ -3149,8 +3149,10 @@ export default function RecallPage() {
     // niemals in einer Arzt-Liste.
     const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
     if (noDoctorYet && !assignDoctor) errors.assignDoctor = true
+    if (form.patientenStatus === 'inaktiv' && !form.grundStornierung?.trim()) errors.grundStornierung = true
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
+      if (errors.grundStornierung) toast.error('Bitte einen Grund angeben — bei inaktiven Patienten ist das Pflicht.')
       if (errors.assignDoctor) toast.error('Bitte einen Arzt auswählen — der Patient braucht eine Zuweisung.')
       return
     }
@@ -5478,7 +5480,7 @@ export default function RecallPage() {
 
               {/* Hinweis-Banner: fehlende Pflichtfelder bei bestehendem Patient
                   (z.B. nach Excel-Import: Geburtsdatum nicht gesetzt, kein Arzt). */}
-              {editTarget !== 'new' && (formErrors.gebDatum || (formErrors.assignDoctor && !assignDoctor)) && (
+              {editTarget !== 'new' && (formErrors.gebDatum || (formErrors.assignDoctor && !assignDoctor) || formErrors.grundStornierung) && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-sm text-amber-900">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                   <div className="flex-1">
@@ -5486,6 +5488,7 @@ export default function RecallPage() {
                     <ul className="text-xs space-y-0.5 ml-1">
                       {formErrors.gebDatum     && <li>• Geburtsdatum eintragen</li>}
                       {formErrors.assignDoctor && !assignDoctor && <li>• Arzt zuweisen (unten im Feld „Arzt zuweisen")</li>}
+                      {formErrors.grundStornierung && <li>• Grund f. Stornierung angeben (Pflicht bei inaktiven Patienten)</li>}
                     </ul>
                   </div>
                 </div>
@@ -6212,7 +6215,7 @@ export default function RecallPage() {
                               ))
                             }
                           }}
-                          className={inputCls + chCls('grundStornierung')}>
+                          className={(formErrors.grundStornierung ? inputClsErr : inputCls) + chCls('grundStornierung')}>
                           <option value="">—</option>
                           {STORNO_GRUENDE.map(g => <option key={g} value={g}>{g}</option>)}
                           <option value="Sonstiges">Sonstiges…</option>
