@@ -3230,10 +3230,15 @@ export default function RecallPage() {
     const noDoctorYet = editTarget === 'new' || (editTarget && editTarget.doctor === ZU_BEARB)
     if (noDoctorYet && !assignDoctor) errors.assignDoctor = true
     if (form.patientenStatus === 'inaktiv' && !form.grundStornierung?.trim()) errors.grundStornierung = true
-    // Aktiver Arzt Pflicht wenn Aufgebot oder Intervall+RC-Datum gesetzt
+    // Aktiver Arzt Pflicht wenn Aufgebot oder Intervall+RC-Datum gesetzt.
+    // Ausnahme: inaktive/verstorbene Patienten brauchen keinen aktiven Arzt.
+    // Bei bestehenden Patienten nur prüfen wenn Aufgebot NEU gesetzt wird.
     const hatAufgebot = !!form.aufgebotArt?.trim()
     const hatIntervallUndRc = !!form.konsInterval?.trim() && !!form.aufgebotFuer?.trim()
-    if (hatAufgebot || hatIntervallUndRc) {
+    const istInaktiverPatient = form.patientenStatus === 'inaktiv' || form.patientenStatus === 'verstorben'
+    const oldP = editTarget !== 'new' && editTarget ? editTarget : null
+    const aufgebotUnveraendert = oldP && form.aufgebotArt === (oldP.aufgebotArt ?? '') && form.aufgebotFuer === (oldP.aufgebotFuer ?? '')
+    if ((hatAufgebot || hatIntervallUndRc) && !istInaktiverPatient && !aufgebotUnveraendert) {
       const effDoctor = assignDoctor || (editTarget !== 'new' ? (editTarget as RecallPatient).doctor : '')
       const istAktiverArzt = doctors.includes(effDoctor)
       if (!istAktiverArzt) errors.assignDoctor = true
