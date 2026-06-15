@@ -239,6 +239,14 @@ function isFutureDate(val: string | null): boolean {
   const today = new Date().toISOString().slice(0, 10)
   return m[1] >= today
 }
+function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null; aufgebotFuer?: string | null }): boolean {
+  const today = new Date().toISOString().slice(0, 10)
+  if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return false
+  if (!p.letzteKons || p.letzteKons >= today) return false
+  if (p.naechsteKons && p.naechsteKons !== 'kein Termin') return true
+  if (!p.aufgebotFuer) return true
+  return false
+}
 function toInputDate(val: string | null | undefined): string {
   if (!val || val === 'kein Termin') return ''
   const m = val.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -1957,7 +1965,7 @@ export default function RecallPage() {
       today:     activeAll.filter(p => { const d = new Date(s(p.naechsteKons)); return p.naechsteKons && p.naechsteKons !== 'kein Termin' && d.toDateString() === now.toDateString() }).length,
       week:      activeAll.filter(p => { const d = new Date(s(p.naechsteKons)); return p.naechsteKons && p.naechsteKons !== 'kein Termin' && d > now && d <= in7 }).length,
       month:     activeAll.filter(p => { const d = new Date(s(p.naechsteKons)); return p.naechsteKons && p.naechsteKons !== 'kein Termin' && d > now && d <= in30 }).length,
-      overdue:   activeAll.filter(p => p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons)).length,
+      overdue:   activeAll.filter(isOverdue).length,
       inPlanung: activeAll.filter(isInPlanung).length,
       ohneTermin:activeAll.filter(isOhneTermin).length,
       // Status-basierte Unter-Kategorien (warum "ohne Termin"):
@@ -2190,7 +2198,7 @@ export default function RecallPage() {
           case 'heute':      { if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d.toDateString() === now.toDateString() }
           case 'week':       { if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in7 }
           case 'month':      { if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in30 }
-          case 'overdue':    return !!(nk && nk !== 'kein Termin' && !isFutureDate(nk))
+          case 'overdue':    return isOverdue(p)
           case 'inPlanung':  return isInPlanung(p)
           case 'ohneTermin': return isOhneTermin(p)
         }
@@ -2228,7 +2236,7 @@ export default function RecallPage() {
       heute:      active.filter(p => { const nk = p.naechsteKons; if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d.toDateString() === now.toDateString() }).length,
       week:       active.filter(p => { const nk = p.naechsteKons; if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in7 }).length,
       month:      active.filter(p => { const nk = p.naechsteKons; if (!nk || nk === 'kein Termin') return false; const d = new Date(s(nk)); return d > now && d <= in30 }).length,
-      overdue:    active.filter(p => !!(p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons))).length,
+      overdue:    active.filter(isOverdue).length,
       inPlanung:  active.filter(isInPlanung).length,
       ohneTermin: active.filter(isOhneTermin).length,
       neupatient:        base.filter(p => p.neupatient === true).length,
@@ -3930,8 +3938,7 @@ export default function RecallPage() {
               <th onClick={e => handleSort('gebDatum', e.shiftKey)}     title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('gebDatum',     "text-left px-3 py-3 whitespace-nowrap")}>Geb. Datum{sortIcon('gebDatum')}</th>
               <th onClick={e => handleSort('letzteKons', e.shiftKey)}   title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('letzteKons',   "text-left px-3 py-3 whitespace-nowrap")}>Letzte Konst.{sortIcon('letzteKons')}</th>
               <th onClick={e => handleSort('naechsteKons', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('naechsteKons', "text-left px-3 py-3 whitespace-nowrap")}>Nächste Konst.{sortIcon('naechsteKons')}</th>
-              <th onClick={e => handleSort('aufgebotFuer', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotFuer', "text-left px-3 py-3 whitespace-nowrap")}>RC erstellen ab{sortIcon('aufgebotFuer')}</th>
-              <th onClick={e => handleSort('aufgebotArt', e.shiftKey)}  title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotArt',  "text-left px-3 py-3 whitespace-nowrap")}>Aufgebotsart{sortIcon('aufgebotArt')}</th>
+              <th onClick={e => handleSort('aufgebotFuer', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotFuer', "text-left px-3 py-3 whitespace-nowrap")}>RC / Aufgebot{sortIcon('aufgebotFuer')}</th>
               <th onClick={e => handleSort('storniert', e.shiftKey)}    title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('storniert',    "text-left px-3 py-3 whitespace-nowrap")}>Storniert{sortIcon('storniert')}</th>
               <th className="px-2 py-3 w-[120px] text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Schnellaktionen</th>
               <th onClick={e => handleSort('aktualisiert', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aktualisiert', "text-left px-3 py-3 whitespace-nowrap")}>Aktualisiert{sortIcon('aktualisiert')}</th>
@@ -3940,7 +3947,7 @@ export default function RecallPage() {
           <tbody className="divide-y divide-gray-100">
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={10} className="px-4 py-10 text-center text-gray-400">
                   Keine Einträge gefunden.
                 </td>
               </tr>
@@ -3955,7 +3962,7 @@ export default function RecallPage() {
                 return (<Fragment key={row.id}>
                   {showGroupHeader && (
                     <tr className="bg-slate-100 border-t-2 border-slate-300">
-                      <td colSpan={11} className="px-4 py-2 text-sm font-bold text-slate-700">
+                      <td colSpan={10} className="px-4 py-2 text-sm font-bold text-slate-700">
                         {row.doctor === OFFEN_TAB ? 'Ohne Zuordnung' : row.doctor}
                         <span className="ml-2 text-xs font-normal text-slate-500">
                           ({pageRows.filter(r => r.doctor === row.doctor).length})
@@ -4049,66 +4056,35 @@ export default function RecallPage() {
                         return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
                       })()}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-gray-500 text-xs">
-                      {(() => {
-                        const rcErstellt = !!(row.aufgebotArt && row.aufgebotErstellt)
-                        // Prefer aufgebotErstellt (actual creation date) when available
-                        if (row.aufgebotErstellt) {
-                          const de = new Date(row.aufgebotErstellt + 'T00:00:00Z')
-                          if (!isNaN(de.getTime())) {
-                            const label = `${String(de.getUTCDate()).padStart(2,'0')}.${String(de.getUTCMonth()+1).padStart(2,'0')}.${de.getUTCFullYear()}`
-                            return (
-                              <span className="flex flex-col gap-0.5">
-                                <span>{label}</span>
-                                <span className="text-[10px] font-semibold text-green-600">erstellt</span>
-                              </span>
-                            )
-                          }
-                        }
-                        // Fall back to aufgebotFuer (target date)
-                        if (!row.aufgebotFuer) {
-                          // Echt offen? -> sichtbarer Status-Badge statt stilles "—".
-                          if (isOhneTermin(row)) {
-                            return (
-                              <span
-                                title="Kein nächster Termin und kein RC-Datum gesetzt — Patient braucht Recall-Planung"
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300 text-[10px] font-semibold tabular-nums"
-                              >
-                                ohne Recall
-                              </span>
-                            )
-                          }
-                          // Patient wartet auf Abschluss-Bericht einer Zuweisung
-                          // -> kein Recall geplant, aber NICHT vergessen.
-                          if (isAwaitingZuweisungsBericht(row)) {
-                            const z = row.zuweisung
-                            const ziel = z?.ziel ? ` an ${z.ziel}` : ''
-                            return (
-                              <span
-                                title={`Zuweisung${ziel} — wartet auf Abschluss-Bericht. Recall-Vorgehen wird danach festgelegt.`}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-semibold tabular-nums"
-                              >
-                                wartet auf Bericht
-                              </span>
-                            )
-                          }
-                          return '—'
-                        }
-                        const d = new Date(row.aufgebotFuer + 'T00:00:00Z')
-                        if (isNaN(d.getTime())) return '—'
-                        const label = `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
-                        const oneMonthAgo = new Date(); oneMonthAgo.setUTCMonth(oneMonthAgo.getUTCMonth() - 1)
-                        const overdue = !rcErstellt && d <= oneMonthAgo
-                        return (
-                          <span className="flex flex-col gap-0.5">
-                            <span>{label}</span>
-                            {overdue && <span className="text-[10px] font-semibold text-red-500">überfällig</span>}
-                          </span>
-                        )
-                      })()}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <div className="flex flex-col gap-0.5">
+                    <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
+                        {/* RC-Datum */}
+                        <div className="text-xs tabular-nums text-gray-500 min-w-[70px]">
+                          {(() => {
+                            const rcErstellt = !!(row.aufgebotArt && row.aufgebotErstellt)
+                            if (row.aufgebotErstellt) {
+                              const de = new Date(row.aufgebotErstellt + 'T00:00:00Z')
+                              if (!isNaN(de.getTime())) {
+                                const label = `${String(de.getUTCDate()).padStart(2,'0')}.${String(de.getUTCMonth()+1).padStart(2,'0')}.${de.getUTCFullYear()}`
+                                return <span className="flex flex-col gap-0.5"><span>{label}</span><span className="text-[10px] font-semibold text-green-600">erstellt</span></span>
+                              }
+                            }
+                            if (!row.aufgebotFuer) {
+                              if (isOhneTermin(row)) return <span title="Kein nächster Termin und kein RC-Datum gesetzt" className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300 text-[10px] font-semibold">ohne RC</span>
+                              if (isAwaitingZuweisungsBericht(row)) return <span title="Wartet auf Abschluss-Bericht" className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-semibold">⏳ Bericht</span>
+                              return <span className="text-gray-300">—</span>
+                            }
+                            const d = new Date(row.aufgebotFuer + 'T00:00:00Z')
+                            if (isNaN(d.getTime())) return <span className="text-gray-300">—</span>
+                            const label = `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
+                            const today = new Date().toISOString().slice(0, 10)
+                            const hatZukunftsTermin = row.naechsteKons && row.naechsteKons !== 'kein Termin' && row.naechsteKons >= today
+                            const lkInPast = row.letzteKons && row.letzteKons < today
+                            const isOverdue = !rcErstellt && !hatZukunftsTermin && !!lkInPast
+                            return <span className="flex flex-col gap-0.5"><span>{label}</span>{isOverdue && <span className="text-[10px] font-semibold text-red-500">überfällig</span>}</span>
+                          })()}
+                        </div>
+                        {/* Aufgebotsart-Icons */}
                         <div className="flex items-center gap-0.5">
                           {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => {
                             const isActive = row.aufgebotArt === value
@@ -4128,11 +4104,6 @@ export default function RecallPage() {
                             )
                           })}
                         </div>
-                        {row.aufgebotArt && row.aufgebotErstellt && (
-                          <span className="text-[10px] text-gray-400 tabular-nums pl-0.5">
-                            {formatDate(row.aufgebotErstellt)}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
