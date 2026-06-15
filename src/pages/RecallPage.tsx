@@ -568,6 +568,7 @@ export default function RecallPage() {
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
   const lastLirisAutor = useRef<string | null>(null)
+  const pendingReload = useRef(false)
   // Stub-Refs falls noch alte Aufrufe von setModalBuffer rumliegen — die Live-
   // Subscription wurde komplett entfernt, daher No-Op.
   function setModalBuffer(_active: boolean) { /* no-op */ }
@@ -1261,6 +1262,7 @@ export default function RecallPage() {
   }
 
   async function reloadAllTabs() {
+    if (editTarget) { pendingReload.current = true; return }
     await loadAll()
   }
 
@@ -3034,9 +3036,9 @@ export default function RecallPage() {
     setEditTarget('new');    setForm(initForm());          setAssignDoctor(''); setFormErrors({}); setQuickInput(''); setPidDup(null); resetVorgehen()
   }
   function closeEdit() {
-    // Nur Buffer freigeben wenn KEIN weiteres Modal offen ist
     if (!aufgebotTarget) setModalBuffer(false)
     setEditTarget(null)
+    if (pendingReload.current) { pendingReload.current = false; loadAll() }
   }
 
   function checkPid(raw: string) {

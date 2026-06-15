@@ -234,11 +234,18 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
   }
 
   const handlePrint = () => {
-    const win = window.open('', '_blank', 'width=900,height=700')
-    if (!win) return
-    win.document.write(buildHtml())
-    win.document.close()
-    win.onload = () => { win.print(); win.close() }
+    const html = buildHtml()
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
+    document.body.appendChild(iframe)
+    iframe.contentDocument!.open()
+    iframe.contentDocument!.write(html)
+    iframe.contentDocument!.close()
+    iframe.onload = () => {
+      iframe.contentWindow!.focus()
+      iframe.contentWindow!.print()
+      setTimeout(() => iframe.remove(), 1000)
+    }
   }
 
   return (

@@ -282,16 +282,23 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
     try {
       const cfg = getActiveCfg(selectedTmpl)
       const dataUrl = await buildCombinedCanvas(cfg, eyeSide, [], lirisDataUrl, PRINT_SCALE)
-      const win = window.open('', '_blank', 'width=820,height=1160')
-      if (!win) return
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
         @page { size: A4 ${cfg.orientation}; margin: 0; }
         * { margin: 0; padding: 0; }
         body { width: ${cfg.pageW}; height: ${cfg.pageH}; }
         img { display: block; width: ${cfg.pageW}; height: ${cfg.pageH}; }
-      </style></head><body><img src="${dataUrl}" /></body></html>`)
-      win.document.close()
-      win.onload = () => { win.focus(); win.print(); win.close() }
+      </style></head><body><img src="${dataUrl}" /></body></html>`
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
+      document.body.appendChild(iframe)
+      iframe.contentDocument!.open()
+      iframe.contentDocument!.write(html)
+      iframe.contentDocument!.close()
+      iframe.onload = () => {
+        iframe.contentWindow!.focus()
+        iframe.contentWindow!.print()
+        setTimeout(() => iframe.remove(), 1000)
+      }
     } finally { setPrinting(false) }
   }
 
