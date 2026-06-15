@@ -233,10 +233,11 @@ function getOverdueReminderInfo(p: RecallPatient): { reminderDate: string; newDa
 
 function isFutureDate(val: string | null): boolean {
   if (!val) return false
-  // datetime-local string (has T separator) — compare directly
-  if (val.includes('T')) return new Date(val) > new Date()
+  if (val.includes('T')) return new Date(val) >= new Date()
   const m = val.match(/^(\d{4}-\d{2}-\d{2})/)
-  return m ? new Date(m[1]) > new Date() : false
+  if (!m) return false
+  const today = new Date().toISOString().slice(0, 10)
+  return m[1] >= today
 }
 function toInputDate(val: string | null | undefined): string {
   if (!val || val === 'kein Termin') return ''
