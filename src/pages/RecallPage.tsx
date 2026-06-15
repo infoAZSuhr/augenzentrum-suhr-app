@@ -3245,6 +3245,7 @@ export default function RecallPage() {
     }
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
+      if (errors.pid || errors.vorname || errors.gebDatum) toast.error('Bitte Pflichtfelder ausfüllen (PID, Vorname, Geburtsdatum).')
       if (errors.grundStornierung) toast.error('Bitte einen Grund angeben — bei inaktiven Patienten ist das Pflicht.')
       if (errors.assignDoctor && (hatAufgebot || hatIntervallUndRc)) toast.error('Bitte einen aktiven Arzt zuweisen — bei gesetztem Aufgebot oder Intervall ist das Pflicht.')
       else if (errors.assignDoctor) toast.error('Bitte einen Arzt auswählen — der Patient braucht eine Zuweisung.')
