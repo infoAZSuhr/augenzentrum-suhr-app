@@ -1227,45 +1227,32 @@ export default function BrowserPanel() {
       {/* Panel content */}
       <div className="flex flex-col flex-1 pl-3 min-w-0">
 
-        {/* URL bar */}
-        <div className="flex items-center gap-1 px-2 py-2 border-b border-gray-200 bg-gray-50 shrink-0">
+        {/* Toolbar row: Recall-seit + Edit + Close */}
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 bg-gray-50 shrink-0">
           <button
             onClick={() => (webviewRef.current as any)?.goBack()}
-            className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+            className="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Zurück"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-gray-600" />
           </button>
           <button
             onClick={() => (webviewRef.current as any)?.goForward()}
-            className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+            className="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Vorwärts"
           >
             <ArrowRight className="w-3.5 h-3.5 text-gray-600" />
           </button>
           <button
             onClick={() => (webviewRef.current as any)?.reload()}
-            className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+            className="p-1 rounded hover:bg-gray-200 transition-colors"
             title="Neu laden"
           >
             <RotateCcw className={`w-3.5 h-3.5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
-          <form
-            className="flex-1 flex min-w-0"
-            onSubmit={e => { e.preventDefault(); navigate(inputUrl) }}
-          >
-            <input
-              value={inputUrl}
-              onChange={e => setInputUrl(e.target.value)}
-              placeholder="URL eingeben…"
-              className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:border-primary-400 bg-white"
-            />
-          </form>
+          <div className="flex-1" />
 
-          {/* Stale-Recall-Referenzdatum: wird automatisch aus dem im
-              Liris-Header sichtbaren Tagesdatum (z.B. "Mi. 20/05")
-              uebernommen — Anzeige nur read-only. */}
           <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5"
                title="Datum stammt aus dem Liris-Kalender-Header. PIDs werden hervorgehoben deren Recall seit diesem Datum noch nicht aktualisiert wurde.">
             <span className="text-[10px] font-semibold text-amber-700 select-none">Recall seit</span>
