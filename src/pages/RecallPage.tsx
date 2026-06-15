@@ -6527,7 +6527,7 @@ export default function RecallPage() {
                             ] as { label: string; days?: number; months?: number }[]).map(({ label, days, months }) => (
                               <button key={label} type="button"
                                 onClick={() => {
-                                  const d = new Date()
+                                  const d = form.letzteKons ? new Date(form.letzteKons + 'T00:00:00') : new Date()
                                   if (days)   d.setDate(d.getDate() + days)
                                   if (months) d.setMonth(d.getMonth() + months)
                                   setVorgehenReminderDatum(d.toISOString().slice(0, 10))
@@ -6547,7 +6547,7 @@ export default function RecallPage() {
                               if (!m) return
                               const n = parseInt(m[1])
                               const unit = m[2]
-                              const d = new Date()
+                              const d = form.letzteKons ? new Date(form.letzteKons + 'T00:00:00') : new Date()
                               if (unit === 'w') d.setDate(d.getDate() + n * 7)
                               if (unit === 'm') d.setMonth(d.getMonth() + n)
                               if (unit === 'j') d.setFullYear(d.getFullYear() + n)
