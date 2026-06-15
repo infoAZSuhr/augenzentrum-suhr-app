@@ -6577,6 +6577,7 @@ export default function RecallPage() {
                               if (vorgehenReminderGrund.trim()) entry.grund = vorgehenReminderGrund.trim()
                               setField('verlauf', [...form.verlauf, entry])
                               setField('aufgebotFuer', vorgehenReminderDatum)
+                              setField('aufgebotArt', '')
                               setField('aufgebotErstellt', '')
                               setField('storniert', '')
                               setField('grundStornierung', '')
