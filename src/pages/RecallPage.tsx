@@ -4086,7 +4086,8 @@ export default function RecallPage() {
                             const today = new Date().toISOString().slice(0, 10)
                             const hatZukunftsTermin = row.naechsteKons && row.naechsteKons !== 'kein Termin' && row.naechsteKons >= today
                             const lkInPast = row.letzteKons && row.letzteKons < today
-                            const isOverdue = !rcErstellt && !hatZukunftsTermin && !!lkInPast
+                            const aufgebotInZukunft = row.aufgebotFuer && row.aufgebotFuer >= today
+                            const isOverdue = !rcErstellt && !hatZukunftsTermin && !!lkInPast && !aufgebotInZukunft
                             return <span className="flex flex-col gap-0.5"><span>{label}</span>{isOverdue && <span className="text-[10px] font-semibold text-red-500">überfällig</span>}</span>
                           })()}
                         </div>
