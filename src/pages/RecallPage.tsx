@@ -538,8 +538,6 @@ export default function RecallPage() {
   const [lirisOlderKons, setLirisOlderKons] = useState<{ lirisDate: string; formDate: string } | null>(null)
   // Namensauswahl bei mehreren Vornamen aus Liris
   const [lirisNameChoice, setLirisNameChoice] = useState<{ options: string[] } | null>(null)
-  // Intervall-Auswahl aus Liris-Text wenn Auto-Parse fehlschlägt
-  const [lirisIntervalPrompt, setLirisIntervalPrompt] = useState<{ bpText: string | null; ntText: string | null; letzteKons: string } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
   // Auto-Close-useEffect ist weiter unten platziert (nach der Deklaration
   // von assignDoctor), siehe Suche nach "unknownDoctor && assignDoctor".
@@ -928,14 +926,6 @@ export default function RecallPage() {
     if (vornameParts.length > 1) {
       setLirisNameChoice({ options: [resolvedVorname, ...vornameParts] })
     }
-    // Intervall nicht erkannt → User fragen wenn Liris-Text vorhanden
-    if (!intervalStr && lx) {
-      const hasText = lx.bpText || lx.naechsterTerminRaw
-      const baseLk = lx.letzteKons
-      if (hasText && baseLk) {
-        setLirisIntervalPrompt({ bpText: lx.bpText || null, ntText: lx.naechsterTerminRaw || null, letzteKons: baseLk })
-      }
-    }
     setFormErrors({})
     setQuickInput('')
     setPidDup(null)
@@ -1053,12 +1043,6 @@ export default function RecallPage() {
               }
             }
             filled = true
-          }
-        } else {
-          // Kein Intervall erkannt → User fragen wenn Text vorhanden
-          const hasText = lirisExtract.bpText || lirisExtract.naechsterTerminRaw
-          if (hasText) {
-            setLirisIntervalPrompt({ bpText: lirisExtract.bpText || null, ntText: lirisExtract.naechsterTerminRaw || null, letzteKons: baseLk })
           }
         }
       }
@@ -5736,18 +5720,6 @@ export default function RecallPage() {
                               setField('aufgebotFuer', d.toISOString().slice(0, 10))
                             }
                           }
-                        } else {
-                          // Kein Intervall → Liris-Text vorhanden? User fragen
-                          const lxBp = lirisExtract?.bpText || lastLirisExtract.current?.bpText
-                          const lxNt = lirisExtract?.naechsterTerminRaw || lastLirisExtract.current?.naechsterTerminRaw
-                          if (lxBp || lxNt) {
-                            setLirisIntervalPrompt({ bpText: lxBp || null, ntText: lxNt || null, letzteKons: newDate })
-                          } else {
-                            setField('aufgebotArt', '')
-                            setField('aufgebotFuer', '')
-                            setField('naechsteKons', '')
-                            setField('keinTermin', false)
-                          }
                         }
                       }}
                       className={`${inputCls} pr-6${chCls('letzteKons')}`} />
@@ -6985,113 +6957,6 @@ export default function RecallPage() {
                   {opt}
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {lirisIntervalPrompt && (
-        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
-             onClick={() => setLirisIntervalPrompt(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
-               onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
-              <span className="font-bold text-gray-900">Intervall aus Liris</span>
-              <button onClick={() => setLirisIntervalPrompt(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3 text-sm">
-              <p className="text-gray-600">Das Intervall konnte nicht automatisch erkannt werden. Bitte aus den Liris-Angaben übernehmen:</p>
-              {lirisIntervalPrompt.ntText && (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                  <p className="text-[11px] font-semibold text-blue-500 mb-1">Nächster Termin</p>
-                  <p className="text-gray-800 whitespace-pre-wrap">{lirisIntervalPrompt.ntText}</p>
-                </div>
-              )}
-              {lirisIntervalPrompt.bpText && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
-                  <p className="text-[11px] font-semibold text-amber-600 mb-1">Beurteilung und Prozedere</p>
-                  <p className="text-gray-800 whitespace-pre-wrap text-xs max-h-32 overflow-y-auto">{lirisIntervalPrompt.bpText}</p>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Intervall eingeben</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    autoFocus
-                    placeholder="z.B. 3m, 1j, 6w"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        const val = (e.target as HTMLInputElement).value.trim()
-                        if (!val) return
-                        const parsed = parseKonsInterval(val)
-                        if (!parsed) { toast.error('Ungültiges Format (z.B. 3m, 1j, 6w)'); return }
-                        setField('konsInterval', val)
-                        setField('storniert', '')
-                        setField('grundStornierung', '')
-                        const baseLk = lirisIntervalPrompt.letzteKons
-                        const computed = computeNextKons(baseLk, val)
-                        if (computed) {
-                          setField('naechsteKons', '')
-                          setField('keinTermin', false)
-                          const lk2 = new Date(baseLk + 'T00:00:00Z')
-                          lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-                          if (computed <= lk2.toISOString().slice(0, 10)) {
-                            setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-                          } else {
-                            const d = new Date(computed + 'T00:00:00Z')
-                            d.setUTCMonth(d.getUTCMonth() - 2)
-                            setField('aufgebotFuer', d.toISOString().slice(0, 10))
-                          }
-                        }
-                        toast.success(`Intervall "${val}" übernommen.`)
-                        setLirisIntervalPrompt(null)
-                      }
-                    }}
-                  />
-                  <button type="button"
-                    onClick={() => {
-                      const input = document.querySelector<HTMLInputElement>('[placeholder="z.B. 3m, 1j, 6w"]')
-                      const val = input?.value?.trim() || ''
-                      if (!val) { toast.error('Bitte Intervall eingeben'); return }
-                      const parsed = parseKonsInterval(val)
-                      if (!parsed) { toast.error('Ungültiges Format (z.B. 3m, 1j, 6w)'); return }
-                      setField('konsInterval', val)
-                      setField('storniert', '')
-                      setField('grundStornierung', '')
-                      const baseLk = lirisIntervalPrompt.letzteKons
-                      const computed = computeNextKons(baseLk, val)
-                      if (computed) {
-                        setField('naechsteKons', '')
-                        setField('keinTermin', false)
-                        const lk2 = new Date(baseLk + 'T00:00:00Z')
-                        lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-                        if (computed <= lk2.toISOString().slice(0, 10)) {
-                          setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-                        } else {
-                          const d = new Date(computed + 'T00:00:00Z')
-                          d.setUTCMonth(d.getUTCMonth() - 2)
-                          setField('aufgebotFuer', d.toISOString().slice(0, 10))
-                        }
-                      }
-                      toast.success(`Intervall "${val}" übernommen.`)
-                      setLirisIntervalPrompt(null)
-                    }}
-                    className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition-colors">
-                    Übernehmen
-                  </button>
-                </div>
-                <p className="mt-1 text-[11px] text-gray-400">Format: 3m = 3 Monate, 1j = 1 Jahr, 6w = 6 Wochen</p>
-              </div>
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
-              <button onClick={() => setLirisIntervalPrompt(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                Überspringen
-              </button>
             </div>
           </div>
         </div>
