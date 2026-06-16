@@ -103,7 +103,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           var bpEnd = bpText.search(/\\n\\s*(?:Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
           if (bpEnd > 0) bpText = bpText.slice(0, bpEnd);
           // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren"
-          var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder)\\D{0,40}?in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
+          var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder|N(?:ä|ae)chster\\s+Termin)\\D{0,40}?(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
           var fm = bpText.match(fallbackRe);
           if (fm) {
             var num = parseInt(fm[1] || fm[3], 10);
