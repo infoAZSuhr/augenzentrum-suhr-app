@@ -1029,9 +1029,9 @@ export default function RecallPage() {
         setField('letzteKons', lirisExtract.letzteKons)
         setField('storniert', '')
         setField('grundStornierung', '')
-        // Wenn kein Intervall (weder aus Liris noch lokal): abhängige Felder zurücksetzen
+        setField('aufgebotArt', '')
+        // Wenn kein Intervall (weder aus Liris noch lokal): weitere Felder zurücksetzen
         if (!lirisExtract.intervalWeeks && !form.konsInterval) {
-          setField('aufgebotArt', '')
           setField('aufgebotFuer', '')
           setField('naechsteKons', '')
           setField('keinTermin', false)
@@ -1047,6 +1047,7 @@ export default function RecallPage() {
     // Liris liefert immer in Wochen; wir waehlen die kompakteste Einheit
     // (Jahre/Monate/Wochen) damit parseKonsInterval die 120er-Obergrenze
     // (gilt pro Einheit) nicht reisst.
+    console.log('[Recall-AutoFill] Intervall check:', { formInterval: form.konsInterval, formNaechste: form.naechsteKons, extractWeeks: lirisExtract.intervalWeeks })
     if (!form.konsInterval && !form.naechsteKons && lirisExtract.intervalWeeks) {
       const w = lirisExtract.intervalWeeks
       let label: string | null = null
