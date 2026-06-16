@@ -557,6 +557,8 @@ export default function RecallPage() {
   const [lirisMismatch, setLirisMismatch] = useState<{ patientId: string; doctor: string; vorname: string; pid: string; reason: string } | null>(null)
   // Bestätigung wenn Liris-letzteKons älter als bestehende
   const [lirisOlderKons, setLirisOlderKons] = useState<{ lirisDate: string; formDate: string } | null>(null)
+  // Namensauswahl bei mehreren Vornamen aus Liris
+  const [lirisNameChoice, setLirisNameChoice] = useState<{ options: string[] } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
   // Auto-Close-useEffect ist weiter unten platziert (nach der Deklaration
   // von assignDoctor), siehe Suche nach "unknownDoctor && assignDoctor".
@@ -923,12 +925,14 @@ export default function RecallPage() {
         }
       }
     }
+    const resolvedVorname = name || lx?.vorname || ''
+    const vornameParts = resolvedVorname.trim().split(/\s+/).filter(Boolean)
     setModalBuffer(true)
     setEditTarget('new')
     setForm(_ => ({
       ...initForm(),
       pid: pid || '',
-      vorname: name || lx?.vorname || '',
+      vorname: resolvedVorname,
       gebDatum: geb || lx?.gebDatum || '',
       letzteKons: lx?.letzteKons || '',
       konsInterval: intervalStr,
@@ -936,6 +940,9 @@ export default function RecallPage() {
       neupatient: true,
     }))
     setAssignDoctor(autoDoc)
+    if (vornameParts.length > 1) {
+      setLirisNameChoice({ options: [resolvedVorname, ...vornameParts] })
+    }
     setFormErrors({})
     setQuickInput('')
     setPidDup(null)
@@ -6923,6 +6930,31 @@ export default function RecallPage() {
                 className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
                 Ja, übernehmen
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lirisNameChoice && (
+        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => setLirisNameChoice(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+              <span className="font-bold text-gray-900">Vorname wählen</span>
+              <button onClick={() => setLirisNameChoice(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-2">
+              <p className="text-sm text-gray-600 mb-3">Welcher Name soll als Vorname gespeichert werden?</p>
+              {lirisNameChoice.options.map((opt, i) => (
+                <button key={i} type="button"
+                  onClick={() => { setField('vorname', opt); setLirisNameChoice(null) }}
+                  className="w-full text-left px-4 py-2.5 text-sm rounded-lg border border-gray-200 hover:bg-primary-50 hover:border-primary-300 transition-colors font-medium">
+                  {opt}
+                </button>
+              ))}
             </div>
           </div>
         </div>

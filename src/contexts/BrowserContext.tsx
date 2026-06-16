@@ -6,7 +6,8 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 export interface LirisExtract {
   pid:              string              // PID die wir gesendet haben
   pidMatchesLiris?: boolean             // true wenn unsere PID im Liris-Text vorkommt
-  vorname?:         string | null       // Patient-Name aus Liris-Header
+  vorname?:         string | null       // Vorname(n) aus Liris-Header (ohne Nachname)
+  nachname?:        string | null       // Nachname aus Liris-Header
   gebDatum?:        string | null       // ISO YYYY-MM-DD — Geburtsdatum
   autor?:           string | null       // Name (oben rechts in Liris-Untersuchung)
   letzteKons?:      string | null       // ISO YYYY-MM-DD — Datum der Untersuchung

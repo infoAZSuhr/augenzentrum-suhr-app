@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -54,11 +54,14 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       var bm = allText.match(birthRe);
       if (bm) result.gebDatum = bm[3] + '-' + bm[2] + '-' + bm[1];
 
-      // 2) Vorname (eigentlich der ganze Name vor dem Geburtsdatum):
-      //    Pattern: "(Frau|Herr|...) <Wort+> , DD.MM.YYYY (NN Jahre)"
+      // 2) Name: Liris zeigt "Anrede Nachname Vorname(n), DD.MM.YYYY (NN Jahre)"
       var nameRe = /(?:Frau|Herr|Fr\\.|Hr\\.)\\s+([A-ZÄÖÜ][\\wäöüÄÖÜß-]+(?:\\s+[A-ZÄÖÜ][\\wäöüÄÖÜß-]+)*?)\\s*,?\\s*\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(/;
       var nm = allText.match(nameRe);
-      if (nm) result.vorname = nm[1].trim();
+      if (nm) {
+        var parts = nm[1].trim().split(/\\s+/);
+        result.nachname = parts[0];
+        result.vorname = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+      }
 
       // 2b) Verstorben: Kreuz vor dem Anrede-Block.
       var dagger = String.fromCharCode(0x2020);
@@ -347,6 +350,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           pid,
           pidMatchesLiris: !!res.pidMatchesLiris,
           vorname:       res.vorname       ?? null,
+          nachname:      res.nachname      ?? null,
           gebDatum:      res.gebDatum      ?? null,
           autor:         res.autor         ?? null,
           letzteKons:    res.letzteKons    ?? null,
