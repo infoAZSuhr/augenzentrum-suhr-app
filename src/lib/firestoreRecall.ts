@@ -134,6 +134,12 @@ export async function getInactiveRecallPatients(): Promise<RecallPatient[]> {
     .sort((a, b) => String(a.vorname ?? '').localeCompare(String(b.vorname ?? ''), 'de'))
 }
 
+export async function touchRecallPatient(id: string, username: string): Promise<void> {
+  await updateDoc(doc(db, 'recall_patients', id), {
+    aktualisiert: recallTimestamp(username),
+  })
+}
+
 export async function updateRecallPatient(
   id: string,
   data: Partial<Omit<RecallPatient, 'id' | 'doctor' | 'aktualisiert'>>,

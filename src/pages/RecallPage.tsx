@@ -15,6 +15,7 @@ import {
   getRecallPatients,
   getInactiveRecallPatients,
   updateRecallPatient,
+  touchRecallPatient,
   createRecallPatient,
   deleteRecallPatient,
   assignRecallPatient,
@@ -3351,7 +3352,9 @@ export default function RecallPage() {
         // Update, kein Live-Snapshot-Trigger).
         const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
         if (noChanges) {
-          toast.info('Keine Änderungen erkannt — Speichern übersprungen.')
+          await touchRecallPatient(editTarget.id, displayLabel)
+          toast.info('Keine Änderungen — als geprüft markiert.')
+          pendingReload.current = true
           closeEdit()
           return
         }
