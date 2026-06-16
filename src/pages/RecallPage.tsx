@@ -945,6 +945,14 @@ export default function RecallPage() {
     if (vornameParts.length > 1) {
       setLirisNameChoice({ options: [resolvedVorname, ...vornameParts] })
     }
+    // Intervall nicht erkannt → User fragen wenn Liris-Text vorhanden
+    if (!intervalStr && lx) {
+      const hasText = lx.bpText || lx.naechsterTerminRaw
+      const baseLk = lx.letzteKons
+      if (hasText && baseLk) {
+        setLirisIntervalPrompt({ bpText: lx.bpText || null, ntText: lx.naechsterTerminRaw || null, letzteKons: baseLk })
+      }
+    }
     setFormErrors({})
     setQuickInput('')
     setPidDup(null)

@@ -92,9 +92,14 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       }
 
       // 4a) Rohtext "Nächster Termin" extrahieren (für User-Anzeige)
-      var ntRawRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*([^\\n]{0,120})/i;
+      //     Erfasst Text auf gleicher Zeile UND nächste Zeile (da Liris
+      //     Header und Wert oft auf getrennten Zeilen zeigt).
+      var ntRawRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*([^\\n]{0,120}(?:\\n[^\\n]{1,120})?)/i;
       var ntRaw = allText.match(ntRawRe);
-      if (ntRaw && ntRaw[1].trim()) result.naechsterTerminRaw = ntRaw[1].trim();
+      if (ntRaw) {
+        var ntVal = ntRaw[1].replace(/^\\s*\\n\\s*/, '').trim();
+        if (ntVal) result.naechsterTerminRaw = ntVal;
+      }
 
       // 4b) Fallback: wenn "Naechster Termin" leer / nicht gefunden, scanne
       //     "Beurteilung und Prozedere"-Abschnitt nach Intervallangaben wie
