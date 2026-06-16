@@ -5724,6 +5724,11 @@ export default function RecallPage() {
                               setField('aufgebotFuer', d.toISOString().slice(0, 10))
                             }
                           }
+                        } else {
+                          setField('aufgebotArt', '')
+                          setField('aufgebotFuer', '')
+                          setField('naechsteKons', '')
+                          setField('keinTermin', false)
                         }
                       }}
                       className={`${inputCls} pr-6${chCls('letzteKons')}`} />
