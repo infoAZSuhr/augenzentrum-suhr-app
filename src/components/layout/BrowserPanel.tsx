@@ -82,29 +82,30 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       //    Toleranter: erlaubt Zwischenwoerter wie "Kontrolle in" zwischen
       //    "Naechster Termin" und der Zahl (z.B. "Naechster Termin: Kontrolle
       //    in 12 Monaten" oder "Naechster Termin\\n12 Monate, Myd und OCT").
-      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*[^\\d]{0,80}?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
-      var iv = allText.match(intervalRe);
-      if (iv) {
-        var n = parseInt(iv[1], 10);
-        if (/Monat/i.test(iv[2])) n = n * 4;
-        else if (/Jahr/i.test(iv[2])) n = n * 52;
-        if (n > 0 && n <= 260) result.intervalWeeks = n;
-      }
-
       // 4a) Rohtext "Nächster Termin" extrahieren (für User-Anzeige)
       //     Erfasst Text auf gleicher Zeile UND nächste Zeile (da Liris
       //     Header und Wert oft auf getrennten Zeilen zeigt).
       var ntRawRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*([^\\n]{0,120}(?:\\n[^\\n]{1,120})?)/i;
       var ntRaw = allText.match(ntRawRe);
+      var ntSection = '';
       if (ntRaw) {
         var ntVal = ntRaw[1].replace(/^\\s*\\n\\s*/, '').trim();
-        if (ntVal) result.naechsterTerminRaw = ntVal;
+        if (ntVal) { result.naechsterTerminRaw = ntVal; ntSection = ntVal; }
       }
 
-      // 4b) Fallback: wenn "Naechster Termin" leer / nicht gefunden, scanne
-      //     "Beurteilung und Prozedere"-Abschnitt nach Intervallangaben wie
-      //     "Kontrolle in 6 Monaten", "Wiedervorstellung in 4 Wochen", "in 3 Wochen wieder",
-      //     oder auch ausgeschriebene Monatsnamen ("Kontrolle November", "VK im Mai 2027").
+      // Intervall nur aus "Nächster Termin"-Abschnitt suchen
+      if (ntSection) {
+        var intervalRe = /(?:in\\s+)?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
+        var iv = ntSection.match(intervalRe);
+        if (iv) {
+          var n = parseInt(iv[1], 10);
+          if (/Monat/i.test(iv[2])) n = n * 4;
+          else if (/Jahr/i.test(iv[2])) n = n * 52;
+          if (n > 0 && n <= 260) result.intervalWeeks = n;
+        }
+      }
+
+      // 4b) Fallback: "Beurteilung und Prozedere"-Abschnitt scannen
       {
         var bpStart = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
         if (bpStart >= 0) {
@@ -114,10 +115,10 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           // Rohtext speichern (Header entfernen)
           var bpBody = bpText.replace(/^Beurteilung\\s+und\\s+Prozedere\\s*/i, '').trim();
           if (bpBody) result.bpText = bpBody;
-          // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren" — mit oder ohne Schlüsselwort
+          // 4b-i) numerische Phrase — nur wenn NT kein Intervall geliefert hat
+          if (!result.intervalWeeks) {
           var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder|N(?:ä|ae)chster\\s+Termin)\\D{0,40}?(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
           var fm = bpText.match(fallbackRe);
-          // Fallback ohne Schlüsselwort: "in 3 Monat" oder alleinstehend "3 Monate"
           if (!fm) fm = bpText.match(/(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)(?:\\s|,|\\.|$)/i);
           if (fm) {
             var num = parseInt(fm[1] || fm[3], 10);
@@ -126,6 +127,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
             else if (/Jahr/i.test(unit)) num = num * 52;
             if (num > 0 && num <= 260) result.intervalWeeks = num;
           }
+          } // end if (!result.intervalWeeks) for numeric B+P
           // 4b-ii) Monatsname: "Kontrolle November", "VK im Mai 2027",
           //        "Wiedervorstellung Januar 2027". Distanz ab letzteKons
           //        (Fallback: heute) bis zum 15. des Zielmonats → Wochen.

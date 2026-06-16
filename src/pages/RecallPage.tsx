@@ -575,6 +575,7 @@ export default function RecallPage() {
   const [pidDup, setPidDup] = useState<RecallPatient | null>(null)
   const naechsteKonsRef = useRef<HTMLInputElement>(null)
   const lastLirisAutor = useRef<string | null>(null)
+  const lastLirisExtract = useRef<{ intervalWeeks?: number | null; bpText?: string | null; naechsterTerminRaw?: string | null } | null>(null)
   const pendingReload = useRef(false)
   // Stub-Refs falls noch alte Aufrufe von setModalBuffer rumliegen — die Live-
   // Subscription wurde komplett entfernt, daher No-Op.
@@ -927,7 +928,10 @@ export default function RecallPage() {
         }
       }
     }
-    const resolvedVorname = name || lx?.vorname || ''
+    // name aus Kalender = "Nachname Vorname(n)" → erstes Wort abtrennen
+    const nameParts = (name || '').trim().split(/\s+/).filter(Boolean)
+    const calendarVorname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+    const resolvedVorname = lx?.vorname || calendarVorname
     const vornameParts = resolvedVorname.trim().split(/\s+/).filter(Boolean)
     setModalBuffer(true)
     setEditTarget('new')
@@ -969,11 +973,10 @@ export default function RecallPage() {
   useEffect(() => {
     if (!lirisExtract) return
     if (!editTarget || editTarget === 'new') return
-    console.log('[Recall-AutoFill] lirisExtract:', { at: lirisExtract.at, age: Date.now() - lirisExtract.at, pid: lirisExtract.pid, letzteKons: lirisExtract.letzteKons, intervalWeeks: lirisExtract.intervalWeeks, bpText: lirisExtract.bpText?.slice(0, 80), ntRaw: lirisExtract.naechsterTerminRaw })
-    if (Date.now() - lirisExtract.at > 5000) { console.log('[Recall-AutoFill] SKIP: extract too old', Date.now() - lirisExtract.at, 'ms'); return }
+    if (Date.now() - lirisExtract.at > 5000) return
     const currentPid = normalizePid(form.pid)
     const extractPid = normalizePid(lirisExtract.pid)
-    if (!currentPid || !extractPid || currentPid !== extractPid) { console.log('[Recall-AutoFill] SKIP: PID mismatch', currentPid, '≠', extractPid); return }
+    if (!currentPid || !extractPid || currentPid !== extractPid) return
 
     // Verifikation: Patient muss in Liris vorhanden sein UND mit unseren
     // bekannten Daten uebereinstimmen. Vergleichs-Strategie:
@@ -1023,74 +1026,62 @@ export default function RecallPage() {
       setField('gebDatum', lirisExtract.gebDatum)
       filled = true
     }
-    // Letzte Konst. auto-fill
+    // Letzte Konst. auto-fill — wenn Liris ein Datum liefert:
+    //   - neuer als bestehend → alles zurücksetzen und neu ausfüllen
+    //   - gleich → nur Intervall/RC neu ausfüllen wenn leer
+    //   - älter → User fragen
     if (lirisExtract.letzteKons) {
-      if (!form.letzteKons || lirisExtract.letzteKons > form.letzteKons) {
-        setField('letzteKons', lirisExtract.letzteKons)
-        setField('storniert', '')
-        setField('grundStornierung', '')
-        setField('aufgebotArt', '')
-        // Wenn kein Intervall (weder aus Liris noch lokal): weitere Felder zurücksetzen
-        if (!lirisExtract.intervalWeeks && !form.konsInterval) {
+      if (lirisExtract.letzteKons < form.letzteKons) {
+        setLirisOlderKons({ lirisDate: lirisExtract.letzteKons, formDate: form.letzteKons })
+      } else {
+        const isNewer = !form.letzteKons || lirisExtract.letzteKons > form.letzteKons
+        if (isNewer) {
+          // Neues Datum → alles zurücksetzen (ausser Status)
+          setField('letzteKons', lirisExtract.letzteKons)
+          setField('storniert', '')
+          setField('grundStornierung', '')
+          setField('aufgebotArt', '')
           setField('aufgebotFuer', '')
           setField('naechsteKons', '')
           setField('keinTermin', false)
+          setField('konsInterval', '')
+          filled = true
         }
-        filled = true
-      } else if (lirisExtract.letzteKons < form.letzteKons) {
-        setLirisOlderKons({ lirisDate: lirisExtract.letzteKons, formDate: form.letzteKons })
-      }
-    }
-    // Intervall auto-fill — nur wenn leer UND wenn noch kein 'Nächste
-    // Konst.' eingetragen ist. Falls der Patient bereits einen konkreten
-    // Folgetermin hat, brauchen wir kein Intervall + RC-Datum mehr.
-    // Liris liefert immer in Wochen; wir waehlen die kompakteste Einheit
-    // (Jahre/Monate/Wochen) damit parseKonsInterval die 120er-Obergrenze
-    // (gilt pro Einheit) nicht reisst.
-    console.log('[Recall-AutoFill] Intervall check:', { formInterval: form.konsInterval, formNaechste: form.naechsteKons, extractWeeks: lirisExtract.intervalWeeks })
-    if (!form.konsInterval && !form.naechsteKons && lirisExtract.intervalWeeks) {
-      const w = lirisExtract.intervalWeeks
-      let label: string | null = null
-      if (w % 52 === 0 && w / 52 <= 120)      label = `${w / 52}j`
-      else if (w % 4  === 0 && w / 4  <= 120) label = `${w / 4}m`
-      else if (w <= 120)                      label = `${w}w`
-      if (label) {
-        setField('konsInterval', label)
-        // Mit gesetztem Intervall ist eine alte Stornierung obsolet —
-        // analog zur manuellen Eingabe in der Edit-Maske.
-        setField('storniert', '')
-        setField('grundStornierung', '')
-        // 'RC zu erstellen ab' aus Letzte Konst. + Intervall berechnen
-        // (gleiche Logik wie im manuellen onChange-Handler). Wir nutzen
-        // hier die Liris-letzteKons falls vorhanden, sonst form.letzteKons.
-        const baseLk = lirisExtract.letzteKons || form.letzteKons
-        if (baseLk) {
-          const computed = computeNextKons(baseLk, label)
-          if (computed) {
-            setField('naechsteKons', '')
-            setField('keinTermin', false)
-            const lk2 = new Date(baseLk + 'T00:00:00Z')
-            lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-            if (computed <= lk2.toISOString().slice(0, 10)) {
-              setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-            } else {
-              const d = new Date(computed + 'T00:00:00Z')
-              d.setUTCMonth(d.getUTCMonth() - 2)
-              setField('aufgebotFuer', d.toISOString().slice(0, 10))
+        // Intervall aus Liris übernehmen (immer, auch bei gleichem Datum)
+        const baseLk = lirisExtract.letzteKons
+        if (lirisExtract.intervalWeeks) {
+          const w = lirisExtract.intervalWeeks
+          let label: string | null = null
+          if (w % 52 === 0 && w / 52 <= 120)      label = `${w / 52}j`
+          else if (w % 4  === 0 && w / 4  <= 120) label = `${w / 4}m`
+          else if (w <= 120)                      label = `${w}w`
+          if (label) {
+            setField('konsInterval', label)
+            setField('storniert', '')
+            setField('grundStornierung', '')
+            const computed = computeNextKons(baseLk, label)
+            if (computed) {
+              setField('naechsteKons', '')
+              setField('keinTermin', false)
+              const lk2 = new Date(baseLk + 'T00:00:00Z')
+              lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+              if (computed <= lk2.toISOString().slice(0, 10)) {
+                setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+              } else {
+                const d = new Date(computed + 'T00:00:00Z')
+                d.setUTCMonth(d.getUTCMonth() - 2)
+                setField('aufgebotFuer', d.toISOString().slice(0, 10))
+              }
             }
+            filled = true
+          }
+        } else {
+          // Kein Intervall erkannt → User fragen wenn Text vorhanden
+          const hasText = lirisExtract.bpText || lirisExtract.naechsterTerminRaw
+          if (hasText) {
+            setLirisIntervalPrompt({ bpText: lirisExtract.bpText || null, ntText: lirisExtract.naechsterTerminRaw || null, letzteKons: baseLk })
           }
         }
-        filled = true
-      }
-    }
-    // Intervall nicht automatisch erkannt → User fragen wenn B+P- oder NT-Text vorhanden
-    if (!form.konsInterval && !form.naechsteKons && !lirisExtract.intervalWeeks) {
-      const hasText = lirisExtract.bpText || lirisExtract.naechsterTerminRaw
-      const baseLk = lirisExtract.letzteKons || form.letzteKons
-      console.log('[Recall-AutoFill] Intervall-Prompt check:', { konsInterval: form.konsInterval, naechsteKons: form.naechsteKons, intervalWeeks: lirisExtract.intervalWeeks, hasText: !!hasText, baseLk })
-      if (hasText && baseLk) {
-        console.log('[Recall-AutoFill] → showing interval prompt dialog')
-        setLirisIntervalPrompt({ bpText: lirisExtract.bpText || null, ntText: lirisExtract.naechsterTerminRaw || null, letzteKons: baseLk })
       }
     }
     // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
@@ -1151,8 +1142,9 @@ export default function RecallPage() {
         setAssignDoctor(lirisExtract.autor!)
       }
     }
-    // Autor merken fuer spaeteren Status-Wechsel (z.B. inaktiv)
+    // Autor + Intervall-Daten merken für spätere manuelle Datumsänderung
     if (lirisExtract.autor) lastLirisAutor.current = lirisExtract.autor
+    lastLirisExtract.current = { intervalWeeks: lirisExtract.intervalWeeks, bpText: lirisExtract.bpText, naechsterTerminRaw: lirisExtract.naechsterTerminRaw }
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
   }, [lirisExtract, editTarget, form.gebDatum, form.letzteKons, form.konsInterval, form.pid, assignDoctor, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -5538,6 +5530,10 @@ export default function RecallPage() {
                     </span>
                   </>
                 )}
+                {editTarget !== 'new' && editTarget.aktualisiert && (() => {
+                  const ps = parseStamp(editTarget.aktualisiert)
+                  return ps ? <span className="text-[10px] text-gray-400 ml-auto mr-2 pointer-events-none">Aktualisiert: {ps.dateStr}{ps.user ? ` (${ps.user})` : ''}</span> : null
+                })()}
                 <button onClick={closeEdit}
                   className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
                   <X className="w-4 h-4" />
@@ -5556,7 +5552,7 @@ export default function RecallPage() {
             <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
 
               {/* ── Quick-paste parser — nur bei Neuerfassung ── */}
-              {editTarget === 'new' && <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+              {editTarget === 'new' && !isElectron && <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <span className="text-xs font-semibold text-gray-500">Schnelleingabe — kopieren oder direkt hineinziehen</span>
                   <div className="relative group">
@@ -5740,8 +5736,18 @@ export default function RecallPage() {
                           setField('aufgebotArt', '')
                           return
                         }
-                        if (form.konsInterval) {
-                          const computed = computeNextKons(newDate, form.konsInterval)
+                        // Intervall: bestehendes Formular-Intervall oder aus Liris-Extract (aktuell oder gespeichert)
+                        let effectiveInterval = form.konsInterval
+                        const lxWeeks = lirisExtract?.intervalWeeks || lastLirisExtract.current?.intervalWeeks
+                        if (!effectiveInterval && lxWeeks) {
+                          const w = lxWeeks
+                          if      (w % 52 === 0 && w / 52 <= 120) effectiveInterval = `${w / 52}j`
+                          else if (w % 4  === 0 && w / 4  <= 120) effectiveInterval = `${w / 4}m`
+                          else if (w <= 120)                      effectiveInterval = `${w}w`
+                          if (effectiveInterval) setField('konsInterval', effectiveInterval)
+                        }
+                        if (effectiveInterval) {
+                          const computed = computeNextKons(newDate, effectiveInterval)
                           if (computed) {
                             setField('naechsteKons', '')
                             setField('keinTermin', false)
@@ -5756,10 +5762,17 @@ export default function RecallPage() {
                             }
                           }
                         } else {
-                          setField('aufgebotArt', '')
-                          setField('aufgebotFuer', '')
-                          setField('naechsteKons', '')
-                          setField('keinTermin', false)
+                          // Kein Intervall → Liris-Text vorhanden? User fragen
+                          const lxBp = lirisExtract?.bpText || lastLirisExtract.current?.bpText
+                          const lxNt = lirisExtract?.naechsterTerminRaw || lastLirisExtract.current?.naechsterTerminRaw
+                          if (lxBp || lxNt) {
+                            setLirisIntervalPrompt({ bpText: lxBp || null, ntText: lxNt || null, letzteKons: newDate })
+                          } else {
+                            setField('aufgebotArt', '')
+                            setField('aufgebotFuer', '')
+                            setField('naechsteKons', '')
+                            setField('keinTermin', false)
+                          }
                         }
                       }}
                       className={`${inputCls} pr-6${chCls('letzteKons')}`} />
@@ -6279,8 +6292,17 @@ export default function RecallPage() {
                           setField('storniert', '')
                           setField('grundStornierung', '')
                           setField('naechsteKons', '') // manuell neu eingeben
-                          if (form.konsInterval) {
-                            const computed = computeNextKons(newDate, form.konsInterval)
+                          let effInterval = form.konsInterval
+                          const lxW2 = lirisExtract?.intervalWeeks || lastLirisExtract.current?.intervalWeeks
+                          if (!effInterval && lxW2) {
+                            const w = lxW2
+                            if      (w % 52 === 0 && w / 52 <= 120) effInterval = `${w / 52}j`
+                            else if (w % 4  === 0 && w / 4  <= 120) effInterval = `${w / 4}m`
+                            else if (w <= 120)                      effInterval = `${w}w`
+                            if (effInterval) setField('konsInterval', effInterval)
+                          }
+                          if (effInterval) {
+                            const computed = computeNextKons(newDate, effInterval)
                             if (computed) {
                               const d = new Date(computed + 'T00:00:00Z')
                               d.setUTCMonth(d.getUTCMonth() - 2)
