@@ -82,7 +82,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       //    Toleranter: erlaubt Zwischenwoerter wie "Kontrolle in" zwischen
       //    "Naechster Termin" und der Zahl (z.B. "Naechster Termin: Kontrolle
       //    in 12 Monaten" oder "Naechster Termin\\n12 Monate, Myd und OCT").
-      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*[^\\d]{0,40}?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
+      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*[^\\d]{0,80}?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
       var iv = allText.match(intervalRe);
       if (iv) {
         var n = parseInt(iv[1], 10);
@@ -102,9 +102,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           var bpText = allText.slice(bpStart, bpStart + 800);
           var bpEnd = bpText.search(/\\n\\s*(?:Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
           if (bpEnd > 0) bpText = bpText.slice(0, bpEnd);
-          // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren"
+          // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren" — mit oder ohne Schlüsselwort
           var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder|N(?:ä|ae)chster\\s+Termin)\\D{0,40}?(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
           var fm = bpText.match(fallbackRe);
+          // Fallback ohne Schlüsselwort: "in 3 Monat" oder alleinstehend "3 Monate"
+          if (!fm) fm = bpText.match(/(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)(?:\\s|,|\\.|$)/i);
           if (fm) {
             var num = parseInt(fm[1] || fm[3], 10);
             var unit = fm[2] || fm[4];
