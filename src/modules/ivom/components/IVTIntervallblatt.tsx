@@ -233,8 +233,13 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
     </body></html>`
   }
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const html = buildHtml()
+    const eApp = (window as any).electronApp
+    if (eApp?.printHtml) {
+      await eApp.printHtml(html)
+      return
+    }
     const iframe = document.createElement('iframe')
     iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
     document.body.appendChild(iframe)

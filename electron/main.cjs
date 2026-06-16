@@ -590,6 +590,44 @@ ipcMain.handle('save-brief-pdf', async (_event, html, suggestedFilename) => {
   }
 })
 
+ipcMain.handle('print-html', async (_event, html, opts) => {
+  let win = null
+  try {
+    const pw = opts?.pageWidth || 794
+    const ph = opts?.pageHeight || 1123
+    win = new BrowserWindow({
+      show: false,
+      width: pw,
+      height: ph,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+    })
+    const tmpHtml = path.join(os.tmpdir(), 'az-print-' + Date.now() + '.html')
+    fs.writeFileSync(tmpHtml, html, 'utf-8')
+    try {
+      await win.loadFile(tmpHtml)
+      await new Promise(r => setTimeout(r, 300))
+      await new Promise((resolve, reject) => {
+        win.webContents.print({
+          silent: false,
+          printBackground: true,
+          margins: { marginType: 'none' },
+        }, (success, reason) => {
+          if (success) resolve()
+          else reject(new Error(reason || 'Print cancelled'))
+        })
+      })
+      return { ok: true }
+    } finally {
+      try { fs.unlinkSync(tmpHtml) } catch { /* no-op */ }
+    }
+  } catch (err) {
+    console.error('[print-html] failed', err)
+    return { ok: false, error: String(err && err.stack || err) }
+  } finally {
+    if (win) win.destroy()
+  }
+})
+
 app.whenReady().then(() => {
   createWindow()
   setupAutoUpdater()

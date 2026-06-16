@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('electronApp', {
   uploadPdfToLiris: (webContentsId, filePath) => ipcRenderer.invoke('upload-pdf-to-liris', webContentsId, filePath),
   // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei setzen
   autoImportToLiris: (webContentsId, filePath, doctorLastName) => ipcRenderer.invoke('auto-import-to-liris', webContentsId, filePath, doctorLastName),
+  // HTML direkt drucken (Overlay, Intervallblatt etc.)
+  printHtml: (html, opts) => ipcRenderer.invoke('print-html', html, opts),
   // Subscribe to updater status events. Callback bekommt
   //   { state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error', ...payload }
   // Liefert unsubscribe-Funktion.

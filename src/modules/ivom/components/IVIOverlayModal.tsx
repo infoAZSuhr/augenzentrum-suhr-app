@@ -288,16 +288,22 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
         body { width: ${cfg.pageW}; height: ${cfg.pageH}; }
         img { display: block; width: ${cfg.pageW}; height: ${cfg.pageH}; }
       </style></head><body><img src="${dataUrl}" /></body></html>`
-      const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
-      document.body.appendChild(iframe)
-      iframe.contentDocument!.open()
-      iframe.contentDocument!.write(html)
-      iframe.contentDocument!.close()
-      iframe.onload = () => {
-        iframe.contentWindow!.focus()
-        iframe.contentWindow!.print()
-        setTimeout(() => iframe.remove(), 1000)
+
+      const eApp = (window as any).electronApp
+      if (eApp?.printHtml) {
+        await eApp.printHtml(html)
+      } else {
+        const iframe = document.createElement('iframe')
+        iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
+        document.body.appendChild(iframe)
+        iframe.contentDocument!.open()
+        iframe.contentDocument!.write(html)
+        iframe.contentDocument!.close()
+        iframe.onload = () => {
+          iframe.contentWindow!.focus()
+          iframe.contentWindow!.print()
+          setTimeout(() => iframe.remove(), 1000)
+        }
       }
     } finally { setPrinting(false) }
   }
