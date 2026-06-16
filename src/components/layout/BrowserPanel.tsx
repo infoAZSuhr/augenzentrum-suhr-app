@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -91,17 +91,24 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         if (n > 0 && n <= 260) result.intervalWeeks = n;
       }
 
+      // 4a) Rohtext "Nächster Termin" extrahieren (für User-Anzeige)
+      var ntRawRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*([^\\n]{0,120})/i;
+      var ntRaw = allText.match(ntRawRe);
+      if (ntRaw && ntRaw[1].trim()) result.naechsterTerminRaw = ntRaw[1].trim();
+
       // 4b) Fallback: wenn "Naechster Termin" leer / nicht gefunden, scanne
       //     "Beurteilung und Prozedere"-Abschnitt nach Intervallangaben wie
       //     "Kontrolle in 6 Monaten", "Wiedervorstellung in 4 Wochen", "in 3 Wochen wieder",
       //     oder auch ausgeschriebene Monatsnamen ("Kontrolle November", "VK im Mai 2027").
-      if (!result.intervalWeeks) {
+      {
         var bpStart = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);
         if (bpStart >= 0) {
-          // 'Diagnose' ist Nachbar-Spaltenheader -> nicht als Ende werten.
           var bpText = allText.slice(bpStart, bpStart + 800);
           var bpEnd = bpText.search(/\\n\\s*(?:Anamnese|Befund|Untersuchung\\s+vom|Autor)\\b/i);
           if (bpEnd > 0) bpText = bpText.slice(0, bpEnd);
+          // Rohtext speichern (Header entfernen)
+          var bpBody = bpText.replace(/^Beurteilung\\s+und\\s+Prozedere\\s*/i, '').trim();
+          if (bpBody) result.bpText = bpBody;
           // 4b-i) numerische Phrase "in N Wochen/Monaten/Jahren" — mit oder ohne Schlüsselwort
           var fallbackRe = /(?:Kontrolle|Wiedervorstellung|Nachkontrolle|VK|Verlaufskontrolle|wieder|N(?:ä|ae)chster\\s+Termin)\\D{0,40}?(?:in\\s+)?(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)|in\\s+(\\d+)\\s+(Wochen?|Monate?n?|Jahre?n?)\\D{0,15}?wieder/i;
           var fm = bpText.match(fallbackRe);
@@ -365,6 +372,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           bpKeywords:    Array.isArray(res.bpKeywords) ? res.bpKeywords : [],
           naechsterTerminDatum: res.naechsterTerminDatum ?? null,
           naechsterTerminZeit:  res.naechsterTerminZeit  ?? null,
+          naechsterTerminRaw:   res.naechsterTerminRaw   ?? null,
+          bpText:              res.bpText               ?? null,
         }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)

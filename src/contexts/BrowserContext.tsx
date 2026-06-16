@@ -20,6 +20,8 @@ export interface LirisExtract {
   bpKeywords?:      string[]            // Schlagwoerter aus Beurteilung+Prozedere (z.B. Myd, OCT)
   naechsterTerminDatum?: string | null  // ISO YYYY-MM-DD eines zukuenftigen Liris-Termins
   naechsterTerminZeit?:  string | null  // HH:MM eines zukuenftigen Liris-Termins
+  naechsterTerminRaw?:   string | null  // Rohtext "Nächster Termin"-Spalte aus Liris
+  bpText?:               string | null  // Rohtext "Beurteilung und Prozedere" aus Liris
   at:               number              // Timestamp damit Consumer nur frisches sehen
 }
 
