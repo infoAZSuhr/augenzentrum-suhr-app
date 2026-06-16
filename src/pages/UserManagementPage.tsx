@@ -4,7 +4,7 @@ import {
   collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, query, orderBy, where, getDocs, writeBatch
 } from 'firebase/firestore'
 import { initializeApp, getApps } from 'firebase/app'
-import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth'
+import { getAuth, createUserWithEmailAndPassword, signOut as fbSignOut, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
 import { db } from '../lib/firebase'
 import { useAuth, UserProfile, UserRole, UserStatus, UserPermissions, Arbeitszeit } from '../lib/AuthContext'
 import { loadPlanung, savePlanung, loadYearListFirestore } from '../lib/firestorePlanung'
@@ -81,6 +81,9 @@ export default function UserManagementPage() {
   const [adding,  setAdding]  = useState(false)
   const [showPw,  setShowPw]  = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteErr, setDeleteErr] = useState('')
+  const [deleting, setDeleting] = useState(false)
   const [editUser, setEditUser] = useState<UserProfile | null>(null)
   const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '', mustSetRealEmail: false })
   const [editSaving, setEditSaving] = useState(false)
@@ -207,9 +210,31 @@ export default function UserManagementPage() {
     return u.role === 'arzt' || u.role === 'mpa'
   }
 
-  const deleteUser = async (uid: string) => {
-    await deleteDoc(doc(db, 'users', uid))
-    setConfirmDelete(null)
+  const deleteUser = async (uid: string, password: string) => {
+    setDeleteErr('')
+    setDeleting(true)
+    try {
+      const target = users.find(u => u.uid === uid)
+      if (target && (target.role === 'admin' || target.role === 'geschaeftsleitung')) {
+        setDeleteErr('Admin/GL-Konten können nicht gelöscht werden.')
+        return
+      }
+      const currentUser = getAuth().currentUser
+      if (!currentUser?.email) { setDeleteErr('Nicht eingeloggt.'); return }
+      const cred = EmailAuthProvider.credential(currentUser.email, password)
+      await reauthenticateWithCredential(currentUser, cred)
+      await deleteDoc(doc(db, 'users', uid))
+      setConfirmDelete(null)
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setDeleteErr('Falsches Passwort.')
+      } else {
+        setDeleteErr('Fehler beim Löschen.')
+      }
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const unlockUser = async (uid: string) => {
@@ -483,15 +508,26 @@ export default function UserManagementPage() {
             <p className="text-sm text-gray-500 mb-1">
               <span className="font-medium text-gray-800">{userToDelete.username || userToDelete.displayName}</span> wird dauerhaft entfernt.
             </p>
-            <p className="text-xs text-gray-400 mb-5">Der Benutzer kann sich danach nicht mehr anmelden.</p>
-            <div className="flex gap-3">
+            <p className="text-xs text-gray-400 mb-3">Der Benutzer kann sich danach nicht mehr anmelden.</p>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Eigenes Passwort zur Bestätigung</label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && deletePassword.trim()) deleteUser(confirmDelete, deletePassword) }}
+              placeholder="Passwort eingeben"
+              autoFocus
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 mb-1"
+            />
+            {deleteErr && <p className="text-xs text-red-600 mb-2">{deleteErr}</p>}
+            <div className="flex gap-3 mt-4">
               <button onClick={() => setConfirmDelete(null)}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors">
                 Abbrechen
               </button>
-              <button onClick={() => deleteUser(confirmDelete)}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors">
-                Löschen
+              <button onClick={() => deleteUser(confirmDelete, deletePassword)} disabled={deleting || !deletePassword.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+                {deleting ? 'Prüfe…' : 'Löschen'}
               </button>
             </div>
           </div>
@@ -1026,11 +1062,17 @@ export default function UserManagementPage() {
                                   <Mail className="w-3.5 h-3.5" />
                                 </button>
                               )}
-                              <button onClick={() => setConfirmDelete(u.uid)}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Benutzer löschen">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {(u.role === 'admin' || u.role === 'geschaeftsleitung') ? (
+                                <span className="p-1 text-gray-300 cursor-not-allowed" title="Admin/GL-Konten können nicht gelöscht werden">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </span>
+                              ) : (
+                                <button onClick={() => { setConfirmDelete(u.uid); setDeletePassword(''); setDeleteErr('') }}
+                                  className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Benutzer löschen">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="text-xs text-gray-400">
