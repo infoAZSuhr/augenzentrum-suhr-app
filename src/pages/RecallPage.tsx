@@ -1016,6 +1016,15 @@ export default function RecallPage() {
     if (lirisExtract.letzteKons) {
       if (!form.letzteKons || lirisExtract.letzteKons > form.letzteKons) {
         setField('letzteKons', lirisExtract.letzteKons)
+        setField('storniert', '')
+        setField('grundStornierung', '')
+        // Wenn kein Intervall (weder aus Liris noch lokal): abhängige Felder zurücksetzen
+        if (!lirisExtract.intervalWeeks && !form.konsInterval) {
+          setField('aufgebotArt', '')
+          setField('aufgebotFuer', '')
+          setField('naechsteKons', '')
+          setField('keinTermin', false)
+        }
         filled = true
       } else if (lirisExtract.letzteKons < form.letzteKons) {
         setLirisOlderKons({ lirisDate: lirisExtract.letzteKons, formDate: form.letzteKons })
