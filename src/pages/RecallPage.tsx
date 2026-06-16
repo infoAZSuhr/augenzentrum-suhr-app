@@ -972,7 +972,9 @@ export default function RecallPage() {
     //     ausschlaggebend, nur informativ)
     const localVorname  = (form.vorname || '').toLowerCase().trim()
     const lirisVorname  = (lirisExtract.vorname || '').toLowerCase()
-    const vornameMatches = !localVorname || !lirisVorname || lirisVorname.includes(localVorname) || localVorname.split(/\s+/).every(w => lirisVorname.includes(w))
+    const lirisNachname = (lirisExtract.nachname || '').toLowerCase()
+    const lirisFullName = [lirisNachname, lirisVorname].filter(Boolean).join(' ')
+    const vornameMatches = !localVorname || !lirisVorname || lirisVorname.includes(localVorname) || localVorname.split(/\s+/).every(w => lirisVorname.includes(w) || lirisNachname.includes(w) || lirisFullName.includes(w))
 
     const localGeb = form.gebDatum || ''
     const lirisGeb = lirisExtract.gebDatum || ''
@@ -989,7 +991,7 @@ export default function RecallPage() {
       let reason = 'Patient nicht in Liris vorhanden'
       if (lirisExtract.notFound)             reason = 'Patient nicht in Liris vorhanden'
       else if (!lirisExtract.pidMatchesLiris) reason = `PID #${currentPid} nicht in Liris gefunden`
-      else if (!vornameMatches)               reason = `Name passt nicht: lokal „${form.vorname}" vs. Liris „${lirisExtract.vorname}"`
+      else if (!vornameMatches)               reason = `Name passt nicht: lokal „${form.vorname}" vs. Liris „${[lirisExtract.nachname, lirisExtract.vorname].filter(Boolean).join(' ')}"`
       else if (!gebMatches)                   reason = `Geburtsdatum passt nicht: lokal ${formatDate(localGeb)} vs. Liris ${formatDate(lirisGeb)}`
       // Popup statt Toast — Mismatch sollte nicht uebersehen werden.
       setLirisMismatch({
