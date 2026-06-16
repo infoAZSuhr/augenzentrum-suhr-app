@@ -205,33 +205,6 @@ function hasScheduledNextKons(p: { naechsteKons?: string | null }): boolean {
   return !!nk && nk !== 'kein Termin'
 }
 
-/** Returns { reminderDate, newDate } if a 2nd reminder is due (6 months without response), else null */
-function getOverdueReminderInfo(p: RecallPatient): { reminderDate: string; newDate: string } | null {
-  // Mit einem terminierten Folgekonsil ist ein Reminder überflüssig — Pille unterdrücken
-  if (hasScheduledNextKons(p)) return null
-  const verlauf: VerlaufEntry[] = p.verlauf ?? []
-  // Last MANUAL reminder (not System-generated)
-  const manualReminders = verlauf.filter(e => e.aktion === 'Reminder' && e.von !== 'System')
-  if (!manualReminders.length) return null
-  const lastManual = manualReminders[manualReminders.length - 1]
-  const match = (lastManual.ergebnis || '').match(/Geplant: (\d{4}-\d{2}-\d{2})/)
-  if (!match) return null
-  const reminderDate = match[1]
-  // Check if 6 months have passed since planned reminder date
-  const sixMonthsAfter = new Date(reminderDate + 'T00:00:00')
-  sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6)
-  if (new Date() < sixMonthsAfter) return null
-  // Check if no new aufgebotErstellt after reminder was set
-  const erstelltDate = p.aufgebotErstellt ? new Date(p.aufgebotErstellt + 'T00:00:00') : null
-  if (erstelltDate && erstelltDate > new Date(reminderDate + 'T00:00:00')) return null
-  // Check if system already handled this
-  const alreadyHandled = verlauf.some(e => e.aktion === 'Reminder' && e.von === 'System' && e.datum > lastManual.datum)
-  if (alreadyHandled) return null
-  const newDate = new Date(reminderDate + 'T00:00:00')
-  newDate.setMonth(newDate.getMonth() + 6)
-  return { reminderDate, newDate: newDate.toISOString().slice(0, 10) }
-}
-
 function isFutureDate(val: string | null): boolean {
   if (!val) return false
   if (val.includes('T')) return new Date(val) >= new Date()
@@ -1283,8 +1256,6 @@ export default function RecallPage() {
 
       setAllData(map)
       setStatus('ready')
-      // Option A: auto 2nd reminder check (once per day, fire-and-forget)
-      autoSecondReminder(map).catch(e => console.error('[Recall] autoSecondReminder:', e))
     } catch {
       setLoadError(true)
       setStatus('ready')
@@ -1368,40 +1339,6 @@ export default function RecallPage() {
     } finally {
       setUndoImportRunning(false)
     }
-  }
-
-  /** Option A: auto-create 2nd reminder after 6 months without response — runs once per day */
-  async function autoSecondReminder(dataMap: Map<string, RecallPatient[]>) {
-    const today = new Date().toISOString().slice(0, 10)
-    const key = 'recall_auto2reminder_date'
-    if (localStorage.getItem(key) === today) return
-    localStorage.setItem(key, today)
-    const toUpdate: Array<{ patient: RecallPatient; newAufgebotFuer: string }> = []
-    dataMap.forEach(patients => {
-      patients.forEach(p => {
-        if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return
-        const info = getOverdueReminderInfo(p)
-        if (info) toUpdate.push({ patient: p, newAufgebotFuer: info.newDate })
-      })
-    })
-    if (!toUpdate.length) return
-    const affectedTabs = new Set<string>()
-    for (const { patient, newAufgebotFuer } of toUpdate) {
-      const autoEntry: VerlaufEntry = {
-        datum: today,
-        aktion: 'Reminder',
-        ergebnis: 'Automatisch: 2. Reminder (6 Monate ohne Rückmeldung)',
-        von: 'System',
-      }
-      try {
-        await updateRecallPatient(patient.id, {
-          aufgebotFuer: newAufgebotFuer,
-          verlauf: [...(patient.verlauf ?? []), autoEntry],
-        } as any, 'System')
-        affectedTabs.add(patient.doctor)
-      } catch (e) { console.error('[Recall] autoSecondReminder Fehler:', e) }
-    }
-    for (const tab of affectedTabs) await reloadTab(tab)
   }
 
   async function handleImport() {
@@ -3881,6 +3818,20 @@ export default function RecallPage() {
 
       </div>
 
+      {/* ── Leitfaden: Reminder fällig ──────────────────────────────────────── */}
+      {filterReminderFaellig && (
+        <div className="shrink-0 mx-4 sm:mx-6 my-2 p-3 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-900 space-y-1.5">
+          <p className="font-bold text-sm flex items-center gap-1.5"><Bell className="w-4 h-4" /> Vorgehen bei fälligen Remindern</p>
+          <ol className="list-decimal list-inside space-y-1 pl-1">
+            <li><strong>Patient anrufen.</strong> Termin vereinbaren und im System eintragen.</li>
+            <li><strong>Nicht erreichbar?</strong> Neuen Reminder auf <strong>1 Monat</strong> setzen und erneut versuchen.</li>
+            <li><strong>Beim 2. Versuch wieder nicht erreichbar?</strong> Patient <strong>inaktivieren</strong>.</li>
+            <li><strong>Telefonnummer ungültig?</strong> Patient sofort <strong>inaktivieren</strong>.</li>
+          </ol>
+          <p className="text-[10px] text-purple-600 italic">Jeden Kontaktversuch im Verlauf dokumentieren.</p>
+        </div>
+      )}
+
       {/* ── Mobile card view ────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto md:hidden divide-y divide-gray-100">
         {pageRows.length === 0 ? (
@@ -4070,11 +4021,9 @@ export default function RecallPage() {
                             <span title={pendingVorgehenLabel(row)} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shrink-0">⏳ {pendingVorgehenLabel(row)}</span>
                           )}
                           {(() => {
-                            const overdue2 = getOverdueReminderInfo(row)
                             const dueDate  = getReminderDueDate(row)
                             const upcoming = getUpcomingReminderDate(row)
-                            if (overdue2) return <span title="2. Reminder fällig – 6 Monate ohne Rückmeldung" className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 shrink-0">🔔 2. Reminder</span>
-                            if (dueDate)  return <span title={`Reminder fällig seit ${formatDate(dueDate)}`} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-300 shrink-0">🔔 Reminder {formatDate(dueDate)}</span>
+                            if (dueDate)  return <span title={`Reminder fällig seit ${formatDate(dueDate)} — Patient anrufen`} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-300 shrink-0">🔔 Reminder {formatDate(dueDate)}</span>
                             if (upcoming) return <span title={`Reminder geplant am ${formatDate(upcoming)}`} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 shrink-0">🔔 {formatDate(upcoming)}</span>
                             return null
                           })()}
