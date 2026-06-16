@@ -5692,11 +5692,17 @@ export default function RecallPage() {
                         setField('letzteKons', newDate)
                         setField('storniert', '')
                         setField('grundStornierung', '')
-                        if (form.konsInterval && newDate) {
+                        if (!newDate) {
+                          setField('konsInterval', '')
+                          setField('naechsteKons', '')
+                          setField('keinTermin', false)
+                          setField('aufgebotFuer', '')
+                          setField('aufgebotArt', '')
+                          return
+                        }
+                        if (form.konsInterval) {
                           const computed = computeNextKons(newDate, form.konsInterval)
                           if (computed) {
-                            // Invariante: entweder Nächste Konst. ODER «RC zu erstellen ab»,
-                            // nie beides. Hier wird aufgebotFuer berechnet → naechsteKons leeren.
                             setField('naechsteKons', '')
                             setField('keinTermin', false)
                             const lk2 = new Date(newDate + 'T00:00:00Z')
