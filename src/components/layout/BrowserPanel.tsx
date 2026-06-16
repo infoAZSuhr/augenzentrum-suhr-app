@@ -82,7 +82,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       //    Toleranter: erlaubt Zwischenwoerter wie "Kontrolle in" zwischen
       //    "Naechster Termin" und der Zahl (z.B. "Naechster Termin: Kontrolle
       //    in 12 Monaten" oder "Naechster Termin\\n12 Monate, Myd und OCT").
-      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*[^\\d\\n]{0,30}?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
+      var intervalRe = /N(?:ä|ae)chster\\s+Termin\\s*:?\\s*[^\\d]{0,40}?(\\d+)\\s*(Wochen?|Monate?n?|Jahre?n?)/i;
       var iv = allText.match(intervalRe);
       if (iv) {
         var n = parseInt(iv[1], 10);
