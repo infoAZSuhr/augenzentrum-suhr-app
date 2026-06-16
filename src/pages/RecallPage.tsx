@@ -969,10 +969,11 @@ export default function RecallPage() {
   useEffect(() => {
     if (!lirisExtract) return
     if (!editTarget || editTarget === 'new') return
-    if (Date.now() - lirisExtract.at > 5000) return
+    console.log('[Recall-AutoFill] lirisExtract:', { at: lirisExtract.at, age: Date.now() - lirisExtract.at, pid: lirisExtract.pid, letzteKons: lirisExtract.letzteKons, intervalWeeks: lirisExtract.intervalWeeks, bpText: lirisExtract.bpText?.slice(0, 80), ntRaw: lirisExtract.naechsterTerminRaw })
+    if (Date.now() - lirisExtract.at > 5000) { console.log('[Recall-AutoFill] SKIP: extract too old', Date.now() - lirisExtract.at, 'ms'); return }
     const currentPid = normalizePid(form.pid)
     const extractPid = normalizePid(lirisExtract.pid)
-    if (!currentPid || !extractPid || currentPid !== extractPid) return
+    if (!currentPid || !extractPid || currentPid !== extractPid) { console.log('[Recall-AutoFill] SKIP: PID mismatch', currentPid, '≠', extractPid); return }
 
     // Verifikation: Patient muss in Liris vorhanden sein UND mit unseren
     // bekannten Daten uebereinstimmen. Vergleichs-Strategie:
@@ -1085,7 +1086,9 @@ export default function RecallPage() {
     if (!form.konsInterval && !form.naechsteKons && !lirisExtract.intervalWeeks) {
       const hasText = lirisExtract.bpText || lirisExtract.naechsterTerminRaw
       const baseLk = lirisExtract.letzteKons || form.letzteKons
+      console.log('[Recall-AutoFill] Intervall-Prompt check:', { konsInterval: form.konsInterval, naechsteKons: form.naechsteKons, intervalWeeks: lirisExtract.intervalWeeks, hasText: !!hasText, baseLk })
       if (hasText && baseLk) {
+        console.log('[Recall-AutoFill] → showing interval prompt dialog')
         setLirisIntervalPrompt({ bpText: lirisExtract.bpText || null, ntText: lirisExtract.naechsterTerminRaw || null, letzteKons: baseLk })
       }
     }
