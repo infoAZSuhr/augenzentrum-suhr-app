@@ -33,6 +33,7 @@ import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
 import { useToast } from '../lib/ToastContext'
 import { collection, getDocs } from 'firebase/firestore'
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
 import { db, storage } from '../lib/firebase'
 import { ref as storageRef, uploadBytes } from 'firebase/storage'
 
@@ -467,7 +468,7 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 }
 
 export default function RecallPage() {
-  const { profile, isAdmin, isGeschaeftsleitung } = useAuth()
+  const { user: currentUser, profile, isAdmin, isGeschaeftsleitung } = useAuth()
   // Electron-Erkennung — Liris-Integration (Webview + Auto-PID) funktioniert
   // NUR in der Desktop-App. Im Browser blockiert CORS, daher Buttons
   // ausblenden statt einen toten Link anzubieten.
@@ -520,6 +521,11 @@ export default function RecallPage() {
   const [editTarget, setEditTarget] = useState<EditTarget>(null)
   const [form, setForm] = useState<EditForm>(initForm())
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTargetOverride, setDeleteTargetOverride] = useState<{ id: string; label: string; doctor: string } | null>(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteErr, setDeleteErr] = useState('')
+  const [deleting, setDeleting] = useState(false)
   // Doppelte PIDs — Cleanup-Confirmation + Loading
   const [showDupCleanupConfirm, setShowDupCleanupConfirm] = useState(false)
   const [dupCleanupRunning,     setDupCleanupRunning]     = useState(false)
@@ -3458,19 +3464,39 @@ export default function RecallPage() {
     }
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (editTarget === 'new' || !editTarget) return
-    const label = editTarget.vorname || 'diesen Eintrag'
-    if (!window.confirm(`${label} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return
-    setSaving(true)
+    setDeletePassword('')
+    setDeleteErr('')
+    setShowDeleteConfirm(true)
+  }
+
+  async function confirmDelete() {
+    const target = deleteTargetOverride || (editTarget && editTarget !== 'new' ? { id: editTarget.id, label: editTarget.vorname || '—', doctor: editTarget.doctor } : null)
+    if (!target) return
+    if (!deletePassword.trim()) { setDeleteErr('Passwort eingeben'); return }
+    setDeleting(true)
+    setDeleteErr('')
     try {
-      await deleteRecallPatient(editTarget.id)
+      const cu = currentUser
+      if (!cu?.email) throw new Error('Nicht eingeloggt')
+      const cred = EmailAuthProvider.credential(cu.email, deletePassword)
+      await reauthenticateWithCredential(cu, cred)
+      await deleteRecallPatient(target.id)
+      setShowDeleteConfirm(false)
+      setDeleteTargetOverride(null)
+      setLirisMismatch(null)
       await reloadAllTabs()
       closeEdit()
-    } catch {
-      toast.error('Löschen fehlgeschlagen.')
+      toast.success('Patient gelöscht.')
+    } catch (e: any) {
+      if (e?.code === 'auth/wrong-password' || e?.code === 'auth/invalid-credential') {
+        setDeleteErr('Falsches Passwort')
+      } else {
+        setDeleteErr(e?.message || 'Fehler beim Löschen')
+      }
     } finally {
-      setSaving(false)
+      setDeleting(false)
     }
   }
 
@@ -6884,16 +6910,11 @@ export default function RecallPage() {
                 Schliessen
               </button>
               <button
-                onClick={async () => {
-                  try {
-                    await deleteRecallPatient(lirisMismatch.patientId)
-                    toast.success(`Patient #${lirisMismatch.pid} (${lirisMismatch.vorname}) gelöscht.`)
-                    setLirisMismatch(null)
-                    closeEdit()
-                    await reloadTab(lirisMismatch.doctor)
-                  } catch (e) {
-                    toast.error(`Fehler beim Löschen: ${e instanceof Error ? e.message : String(e)}`)
-                  }
+                onClick={() => {
+                  setDeleteTargetOverride({ id: lirisMismatch.patientId, label: `#${lirisMismatch.pid} ${lirisMismatch.vorname}`, doctor: lirisMismatch.doctor })
+                  setDeletePassword('')
+                  setDeleteErr('')
+                  setShowDeleteConfirm(true)
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors">
                 <Trash2 className="w-4 h-4" />
@@ -7119,6 +7140,50 @@ export default function RecallPage() {
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 {undoImportRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 {lastImport.count} Einträge löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Passwort-Bestätigung für Patienten-Löschung ─────────────────────── */}
+      {showDeleteConfirm && (deleteTargetOverride || (editTarget && editTarget !== 'new')) && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-500" />
+                <span className="font-bold text-gray-900">Patient löschen</span>
+              </div>
+              <button onClick={() => { setShowDeleteConfirm(false); setDeleteTargetOverride(null) }} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-700">
+                <strong>{deleteTargetOverride ? deleteTargetOverride.label : editTarget !== 'new' && editTarget ? (editTarget.vorname || '—') : ''}</strong> {!deleteTargetOverride && editTarget !== 'new' && editTarget?.pid ? `(#${editTarget.pid})` : ''} wirklich löschen?
+              </p>
+              <p className="text-xs text-gray-500">Diese Aktion kann nicht rückgängig gemacht werden. Bitte Passwort zur Bestätigung eingeben.</p>
+              <input
+                type="password"
+                autoFocus
+                placeholder="Passwort"
+                value={deletePassword}
+                onChange={e => { setDeletePassword(e.target.value); setDeleteErr('') }}
+                onKeyDown={e => { if (e.key === 'Enter') confirmDelete() }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400"
+              />
+              {deleteErr && <p className="text-xs text-red-600 font-medium">{deleteErr}</p>}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => { setShowDeleteConfirm(false); setDeleteTargetOverride(null) }} disabled={deleting}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
+                Abbrechen
+              </button>
+              <button onClick={confirmDelete} disabled={deleting || !deletePassword.trim()}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Endgültig löschen
               </button>
             </div>
           </div>
