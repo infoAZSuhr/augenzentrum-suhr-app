@@ -3124,7 +3124,7 @@ export default function RecallPage() {
       return false
     }
     const fields: (keyof EditForm)[] = [
-      'pid', 'vorname', 'gebDatum', 'letzteKons', 'naechsteKons', 'konsInterval',
+      'pid', 'vorname', 'gebDatum', 'letzteKons', 'naechsteKons',
       'storniert', 'grundStornierung',
       'nachfassAdresse', 'nachfassTel', 'nachfassTelDatum',
       'aufgebotFuer', 'aufgebotErstellt', 'aufgebotArt',
@@ -3347,7 +3347,7 @@ export default function RecallPage() {
         // Update, kein Live-Snapshot-Trigger).
         const noChanges = !assignDoctor && isUserDataUnchanged(data, editTarget)
         if (noChanges) {
-          // No-Op: nichts ins Doc schreiben, einfach Modal schliessen.
+          toast.info('Keine Änderungen erkannt — Speichern übersprungen.')
           closeEdit()
           return
         }
