@@ -235,37 +235,12 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
 
   const handlePrint = async () => {
     const html = buildHtml()
-    const isElectron = !!(window as any).electronApp
+    const eApp = (window as any).electronApp
 
-    if (isElectron) {
-      const style = document.createElement('style')
-      style.id = 'az-print-intervall'
-      style.textContent = `
-        @media print {
-          @page { size: A4 portrait; margin: 10mm; }
-          body > *:not(#az-print-container) { display: none !important; }
-          #az-print-container { display: block !important; position: fixed; inset: 0; z-index: 999999; }
-        }
-      `
-      const container = document.createElement('div')
-      container.id = 'az-print-container'
-      container.style.display = 'none'
-      container.innerHTML = html.replace(/.*<body[^>]*>/s, '').replace(/<\/body>.*/s, '')
-      const headMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/)
-      if (headMatch) {
-        const s = document.createElement('style')
-        s.id = 'az-print-intervall-content'
-        s.textContent = headMatch[1]
-        document.head.appendChild(s)
-      }
-      document.head.appendChild(style)
-      document.body.appendChild(container)
-      window.print()
-      setTimeout(() => {
-        style.remove()
-        container.remove()
-        document.getElementById('az-print-intervall-content')?.remove()
-      }, 500)
+    if (eApp?.printHtml) {
+      await eApp.printHtml(html)
+    } else if (eApp?.saveBriefPdf) {
+      await eApp.saveBriefPdf(html, 'Intervallblatt.pdf')
     } else {
       const iframe = document.createElement('iframe')
       iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'

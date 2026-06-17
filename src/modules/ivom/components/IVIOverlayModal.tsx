@@ -282,34 +282,19 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
     try {
       const cfg = getActiveCfg(selectedTmpl)
       const dataUrl = await buildCombinedCanvas(cfg, eyeSide, [], lirisDataUrl, PRINT_SCALE)
-      const isElectron = !!(window as any).electronApp
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+        @page { size: A4 ${cfg.orientation}; margin: 0; }
+        * { margin: 0; padding: 0; }
+        body { width: ${cfg.pageW}; height: ${cfg.pageH}; }
+        img { display: block; width: ${cfg.pageW}; height: ${cfg.pageH}; }
+      </style></head><body><img src="${dataUrl}" /></body></html>`
 
-      if (isElectron) {
-        const style = document.createElement('style')
-        style.id = 'az-print-overlay'
-        style.textContent = `
-          @media print {
-            @page { size: A4 ${cfg.orientation}; margin: 0; }
-            body > *:not(#az-print-container) { display: none !important; }
-            #az-print-container { display: block !important; position: fixed; inset: 0; z-index: 999999; }
-            #az-print-container img { display: block; width: ${cfg.pageW}; height: ${cfg.pageH}; }
-          }
-        `
-        const container = document.createElement('div')
-        container.id = 'az-print-container'
-        container.style.display = 'none'
-        container.innerHTML = `<img src="${dataUrl}" />`
-        document.head.appendChild(style)
-        document.body.appendChild(container)
-        window.print()
-        setTimeout(() => { style.remove(); container.remove() }, 500)
+      const eApp = (window as any).electronApp
+      if (eApp?.printHtml) {
+        await eApp.printHtml(html)
+      } else if (eApp?.saveBriefPdf) {
+        await eApp.saveBriefPdf(html, 'Tropf-Overlay.pdf')
       } else {
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-          @page { size: A4 ${cfg.orientation}; margin: 0; }
-          * { margin: 0; padding: 0; }
-          body { width: ${cfg.pageW}; height: ${cfg.pageH}; }
-          img { display: block; width: ${cfg.pageW}; height: ${cfg.pageH}; }
-        </style></head><body><img src="${dataUrl}" /></body></html>`
         const iframe = document.createElement('iframe')
         iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
         document.body.appendChild(iframe)
