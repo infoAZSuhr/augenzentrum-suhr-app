@@ -223,8 +223,7 @@ function VersionInfo() {
 
       {/* Copyright */}
       <div className="border-t border-gray-100 pt-3 mt-1 text-[11px] text-gray-400 space-y-0.5">
-        <p>Version {installed ?? __APP_VERSION__} · © {new Date().getFullYear()} Augenzentrum Suhr AG</p>
-        <p>Entwicklung: Saran Pasquale</p>
+        <p>Version {installed ?? __APP_VERSION__} · © {new Date().getFullYear()} Saran Pasquale</p>
       </div>
     </div>
   )
