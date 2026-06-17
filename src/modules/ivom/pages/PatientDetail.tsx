@@ -73,7 +73,7 @@ export default function PatientDetail() {
     mutationFn: () => deletePatient(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['patients'] })
-      navigate('/ivom')
+      navigate('/ivom/patienten')
     },
   })
 
@@ -143,7 +143,7 @@ export default function PatientDetail() {
         }
         actions={
           <>
-            <BackButton fallback="/ivom" />
+            <BackButton fallback="/ivom/patienten" />
             <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
               <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
             </button>

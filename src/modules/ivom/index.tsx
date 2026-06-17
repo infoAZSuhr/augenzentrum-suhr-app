@@ -8,8 +8,8 @@ import IVOMTagesplanung from './pages/IVOMTagesplanung'
 import IVOMDokumente from './pages/IVOMDokumente'
 
 const NAV_TABS = [
-  { to: '/ivom', label: 'Patienten', end: true },
-  { to: '/ivom/tagesplanung', label: 'Tagesplanung', end: false },
+  { to: '/ivom', label: 'Tagesplanung', end: true },
+  { to: '/ivom/patienten', label: 'Patienten', end: false },
   { to: '/ivom/kalender', label: 'Kalender', end: false },
   { to: '/ivom/dokumente', label: 'Dokumente', end: false },
   { to: '/ivom/einstellungen', label: 'Einstellungen', end: false },
@@ -20,7 +20,7 @@ export default function IVOMModule() {
   const isDetail = /^\/ivom\/[^/]+$/.test(location.pathname) &&
     !location.pathname.includes('kalender') &&
     !location.pathname.includes('einstellungen') &&
-    !location.pathname.includes('tagesplanung') &&
+    !location.pathname.includes('patienten') &&
     !location.pathname.includes('dokumente')
 
   return (
@@ -54,8 +54,8 @@ export default function IVOMModule() {
 
       <div className="flex-1 overflow-auto">
         <Routes>
-          <Route index element={<PatientList />} />
-          <Route path="tagesplanung" element={<IVOMTagesplanung />} />
+          <Route index element={<IVOMTagesplanung />} />
+          <Route path="patienten" element={<PatientList />} />
           <Route path="dokumente" element={<IVOMDokumente />} />
           <Route path="kalender" element={<IVOMCalendar />} />
           <Route path="einstellungen" element={<IVOMSettings />} />
