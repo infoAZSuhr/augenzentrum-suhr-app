@@ -220,6 +220,12 @@ function VersionInfo() {
           <RefreshCw className={`w-3 h-3 ${check.status === 'loading' ? 'animate-spin' : ''}`} /> erneut prüfen
         </button>
       )}
+
+      {/* Copyright */}
+      <div className="border-t border-gray-100 pt-3 mt-1 text-[11px] text-gray-400 space-y-0.5">
+        <p>Version {installed ?? __APP_VERSION__} · © {new Date().getFullYear()} Augenzentrum Suhr AG</p>
+        <p>Entwicklung: Saran Pasquale</p>
+      </div>
     </div>
   )
 }
