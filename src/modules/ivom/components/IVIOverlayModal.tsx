@@ -225,7 +225,7 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
           ])
           thumbs[key] = c.toDataURL('image/jpeg', 0.80)
           if (detected) fades[key] = detected
-        } catch { /* ignore */ }
+        } catch (err) { console.error('[Overlay] Template-Load fehlgeschlagen:', key, err) }
       }
       setThumbnails(thumbs)
       setDetectedFades(fades)
@@ -240,7 +240,8 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
       try {
         const url = await buildCombinedCanvas(cfg, eyeSide, [], liris, PREVIEW_SCALE)
         if (buildCountRef.current === id) { setPreviewUrl(url); setPreviewBuilding(false) }
-      } catch {
+      } catch (err) {
+        console.error('[Overlay] Preview-Build fehlgeschlagen:', err)
         if (buildCountRef.current === id) setPreviewBuilding(false)
       }
     })()
