@@ -628,6 +628,18 @@ ipcMain.handle('print-html', async (_event, html, opts) => {
   }
 })
 
+ipcMain.handle('open-print-html', async (_event, html) => {
+  try {
+    const tmpFile = path.join(os.tmpdir(), 'az-overlay-' + Date.now() + '.html')
+    fs.writeFileSync(tmpFile, html, 'utf-8')
+    await shell.openExternal('file://' + tmpFile.replace(/\\/g, '/'))
+    return { ok: true, path: tmpFile }
+  } catch (err) {
+    console.error('[open-print-html] failed', err)
+    return { ok: false, error: String(err && err.stack || err) }
+  }
+})
+
 app.whenReady().then(() => {
   const version = app.getVersion()
   const template = [

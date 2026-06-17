@@ -290,10 +290,10 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
       </style></head><body><img src="${dataUrl}" /></body></html>`
 
       const eApp = (window as any).electronApp
-      if (eApp?.printHtml) {
+      if (eApp?.openPrintHtml) {
+        await eApp.openPrintHtml(html)
+      } else if (eApp?.printHtml) {
         await eApp.printHtml(html)
-      } else if (eApp?.saveBriefPdf) {
-        await eApp.saveBriefPdf(html, 'Tropf-Overlay.pdf')
       } else {
         const iframe = document.createElement('iframe')
         iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
