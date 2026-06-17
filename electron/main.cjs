@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, dialog, nativeImage } = require('electron')
+const { app, BrowserWindow, shell, ipcMain, dialog, nativeImage, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -629,6 +629,64 @@ ipcMain.handle('print-html', async (_event, html, opts) => {
 })
 
 app.whenReady().then(() => {
+  const version = app.getVersion()
+  const template = [
+    {
+      label: 'Datei',
+      submenu: [
+        { role: 'reload', label: 'Neu laden' },
+        { role: 'forceReload', label: 'Neu laden (Cache leeren)' },
+        { type: 'separator' },
+        { role: 'quit', label: 'Beenden' },
+      ],
+    },
+    {
+      label: 'Bearbeiten',
+      submenu: [
+        { role: 'undo', label: 'Rückgängig' },
+        { role: 'redo', label: 'Wiederherstellen' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Ausschneiden' },
+        { role: 'copy', label: 'Kopieren' },
+        { role: 'paste', label: 'Einfügen' },
+        { role: 'selectAll', label: 'Alles auswählen' },
+      ],
+    },
+    {
+      label: 'Ansicht',
+      submenu: [
+        { role: 'zoomIn', label: 'Vergrössern' },
+        { role: 'zoomOut', label: 'Verkleinern' },
+        { role: 'resetZoom', label: 'Standardgrösse' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: 'Vollbild' },
+      ],
+    },
+    {
+      label: 'Hilfe',
+      submenu: [
+        {
+          label: `Version ${version}`,
+          enabled: false,
+        },
+        {
+          label: '© Saran Pasquale',
+          enabled: false,
+        },
+        { type: 'separator' },
+        {
+          label: 'Entwicklertools',
+          accelerator: 'F12',
+          click: () => {
+            const w = BrowserWindow.getFocusedWindow()
+            if (w) w.webContents.toggleDevTools()
+          },
+        },
+      ],
+    },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+
   createWindow()
   setupAutoUpdater()
 
