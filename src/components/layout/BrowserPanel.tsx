@@ -1245,6 +1245,14 @@ export default function BrowserPanel() {
 
   if (!isOpen) return null
 
+  // Angezeigter Liris-Kalendertag in der Vergangenheit? Nur dann ist die
+  // "noch nicht aktualisiert"-Meldung relevant (verpasste Bearbeitung).
+  const todayIso = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const isPastDay = !!staleReferenceDate && staleReferenceDate < todayIso
+
   return (
     <div
       className="flex flex-row flex-shrink-0 border-l border-gray-200 bg-white relative"
@@ -1287,13 +1295,15 @@ export default function BrowserPanel() {
 
           <div className="flex-1" />
 
-          {/* Meldung: noch nicht aktualisierte Patienten vom angezeigten Tag */}
-          {(markStaleCount > 0 || markMissingCount > 0) && (
+          {/* Meldung: noch nicht aktualisierte Patienten von einem VERGANGENEN
+              Tag — damit keine verpasste Bearbeitung vergessen geht. Nur bei
+              Tagen vor heute, nicht fuer heute/zukuenftige Termine. */}
+          {isPastDay && (markStaleCount > 0 || markMissingCount > 0) && (
             <div className="flex items-center gap-1.5 bg-orange-100 border border-orange-300 rounded-lg px-2 py-0.5"
-                 title="Diese im Kalender umrandeten Patienten wurden seit dem angezeigten Datum noch nicht im Recall aktualisiert.">
+                 title={`Vom ${staleReferenceDate.split('-').reverse().join('.')} (vergangener Tag) wurden diese Patienten noch nicht im Recall aktualisiert.`}>
               <span className="text-orange-600">⚠</span>
               <span className="text-[11px] font-semibold text-orange-800 select-none">
-                {markStaleCount > 0 && `${markStaleCount} vom ${staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : '—'} offen`}
+                {markStaleCount > 0 && `${markStaleCount} vom ${staleReferenceDate.split('-').reverse().join('.')} offen`}
                 {markStaleCount > 0 && markMissingCount > 0 && ' · '}
                 {markMissingCount > 0 && `${markMissingCount} neu`}
               </span>
