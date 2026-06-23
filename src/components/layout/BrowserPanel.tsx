@@ -920,37 +920,29 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
-          // Markiere auch Patienten mit verpassten/abgesagten Terminen
-          // - durchgestrichen = verpasst
-          // - grauer Hintergrund = abgesagt
-          // Diese zählen auch als "stale" (müssen aktualisiert werden)
-          var allRows = document.querySelectorAll('[data-az-recall-pid], tr, li, div[role="row"]');
+          // Markiere ALLE Patienten-Zeilen: Orange wenn in DB, Rot wenn neu
+          // Suche nach Zeilen mit Geburtsdatum (YYYY-MM-DD Muster)
+          var allRows = document.querySelectorAll('tr, li, div');
           allRows.forEach(function(row){
             if(row.getAttribute('data-az-recall-pid')) return; // schon markiert
             var txt = (row.textContent || '').trim();
-            if(!txt || txt.length > 500) return;
-            // PID extrahieren
-            var pidMatch = txt.match(/#\\s*0*(\\d+)(?!\\d)/);
+            if(!txt || txt.length > 500 || !/(\\d{2})\\.(\\d{2})\\.(\\d{4})/.test(txt)) return; // muss Geb.datum haben
+            // PID extrahieren (mit oder ohne #)
+            var pidMatch = txt.match(/#?\\s*0*(\\d+)(?!\\d)\\s+\\d{2}\\.\\d{2}\\.\\d{4}/);
             if(!pidMatch) return;
-            var pid = pidMatch[1];
-            // Durchgestrichen (verpasster Termin)?
-            var hasStrike = Array.from(row.querySelectorAll('*')).some(function(el){
-              var style = window.getComputedStyle(el);
-              return style.textDecoration.indexOf('line-through') >= 0;
-            });
-            // Grauer Hintergrund (abgesagter Termin)?
-            var style = window.getComputedStyle(row);
-            var bgColor = style.backgroundColor;
-            var isGray = bgColor.match(/rgb\\(\\s*(\\d+),\\s*\\d+,\\s*\\d+\\s*\\)/);
-            var r = isGray ? parseInt(isGray[1], 10) : -1;
-            var isGrayBg = r >= 100 && r <= 180; // grauer Ton
+            var pidStr = pidMatch[0].match(/\\d+/)[0];
 
-            if(hasStrike || isGrayBg){
-              row.setAttribute('data-az-recall-pid', pid);
-              row.classList.add('az-recall-row-stale'); // wie andere zu aktualisierende Patienten
-              var reason = hasStrike ? 'Termin verpasst — muss aktualisiert werden' : 'Termin abgesagt — muss aktualisiert werden';
-              if(!row.getAttribute('title')) row.setAttribute('title', reason);
-            }
+            // Überprüfe: in DB oder neu?
+            var inStale = staleSet[pidStr];
+            var inKnown = knownSet[pidStr];
+            var isNew = !inStale && !inKnown;
+
+            var kind = (inStale || inKnown) ? 'stale' : 'missing'; // Orange für in DB, Rot für neu
+
+            row.setAttribute('data-az-recall-pid', pidStr);
+            row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
+            var reason = (inStale || inKnown) ? 'In Datenbank erfasst' : 'Noch nicht in Datenbank — neu aufnehmen';
+            if(!row.getAttribute('title')) row.setAttribute('title', reason);
           });
 
           // Anzahl der aktuell sichtbar markierten (noch nicht aktualisierten)
