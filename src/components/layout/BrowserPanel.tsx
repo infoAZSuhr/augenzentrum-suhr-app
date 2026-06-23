@@ -518,6 +518,9 @@ export default function BrowserPanel() {
   const [inputUrl, setInputUrl] = useState(defaultUrl)
   const [currentUrl, setCurrentUrl] = useState(defaultUrl)
   const [loading, setLoading] = useState(false)
+  // Anzahl im aktuellen Liris-View markierter (noch nicht aktualisierter) Patienten
+  const [markStaleCount, setMarkStaleCount] = useState(0)
+  const [markMissingCount, setMarkMissingCount] = useState(0)
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem('liris-panel-width'))
     return saved >= 300 && saved <= 1200 ? saved : 480
@@ -916,10 +919,19 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
-          return 'done';
+          // Anzahl der aktuell sichtbar markierten (noch nicht aktualisierten)
+          // Patienten zuruecksenden -> Host zeigt eine Meldung im Panel-Kopf.
+          var staleN = document.querySelectorAll('.az-recall-row-stale').length;
+          var missN  = document.querySelectorAll('.az-recall-row-missing').length;
+          return { stale: staleN, missing: missN };
         })();
       `
-      wv.executeJavaScript(script).catch(() => {})
+      wv.executeJavaScript(script).then(function(r: any) {
+        if (r && typeof r === 'object') {
+          setMarkStaleCount(r.stale || 0)
+          setMarkMissingCount(r.missing || 0)
+        }
+      }).catch(() => {})
     }
     highlightRef.current = highlightRecallPids
     const onLoadStart = () => setLoading(true)
@@ -1274,6 +1286,19 @@ export default function BrowserPanel() {
           </button>
 
           <div className="flex-1" />
+
+          {/* Meldung: noch nicht aktualisierte Patienten vom angezeigten Tag */}
+          {(markStaleCount > 0 || markMissingCount > 0) && (
+            <div className="flex items-center gap-1.5 bg-orange-100 border border-orange-300 rounded-lg px-2 py-0.5"
+                 title="Diese im Kalender umrandeten Patienten wurden seit dem angezeigten Datum noch nicht im Recall aktualisiert.">
+              <span className="text-orange-600">⚠</span>
+              <span className="text-[11px] font-semibold text-orange-800 select-none">
+                {markStaleCount > 0 && `${markStaleCount} vom ${staleReferenceDate ? staleReferenceDate.split('-').reverse().join('.') : '—'} offen`}
+                {markStaleCount > 0 && markMissingCount > 0 && ' · '}
+                {markMissingCount > 0 && `${markMissingCount} neu`}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5"
                title="Datum stammt aus dem Liris-Kalender-Header. PIDs werden hervorgehoben deren Recall seit diesem Datum noch nicht aktualisiert wurde.">
