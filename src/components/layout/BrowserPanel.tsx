@@ -920,13 +920,26 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
-          // Nur Zeilen mit #PID markieren: Orange wenn in DB, Rot wenn neu
+          // Nur echte Patient-Zeilen markieren: müssen ALL DIESE haben
+          // - Name (Großbuchstaben)
+          // - Zeit (@HH:MM)
+          // - PID (#NNNNN)
+          // - Geburtsdatum (DD.MM.YYYY)
           var pidNodes = document.querySelectorAll('tr, li, div[role="row"]');
           pidNodes.forEach(function(row){
             if(row.getAttribute('data-az-recall-pid')) return; // schon markiert
             var txt = (row.textContent || '').trim();
             if(!txt || txt.length > 500) return;
-            // PID mit # suchen
+
+            // Überprüfe: HAT ALLE KRITERIEN?
+            var hasTime = /@\\d{2}:\\d{2}/.test(txt);           // Zeit @HH:MM
+            var hasGeburtsdatum = /\\d{2}\\.\\d{2}\\.\\d{4}/.test(txt); // Geb.datum DD.MM.YYYY
+            var hasPid = /#\\s*0*(\\d+)(?!\\d)/.test(txt);      // PID #NNNNN
+            var hasName = /[A-ZÄÖÜ][a-zäöü]/.test(txt);         // Name mit Großbuchstaben
+
+            if(!hasTime || !hasGeburtsdatum || !hasPid || !hasName) return; // keine echte Patient-Zeile
+
+            // PID extrahieren
             var pidMatch = txt.match(/#\\s*0*(\\d+)(?!\\d)/);
             if(!pidMatch) return;
             var pidStr = pidMatch[1];
