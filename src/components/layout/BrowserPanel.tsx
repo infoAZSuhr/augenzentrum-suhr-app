@@ -1270,11 +1270,12 @@ export default function BrowserPanel() {
 
   if (!isOpen) return null
 
-  // Aggregierte Meldung: zeige alle in dayHistory gesammelten Tage
-  // (aktueller Tag + 1-2 vorherige Tage, wenn angesehen)
+  // Aggregierte Meldung: zeige max. 2 Tage mit unverarbeiteten Patienten
+  // (neueste zuerst)
   const dayEntries = Object.entries(dayHistory)
     .filter(([, counts]) => counts.stale > 0 || counts.missing > 0)
     .sort(([a], [b]) => b.localeCompare(a))  // Neueste zuerst
+    .slice(0, 2)  // Nur die letzten 2 Tage
   const hasAnyPastData = dayEntries.length > 0
 
   return (
