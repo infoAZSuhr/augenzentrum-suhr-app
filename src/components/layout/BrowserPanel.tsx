@@ -868,9 +868,9 @@ export default function BrowserPanel() {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
             st.textContent =
-              '.az-recall-row-stale{box-shadow:inset 0 0 0 4px #f59e0b !important;border-radius:4px !important;}'+
-              '.az-recall-row-missing{box-shadow:inset 0 0 0 4px #dc2626 !important;border-radius:4px !important;}'+
-              '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;}';
+              '.az-recall-row-stale{outline:3px solid #f59e0b !important;outline-offset:2px !important;}'+
+              '.az-recall-row-missing{outline:3px solid #dc2626 !important;outline-offset:2px !important;}'+
+              '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;}';
             document.documentElement.appendChild(st);
           }
           // TreeWalker: alle Text-Nodes mit '#' scannen
