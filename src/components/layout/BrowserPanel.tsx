@@ -1009,6 +1009,7 @@ export default function BrowserPanel() {
   // Aggregiere Zähler über mehrere vergangene Tage hinweg. Wenn sich
   // staleReferenceDate ändert und der Tag in der Vergangenheit liegt,
   // speichere die aktuellen Zähler für diesen Tag in dayHistory.
+  // Wenn beide Zähler 0 sind, entferne den Tag (= alle bearbeitet).
   const todayIso = (() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -1016,13 +1017,17 @@ export default function BrowserPanel() {
   useEffect(() => {
     if (!staleReferenceDate || !isOpen) return
     if (staleReferenceDate >= todayIso) return  // Nur vergangene Tage
-    // Wenn dieser Tag bereits in der History ist, Update die Zähler
-    // (falls sie sich durch Änderungen der Markierungen geändert haben).
-    // Ansonsten wird ein neuer Eintrag hinzugefügt.
-    setDayHistory(prev => ({
-      ...prev,
-      [staleReferenceDate]: { stale: markStaleCount, missing: markMissingCount }
-    }))
+    setDayHistory(prev => {
+      const newHistory = { ...prev }
+      if (markStaleCount === 0 && markMissingCount === 0) {
+        // Beide Zähler 0 → Tag wurde komplett bearbeitet, entfernen
+        delete newHistory[staleReferenceDate]
+      } else {
+        // Speichere die Zähler für diesen Tag
+        newHistory[staleReferenceDate] = { stale: markStaleCount, missing: markMissingCount }
+      }
+      return newHistory
+    })
   }, [staleReferenceDate, markStaleCount, markMissingCount, todayIso, isOpen])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
