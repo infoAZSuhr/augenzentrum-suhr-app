@@ -3260,6 +3260,11 @@ export default function RecallPage() {
         }
       }
 
+      // Wenn letzteKons geändert wurde, reset aufgebotErstellt
+      // (der alte Aufgeboten-Status ist dann obsolet)
+      const letzteKonsChanged = oldP && form.letzteKons !== (oldP.letzteKons ?? '')
+      const aufgebotErstellt = letzteKonsChanged ? null : (form.aufgebotErstellt || null)
+
       const data = {
         pid:              normalizePid(form.pid) || null,
         name:             null,
@@ -3273,7 +3278,7 @@ export default function RecallPage() {
         nachfassTel:      form.nachfassTel       || null,
         nachfassTelDatum: form.nachfassTelDatum  || null,
         aufgebotFuer:     form.aufgebotFuer      || null,
-        aufgebotErstellt: form.aufgebotErstellt  || null,
+        aufgebotErstellt: aufgebotErstellt,
         aufgebotArt:      form.aufgebotArt       || null,
         aufgebotVersand:  null,
         aufgebotNotiz:    null,
