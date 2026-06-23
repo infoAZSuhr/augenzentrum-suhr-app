@@ -870,8 +870,6 @@ export default function BrowserPanel() {
             st.textContent =
               '.az-recall-row-stale{outline:3px solid #f59e0b !important;outline-offset:2px !important;}'+
               '.az-recall-row-missing{outline:3px solid #dc2626 !important;outline-offset:2px !important;}'+
-              '.az-recall-row-missed{outline:3px solid #8b5cf6 !important;outline-offset:2px !important;}'+
-              '.az-recall-row-cancelled{outline:3px solid #6b7280 !important;outline-offset:2px !important;}'+
               '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;}';
             document.documentElement.appendChild(st);
           }
@@ -925,6 +923,7 @@ export default function BrowserPanel() {
           // Markiere auch Patienten mit verpassten/abgesagten Terminen
           // - durchgestrichen = verpasst
           // - grauer Hintergrund = abgesagt
+          // Diese zählen auch als "stale" (müssen aktualisiert werden)
           var allRows = document.querySelectorAll('[data-az-recall-pid], tr, li, div[role="row"]');
           allRows.forEach(function(row){
             if(row.getAttribute('data-az-recall-pid')) return; // schon markiert
@@ -948,9 +947,8 @@ export default function BrowserPanel() {
 
             if(hasStrike || isGrayBg){
               row.setAttribute('data-az-recall-pid', pid);
-              if(hasStrike) row.classList.add('az-recall-row-missed');
-              if(isGrayBg) row.classList.add('az-recall-row-cancelled');
-              var reason = hasStrike ? 'Termin verpasst' : 'Termin abgesagt';
+              row.classList.add('az-recall-row-stale'); // wie andere zu aktualisierende Patienten
+              var reason = hasStrike ? 'Termin verpasst — muss aktualisiert werden' : 'Termin abgesagt — muss aktualisiert werden';
               if(!row.getAttribute('title')) row.setAttribute('title', reason);
             }
           });
