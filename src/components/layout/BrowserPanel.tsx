@@ -521,6 +521,7 @@ export default function BrowserPanel() {
   // Anzahl im aktuellen Liris-View markierter (noch nicht aktualisierter) Patienten
   const [markStaleCount, setMarkStaleCount] = useState(0)
   const [markMissingCount, setMarkMissingCount] = useState(0)
+  const [dayHistory, setDayHistory] = useState<Record<string, { stale: number; missing: number }>>({})
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem('liris-panel-width'))
     return saved >= 300 && saved <= 1200 ? saved : 480
@@ -1005,6 +1006,25 @@ export default function BrowserPanel() {
     return () => ids.forEach(id => window.clearTimeout(id))
   }, [staleRecallPids, knownRecallPids, staleReferenceDate, isOpen])
 
+  // Aggregiere Zähler über mehrere vergangene Tage hinweg. Wenn sich
+  // staleReferenceDate ändert und der Tag in der Vergangenheit liegt,
+  // speichere die aktuellen Zähler für diesen Tag in dayHistory.
+  const todayIso = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  useEffect(() => {
+    if (!staleReferenceDate || !isOpen) return
+    if (staleReferenceDate >= todayIso) return  // Nur vergangene Tage
+    // Wenn dieser Tag bereits in der History ist, Update die Zähler
+    // (falls sie sich durch Änderungen der Markierungen geändert haben).
+    // Ansonsten wird ein neuer Eintrag hinzugefügt.
+    setDayHistory(prev => ({
+      ...prev,
+      [staleReferenceDate]: { stale: markStaleCount, missing: markMissingCount }
+    }))
+  }, [staleReferenceDate, markStaleCount, markMissingCount, todayIso, isOpen])
+
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
   useEffect(() => {
@@ -1245,13 +1265,12 @@ export default function BrowserPanel() {
 
   if (!isOpen) return null
 
-  // Angezeigter Liris-Kalendertag in der Vergangenheit? Nur dann ist die
-  // "noch nicht aktualisiert"-Meldung relevant (verpasste Bearbeitung).
-  const todayIso = (() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })()
-  const isPastDay = !!staleReferenceDate && staleReferenceDate < todayIso
+  // Aggregierte Meldung: zeige alle in dayHistory gesammelten Tage
+  // (aktueller Tag + 1-2 vorherige Tage, wenn angesehen)
+  const dayEntries = Object.entries(dayHistory)
+    .filter(([, counts]) => counts.stale > 0 || counts.missing > 0)
+    .sort(([a], [b]) => b.localeCompare(a))  // Neueste zuerst
+  const hasAnyPastData = dayEntries.length > 0
 
   return (
     <div
@@ -1295,17 +1314,25 @@ export default function BrowserPanel() {
 
           <div className="flex-1" />
 
-          {/* Meldung: noch nicht aktualisierte Patienten von einem VERGANGENEN
-              Tag — damit keine verpasste Bearbeitung vergessen geht. Nur bei
-              Tagen vor heute, nicht fuer heute/zukuenftige Termine. */}
-          {isPastDay && (markStaleCount > 0 || markMissingCount > 0) && (
+          {/* Meldung: Aggregierte Zähler von mehreren vergangenen Tagen.
+              Zeigt alle Tage, die der Nutzer angesehen hat, mit ihren jeweiligen offenen Patienten. */}
+          {hasAnyPastData && (
             <div className="flex items-center gap-1.5 bg-orange-100 border border-orange-300 rounded-lg px-2 py-0.5"
-                 title={`Vom ${staleReferenceDate.split('-').reverse().join('.')} (vergangener Tag) wurden diese Patienten noch nicht im Recall aktualisiert.`}>
+                 title="Offene Patienten von vergangenen Tagen — noch nicht im Recall aktualisiert.">
               <span className="text-orange-600">⚠</span>
               <span className="text-[11px] font-semibold text-orange-800 select-none">
-                {markStaleCount > 0 && `${markStaleCount} vom ${staleReferenceDate.split('-').reverse().join('.')} offen`}
-                {markStaleCount > 0 && markMissingCount > 0 && ' · '}
-                {markMissingCount > 0 && `${markMissingCount} neu`}
+                {dayEntries.map(([date, counts], idx) => {
+                  const dateStr = date.split('-').reverse().join('.')
+                  const parts: string[] = []
+                  if (counts.stale > 0) parts.push(`${counts.stale} vom ${dateStr}`)
+                  if (counts.missing > 0) parts.push(`${counts.missing} neu${counts.stale > 0 ? '' : ` vom ${dateStr}`}`)
+                  return (
+                    <span key={date}>
+                      {idx > 0 && ' · '}
+                      {parts.join(' + ')}
+                    </span>
+                  )
+                })}
               </span>
             </div>
           )}
