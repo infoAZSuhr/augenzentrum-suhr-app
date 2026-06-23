@@ -1010,25 +1010,44 @@ export default function BrowserPanel() {
   // staleReferenceDate ändert und der Tag in der Vergangenheit liegt,
   // speichere die aktuellen Zähler für diesen Tag in dayHistory.
   // Wenn beide Zähler 0 sind, entferne den Tag (= alle bearbeitet).
+  // Mit 1s Debounce um Flackern zu vermeiden.
   const todayIso = (() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })()
+  const zeroCountTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     if (!staleReferenceDate || !isOpen) return
     if (staleReferenceDate >= todayIso) return  // Nur vergangene Tage
-    setDayHistory(prev => {
-      const newHistory = { ...prev }
-      if (markStaleCount === 0 && markMissingCount === 0) {
-        // Beide Zähler 0 → Tag wurde komplett bearbeitet, entfernen
-        delete newHistory[staleReferenceDate]
-      } else {
-        // Speichere die Zähler für diesen Tag
+
+    if (markStaleCount === 0 && markMissingCount === 0) {
+      // Beide Zähler 0 → mit Debounce warten, ob sie wieder nicht-0 werden
+      if (zeroCountTimeoutRef.current) clearTimeout(zeroCountTimeoutRef.current)
+      zeroCountTimeoutRef.current = setTimeout(() => {
+        setDayHistory(prev => {
+          const newHistory = { ...prev }
+          delete newHistory[staleReferenceDate]
+          return newHistory
+        })
+      }, 1000)  // 1s Debounce
+    } else {
+      // Speichere die Zähler für diesen Tag
+      if (zeroCountTimeoutRef.current) clearTimeout(zeroCountTimeoutRef.current)
+      setDayHistory(prev => {
+        const newHistory = { ...prev }
         newHistory[staleReferenceDate] = { stale: markStaleCount, missing: markMissingCount }
-      }
-      return newHistory
-    })
+        return newHistory
+      })
+    }
   }, [staleReferenceDate, markStaleCount, markMissingCount, todayIso, isOpen])
+
+  // Cleanup debounce Timer
+  useEffect(() => {
+    return () => {
+      if (zeroCountTimeoutRef.current) clearTimeout(zeroCountTimeoutRef.current)
+    }
+  }, [])
 
   // PID-Injection: feuert jedes Mal wenn pendingPid sich ändert.
   // Funktioniert auch wenn das Panel schon offen ist (dom-ready feuert dann nicht mehr).
