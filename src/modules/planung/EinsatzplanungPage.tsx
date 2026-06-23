@@ -139,7 +139,7 @@ const TODAY=isoDate(new Date().getFullYear(),new Date().getMonth()+1,new Date().
 
 // ── Day info ──────────────────────────────────────────────────────────────────
 
-interface DayInfo{d:number;key:string;dow:number;isWeekend:boolean;ftName?:string;monthIdx:number}
+interface DayInfo{d:number;key:string;dow:number;isWeekend:boolean;ftName?:string;monthIdx:number;isCurrentMonth?:boolean}
 
 function getYearDays(year:number,feiertage:Record<string,string>):DayInfo[]{
   const result:DayInfo[]=[]
@@ -156,11 +156,44 @@ function getYearDays(year:number,feiertage:Record<string,string>):DayInfo[]{
 
 function getMonthDays(year:number,monthIdx:number,feiertage:Record<string,string>):DayInfo[]{
   const days=new Date(year,monthIdx+1,0).getDate()
-  return Array.from({length:days},(_,i)=>{
-    const d=i+1,key=isoDate(year,monthIdx+1,d)
+  const firstDow=new Date(year,monthIdx,1).getDay()
+  const lastDay=days
+  const lastDow=new Date(year,monthIdx,lastDay).getDay()
+
+  const result:DayInfo[]=[]
+
+  // Add days from previous month (start of week)
+  if(firstDow>0){
+    const prevMonthDays=new Date(year,monthIdx,0).getDate()
+    for(let d=prevMonthDays-firstDow+1;d<=prevMonthDays;d++){
+      const prevMonth=monthIdx===0?11:monthIdx-1
+      const prevYear=monthIdx===0?year-1:year
+      const key=isoDate(prevYear,prevMonth+1,d)
+      const dow=new Date(prevYear,prevMonth,d).getDay()
+      result.push({d,key,dow,isWeekend:dow===0||dow===6,ftName:feiertage[key],monthIdx:prevMonth,isCurrentMonth:false})
+    }
+  }
+
+  // Add days of current month
+  for(let d=1;d<=days;d++){
+    const key=isoDate(year,monthIdx+1,d)
     const dow=new Date(year,monthIdx,d).getDay()
-    return{d,key,dow,isWeekend:dow===0||dow===6,ftName:feiertage[key],monthIdx}
-  })
+    result.push({d,key,dow,isWeekend:dow===0||dow===6,ftName:feiertage[key],monthIdx,isCurrentMonth:true})
+  }
+
+  // Add days from next month (end of week)
+  if(lastDow<6){
+    const nextMonthDays=6-lastDow
+    const nextMonth=monthIdx===11?0:monthIdx+1
+    const nextYear=monthIdx===11?year+1:year
+    for(let d=1;d<=nextMonthDays;d++){
+      const key=isoDate(nextYear,nextMonth+1,d)
+      const dow=new Date(nextYear,nextMonth,d).getDay()
+      result.push({d,key,dow,isWeekend:dow===0||dow===6,ftName:feiertage[key],monthIdx:nextMonth,isCurrentMonth:false})
+    }
+  }
+
+  return result
 }
 
 // ── Print ─────────────────────────────────────────────────────────────────────
@@ -168,11 +201,11 @@ function getMonthDays(year:number,monthIdx:number,feiertage:Record<string,string
 function buildMonthHTML(year:number,monthIdx:number,data:PlanungData,feiertage:Record<string,string>,pageBreak=true):string{
   const days=getMonthDays(year,monthIdx,feiertage)
   const BD='1px solid #9ca3af'
-  const hdr=days.map(({d,dow,isWeekend,ftName})=>{
-    const bg=ftName?'#fed7aa':isWeekend?'#f3f4f6':'#f9fafb'
-    const co=ftName?'#c2410c':isWeekend?'#9ca3af':'#6b7280'
-    const ft=ftName?`<div style="font-size:7px;color:#ea580c">${FT_SHORT[ftName]??ftName.slice(0,3)}</div>`:''
-    return`<th style="width:22px;text-align:center;padding:2px 0;background:${bg};color:${co};border:${BD}">
+  const hdr=days.map(({d,dow,isWeekend,ftName,isCurrentMonth})=>{
+    const bg=isCurrentMonth?(ftName?'#fed7aa':isWeekend?'#f3f4f6':'#f9fafb'):'#f3f4f6'
+    const co=isCurrentMonth?(ftName?'#c2410c':isWeekend?'#9ca3af':'#6b7280'):'#d1d5db'
+    const ft=ftName&&isCurrentMonth?`<div style="font-size:7px;color:#ea580c">${FT_SHORT[ftName]??ftName.slice(0,3)}</div>`:''
+    return`<th style="width:22px;text-align:center;padding:2px 0;background:${bg};color:${co};border:${BD};opacity:${isCurrentMonth?'1':'0.6'}">
       <div style="font-size:9px;font-weight:600">${d}</div>
       <div style="font-size:7px;color:#9ca3af">${WEEKDAY_MIN[dow]}</div>${ft}</th>`
   }).join('')
@@ -198,10 +231,10 @@ function buildMonthHTML(year:number,monthIdx:number,data:PlanungData,feiertage:R
     }
     for(const p of s.persons){
       const ps=data.schedule[p]??{}
-      const cells=days.map(({key,isWeekend,ftName})=>{
+      const cells=days.map(({key,isWeekend,ftName,isCurrentMonth})=>{
         const code=ps[key]
         const bg=code?(CODE_PRINT[code]??'#f9fafb'):ftName?'#fff7ed':isWeekend?'#f9fafb':'#fff'
-        return`<td style="width:22px;text-align:center;padding:1px 0;background:${bg};border:${BD};font-size:7px;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact">${code??''}</td>`
+        return`<td style="width:22px;text-align:center;padding:1px 0;background:${bg};border:${BD};font-size:7px;font-weight:700;opacity:${isCurrentMonth?'1':'0.6'};-webkit-print-color-adjust:exact;print-color-adjust:exact">${code??''}</td>`
       }).join('')
       rows+=`<tr><td style="padding:2px 6px;font-size:9px;border:${BD};white-space:nowrap;min-width:110px">${p}</td>${cells}</tr>`
     }
@@ -1075,18 +1108,19 @@ function PlanTable({days,data,showMonthSep,hoveredPerson,hoveredCol,setHoveredPe
           <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap border-r border-gray-200">Person</th>
           {showPensum&&<th className="sticky top-0 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 whitespace-nowrap border-r border-gray-200 w-14">%</th>}
           {showPensum&&<th className="sticky top-0 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 whitespace-nowrap border-r border-gray-200 w-16">Tage</th>}
-          {days.map(({d,dow,isWeekend,ftName,key,monthIdx})=>{
-            const isMonthStart=showMonthSep&&d===1
+          {days.map(({d,dow,isWeekend,ftName,key,monthIdx,isCurrentMonth})=>{
+            const isMonthStart=showMonthSep&&d===1&&isCurrentMonth
             const isHovCol=hoveredCol===key
             const isToday=key===TODAY
+            const isOutOfMonth=!isCurrentMonth
             return(
               <th key={`${key}`}
                 onMouseEnter={()=>setHoveredCol(key)}
                 onMouseLeave={()=>setHoveredCol(null)}
                 title={ftName??undefined}
-                className={`py-1 text-center font-medium border-r border-gray-100 transition-colors
+                className={`py-1 text-center font-medium border-r border-gray-100 transition-colors opacity-${isOutOfMonth?'50':'100'}
                   ${isMonthStart?'border-l-2 border-l-gray-400':''}
-                  ${isToday?'bg-primary-600 text-white':isHovCol?'bg-primary-100 text-primary-700':ftName?'bg-orange-100 text-orange-700':isWeekend?'bg-gray-100 text-gray-400':'text-gray-500'}
+                  ${isToday?'bg-primary-600 text-white':isHovCol?'bg-primary-100 text-primary-700':ftName?'bg-orange-100 text-orange-700':isOutOfMonth?'bg-gray-50 text-gray-300':isWeekend?'bg-gray-100 text-gray-400':'text-gray-500'}
                   ${showMonthSep?'w-7':'w-9'}`}>
                 {isMonthStart&&<div className="text-[8px] font-bold leading-none opacity-80">{MONTHS_SHORT[monthIdx]}</div>}
                 <div className="leading-none text-[10px] font-bold">{d}</div>
@@ -1106,9 +1140,9 @@ function PlanTable({days,data,showMonthSep,hoveredPerson,hoveredCol,setHoveredPe
                   <td className="sticky left-0 z-10 bg-gray-100 px-3 py-1.5 font-semibold text-gray-700 text-xs uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{section.label}</td>
                   {showPensum&&<td className="border-r border-gray-100 border-b border-gray-200 bg-gray-100"/>}
                   {showPensum&&<td className="border-r border-gray-100 border-b border-gray-200 bg-gray-100"/>}
-                  {days.map(({key,isWeekend,ftName,d})=>{
-                    const isMonthStart=showMonthSep&&d===1
-                    const baseClass=`py-1 text-center border-r border-gray-100 border-b border-gray-200 bg-gray-100${isMonthStart?' border-l-2 border-l-gray-400':''}`
+                  {days.map(({key,isWeekend,ftName,d,isCurrentMonth})=>{
+                    const isMonthStart=showMonthSep&&d===1&&isCurrentMonth
+                    const baseClass=`py-1 text-center border-r border-gray-100 border-b border-gray-200 bg-gray-100 opacity-${isCurrentMonth?'100':'50'}${isMonthStart?' border-l-2 border-l-gray-400':''}`
                     if(isWeekend||ftName) return <td key={key} className={baseClass}/>
                     const arzteSection=data.sections[0]
                     const workingAerzte=(arzteSection?.persons??[]).filter(p=>!inactiveSet.has(p)&&(()=>{const c=data.schedule[p]?.[key];return!!(c&&CLINIC_CODES.has(c))})())
@@ -1286,24 +1320,25 @@ function PlanTable({days,data,showMonthSep,hoveredPerson,hoveredCol,setHoveredPe
                       </td>
                     )
                   })()}
-                  {days.map(({d,key,isWeekend,ftName,monthIdx})=>{
+                  {days.map(({d,key,isWeekend,ftName,monthIdx,isCurrentMonth})=>{
                     const code=ps[key]
                     const isHovCol=hoveredCol===key
-                    const isMonthStart=showMonthSep&&d===1
+                    const isMonthStart=showMonthSep&&d===1&&isCurrentMonth
                     const isToday=key===TODAY
                     const highlight=isHovRow||isHovCol
                     const selKey=`${person}::${key}`
                     const isSelected=multiSel?.has(selKey)
+                    const isOutOfMonth=!isCurrentMonth
                     return(
                       <td key={key}
                         onMouseEnter={()=>{setHoveredCol(key);onCellMouseEnter?.(person,key)}}
                         onMouseDown={()=>onCellMouseDown?.(person,key)}
                         onClick={e=>onCellClick(e,person,key)}
                         onDoubleClick={e=>onCellDoubleClick?.(e,person,key)}
-                        className={`group/cell py-1 text-center border-r border-gray-100 cursor-pointer transition-all select-none relative overflow-visible
+                        className={`group/cell py-1 text-center border-r border-gray-100 cursor-pointer transition-all select-none relative overflow-visible opacity-${isOutOfMonth?'50':'100'}
                           ${isMonthStart?'border-l-2 border-l-gray-300':''}
                           ${isSelected?'bg-primary-200 ring-2 ring-inset ring-primary-500':highlight?'ring-1 ring-inset ring-primary-300':''}
-                          ${!isSelected&&(isHovRow&&isHovCol?'bg-primary-300':isHovCol?'bg-primary-200':isToday?'bg-primary-100':ftName?'bg-orange-50':isWeekend?'bg-gray-50':'')}
+                          ${!isSelected&&(isHovRow&&isHovCol?'bg-primary-300':isHovCol?'bg-primary-200':isToday?'bg-primary-100':isOutOfMonth?'bg-gray-25':ftName?'bg-orange-50':isWeekend?'bg-gray-50':'')}
                           ${showMonthSep?'w-7':'w-9'}`}>
                         {(()=>{const comment=comments?.[person]?.[key];return(<>
                           {code?<span className={`inline-block px-0.5 rounded text-[10px] font-semibold leading-tight ${isSelected?'ring-1 ring-primary-600':''}${CODE_STYLE[code]??'bg-gray-100 text-gray-700'}`}>{code}</span>:
