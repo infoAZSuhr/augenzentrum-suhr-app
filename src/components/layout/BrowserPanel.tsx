@@ -920,22 +920,20 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
-          // Markiere ALLE Patienten-Zeilen: Orange wenn in DB, Rot wenn neu
-          // Suche nach Zeilen mit Geburtsdatum (YYYY-MM-DD Muster)
-          var allRows = document.querySelectorAll('tr, li, div');
-          allRows.forEach(function(row){
+          // Nur Zeilen mit #PID markieren: Orange wenn in DB, Rot wenn neu
+          var pidNodes = document.querySelectorAll('tr, li, div[role="row"]');
+          pidNodes.forEach(function(row){
             if(row.getAttribute('data-az-recall-pid')) return; // schon markiert
             var txt = (row.textContent || '').trim();
-            if(!txt || txt.length > 500 || !/(\\d{2})\\.(\\d{2})\\.(\\d{4})/.test(txt)) return; // muss Geb.datum haben
-            // PID extrahieren (mit oder ohne #)
-            var pidMatch = txt.match(/#?\\s*0*(\\d+)(?!\\d)\\s+\\d{2}\\.\\d{2}\\.\\d{4}/);
+            if(!txt || txt.length > 500) return;
+            // PID mit # suchen
+            var pidMatch = txt.match(/#\\s*0*(\\d+)(?!\\d)/);
             if(!pidMatch) return;
-            var pidStr = pidMatch[0].match(/\\d+/)[0];
+            var pidStr = pidMatch[1];
 
             // Überprüfe: in DB oder neu?
             var inStale = staleSet[pidStr];
             var inKnown = knownSet[pidStr];
-            var isNew = !inStale && !inKnown;
 
             var kind = (inStale || inKnown) ? 'stale' : 'missing'; // Orange für in DB, Rot für neu
 
