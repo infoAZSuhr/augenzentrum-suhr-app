@@ -870,6 +870,8 @@ export default function BrowserPanel() {
             st.textContent =
               '.az-recall-row-stale{outline:3px solid #f59e0b !important;outline-offset:2px !important;}'+
               '.az-recall-row-missing{outline:3px solid #dc2626 !important;outline-offset:2px !important;}'+
+              '.az-recall-row-missed{outline:3px solid #8b5cf6 !important;outline-offset:2px !important;}'+
+              '.az-recall-row-cancelled{outline:3px solid #6b7280 !important;outline-offset:2px !important;}'+
               '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;}';
             document.documentElement.appendChild(st);
           }
@@ -920,6 +922,39 @@ export default function BrowserPanel() {
               row.dataset.azRecallTitle = '1';
             }
           });
+          // Markiere auch Patienten mit verpassten/abgesagten Terminen
+          // - durchgestrichen = verpasst
+          // - grauer Hintergrund = abgesagt
+          var allRows = document.querySelectorAll('[data-az-recall-pid], tr, li, div[role="row"]');
+          allRows.forEach(function(row){
+            if(row.getAttribute('data-az-recall-pid')) return; // schon markiert
+            var txt = (row.textContent || '').trim();
+            if(!txt || txt.length > 500) return;
+            // PID extrahieren
+            var pidMatch = txt.match(/#\\s*0*(\\d+)(?!\\d)/);
+            if(!pidMatch) return;
+            var pid = pidMatch[1];
+            // Durchgestrichen (verpasster Termin)?
+            var hasStrike = Array.from(row.querySelectorAll('*')).some(function(el){
+              var style = window.getComputedStyle(el);
+              return style.textDecoration.indexOf('line-through') >= 0;
+            });
+            // Grauer Hintergrund (abgesagter Termin)?
+            var style = window.getComputedStyle(row);
+            var bgColor = style.backgroundColor;
+            var isGray = bgColor.match(/rgb\\(\\s*(\\d+),\\s*\\d+,\\s*\\d+\\s*\\)/);
+            var r = isGray ? parseInt(isGray[1], 10) : -1;
+            var isGrayBg = r >= 100 && r <= 180; // grauer Ton
+
+            if(hasStrike || isGrayBg){
+              row.setAttribute('data-az-recall-pid', pid);
+              if(hasStrike) row.classList.add('az-recall-row-missed');
+              if(isGrayBg) row.classList.add('az-recall-row-cancelled');
+              var reason = hasStrike ? 'Termin verpasst' : 'Termin abgesagt';
+              if(!row.getAttribute('title')) row.setAttribute('title', reason);
+            }
+          });
+
           // Anzahl der aktuell sichtbar markierten (noch nicht aktualisierten)
           // Patienten zuruecksenden -> Host zeigt eine Meldung im Panel-Kopf.
           var staleN = document.querySelectorAll('.az-recall-row-stale').length;
