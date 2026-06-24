@@ -915,8 +915,9 @@ export default function BrowserPanel() {
               var p = m[1];
               if (staleSet[p]) { kind = 'stale'; pid = p; break; }
               if (!knownSet[p]) { kind = 'missing'; pid = p; break; }
+              // Aktualisierte Patienten (in knownSet aber nicht in staleSet) nicht markieren
             }
-            if (!kind) return;
+            if (!kind) return; // Kein Markierungsbedarf
             var row = findRow(node);
             if (!row || row.getAttribute('data-az-recall-pid')) return;
             row.setAttribute('data-az-recall-pid', pid);
@@ -950,16 +951,21 @@ export default function BrowserPanel() {
             if(!pidMatch) return;
             var pidStr = pidMatch[1];
 
-            // Überprüfe: in DB oder neu?
+            // Überprüfe: in DB und aktuell, veraltet, oder neu?
             var inStale = staleSet[pidStr];
             var inKnown = knownSet[pidStr];
 
-            var kind = (inStale || inKnown) ? 'stale' : 'missing'; // Orange für in DB, Rot für neu
+            // Nur markieren wenn veraltet (orange) oder neu (rot)
+            // Aktualisierte Patienten (inKnown && !inStale) werden nicht markiert
+            var kind = null;
+            if (inStale) { kind = 'stale'; }
+            else if (!inKnown) { kind = 'missing'; }
+
+            if (!kind) return; // Kein Markierungsbedarf
 
             row.setAttribute('data-az-recall-pid', pidStr);
             row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
-            var reason = (inStale || inKnown) ? 'In Datenbank erfasst' : 'Noch nicht in Datenbank — neu aufnehmen';
-            if(!row.getAttribute('title')) row.setAttribute('title', reason);
+            if(!row.getAttribute('title')) row.setAttribute('title', kind === 'stale' ? T_STALE : T_MISSING);
           });
 
           // Anzahl der aktuell sichtbar markierten (noch nicht aktualisierten)
