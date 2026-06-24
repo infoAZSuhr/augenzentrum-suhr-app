@@ -1420,8 +1420,8 @@ export default function BrowserPanel() {
                 {dayEntries.map(([date, counts], idx) => {
                   const dateStr = date.split('-').reverse().join('.')
                   const parts: string[] = []
-                  if (counts.stale > 0) parts.push(`${counts.stale} vom ${dateStr}`)
-                  if (counts.missing > 0) parts.push(`${counts.missing} neu${counts.stale > 0 ? '' : ` vom ${dateStr}`}`)
+                  // Nur missing (nicht eingetragene) Patienten anzeigen, nicht stale (nicht aktualisierte)
+                  if (counts.missing > 0) parts.push(`${counts.missing} neu vom ${dateStr}`)
                   return (
                     <span key={date}>
                       {idx > 0 && ' · '}
