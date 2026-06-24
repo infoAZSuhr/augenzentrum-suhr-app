@@ -677,6 +677,30 @@ export default function BrowserPanel() {
             console.log('__AZ_PID__:' + pid);
           }
         }, true);
+
+        // Auto-scroll Sidebar nach oben wenn "Termin bearbeiten" erscheint
+        if (!window.__azAutoScroll) {
+          window.__azAutoScroll = true;
+          var lastHeading = '';
+          var scrollObs = new MutationObserver(function() {
+            var h3s = [].slice.call(document.querySelectorAll('h3'));
+            var found = '';
+            for (var hi = 0; hi < h3s.length; hi++) {
+              var t = (h3s[hi].innerText||'').trim();
+              if (t === 'Termin bearbeiten') {
+                found = t;
+                break;
+              }
+            }
+            if (found && found !== lastHeading) {
+              lastHeading = found;
+              var sidebar = document.getElementById('cal-event-side-modules');
+              if (sidebar) sidebar.scrollTop = 0;
+            }
+          });
+          scrollObs.observe(document.body || document.documentElement, { childList: true, subtree: true, characterData: true });
+        }
+
         return 'injected';
       })();
     `
