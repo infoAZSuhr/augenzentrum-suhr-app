@@ -888,7 +888,7 @@ export default function BrowserPanel() {
           var re = /#\\s*0*(\\d+)(?!\\d)(?=\\s+\\d{2}\\.\\d{2}\\.\\d{4})/g;
           function findRow(node) {
             var el = node.parentElement;
-            var best = null;
+            // Nur die ERSTE (minimale) Ebene akzeptieren, die echte Patienten-Zeile ist
             for (var lvl = 0; lvl < 8 && el; lvl++) {
               // Liris-Kalender-Event-Block bevorzugen (ganzer Block)
               if (el.tagName === 'A' && el.classList && (el.classList.contains('cal-event') || el.classList.contains('fc-time-grid-event'))) {
@@ -898,14 +898,13 @@ export default function BrowserPanel() {
               var times = t.match(/@\\d{2}:\\d{2}/g);
               var hasPid = /#\\s*\\d/.test(t);
               var hasGeb = /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t);
-              if (hasPid && hasGeb && times && times.length === 1 && t.length < 500) {
-                best = el;
-              } else if (best) {
-                break;
+              // Akzeptiere nur kleine Elemente (Patienten-Zeilen), nicht große Container
+              if (hasPid && hasGeb && times && times.length === 1 && t.length < 250) {
+                return el; // Sofort zurückgeben, nicht weiter hochgehen
               }
               el = el.parentElement;
             }
-            return best || node.parentElement;
+            return node.parentElement;
           }
           nodes.forEach(function(node) {
             var txt = node.nodeValue;
