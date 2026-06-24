@@ -890,6 +890,10 @@ export default function BrowserPanel() {
             var el = node.parentElement;
             var best = null;
             for (var lvl = 0; lvl < 8 && el; lvl++) {
+              // Liris-Kalender-Event-Block bevorzugen (ganzer Block)
+              if (el.tagName === 'A' && el.classList && (el.classList.contains('cal-event') || el.classList.contains('fc-time-grid-event'))) {
+                return el;
+              }
               var t = el.textContent || '';
               var times = t.match(/@\\d{2}:\\d{2}/g);
               var hasPid = /#\\s*\\d/.test(t);
@@ -927,7 +931,7 @@ export default function BrowserPanel() {
           // - Zeit (@HH:MM)
           // - PID (#NNNNN)
           // - Geburtsdatum (DD.MM.YYYY)
-          var pidNodes = document.querySelectorAll('tr, li, div[role="row"]');
+          var pidNodes = document.querySelectorAll('tr, li, div[role="row"], a.cal-event, a.fc-time-grid-event');
           pidNodes.forEach(function(row){
             if(row.getAttribute('data-az-recall-pid')) return; // schon markiert
             var txt = (row.textContent || '').trim();
