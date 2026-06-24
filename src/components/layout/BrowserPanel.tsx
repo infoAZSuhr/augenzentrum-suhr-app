@@ -1101,7 +1101,7 @@ export default function BrowserPanel() {
           delete newHistory[staleReferenceDate]
           return newHistory
         })
-      }, 2500)  // 2.5s Debounce — gründliche Überprüfung vor Anzeige
+      }, 3000)  // 3s Debounce — gründliche Überprüfung vor Anzeige
     } else {
       // Speichere die Zähler für diesen Tag
       if (zeroCountTimeoutRef.current) clearTimeout(zeroCountTimeoutRef.current)
