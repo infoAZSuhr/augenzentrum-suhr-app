@@ -157,6 +157,7 @@ export async function deletePatient(id: string): Promise<void> {
 export interface IviDayPlanEntry {
   id: string
   name: string
+  patientNumber?: string
   eyeSide: 'OD' | 'OS'
   medicationName: string
   medicationArticleId?: string
@@ -221,12 +222,14 @@ export async function getIviDayPlan(): Promise<IviDayPlan[]> {
   // Fetch patient names + allergies (only active patients)
   const patientIds = [...new Set([...perPatientEye.values()].map(t => t.patientId))]
   const patientNames = new Map<string, string>()
+  const patientNumbers = new Map<string, string>()
   const patientAllergies = new Map<string, string>()
   await Promise.all(patientIds.map(async id => {
     const pSnap = await getDoc(doc(db, 'patients', id))
     if (pSnap.exists() && pSnap.data().status === 'aktiv') {
       const p = pSnap.data()
       patientNames.set(id, `${p.firstName}`)
+      if (p.patientNumber) patientNumbers.set(id, p.patientNumber)
       if (p.allergies) patientAllergies.set(id, p.allergies)
     }
   }))
@@ -241,6 +244,7 @@ export async function getIviDayPlan(): Promise<IviDayPlan[]> {
     byDate.get(t.nextAppointment)!.push({
       id: t.patientId,
       name: patientNames.get(t.patientId)!,
+      patientNumber: patientNumbers.get(t.patientId),
       eyeSide: t.eyeSide,
       medicationName: t.medicationName,
       medicationArticleId: (t as any).inventoryArticleId,

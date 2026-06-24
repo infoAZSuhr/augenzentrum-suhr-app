@@ -1,15 +1,18 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Syringe, Package, AlertTriangle, Stethoscope, Plus, Printer, ShieldAlert } from 'lucide-react'
-import { getIviDayPlan, createTreatment } from '../../../lib/firestorePatients'
+import { Syringe, Package, AlertTriangle, Stethoscope, Plus, Printer, ShieldAlert, Search, Pencil } from 'lucide-react'
+import { getIviDayPlan, createTreatment, getPatient } from '../../../lib/firestorePatients'
 import { getArticleStocks, getArticleUnits } from '../../../lib/firestoreLager'
 import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
 import type { IviDayPlanEntry, IviDayPlan } from '../../../lib/firestorePatients'
 import TreatmentForm, { type TreatmentFormValues } from '../components/TreatmentForm'
+import PatientForm from '../components/PatientForm'
 import IVIOverlayModal from '../components/IVIOverlayModal'
-import type { Treatment } from '../../../types/ivom.types'
+import type { Treatment, Patient } from '../../../types/ivom.types'
 import { useToast } from '../../../lib/ToastContext'
+import { useBrowser } from '../../../contexts/BrowserContext'
+import { updatePatient } from '../../../lib/firestorePatients'
 
 const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'W', 'NFD'])
 const CODE_LABEL: Record<string, string> = {
@@ -71,11 +74,17 @@ function buildRunningBalance(
 
 export default function IVOMTagesplanung() {
   const [planung, setPlanung] = useState<PlanungData | null>(null)
-  const [formEntry, setFormEntry] = useState<IviDayPlanEntry | null>(null)
+  const [formEntry, setFormEntry] = useState<(IviDayPlanEntry & { iviDate: string }) | null>(null)
+  const [editPatientData, setEditPatientData] = useState<Patient | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const year = new Date().getFullYear()
   const qc = useQueryClient()
   const toast = useToast()
+  const { openWithPid, open: openLiris } = useBrowser()
+
+  useEffect(() => {
+    if ((window as any).electronApp) openLiris()
+  }, [])
 
   useEffect(() => {
     const unsub1 = subscribePlanung(year, data => {
@@ -334,6 +343,25 @@ export default function IVOMTagesplanung() {
                                 <Link to={`/ivom/${e.id}`} className="font-medium text-gray-800 hover:text-primary-700">
                                   {e.name}
                                 </Link>
+                                {(window as any).electronApp && e.patientNumber && (
+                                  <button
+                                    onClick={() => openWithPid(e.patientNumber!)}
+                                    className="p-0.5 rounded text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                    title="In Liris öffnen"
+                                  >
+                                    <Search className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    const p = await getPatient(e.id)
+                                    if (p) setEditPatientData(p)
+                                  }}
+                                  className="p-0.5 rounded text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                  title="Patient bearbeiten"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
                                 {e.allergies && (
                                   <span
                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200"
@@ -355,7 +383,7 @@ export default function IVOMTagesplanung() {
                             <td className="py-1.5 pr-4 text-gray-400 text-xs">{e.performedBy || '—'}</td>
                             <td className="py-1.5 text-right">
                               <button
-                                onClick={() => setFormEntry(e)}
+                                onClick={() => setFormEntry({ ...e, iviDate: date })}
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-medium"
                                 title="Neue Behandlung erfassen"
                               >
@@ -381,11 +409,27 @@ export default function IVOMTagesplanung() {
           onSubmit={(data) => createMut.mutate(data)}
           isLoading={createMut.isPending}
           initial={{
+            treatmentDate: formEntry.iviDate,
             eyeSide: formEntry.eyeSide,
             inventoryArticleId: formEntry.medicationArticleId ?? '',
             medicationName: formEntry.medicationName,
             setArticleId: formEntry.setArticleId ?? '',
             setName: formEntry.setName ?? '',
+            performedBy: formEntry.performedBy ?? '',
+          }}
+        />
+      )}
+
+      {editPatientData && (
+        <PatientForm
+          initial={editPatientData as any}
+          onClose={() => setEditPatientData(null)}
+          onSubmit={async (data) => {
+            await updatePatient(editPatientData.id, data)
+            qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
+            qc.invalidateQueries({ queryKey: ['patients'] })
+            setEditPatientData(null)
+            toast.success('Patient gespeichert')
           }}
         />
       )}

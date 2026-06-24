@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { X, UserPlus, CalendarDays, GripHorizontal } from 'lucide-react'
-import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung } from '../../../lib/firestorePatients'
+import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung, getPlannedIviDays } from '../../../lib/firestorePatients'
 import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
 import { IVI_WORKING, filterIviDoctors } from '../../../lib/iviPlanLogic'
 import { getArticles, getArticleLots } from '../../../lib/firestoreLager'
@@ -10,7 +10,15 @@ import { today, addWeeks, formatSwissDate } from '../../../utils/dateUtils'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
-const INTERVALLE = [4, 6, 8, 10, 12, 16, 24]
+const INTERVALLE = [4, 6, 8, 10, 12, 16]
+
+function getKW(dateStr: string): number {
+  const d = new Date(dateStr)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
+  const w1 = new Date(d.getFullYear(), 0, 4)
+  return 1 + Math.round(((d.getTime() - w1.getTime()) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7)
+}
 
 export interface TreatmentFormValues {
   patientId: string
@@ -46,7 +54,7 @@ interface Props {
 
 export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading, initial, firstTreatmentForEyes }: Props) {
   const [neuerArzt, setNeuerArzt] = useState(false)
-  const { style: dragStyle, onHeaderMouseDown } = useDraggable()
+  const { style: dragStyle, onHeaderMouseDown } = useDraggable('treatment-form')
   useEscapeKey(onClose)
   const [neuerArztName, setNeuerArztName] = useState('')
   const qc = useQueryClient()
@@ -69,6 +77,12 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
 
   const [planIviDays, setPlanIviDays] = useState<string[]>([])
   useEffect(() => subscribeIviDaysFromPlanung(setPlanIviDays), [])
+
+  const { data: plannedCounts = [] } = useQuery({
+    queryKey: ['planned-ivi-days'],
+    queryFn: getPlannedIviDays,
+  })
+  const patientCountByDate = new Map(plannedCounts.map(d => [d.date, d.count]))
 
   // Planung-Daten (aktuelles + naechstes Jahr) — fuer Arzt-Anzeige auf den Datums-Pills
   const [planungs, setPlanungs] = useState<Map<number, PlanungData | null>>(new Map())
@@ -239,7 +253,7 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
   const setGroups = groupByCategory(setArticles)
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]" style={dragStyle}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0 cursor-grab select-none" onMouseDown={onHeaderMouseDown}>
           <div className="flex items-center gap-2">
@@ -394,7 +408,7 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
             <label className="label mb-2">Nächster Termin *</label>
             <div className="space-y-3">
               {/* Intervall-Buttons */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {INTERVALLE.map(w => (
                   <button key={w} type="button" onClick={() => handleIntervall(w)}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors ${
@@ -407,51 +421,129 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
                 ))}
               </div>
 
-              {/* IVI-Termin-Optionen aus Einsatzplanung */}
+              {/* Termin-Optionen: IVI-Tage + provisorisches Datum */}
               {nextIntervalWeeks && treatmentDate && (() => {
                 const approx = addWeeks(treatmentDate, nextIntervalWeeks)
-                const options = closestIVIDays(approx)
+                const iviOptions = closestIVIDays(approx)
+                const approxDoctors = getDoctorsForDate(approx)
+                const showProvisional = !iviOptions.includes(approx) && approxDoctors.length === 0
+                const docLabel = performedBy ? performedBy.split(' ').pop() : ''
+
+                const autoSelectDoctor = (planDoctorNames: string[]) => {
+                  if (!planDoctorNames.length || !doctors.length) return
+                  const planName = planDoctorNames[0].toLowerCase()
+                  const match = doctors.find(d => d.name.toLowerCase().includes(planName) || planName.includes(d.name.toLowerCase().split(' ').pop() || ''))
+                  if (match) setValue('performedBy', match.name)
+                }
+
                 return (
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-primary-600 flex items-center gap-1">
-                      <CalendarDays className="w-3.5 h-3.5" />
-                      IVI-Tage aus Einsatzplanung — Datum auswählen:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {options.length === 0 ? (
-                        <p className="text-xs text-gray-400 italic">Keine IVI-Tage in der Einsatzplanung gefunden</p>
-                      ) : options.map(dateStr => {
-                        // Wochen ab dem (gerade erfassten) treatmentDate.
-                        const weeks   = Math.round((new Date(dateStr).getTime() - new Date(treatmentDate).getTime()) / (7 * 86400000))
-                        const doctors = getDoctorsForDate(dateStr)
-                        const docStr  = doctors.map(d => d.split(' ').pop()).join(' / ')   // nur Nachname(n)
-                        const isActive = nextAppointment === dateStr
-                        return (
-                          <button key={dateStr} type="button"
-                            onClick={() => setValue('nextAppointment', dateStr)}
-                            title={`${weeks} Wochen${docStr ? ' — ' + docStr : ''}`}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors flex flex-col items-start gap-0.5 ${
-                              isActive
-                                ? 'bg-primary-600 border-primary-600 text-white'
-                                : 'bg-white border-gray-200 text-gray-700 hover:border-primary-400'
-                            }`}>
-                            <span>{new Date(dateStr).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-                            <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isActive ? 'text-white/90' : 'text-gray-500'}`}>
-                              <span className="tabular-nums">{weeks} W</span>
-                              {docStr && (
-                                <>
-                                  <span className="opacity-50">·</span>
-                                  <span className="truncate max-w-[140px]">{docStr}</span>
-                                </>
-                              )}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
+                  <div className="space-y-2">
+                    {/* IVI-Tage aus Einsatzplanung */}
+                    {iviOptions.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-primary-600 flex items-center gap-1">
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          IVI-Tage aus Einsatzplanung:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {iviOptions.map(dateStr => {
+                            const weeks   = Math.round((new Date(dateStr).getTime() - new Date(treatmentDate).getTime()) / (7 * 86400000))
+                            const docNames = getDoctorsForDate(dateStr)
+                            const docStr  = docNames.map(d => d.split(' ').pop()).join(' / ')
+                            const isActive = nextAppointment === dateStr
+                            const kw = getKW(dateStr)
+                            const planned = patientCountByDate.get(dateStr) ?? 0
+                            return (
+                              <button key={dateStr} type="button"
+                                onClick={() => {
+                                  setValue('nextAppointment', dateStr)
+                                  autoSelectDoctor(docNames)
+                                }}
+                                title={`KW ${kw} · ${weeks} Wochen${docStr ? ' — ' + docStr : ''}${planned ? ` · ${planned} Pat. geplant` : ''}`}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors flex flex-col items-start gap-0.5 ${
+                                  isActive
+                                    ? 'bg-primary-600 border-primary-600 text-white'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:border-primary-400'
+                                }`}>
+                                <span className="flex items-center gap-1.5">
+                                  <span className={`text-[11px] font-bold tabular-nums ${isActive ? 'text-white/80' : 'text-primary-500'}`}>KW{kw}</span>
+                                  {new Date(dateStr).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </span>
+                                <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isActive ? 'text-white/90' : 'text-gray-500'}`}>
+                                  <span className="tabular-nums">{weeks} W</span>
+                                  {docStr && (
+                                    <>
+                                      <span className="opacity-50">·</span>
+                                      <span className="truncate max-w-[140px]">{docStr}</span>
+                                    </>
+                                  )}
+                                  {planned > 0 && (
+                                    <>
+                                      <span className="opacity-50">·</span>
+                                      <span className={`tabular-nums ${isActive ? 'text-white/80' : 'text-amber-600'}`}>{planned} Pat.</span>
+                                    </>
+                                  )}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Provisorisches Datum (kein Arzt eingeplant) */}
+                    {showProvisional && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-amber-600 flex items-center gap-1">
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          Provisorisch — kein Arzt eingeplant:
+                        </p>
+                        <button type="button"
+                          onClick={() => setValue('nextAppointment', approx)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 border-dashed transition-colors flex flex-col items-start gap-0.5 ${
+                            nextAppointment === approx
+                              ? 'bg-amber-100 border-amber-500 text-amber-900'
+                              : 'bg-amber-50 border-amber-300 text-amber-800 hover:border-amber-500'
+                          }`}>
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold tabular-nums text-amber-500">KW{getKW(approx)}</span>
+                            {new Date(approx).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </span>
+                          <span className="text-[11px] font-semibold text-amber-600">
+                            {nextIntervalWeeks} W · provisorisch{docLabel ? ` · ${docLabel}` : ''}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
                   </div>
                 )
               })()}
+
+              {/* Manuelle Wocheneingabe — nur wenn Arzt gesetzt */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Andere Woche:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={16}
+                  placeholder="W"
+                  disabled={!performedBy}
+                  className={`w-14 px-2 py-1 rounded-lg text-sm font-medium border-2 text-center focus:outline-none ${
+                    performedBy
+                      ? 'border-gray-300 focus:border-primary-400'
+                      : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  value={nextIntervalWeeks && !INTERVALLE.includes(nextIntervalWeeks) ? nextIntervalWeeks : ''}
+                  onChange={e => {
+                    const v = parseInt(e.target.value, 10)
+                    if (v > 0 && v <= 16) handleIntervall(v)
+                  }}
+                />
+                <span className="text-xs text-gray-400">
+                  {performedBy ? 'Wo. (max. 16)' : 'Zuerst Arzt auswählen'}
+                </span>
+              </div>
             </div>
 
             {/* Manuelles Datum */}
@@ -464,7 +556,7 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
               />
               {nextAppointment && (
                 <span className="text-xs text-gray-500 whitespace-nowrap">
-                  {new Date(nextAppointment).toLocaleDateString('de-CH', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  KW {getKW(nextAppointment)} · {new Date(nextAppointment).toLocaleDateString('de-CH', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </span>
               )}
             </div>

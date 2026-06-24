@@ -232,7 +232,7 @@ export default function PatientList() {
       {deleteTarget && (
         <ConfirmDialog
           title="Patient löschen?"
-          message={`«${deleteTarget.firstName}${deleteTarget.patientNumber ? ` (#${deleteTarget.patientNumber})` : ''}» und alle zugehörigen Behandlungen werden unwiderruflich gelöscht.`}
+          message={`«${deleteTarget.firstName}${deleteTarget.patientNumber ? ` (${deleteTarget.patientNumber})` : ''}» und alle zugehörigen Behandlungen werden unwiderruflich gelöscht.`}
           confirmLabel="Endgültig löschen"
           isLoading={deleteMut.isPending}
           onConfirm={() => deleteMut.mutate(deleteTarget.id)}

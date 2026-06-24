@@ -485,11 +485,11 @@ async function main() {
         : 'Nicht lieferbar (Zur Rose)'
       const oldDetail = String(getField(doc, 'zurRoseNotaDetail') || '')
       if (!wasNota || oldDetail !== detail) {
-        updates.push({ docId, fields: { zurRoseNota: true, zurRoseNotaDetail: detail } })
+        updates.push({ docId, fields: { zurRoseNota: true, zurRoseNotaDetail: detail, zurRoseNotaUpdatedAt: new Date().toISOString() } })
         matched++
       }
     } else if (wasNota) {
-      updates.push({ docId, fields: { zurRoseNota: false, zurRoseNotaDetail: null } })
+      updates.push({ docId, fields: { zurRoseNota: false, zurRoseNotaDetail: null, zurRoseNotaUpdatedAt: null } })
       cleared++
     }
   }

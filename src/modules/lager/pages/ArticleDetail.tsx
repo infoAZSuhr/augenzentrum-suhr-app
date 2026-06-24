@@ -341,9 +341,18 @@ const addLotMut = useMutation({
           <div className="flex items-start gap-3 px-4 py-3 rounded-xl border bg-blue-50 border-blue-200">
             <AlertTriangle className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold text-blue-800">Zurzeit nicht lieferbar</p>
+              <p className="font-semibold text-blue-800">
+                Ausstand{article.notDeliverableUntil
+                  ? ` bis ${new Date(article.notDeliverableUntil).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                  : ' · unbestimmt'}
+              </p>
               {article.notDeliverableNote && (
                 <p className="text-sm text-blue-700 mt-0.5">{article.notDeliverableNote}</p>
+              )}
+              {article.notDeliverableUpdatedAt && (
+                <p className="text-xs text-blue-500 mt-1">
+                  Aktualisiert: {new Date(article.notDeliverableUpdatedAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
               )}
             </div>
           </div>
@@ -352,8 +361,12 @@ const addLotMut = useMutation({
           <div className="flex items-start gap-3 px-4 py-3 rounded-xl border bg-orange-50 border-orange-200">
             <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold text-orange-800">Nicht lieferbar (Zur Rose Nota-Liste)</p>
-              {zurRoseDetail && <p className="text-sm text-orange-700 mt-0.5">{zurRoseDetail}</p>}
+              <p className="font-semibold text-orange-800">{zurRoseDetail || 'Ausstand'}</p>
+              {article.zurRoseNotaUpdatedAt && (
+                <p className="text-xs text-orange-500 mt-1">
+                  Aktualisiert: {new Date(article.zurRoseNotaUpdatedAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
+              )}
             </div>
           </div>
         )}

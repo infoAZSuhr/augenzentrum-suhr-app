@@ -258,6 +258,7 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
       isActive: initial?.isActive ?? true,
       notDeliverable: initial?.notDeliverable ?? false,
       notDeliverableNote: initial?.notDeliverableNote ?? '',
+      notDeliverableUntil: initial?.notDeliverableUntil ?? '',
       gtin: initial?.gtin ?? '',
       refNr: initial?.refNr ?? '',
       price: initial?.price ?? undefined,
@@ -308,6 +309,15 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
     if (!clean.gtin) clean.gtin = initial?.gtin ? null : undefined
     if (!clean.refNr) clean.refNr = initial?.refNr ? null : undefined
     if (!clean.notes) clean.notes = initial?.notes ? null : undefined
+    // Nicht lieferbar: Zeitstempel setzen wenn Checkbox aktiv
+    if (clean.notDeliverable) {
+      clean.notDeliverableUpdatedAt = new Date().toISOString()
+    } else {
+      clean.notDeliverableNote = initial?.notDeliverableNote ? null : undefined
+      clean.notDeliverableUntil = initial?.notDeliverableUntil ? null : undefined
+      clean.notDeliverableUpdatedAt = initial?.notDeliverableUpdatedAt ? null : undefined
+    }
+    if (!clean.notDeliverableUntil) clean.notDeliverableUntil = initial?.notDeliverableUntil ? null : undefined
     // undefined-Werte entfernen (nicht speichern)
     for (const k of Object.keys(clean)) { if (clean[k] === undefined) delete clean[k] }
     onSubmit(clean)
@@ -776,9 +786,21 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
                 </span>
               </label>
               {watch('notDeliverable') && (
-                <input type="text" className="input text-sm"
-                  placeholder="Hinweis (z.B. Lieferengpass bis ca. Aug. 2026)"
-                  {...register('notDeliverableNote')} />
+                <div className="space-y-2">
+                  <input type="text" className="input text-sm"
+                    placeholder="Hinweis (z.B. Lieferengpass, Alternative X)"
+                    {...register('notDeliverableNote')} />
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-500 whitespace-nowrap">Voraussichtlich bis</label>
+                    <input type="date" className="input text-sm py-1 h-8"
+                      {...register('notDeliverableUntil')} />
+                  </div>
+                  {initial?.notDeliverableUpdatedAt && (
+                    <p className="text-[10px] text-gray-400">
+                      Zuletzt aktualisiert: {new Date(initial.notDeliverableUpdatedAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>

@@ -1,7 +1,10 @@
 import { useState, useRef, useCallback } from 'react'
 
-export function useDraggable() {
-  const [pos, setPos] = useState({ x: 0, y: 0 })
+const savedPositions = new Map<string, { x: number; y: number }>()
+
+export function useDraggable(key?: string) {
+  const initial = key ? savedPositions.get(key) ?? { x: 0, y: 0 } : { x: 0, y: 0 }
+  const [pos, setPos] = useState(initial)
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null)
 
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -11,10 +14,12 @@ export function useDraggable() {
 
     const move = (ev: MouseEvent) => {
       if (!dragRef.current) return
-      setPos({
+      const next = {
         x: dragRef.current.ox + ev.clientX - dragRef.current.sx,
         y: dragRef.current.oy + ev.clientY - dragRef.current.sy,
-      })
+      }
+      setPos(next)
+      if (key) savedPositions.set(key, next)
     }
     const up = () => {
       dragRef.current = null
@@ -23,7 +28,7 @@ export function useDraggable() {
     }
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
-  }, [pos])
+  }, [pos, key])
 
   const style: React.CSSProperties = {
     transform: `translate(${pos.x}px, ${pos.y}px)`,

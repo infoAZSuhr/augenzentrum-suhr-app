@@ -100,15 +100,16 @@ async function getAllArticles(): Promise<InventoryArticle[]> {
 
 async function syncArticlesAgainstNota(entries: ZurRoseEntry[]): Promise<Pick<SyncResult, 'articlesMatched' | 'articlesCleared' | 'articlesScanned'>> {
   const articles = await getAllArticles()
-  const updates: Array<{ id: string; data: { zurRoseNota: boolean; zurRoseNotaDetail?: string | null } }> = []
+  const now = new Date().toISOString()
+  const updates: Array<{ id: string; data: { zurRoseNota: boolean; zurRoseNotaDetail?: string | null; zurRoseNotaUpdatedAt?: string | null } }> = []
 
   for (const a of articles) {
     if (a.isActive === false) continue
     const match = matchZurRoseEntry(a, entries as any)
     if (match) {
-      updates.push({ id: a.id, data: { zurRoseNota: true, zurRoseNotaDetail: formatZurRoseAlertDetail(match) } })
+      updates.push({ id: a.id, data: { zurRoseNota: true, zurRoseNotaDetail: formatZurRoseAlertDetail(match), zurRoseNotaUpdatedAt: now } })
     } else if ((a as any).zurRoseNota) {
-      updates.push({ id: a.id, data: { zurRoseNota: false, zurRoseNotaDetail: null } })
+      updates.push({ id: a.id, data: { zurRoseNota: false, zurRoseNotaDetail: null, zurRoseNotaUpdatedAt: null } })
     }
   }
 

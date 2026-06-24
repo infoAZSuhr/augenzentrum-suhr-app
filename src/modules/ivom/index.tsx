@@ -55,6 +55,7 @@ export default function IVOMModule() {
       <div className="flex-1 overflow-auto">
         <Routes>
           <Route index element={<IVOMTagesplanung />} />
+          <Route path="tagesplanung" element={<IVOMTagesplanung />} />
           <Route path="patienten" element={<PatientList />} />
           <Route path="dokumente" element={<IVOMDokumente />} />
           <Route path="kalender" element={<IVOMCalendar />} />

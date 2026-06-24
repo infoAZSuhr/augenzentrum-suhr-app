@@ -749,6 +749,11 @@ export default function BrowserPanel() {
     const CALENDAR_DAY_SCRIPT = `
       (function() {
         var txt = document.body ? (document.body.textContent || '') : '';
+        // YYYY#KW-Marker vorab lesen — Liris zeigt ihn wenn das angezeigte
+        // Jahr vom laufenden abweicht. Ist zuverlaessiger als ein zufaellig
+        // gematchtes Datum mit Jahreszahl (z.B. heutiges Datum im Header).
+        var yrMarker = txt.match(/(?:^|[^\\d])((?:19|20)\\d{2})\\s*#\\s*\\d{1,2}(?!\\d)/);
+        var markerYear = yrMarker ? parseInt(yrMarker[1], 10) : null;
         // Prio 1: Patienten-Akte offen -> "Untersuchung vom DD.MM.YYYY"
         var m = txt.match(/Untersuchung\\s+vom\\s+(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/i);
         // Prio 2: Kalender-Tagesheader "Mi. 20/05" / "Mi 20.05.2026"
@@ -759,15 +764,12 @@ export default function BrowserPanel() {
         var dd = parseInt(m[1], 10);
         var mm = parseInt(m[2], 10);
         var yy = m[3] ? parseInt(m[3], 10) : null;
-        if (yy === null) {
-          // Liris zeigt links neben dem Wochenheader den 'YYYY#KW'-Marker
-          // (z.B. '2025#6' = Woche 6 in 2025) nur dann an, wenn das Jahr
-          // vom laufenden abweicht. Wir suchen den Marker im gesamten
-          // sichtbaren Text — er kann im DOM vor ODER nach dem Wochentag-
-          // Match stehen. Akzeptiert nur plausible Jahre (1990-2099).
-          var yrM = txt.match(/(?:^|[^\\d])((?:19|20)\\d{2})\\s*#\\s*\\d{1,2}\\b/);
-          yy = yrM ? parseInt(yrM[1], 10) : new Date().getFullYear();
-        }
+        // YYYY#KW-Marker hat Vorrang — er zeigt das Jahr der aktuellen
+        // Kalenderansicht, waehrend ein gematchtes Datum von einem Header
+        // oder Footer stammen kann (z.B. heutiges Datum = 2026 obwohl
+        // der Kalender 2025 anzeigt).
+        if (markerYear) yy = markerYear;
+        if (yy === null) yy = new Date().getFullYear();
         if (yy < 100) yy += 2000;
         if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return null;
         function p(n){return n<10?'0'+n:''+n;}
@@ -1335,7 +1337,7 @@ export default function BrowserPanel() {
 
   return (
     <div
-      className="flex flex-row flex-shrink-0 border-l border-gray-200 bg-white relative"
+      className="flex flex-row flex-shrink-0 border-l border-gray-200 bg-white relative z-50"
       style={{ width }}
     >
       {/* Resize grip */}

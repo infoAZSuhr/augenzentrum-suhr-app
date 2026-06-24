@@ -131,7 +131,7 @@ async function renderPdfToCanvas(url: string, scale: number): Promise<HTMLCanvas
   const canvas = document.createElement('canvas')
   canvas.width = vp.width
   canvas.height = vp.height
-  await page.render({ canvas, canvasContext: canvas.getContext('2d')!, viewport: vp }).promise
+  await page.render({ canvasContext: canvas.getContext('2d')!, viewport: vp }).promise
   return canvas
 }
 
@@ -272,7 +272,7 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
       const vp = page.getViewport({ scale: PRINT_SCALE })
       const c = document.createElement('canvas')
       c.width = vp.width; c.height = vp.height
-      await page.render({ canvas: c, canvasContext: c.getContext('2d')!, viewport: vp }).promise
+      await page.render({ canvasContext: c.getContext('2d')!, viewport: vp }).promise
       setLirisDataUrl(c.toDataURL('image/jpeg', 0.92))
     } catch (e) { console.error(e) }
     setLirisLoading(false)
@@ -291,22 +291,23 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
       </style></head><body><img src="${dataUrl}" /></body></html>`
 
       const eApp = (window as any).electronApp
-      if (eApp?.openPrintHtml) {
-        await eApp.openPrintHtml(html)
-      } else if (eApp?.printHtml) {
+      if (eApp?.printHtml) {
         await eApp.printHtml(html)
       } else {
         const iframe = document.createElement('iframe')
-        iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
+        iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:none;'
         document.body.appendChild(iframe)
         iframe.contentDocument!.open()
         iframe.contentDocument!.write(html)
         iframe.contentDocument!.close()
-        iframe.onload = () => {
+        const img = iframe.contentDocument!.querySelector('img')
+        const doPrint = () => {
           iframe.contentWindow!.focus()
           iframe.contentWindow!.print()
-          setTimeout(() => iframe.remove(), 1000)
+          setTimeout(() => iframe.remove(), 2000)
         }
+        if (img?.complete) doPrint()
+        else img?.addEventListener('load', doPrint)
       }
     } finally { setPrinting(false) }
   }

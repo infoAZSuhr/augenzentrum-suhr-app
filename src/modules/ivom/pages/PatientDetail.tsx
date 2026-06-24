@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check } from 'lucide-react'
@@ -16,6 +16,7 @@ import TreatmentTimeline from '../components/TreatmentTimeline'
 import PatientForm from '../components/PatientForm'
 import { formatDate, daysUntil } from '../../../utils/dateUtils'
 import type { Treatment } from '../../../types/ivom.types'
+import { useBrowser } from '../../../contexts/BrowserContext'
 
 const BEHANDLUNGSSTATUS_LABEL: Record<string, { label: string; color: string }> = {
   aktiv:        { label: 'Aktiv',        color: 'bg-green-100 text-green-800' },
@@ -34,11 +35,18 @@ export default function PatientDetail() {
   const [showIntervallblatt, setShowIntervallblatt] = useState(false)
   const [pidCopied, setPidCopied] = useState(false)
   const qc = useQueryClient()
+  const { openWithPid } = useBrowser()
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ['patient', id],
     queryFn: () => getPatient(id!),
   })
+
+  useEffect(() => {
+    if (patient?.patientNumber && (window as any).electronApp) {
+      openWithPid(patient.patientNumber)
+    }
+  }, [patient?.patientNumber])
 
   const { data: treatments = [] } = useQuery({
     queryKey: ['patient-treatments', id],
@@ -311,6 +319,7 @@ export default function PatientDetail() {
               medicationName: treatments[0].medicationName ?? '',
               setArticleId: treatments[0].setArticleId ?? '',
               setName: treatments[0].setName ?? '',
+              performedBy: treatments[0].performedBy ?? '',
             } : {}),
           }}
         />
@@ -342,7 +351,7 @@ export default function PatientDetail() {
       {confirmDeletePatient && patient && (
         <ConfirmDialog
           title="Patient löschen?"
-          message={`«${patient.firstName}${patient.patientNumber ? ` (#${patient.patientNumber})` : ''}» und alle ${treatments.length} Behandlung${treatments.length !== 1 ? 'en' : ''} werden unwiderruflich gelöscht.`}
+          message={`«${patient.firstName}${patient.patientNumber ? ` (${patient.patientNumber})` : ''}» und alle ${treatments.length} Behandlung${treatments.length !== 1 ? 'en' : ''} werden unwiderruflich gelöscht.`}
           confirmLabel="Endgültig löschen"
           isLoading={deletePatientMut.isPending}
           onConfirm={() => deletePatientMut.mutate()}

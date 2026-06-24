@@ -33,8 +33,11 @@ export interface InventoryArticle {
   medicationId?: string
   notDeliverable?: boolean        // manuell markiert: zurzeit nicht lieferbar
   notDeliverableNote?: string     // optionaler Hinweis (Grund, seit wann, etc.)
+  notDeliverableUntil?: string    // voraussichtlich lieferbar ab (YYYY-MM-DD)
+  notDeliverableUpdatedAt?: string // letzte Aktualisierung (ISO-String)
   zurRoseNota?: boolean           // automatisch via update-zurrose: in Zur Rose Nota-Liste
   zurRoseNotaDetail?: string      // z.B. "Ausstand bis 15.06.2026"
+  zurRoseNotaUpdatedAt?: string   // letzte Aktualisierung (ISO-String)
   // computed
   currentStock?: number
   nextExpiryDate?: string | null

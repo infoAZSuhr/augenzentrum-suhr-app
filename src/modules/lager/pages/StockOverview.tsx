@@ -19,7 +19,6 @@ export default function StockOverview() {
   const [activeCategory, setActiveCategory] = useState<string>('Alle')
   const [search, setSearch] = useState('')
   const [slBanner, setSlBanner] = useState<{ date: string; stale: boolean } | null>(null)
-  const [zurRoseMeta, setZurRoseMeta] = useState<{ stand: string; extractedAt: string; entries: number } | null>(null)
 
   useEffect(() => {
     fetch('/sl-meta.json')
@@ -30,12 +29,6 @@ export default function StockOverview() {
         const dismissKey = `sl-banner-dismissed-${meta.extractedAt}`
         if (localStorage.getItem(dismissKey)) return
         setSlBanner({ date: meta.extractedAt, stale: true })
-      })
-      .catch(() => {})
-    fetch('/zurrose-nota-meta.json')
-      .then(r => r.json())
-      .then((meta: { stand: string; extractedAt: string; entries: number }) => {
-        if (meta.extractedAt) setZurRoseMeta(meta)
       })
       .catch(() => {})
   }, [])
@@ -118,8 +111,6 @@ const { data: bookingData } = useQuery({
     return list
   }, [articles, activeCategory, search])
 
-  // Artikel-IDs mit Zur Rose Nota (aus Artikeldaten direkt)
-  const zurRoseArticleIds = useMemo(() => new Set(articles.filter(a => a.zurRoseNota && !a.notDeliverable).map(a => a.id as string)), [articles])
 
   // Preis pro Bestelleinheit inkl. MWST + 30% Lagerkosten
   const unitPrice = (a: InventoryArticle) =>
@@ -261,25 +252,6 @@ const { data: bookingData } = useQuery({
         </div>
       )}
 
-      {/* Zur Rose Nota-Liste Statuszeile — immer sichtbar */}
-      {zurRoseMeta && (() => {
-        const daysOld = Math.floor((Date.now() - new Date(zurRoseMeta.extractedAt).getTime()) / 86400000)
-        const ok = daysOld <= 1
-        const geprueft = daysOld === 0 ? 'heute' : daysOld === 1 ? 'gestern' : `vor ${daysOld} Tagen`
-        return (
-          <div className={`mx-6 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-            <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-green-500' : 'bg-amber-500'}`} />
-            <span className="font-medium">Zur Rose Nota-Liste</span>
-            <span className="text-gray-400">·</span>
-            <span>Stand {zurRoseMeta.stand}</span>
-            <span className="text-gray-400">·</span>
-            <span>geprüft {geprueft}</span>
-            <span className="text-gray-400">·</span>
-            <span>{zurRoseMeta.entries} Einträge</span>
-            {!ok && <span className="ml-1 font-semibold">⚠ Aktualisierung ausstehend</span>}
-          </div>
-        )
-      })()}
 
       {alerts.length > 0 && (
         <div className={`mx-6 mt-6 px-4 py-3 rounded-lg border flex items-start gap-3 ${
@@ -360,8 +332,8 @@ const { data: bookingData } = useQuery({
               ) : (
                 filtered.map((a) => {
                   const isManualND = !!a.notDeliverable
-                  const isBwlND = !isManualND && zurRoseArticleIds.has(a.id as string)
-                  const isAnyND = isManualND || isBwlND
+                  const isZurRoseND = !isManualND && !!a.zurRoseNota
+                  const isAnyND = isManualND || isZurRoseND
                   return (
                   <tr
                     key={a.id as any}
@@ -377,22 +349,32 @@ const { data: bookingData } = useQuery({
                         <div>
                           <span className="font-medium text-gray-900 group-hover:text-primary-700 transition-colors">{safeDecode(a.name)}</span>
                           {isManualND && (
-                            <div className="mt-0.5">
-                              <span
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800"
-                                title={a.notDeliverableNote || 'Zurzeit nicht lieferbar'}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 inline-block" />
-                                Nicht lieferbar{a.notDeliverableNote ? ` · ${a.notDeliverableNote}` : ''}
-                              </span>
+                            <div className="mt-1 text-[11px] leading-tight space-y-0.5">
+                              <div className="text-blue-700">
+                                <span className="font-semibold">Ausstand</span>
+                                {a.notDeliverableUntil && (
+                                  <span className="text-blue-600"> · bis {new Date(a.notDeliverableUntil).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                )}
+                                {!a.notDeliverableUntil && <span className="text-blue-500"> · unbestimmt</span>}
+                              </div>
+                              {a.notDeliverableNote && <div className="text-blue-500">{a.notDeliverableNote}</div>}
+                              {a.notDeliverableUpdatedAt && (
+                                <div className="text-gray-400 text-[10px]">
+                                  Aktualisiert: {new Date(a.notDeliverableUpdatedAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </div>
+                              )}
                             </div>
                           )}
-                          {isBwlND && (
-                            <div className="mt-0.5">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800">
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
-                                Nota-Liste (Zur Rose)
-                              </span>
+                          {isZurRoseND && (
+                            <div className="mt-1 text-[11px] leading-tight space-y-0.5">
+                              <div className="text-orange-700">
+                                <span className="font-semibold">{a.zurRoseNotaDetail || 'Ausstand'}</span>
+                              </div>
+                              {a.zurRoseNotaUpdatedAt && (
+                                <div className="text-gray-400 text-[10px]">
+                                  Aktualisiert: {new Date(a.zurRoseNotaUpdatedAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

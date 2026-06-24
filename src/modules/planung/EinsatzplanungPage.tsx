@@ -133,6 +133,14 @@ const FT_SHORT:Record<string,string>={
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function getKW(dateStr: string): number {
+  const d = new Date(dateStr)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
+  const w1 = new Date(d.getFullYear(), 0, 4)
+  return 1 + Math.round(((d.getTime() - w1.getTime()) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7)
+}
+
 function isoDate(y:number,m:number,d:number){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
 function defaultData():PlanungData{return{sections:SECTIONS_2026,schedule:SCHEDULE_2026}}
 const TODAY=isoDate(new Date().getFullYear(),new Date().getMonth()+1,new Date().getDate())
@@ -201,12 +209,14 @@ function getMonthDays(year:number,monthIdx:number,feiertage:Record<string,string
 function buildMonthHTML(year:number,monthIdx:number,data:PlanungData,feiertage:Record<string,string>,pageBreak=true):string{
   const days=getMonthDays(year,monthIdx,feiertage)
   const BD='1px solid #9ca3af'
-  const hdr=days.map(({d,dow,isWeekend,ftName,isCurrentMonth})=>{
+  const hdr=days.map(({d,dow,isWeekend,ftName,key,isCurrentMonth},i)=>{
     const bg=isCurrentMonth?(ftName?'#fed7aa':isWeekend?'#f3f4f6':'#f9fafb'):'#f3f4f6'
     const co=isCurrentMonth?(ftName?'#c2410c':isWeekend?'#9ca3af':'#6b7280'):'#d1d5db'
     const ft=ftName&&isCurrentMonth?`<div style="font-size:7px;color:#ea580c">${FT_SHORT[ftName]??ftName.slice(0,3)}</div>`:''
+    const showKW=dow===1||(i===0&&dow!==0)
+    const kwLine=showKW&&isCurrentMonth?`<div style="font-size:6px;font-weight:700;color:#6366f1">KW${getKW(key)}</div>`:''
     return`<th style="width:22px;text-align:center;padding:2px 0;background:${bg};color:${co};border:${BD};opacity:${isCurrentMonth?'1':'0.6'}">
-      <div style="font-size:9px;font-weight:600">${d}</div>
+      ${kwLine}<div style="font-size:9px;font-weight:600">${d}</div>
       <div style="font-size:7px;color:#9ca3af">${WEEKDAY_MIN[dow]}</div>${ft}</th>`
   }).join('')
   let rows=''
@@ -1108,21 +1118,25 @@ function PlanTable({days,data,showMonthSep,hoveredPerson,hoveredCol,setHoveredPe
           <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap border-r border-gray-200">Person</th>
           {showPensum&&<th className="sticky top-0 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 whitespace-nowrap border-r border-gray-200 w-14">%</th>}
           {showPensum&&<th className="sticky top-0 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 whitespace-nowrap border-r border-gray-200 w-16">Tage</th>}
-          {days.map(({d,dow,isWeekend,ftName,key,monthIdx,isCurrentMonth})=>{
+          {days.map(({d,dow,isWeekend,ftName,key,monthIdx,isCurrentMonth},i)=>{
             const isMonthStart=showMonthSep&&d===1&&isCurrentMonth
             const isHovCol=hoveredCol===key
             const isToday=key===TODAY
             const isOutOfMonth=!isCurrentMonth
+            const isMonday=dow===1
+            const showKW=isMonday||(i===0&&dow!==0)
             return(
               <th key={`${key}`}
                 onMouseEnter={()=>setHoveredCol(key)}
                 onMouseLeave={()=>setHoveredCol(null)}
-                title={ftName??undefined}
+                title={ftName?`KW ${getKW(key)} · ${ftName}`:`KW ${getKW(key)}`}
                 className={`py-1 text-center font-medium border-r border-gray-100 transition-colors opacity-${isOutOfMonth?'50':'100'}
                   ${isMonthStart?'border-l-2 border-l-gray-400':''}
                   ${isToday?'bg-primary-600 text-white':isHovCol?'bg-primary-100 text-primary-700':ftName?'bg-orange-100 text-orange-700':isOutOfMonth?'bg-gray-50 text-gray-300':isWeekend?'bg-gray-100 text-gray-400':'text-gray-500'}
                   ${showMonthSep?'w-7':'w-9'}`}>
-                {isMonthStart&&<div className="text-[8px] font-bold leading-none opacity-80">{MONTHS_SHORT[monthIdx]}</div>}
+                {showKW&&<div className={`text-[7px] font-bold leading-none mb-0.5 ${isToday?'text-primary-200':'text-primary-500'}`}>KW{getKW(key)}</div>}
+                {isMonthStart&&!showKW&&<div className="text-[8px] font-bold leading-none opacity-80">{MONTHS_SHORT[monthIdx]}</div>}
+                {isMonthStart&&showKW&&<div className="text-[7px] font-bold leading-none opacity-80">{MONTHS_SHORT[monthIdx]}</div>}
                 <div className="leading-none text-[10px] font-bold">{d}</div>
                 <div className={`text-[9px] font-normal leading-none mt-0.5 ${isToday?'text-primary-200':isHovCol?'text-primary-600':'text-gray-400'}`}>{WEEKDAY_SHORT[dow]}</div>
                 {ftName&&!isToday&&<div className="text-[8px] font-semibold leading-none mt-0.5 text-orange-600">{FT_SHORT[ftName]??ftName.slice(0,3)}</div>}
