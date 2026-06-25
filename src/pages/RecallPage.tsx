@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useBrowser } from '../contexts/BrowserContext'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
@@ -478,6 +478,7 @@ export default function RecallPage() {
   const canManageImports = isAdmin || isGeschaeftsleitung
   const toast = useToast()
   const navigate     = useNavigate()
+  const location     = useLocation()
   const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris, requestTerminAnlegen } = useBrowser()
   const postausgang = usePostausgang()
   const username     = profile?.username || profile?.displayName || 'System'
@@ -661,6 +662,18 @@ export default function RecallPage() {
       .catch(err => console.warn('[Brief] Logo konnte nicht geladen werden', err))
     return () => { aborted = true }
   }, [])
+
+  // Tab aus URL-Parameter (z.B. ?tab=aufgebot)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const tab = params.get('tab')
+    if (tab === 'aufgebot') {
+      setActiveTab(AUFGEBOT_TAB)
+      // URL bereinigen
+      navigate('/recall', { replace: true })
+    }
+  }, [location.search, navigate])
+
   const [aufgebotSaving,        setAufgebotSaving]        = useState(false)
   const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)
   const [briefPreview, setBriefPreview] = useState<string | null>(null)

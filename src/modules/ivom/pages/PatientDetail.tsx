@@ -155,6 +155,13 @@ export default function PatientDetail() {
             <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
               <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
             </button>
+            <button
+              className="btn-secondary"
+              onClick={() => navigate('/recall?tab=aufgebot')}
+              title="Aufgebot- oder Reminder-Brief erstellen"
+            >
+              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Aufgebot-Brief</span>
+            </button>
             <button className="btn-secondary" onClick={() => setShowEditPatient(true)} title="Bearbeiten">
               <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
             </button>
