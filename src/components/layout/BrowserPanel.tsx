@@ -446,10 +446,35 @@ export default function BrowserPanel() {
           el.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true}));
           return true;
         })()`)
-        // 4) Dropdown-Vorschlag anzeigen lassen, aber nicht anklicken.
-        // Der Nutzer wählt selbst aus oder lässt das Feld so.
-        // Das Formular bleibt offen, damit der Termin drag-dropped werden kann.
-        console.log('[TerminAnlegen] PID eingegeben, Formular bleibt offen')
+        // 4) Formular-Observer: Falls Liris das Formular versteckt, sofort wieder anzeigen
+        await wv.executeJavaScript(`(function(){
+          // Finde den Formular-Container (mehrere Selektoren versuchen)
+          var form = document.querySelector('[placeholder*="atientensuche"]')?.closest('form, .panel, [role="dialog"], .modal, .drawer, div[style*="display"]');
+          if (!form) {
+            // Fallback: suche nach sichtbaren großen DIVs die Inputs enthalten
+            var candidates = document.querySelectorAll('div, section, aside');
+            for (var i = 0; i < candidates.length; i++) {
+              if (candidates[i].querySelector('input[placeholder*="atientensuche"]')) {
+                form = candidates[i];
+                break;
+              }
+            }
+          }
+          if (!form) return false;
+
+          // MutationObserver: wenn display:none oder visibility:hidden gesetzt wird, entfernen
+          var observer = new MutationObserver(function() {
+            var style = window.getComputedStyle(form);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+              form.style.display = '';
+              form.style.visibility = '';
+            }
+          });
+          observer.observe(form, { attributes: true, attributeFilter: ['style', 'class'] });
+          window._terminFormObserver = observer; // speichern für cleanup
+          return true;
+        })()`)
+        console.log('[TerminAnlegen] PID eingegeben, Form-Observer aktiv')
         await sleep(600)
         // 5) Grund-Feld nur fuellen wenn Liris NICHT selbst die gelbe
         //    Termin-Info-Box zeigt ('Naechster Termin (von ...): ...').
