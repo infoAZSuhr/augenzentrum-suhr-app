@@ -2292,7 +2292,6 @@ export default function RecallPage() {
   }
 
   function openAufgebotDialog(entry: WPEntry) {
-    if (!window.confirm('Aufbieten-Modal starten?')) return
     setAufgebotTarget(entry)
     const doctor = entry.patient.doctor
     setAufgebotForm({
@@ -3349,6 +3348,15 @@ export default function RecallPage() {
    *  bleibt im verlauf stehen. */
   async function handleInlineAufgebotArt(rowId: string, doctor: string, value: string, current: string | null) {
     const newValue = current === value ? null : value
+    // Bei Brief-Aufgebot: Modal öffnen statt inline zu setzen
+    if (newValue === 'Brief') {
+      const row = (allData.get(doctor) ?? []).find(r => r.id === rowId)
+      if (row) {
+        openAufgebotDialog(row)
+      }
+      return
+    }
+
     const today = new Date().toISOString().slice(0, 10)
     // Praxis-Aufgebot: meist beim letzten Konsil direkt vereinbart. Wird der
     // Inline-Toggle nachtraeglich gesetzt, ist das Datum des letzten Konsils
