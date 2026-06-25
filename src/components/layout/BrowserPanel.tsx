@@ -783,7 +783,14 @@ export default function BrowserPanel() {
         // Prio 2: Kalender-Tagesheader "Mi. 20/05" / "Mi 20.05.2026"
         if (!m) m = txt.match(/(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})[\\/.](\\d{1,2})(?:[\\/.](\\d{2,4}))?/);
         // Prio 3: irgendein DD.MM.YYYY auf der Seite (Fallback)
-        if (!m) m = txt.match(/(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/);
+        // Nur Jahre 1990-2099 akzeptieren, um alte Geburtsdaten auszuschliessen
+        if (!m) {
+          var all = txt.match(/(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/);
+          if (all) {
+            var y = parseInt(all[3], 10);
+            if (y >= 1990 && y <= 2099) m = all;
+          }
+        }
         if (!m) return null;
         var dd = parseInt(m[1], 10);
         var mm = parseInt(m[2], 10);
