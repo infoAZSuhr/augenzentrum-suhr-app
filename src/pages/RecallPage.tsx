@@ -2292,6 +2292,7 @@ export default function RecallPage() {
   }
 
   function openAufgebotDialog(entry: WPEntry) {
+    if (!window.confirm('Aufbieten-Modal starten?')) return
     setAufgebotTarget(entry)
     const doctor = entry.patient.doctor
     setAufgebotForm({
@@ -2317,7 +2318,7 @@ export default function RecallPage() {
       if (!f.adressBlock.trim() && lirisExtract.postAdresse) {
         // Name-Zeile vorne ergaenzen damit der Brief-Header passt
         const vorname = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
-        const nachname = (lirisExtract.nachname || aufgebotTarget.patient.nachname || '').trim()
+        const nachname = (lirisExtract.nachname || '').trim()
         const name = [vorname, nachname].filter(Boolean).join(' ')
         patch.adressBlock = (name ? name + '\n' : '') + lirisExtract.postAdresse
       }
