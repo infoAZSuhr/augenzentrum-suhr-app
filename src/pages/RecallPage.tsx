@@ -3365,7 +3365,7 @@ export default function RecallPage() {
     if (newValue === 'Brief') {
       const row = (allData.get(doctor) ?? []).find(r => r.id === rowId)
       if (row) {
-        openAufgebotDialog(row)
+        openAufgebotDialog({ patient: row })
       }
       return
     }
@@ -4791,13 +4791,15 @@ export default function RecallPage() {
                   {p.pid && <span className="text-xs text-gray-400 font-mono">#{normalizePid(p.pid)}</span>}
                   {p.gebDatum && <span className="text-xs text-gray-400">{formatDate(p.gebDatum)}</span>}
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">{p.doctor}</span>
+                </div>
+                <div className="flex items-center gap-3 mt-1">
+                  {p.aufgebotFuer && (
+                    <span className="text-xs text-green-700 font-semibold">RC ab: {formatDate(p.aufgebotFuer)}</span>
+                  )}
                   {p.naechsteKons && p.naechsteKons !== 'kein Termin' && (
-                    <span className="text-xs text-gray-500">→ {(() => { const d = new Date(p.naechsteKons + 'T00:00:00Z'); return `${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}` })()}</span>
+                    <span className="text-xs text-blue-700 font-semibold">Nächste KU: {formatDate(p.naechsteKons)}</span>
                   )}
                 </div>
-                {p.aufgebotFuer && (
-                  <div className="text-xs text-gray-400 mt-0.5">RC ab: {formatDate(p.aufgebotFuer)}</div>
-                )}
               </button>
               <button
                 onClick={() => startTerminFlow(p)}
