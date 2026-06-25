@@ -448,43 +448,10 @@ export default function BrowserPanel() {
           el.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true}));
           return true;
         })()`)
-        // 4) Dropdown-Vorschlag mit der PID anklicken. Autocomplete-Listen
-        //    reagieren oft auf mousedown/mouseup statt click — daher die
-        //    volle Pointer/Maus-Event-Sequenz auf das INNERSTE Treffer-
-        //    Element feuern.
-        let picked = false
-        for (let i = 0; i < 12 && !picked; i++) {
-          await sleep(450)
-          picked = await wv.executeJavaScript(`(function(){
-            var pidRe=new RegExp('#\\\\s*0*' + ${JSON.stringify(pid)} + '(?!\\\\d)');
-            var cands=[].slice.call(document.querySelectorAll('li,a,td,div,span,p'));
-            var best=null, bestLen=1e9;
-            for(var k=0;k<cands.length;k++){
-              var el=cands[k];
-              var r=el.getBoundingClientRect(); if(r.width<=0||r.height<=0)continue;
-              var t=(el.innerText||'').trim();
-              if(!t||t.length>140)continue;
-              if(!pidRe.test(t))continue;
-              // innerstes (kuerzestes) Element bevorzugen, aber Patient-Suchfeld
-              // (das Input selbst / dessen Wrapper) ausschliessen.
-              if(el.querySelector && el.querySelector('input'))continue;
-              if(t.length<bestLen){ best=el; bestLen=t.length; }
-            }
-            if(!best) return false;
-            var r=best.getBoundingClientRect();
-            var cx=r.left+r.width/2, cy=r.top+r.height/2;
-            var opts={bubbles:true,cancelable:true,view:window,clientX:cx,clientY:cy,button:0};
-            ['pointerover','pointerenter','mouseover','mouseenter','pointerdown','mousedown','focus','pointerup','mouseup','click'].forEach(function(type){
-              try{
-                var Ctor = type.indexOf('pointer')===0 ? (window.PointerEvent||MouseEvent) : (type==='focus'?FocusEvent:MouseEvent);
-                best.dispatchEvent(new Ctor(type,opts));
-              }catch(e){ try{ best.dispatchEvent(new MouseEvent(type.replace('pointer','mouse'),opts)); }catch(e2){} }
-            });
-            try{ best.click(); }catch(e){}
-            return true;
-          })()`).catch(() => false)
-        }
-        console.log('[TerminAnlegen] Patient ausgewaehlt:', picked)
+        // 4) Dropdown-Vorschlag anzeigen lassen, aber nicht anklicken.
+        // Der Nutzer wählt selbst aus oder lässt das Feld so.
+        // Das Formular bleibt offen, damit der Termin drag-dropped werden kann.
+        console.log('[TerminAnlegen] PID eingegeben, Formular bleibt offen')
         await sleep(600)
         // 5) Grund-Feld nur fuellen wenn Liris NICHT selbst die gelbe
         //    Termin-Info-Box zeigt ('Naechster Termin (von ...): ...').
