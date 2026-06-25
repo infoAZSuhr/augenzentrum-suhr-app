@@ -2316,7 +2316,9 @@ export default function RecallPage() {
       if (!f.anrede && lirisExtract.anrede) patch.anrede = lirisExtract.anrede as any
       if (!f.adressBlock.trim() && lirisExtract.postAdresse) {
         // Name-Zeile vorne ergaenzen damit der Brief-Header passt
-        const name = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
+        const vorname = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
+        const nachname = (lirisExtract.nachname || aufgebotTarget.patient.nachname || '').trim()
+        const name = [vorname, nachname].filter(Boolean).join(' ')
         patch.adressBlock = (name ? name + '\n' : '') + lirisExtract.postAdresse
       }
       const kws = lirisExtract.bpKeywords ?? []
@@ -2910,6 +2912,7 @@ export default function RecallPage() {
       }
     }
     const telDate = form.art === 'Tel' ? form.terminFixiert || null : null
+    const briefDate = form.art === 'Brief' ? form.terminDatum || null : null
     await updateRecallPatient(patient.id, {
       aufgebotArt:       effectiveArt,
       aufgebotErstellt:  today,
@@ -2917,6 +2920,7 @@ export default function RecallPage() {
       aufgebotNotiz:     form.notiz          || null,
       terminFixiert:     (form.art === 'Brief' ? form.terminDatum : form.terminFixiert) || null,
       ...(telDate ? { naechsteKons: telDate } : {}),
+      ...(briefDate ? { naechsteKons: briefDate } : {}),
       ...(followupAufgebotFuer ? { aufgebotFuer: followupAufgebotFuer } : {}),
       verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
       excelAbgeglichen:  true,
