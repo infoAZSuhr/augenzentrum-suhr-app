@@ -413,7 +413,6 @@ export default function BrowserPanel() {
     if (!terminAnlegenRequest) return
     if (Date.now() - terminAnlegenRequest.at > 15000) { clearTerminAnlegenRequest(); return }
     const { pid, grund } = terminAnlegenRequest
-    clearTerminAnlegenRequest()
     const wv = webviewRef.current as any
     if (!wv?.executeJavaScript) return
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -435,13 +434,12 @@ export default function BrowserPanel() {
           fieldDa = await wv.executeJavaScript(`!!document.querySelector('input[placeholder*="atientensuche"]')`).catch(() => false)
         }
         console.log('[TerminAnlegen] Patient-Feld da:', fieldDa)
-        if (!fieldDa) return
+        if (!fieldDa) { clearTerminAnlegenRequest(); return }
         await sleep(600)
         // 3) PID ins Patient-Feld tippen (native setter + input-Event)
         await wv.executeJavaScript(`(function(){
           var el=document.querySelector('input[placeholder*="atientensuche"]');
           if(!el) return false;
-          el.focus();
           var set=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
           set.call(el, ${JSON.stringify('#' + pid)});
           el.dispatchEvent(new Event('input',{bubbles:true}));
@@ -473,6 +471,8 @@ export default function BrowserPanel() {
         }
       } catch (e) {
         console.warn('[TerminAnlegen] fehlgeschlagen:', e)
+      } finally {
+        clearTerminAnlegenRequest()
       }
     })()
   }, [terminAnlegenRequest]) // eslint-disable-line react-hooks/exhaustive-deps
