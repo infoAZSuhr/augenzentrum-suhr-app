@@ -419,14 +419,8 @@ export default function BrowserPanel() {
     ;(async () => {
       try {
         console.log('[TerminAnlegen] start, pid=', pid, 'grund=', grund)
-        // 1) Zum Terminkalender wechseln (Link oben links in Liris)
-        const navOk = await wv.executeJavaScript(`(function(){
-          var as=[].slice.call(document.querySelectorAll('a'));
-          for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim()==='Terminkalender'){ as[k].click(); return true; } }
-          // evtl. sind wir schon im Kalender
-          return !!document.querySelector('input[placeholder*="Patientensuche"], input[placeholder*="atientensuche"]');
-        })()`)
-        console.log('[TerminAnlegen] Terminkalender-Klick/da:', navOk)
+        // 1) Nicht navigieren — user ist bereits im Terminkalender.
+        // Formular-Panel mit Patient-Suchfeld sollte bereits offen sein.
         // 2) Auf das Patient-Suchfeld im 'Termin anlegen'-Panel warten
         let fieldDa = false
         for (let i = 0; i < 16 && !fieldDa; i++) {
