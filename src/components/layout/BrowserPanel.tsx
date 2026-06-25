@@ -430,14 +430,13 @@ export default function BrowserPanel() {
         console.log('[TerminAnlegen] Patient-Feld da:', fieldDa)
         if (!fieldDa) { clearTerminAnlegenRequest(); return }
         await sleep(600)
-        // 3) PID ins Patient-Feld tippen (native setter + input-Event)
+        // 3) PID ins Patient-Feld setzen (nur Wert, keine Events)
+        // Events könnten Liris veranlassen, das Formular zu schließen
         await wv.executeJavaScript(`(function(){
           var el=document.querySelector('input[placeholder*="atientensuche"]');
           if(!el) return false;
           var set=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
           set.call(el, ${JSON.stringify('#' + pid)});
-          el.dispatchEvent(new Event('input',{bubbles:true}));
-          el.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true}));
           return true;
         })()`)
         // 4) Formular-Observer: Falls Liris das Formular versteckt, sofort wieder anzeigen
