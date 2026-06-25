@@ -678,27 +678,15 @@ export default function BrowserPanel() {
           }
         }, true);
 
-        // Auto-scroll Sidebar nach oben wenn "Termin bearbeiten" erscheint
-        if (!window.__azAutoScroll) {
-          window.__azAutoScroll = true;
-          var lastHeading = '';
-          var scrollObs = new MutationObserver(function() {
-            var h3s = [].slice.call(document.querySelectorAll('h3'));
-            var found = '';
-            for (var hi = 0; hi < h3s.length; hi++) {
-              var t = (h3s[hi].innerText||'').trim();
-              if (t === 'Termin bearbeiten') {
-                found = t;
-                break;
-              }
-            }
-            if (found && found !== lastHeading) {
-              lastHeading = found;
-              var sidebar = document.getElementById('cal-event-side-modules');
-              if (sidebar) sidebar.scrollTop = 0;
-            }
-          });
-          scrollObs.observe(document.body || document.documentElement, { childList: true, subtree: true, characterData: true });
+        // Form-Section oben fixieren damit sie nicht weggescrollt wird
+        if (!document.getElementById('__az_form_css')) {
+          var st = document.createElement('style');
+          st.id = '__az_form_css';
+          st.textContent =
+            '#cal-event-side-modules{display:flex !important;flex-direction:column !important;}'+
+            '#cal-event-edit{flex-shrink:0 !important;flex-grow:0 !important;}'+
+            '#cal-event-mini-calendar{flex-shrink:1 !important;overflow:auto !important;}';
+          document.documentElement.appendChild(st);
         }
 
         return 'injected';
