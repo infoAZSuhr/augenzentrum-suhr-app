@@ -966,15 +966,32 @@ export default function BrowserPanel() {
 
             if (!kind) return; // Kein Markierungsbedarf
 
+            // Verschachtelung vermeiden: wenn ein Vorfahre ODER Nachfahre
+            // bereits fuer dieselbe PID markiert ist, NICHT erneut markieren.
+            // Sonst werden z.B. <tr> UND ein darin liegendes div[role=row]
+            // beide markiert -> derselbe Patient doppelt gezaehlt.
+            if (row.closest('[data-az-recall-pid="'+pidStr+'"]')) return;
+            if (row.querySelector('[data-az-recall-pid="'+pidStr+'"]')) return;
+
             row.setAttribute('data-az-recall-pid', pidStr);
             row.classList.add(kind === 'stale' ? 'az-recall-row-stale' : 'az-recall-row-missing');
             if(!row.getAttribute('title')) row.setAttribute('title', kind === 'stale' ? T_STALE : T_MISSING);
           });
 
-          // Anzahl der aktuell sichtbar markierten (noch nicht aktualisierten)
+          // Anzahl der aktuell markierten (noch nicht aktualisierten)
           // Patienten zuruecksenden -> Host zeigt eine Meldung im Panel-Kopf.
-          var staleN = document.querySelectorAll('.az-recall-row-stale').length;
-          var missN  = document.querySelectorAll('.az-recall-row-missing').length;
+          // WICHTIG: nach eindeutiger PID zaehlen, nicht nach DOM-Elementen.
+          // Ein Patient kann in mehreren Elementen (verschachtelt oder mehrere
+          // Termine am selben Tag) auftauchen -> sonst zu hohe Zahl.
+          var stalePids = {}, missPids = {};
+          document.querySelectorAll('.az-recall-row-stale').forEach(function(el){
+            var p = el.getAttribute('data-az-recall-pid'); if (p) stalePids[p] = 1;
+          });
+          document.querySelectorAll('.az-recall-row-missing').forEach(function(el){
+            var p = el.getAttribute('data-az-recall-pid'); if (p) missPids[p] = 1;
+          });
+          var staleN = Object.keys(stalePids).length;
+          var missN  = Object.keys(missPids).length;
           return { stale: staleN, missing: missN };
         })();
       `
@@ -1338,6 +1355,92 @@ export default function BrowserPanel() {
   }
 
 
+  // Klick auf ein Datum in der Meldung -> im Liris-Mini-Kalender zum
+  // entsprechenden Monat blaettern und den Tag anklicken, sodass der
+  // Haupt-Kalender direkt zu diesem Tag springt. Nur im Electron-Webview
+  // moeglich (executeJavaScript). Defensiv: erkennt Monat/Jahr ueber
+  // mehrere Muster, blaettert host-gesteuert (async) und klickt dann den Tag.
+  const navigateLirisToDay = async (iso: string) => {
+    const wv = webviewRef.current as any
+    if (!wv?.executeJavaScript) return
+    const mIso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+    if (!mIso) return
+    const year = parseInt(mIso[1], 10)
+    const month = parseInt(mIso[2], 10)
+    const day = parseInt(mIso[3], 10)
+    const sleep = (ms: number) => new Promise<void>(res => window.setTimeout(res, ms))
+
+    // Liest Monat+Jahr aus dem Mini-Kalender-Header. Erkennt volle deutsche
+    // Monatsnamen, 3-Buchstaben-Abkuerzungen und numerische MM.YYYY / MM/YYYY.
+    const readMonth = `(function(){
+      var mc = document.getElementById('cal-event-mini-calendar');
+      if (!mc) return null;
+      var t = (mc.textContent || '').toLowerCase();
+      var full = ['januar','februar','märz','april','mai','juni','juli','august','september','oktober','november','dezember'];
+      var ab   = ['jan','feb','mär','apr','mai','jun','jul','aug','sep','okt','nov','dez'];
+      // 1) Voller Monatsname + Jahr
+      var m1 = t.match(/(januar|februar|m\\u00e4rz|maerz|april|mai|juni|juli|august|september|oktober|november|dezember)\\s*((?:19|20)\\d{2})/);
+      if (m1) { var k = m1[1]==='maerz'?'m\\u00e4rz':m1[1]; return { month: full.indexOf(k)+1, year: parseInt(m1[2],10) }; }
+      // 2) Abkuerzung + Jahr
+      var m2 = t.match(/(jan|feb|m\\u00e4r|mar|apr|mai|jun|jul|aug|sep|okt|nov|dez)\\w*\\.?\\s*((?:19|20)\\d{2})/);
+      if (m2) { var a = m2[1]==='mar'?'m\\u00e4r':m2[1]; var i2 = ab.indexOf(a); if (i2>=0) return { month: i2+1, year: parseInt(m2[2],10) }; }
+      // 3) Numerisch MM.YYYY / MM/YYYY / MM-YYYY
+      var m3 = t.match(/(?:^|[^\\d])(0?[1-9]|1[0-2])[.\\/-]((?:19|20)\\d{2})/);
+      if (m3) return { month: parseInt(m3[1],10), year: parseInt(m3[2],10) };
+      return null;
+    })()`
+
+    // Klickt den Vor-/Zurueck-Pfeil im Mini-Kalender (dir<0 = zurueck).
+    const clickArrow = (dir: number) => wv.executeJavaScript(`(function(){
+      var mc = document.getElementById('cal-event-mini-calendar');
+      if (!mc) return 'no-mc';
+      var prevSym = ['‹','«','<','◄','◀','❮'];
+      var nextSym = ['›','»','>','►','▶','❯'];
+      var els = mc.querySelectorAll('a,button,span,div,i,th,td');
+      for (var i=0;i<els.length;i++){
+        var el = els[i];
+        var tx = (el.textContent||'').trim();
+        var meta = ((el.className||'')+' '+(el.title||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
+        var isPrev = prevSym.indexOf(tx)>=0 || /prev|back|previous|zurück|vorher/.test(meta);
+        var isNext = nextSym.indexOf(tx)>=0 || /next|forward|weiter|näch|vorw/.test(meta);
+        if (${dir} < 0 && isPrev) { el.click(); return 'prev'; }
+        if (${dir} > 0 && isNext) { el.click(); return 'next'; }
+      }
+      return 'no-arrow';
+    })()`).catch(() => 'err')
+
+    // Schritt 1: zum Zielmonat/-jahr blaettern (max. 36 Schritte = 3 Jahre).
+    let guard = 0
+    while (guard++ < 36) {
+      const cur = await wv.executeJavaScript(readMonth).catch(() => null)
+      if (!cur) break  // Mini-Kalender nicht sichtbar (z.B. Patient-Detail offen)
+      const curIdx = cur.year * 12 + (cur.month - 1)
+      const tgtIdx = year * 12 + (month - 1)
+      if (curIdx === tgtIdx) break
+      const r = await clickArrow(tgtIdx > curIdx ? 1 : -1)
+      if (r === 'no-arrow' || r === 'no-mc') break
+      await sleep(220)
+    }
+
+    // Schritt 2: den Tag im Mini-Kalender anklicken (Blatt-Element bevorzugen,
+    // Nachbarmonats-/deaktivierte Zellen ueberspringen).
+    await wv.executeJavaScript(`(function(){
+      var mc = document.getElementById('cal-event-mini-calendar');
+      if (!mc) return 'no-mc';
+      var cells = mc.querySelectorAll('td,a,div,span,button');
+      for (var i=0;i<cells.length;i++){
+        var el = cells[i];
+        if ((el.textContent||'').trim() !== '${day}') continue;
+        var cls = (el.className||'').toLowerCase();
+        if (/other|muted|disabled|adjacent|outside|sibling|prev|next|grey|gray/.test(cls)) continue;
+        if (el.children && el.children.length > 2) continue;
+        el.click();
+        return 'day-clicked';
+      }
+      return 'no-day';
+    })()`).catch(() => {})
+  }
+
   if (!isOpen) return null
 
   // Aggregierte Meldung: zeige max. 2 Tage mit unverarbeiteten Patienten
@@ -1405,7 +1508,14 @@ export default function BrowserPanel() {
                   return (
                     <span key={date}>
                       {idx > 0 && ' · '}
-                      {parts.join(' + ')}
+                      <button
+                        type="button"
+                        onClick={() => navigateLirisToDay(date)}
+                        className="underline decoration-dotted underline-offset-2 hover:text-orange-900 hover:decoration-solid cursor-pointer"
+                        title={`In Liris zum ${dateStr} springen`}
+                      >
+                        {parts.join(' + ')}
+                      </button>
                     </span>
                   )
                 })}
