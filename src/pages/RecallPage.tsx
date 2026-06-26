@@ -2934,6 +2934,9 @@ export default function RecallPage() {
       terminFixiert:     (form.art === 'Brief' ? form.terminDatum : form.terminFixiert) || null,
       ...(telDate ? { naechsteKons: telDate } : {}),
       ...(briefDate ? { naechsteKons: briefDate } : {}),
+      // Aufgebot erstellt → «RC zu erstellen ab» ist obsolet. Wird beim
+      // Tel-Followup (reminderSetzen) gleich darunter wieder neu gesetzt.
+      aufgebotFuer:      null,
       ...(followupAufgebotFuer ? { aufgebotFuer: followupAufgebotFuer } : {}),
       verlauf:           [...existingVerlauf, logEntry, ...followupEntries],
       excelAbgeglichen:  true,
@@ -6157,9 +6160,17 @@ export default function RecallPage() {
                       type="button"
                       onClick={() => {
                         const next = form.aufgebotArt === value ? '' : value
+                        // Briefaufgebot: vollen Aufbieten-Dialog öffnen (Adresse,
+                        // Termin, PDF/Postausgang). Das Bearbeiten-Formular wird
+                        // geschlossen — der Dialog übernimmt das Speichern.
+                        if (next === 'Brief' && editTarget && editTarget !== 'new') {
+                          openAufgebotDialog({ patient: editTarget })
+                          setEditTarget(null)
+                          return
+                        }
                         setField('aufgebotArt', next)
                         if (next) {
-                          // Aufgebotsart gewählt (Brief/Reminder/Tel/Praxis) → das
+                          // Aufgebotsart gewählt (Reminder/Tel/Praxis) → das
                           // Aufgebot wird erstellt, «RC zu erstellen ab» ist obsolet.
                           setField('aufgebotFuer', '')
                           // Praxis-Aufgebot: meist beim letzten Konsil direkt
