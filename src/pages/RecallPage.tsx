@@ -1309,7 +1309,7 @@ export default function RecallPage() {
         candidates.push(p)
       }
     }
-    const LIMIT = 25  // Test-Version: erstmal max. 25 Patienten pro Lauf
+    const LIMIT = 5  // Test-Version: erstmal max. 5 Patienten pro Lauf
     const batch = candidates.slice(0, LIMIT)
     if (!batch.length) { toast.info('Keine überfälligen Patienten gefunden.'); return }
 
