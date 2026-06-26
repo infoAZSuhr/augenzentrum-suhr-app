@@ -5320,11 +5320,16 @@ export default function RecallPage() {
                     <BarChart2 className="w-4 h-4 text-indigo-600" />
                     <h3 className="font-semibold text-gray-800">Praxis-Kennzahlen</h3>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">GL · Ärzte · Admin</span>
+                    <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" title="Momentaufnahme — Stand HEUTE, gerechnet über alle aktiven Patienten (ohne inaktiv / verstorben / storniert). Es ist KEIN Datums-Zeitraum, sondern der aktuelle Bestand. Für jede Zahl gibt es eine eigene Erklärung beim Darüberfahren." />
                   </div>
+                  <p className="-mt-3 text-[11px] text-gray-500">Momentaufnahme · Stand heute · alle aktiven Patienten (kein Zeitraum). Erklärungen per Maus über die Überschriften und Zahlen.</p>
 
                   {/* 1) Wiedereinbestellung: Aufgebot → Termin (Conversion) */}
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Wiedereinbestellung — Aufgebot → Termin</h4>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 inline-flex items-center gap-1 cursor-help"
+                        title="Von den Patienten mit bereits ERSTELLTEM Aufgebot: welcher Anteil hat aktuell einen nächsten Termin gesetzt? Gesamt und pro Aufgebotsweg (Brief / Telefon / Praxis). Misst, ob/wie gut das Aufbieten zu Terminen führt. Momentaufnahme aller aktiven Patienten — kein Zeitraum.">
+                      Wiedereinbestellung — Aufgebot → Termin <Info className="w-3 h-3 text-gray-400" />
+                    </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                       {([
                         ['Gesamt',  auswertungStats.recall.gesamt],
@@ -5333,8 +5338,11 @@ export default function RecallPage() {
                         ['Praxis',  auswertungStats.recall.Praxis],
                       ] as const).map(([label, r]) => {
                         const pct = r.auf ? Math.round(r.termin / r.auf * 100) : 0
+                        const tip = label === 'Gesamt'
+                          ? `Conversion gesamt: ${r.termin} von ${r.auf} aufgebotenen Patienten haben aktuell einen nächsten Termin (${r.auf ? pct : 0}%). Momentaufnahme, kein Zeitraum.`
+                          : `${label}: ${r.termin} von ${r.auf} per ${label === 'Telefon' ? 'Telefon' : label}-Aufgebot aufgebotenen Patienten haben aktuell einen Termin (${r.auf ? pct : 0}%).`
                         return (
-                          <div key={label} className="flex flex-col px-3 py-2.5 rounded-xl border border-indigo-100 bg-white">
+                          <div key={label} title={tip} className="flex flex-col px-3 py-2.5 rounded-xl border border-indigo-100 bg-white cursor-help">
                             <span className="text-xl font-bold tabular-nums text-indigo-700">{r.auf ? `${pct}%` : '—'}</span>
                             <span className="text-[11px] font-medium text-gray-600">{label}</span>
                             <span className="text-[10px] text-gray-400">{r.termin}/{r.auf} mit Termin</span>
@@ -5342,32 +5350,38 @@ export default function RecallPage() {
                         )
                       })}
                     </div>
-                    <p className="mt-1 text-[10px] text-gray-400">Anteil der aufgebotenen Patienten mit gesetztem nächstem Termin.</p>
+                    <p className="mt-1 text-[10px] text-gray-400">Anteil der aufgebotenen Patienten (Aufgebot erstellt) mit gesetztem nächstem Termin. Momentaufnahme aller aktiven Patienten.</p>
                   </div>
 
                   {/* 2) RC-Last: offene Recalls nach Fälligkeit */}
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">RC-Last — offene Recalls nach Fälligkeit</h4>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 inline-flex items-center gap-1 cursor-help"
+                        title="Arbeitsvorschau: Patienten, bei denen ein «RC zu erstellen ab»-Datum gesetzt ist, aber noch KEIN Aufgebot erstellt wurde. Gruppiert danach, wann das RC-Datum fällig wird (gerechnet ab heute). Zeigt, wie viel Recall-Arbeit ansteht.">
+                      RC-Last — offene Recalls nach Fälligkeit <Info className="w-3 h-3 text-gray-400" />
+                    </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
                       {([
-                        ['Überfällig', auswertungStats.rcLast.ueberfaellig, 'bg-red-50 text-red-700 border-red-100'],
-                        ['0–4 Wo.',    auswertungStats.rcLast.w0_4,         'bg-amber-50 text-amber-700 border-amber-100'],
-                        ['4–8 Wo.',    auswertungStats.rcLast.w4_8,         'bg-yellow-50 text-yellow-700 border-yellow-100'],
-                        ['8–12 Wo.',   auswertungStats.rcLast.w8_12,        'bg-lime-50 text-lime-700 border-lime-100'],
-                        ['Später',     auswertungStats.rcLast.spaeter,      'bg-gray-50 text-gray-600 border-gray-200'],
-                      ] as const).map(([label, val, color]) => (
-                        <div key={label} className={`flex flex-col px-3 py-2.5 rounded-xl border ${color}`}>
+                        ['Überfällig', auswertungStats.rcLast.ueberfaellig, 'bg-red-50 text-red-700 border-red-100',       'RC-Datum liegt bereits in der Vergangenheit — überfällig, sollte zeitnah bearbeitet werden.'],
+                        ['0–4 Wo.',    auswertungStats.rcLast.w0_4,         'bg-amber-50 text-amber-700 border-amber-100',  'RC-Datum wird in den nächsten 0–4 Wochen fällig.'],
+                        ['4–8 Wo.',    auswertungStats.rcLast.w4_8,         'bg-yellow-50 text-yellow-700 border-yellow-100','RC-Datum wird in 4–8 Wochen fällig.'],
+                        ['8–12 Wo.',   auswertungStats.rcLast.w8_12,        'bg-lime-50 text-lime-700 border-lime-100',     'RC-Datum wird in 8–12 Wochen fällig.'],
+                        ['Später',     auswertungStats.rcLast.spaeter,      'bg-gray-50 text-gray-600 border-gray-200',     'RC-Datum wird erst in mehr als 12 Wochen fällig.'],
+                      ] as const).map(([label, val, color, tip]) => (
+                        <div key={label} title={tip} className={`flex flex-col px-3 py-2.5 rounded-xl border cursor-help ${color}`}>
                           <span className="text-xl font-bold tabular-nums">{val}</span>
                           <span className="text-[11px] font-medium opacity-90">{label}</span>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-1 text-[10px] text-gray-400">Patienten mit «RC zu erstellen ab», aber noch ohne erstelltes Aufgebot.</p>
+                    <p className="mt-1 text-[10px] text-gray-400">Patienten mit «RC zu erstellen ab», aber noch ohne erstelltes Aufgebot. Fälligkeit ab heute gerechnet.</p>
                   </div>
 
                   {/* 3) Altersverteilung */}
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Altersverteilung (aktive Patienten)</h4>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 inline-flex items-center gap-1 cursor-help"
+                        title="Anzahl der aktiven Patienten je Altersgruppe, berechnet aus dem Geburtsjahr (Stand heute). «unbekannt» = kein/ungültiges Geburtsdatum hinterlegt. Momentaufnahme, kein Zeitraum.">
+                      Altersverteilung (aktive Patienten) <Info className="w-3 h-3 text-gray-400" />
+                    </h4>
                     {(() => {
                       const ab = auswertungStats.ageBuckets
                       const order = ['0-17', '18-39', '40-59', '60-74', '75+', 'unbekannt']
