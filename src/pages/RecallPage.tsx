@@ -2308,6 +2308,11 @@ export default function RecallPage() {
   }
 
   function openAufgebotDialog(entry: WPEntry) {
+    // Self-Service-Patienten ("kein Aufgebot") wollen bewusst nicht aufgeboten
+    // werden -> warnen, aber Fortfahren erlauben (Ausnahmefall).
+    if (entry.patient.patientenStatus === 'kein Aufgebot') {
+      if (!window.confirm('Patient wünscht kein Aufgebot.\n\nTrotzdem aufbieten?')) return
+    }
     setAufgebotTarget(entry)
     const doctor = entry.patient.doctor
     setAufgebotForm({
@@ -6760,6 +6765,13 @@ export default function RecallPage() {
                       setField('naechsteKons', '')
                       setField('keinTermin', false)
                     }
+                    if (v === 'kein Aufgebot') {
+                      // Self-Service: keine Aufgebote/Recall-Planung → alles aufräumen,
+                      // damit kein Widerspruch (offenes RC/Aufgebot) bestehen bleibt.
+                      setField('aufgebotFuer', '')
+                      setField('aufgebotArt', '')
+                      setField('aufgebotErstellt', '')
+                    }
                     if ((v === 'inaktiv' || v === 'verstorben') && lastLirisAutor.current) {
                       const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
                       const words = cleaned.split(/\s+/)
@@ -6779,6 +6791,29 @@ export default function RecallPage() {
                   <option value="Reminder">Reminder</option>
                   <option value="kein Aufgebot">kein Aufgebot - meldet sich b. Bedarf</option>
                 </select>
+                {/* Schnell-Button: Self-Service. Ein Klick setzt den Status und
+                    räumt alle Aufgebot-/Recall-Felder auf (bzw. zurück zu aktiv). */}
+                <button type="button"
+                  onClick={() => {
+                    if (form.patientenStatus === 'kein Aufgebot') {
+                      setField('patientenStatus', 'aktiv')
+                    } else {
+                      setField('patientenStatus', 'kein Aufgebot')
+                      setField('aufgebotFuer', '')
+                      setField('aufgebotArt', '')
+                      setField('aufgebotErstellt', '')
+                      setField('naechsteKons', '')
+                      setField('keinTermin', false)
+                    }
+                  }}
+                  className={`mt-2 w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors flex items-center justify-center gap-1.5 ${
+                    form.patientenStatus === 'kein Aufgebot'
+                      ? 'border-gray-400 bg-gray-200 text-gray-700'
+                      : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  }`}>
+                  <BellOff className="w-3.5 h-3.5" />
+                  {form.patientenStatus === 'kein Aufgebot' ? '✓ Self-Service – meldet sich selbst' : 'Self-Service (kein Aufgebot)'}
+                </button>
               </div>
 
 
