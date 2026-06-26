@@ -630,6 +630,7 @@ export default function RecallPage() {
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed,  setPreviewCollapsed]  = useState(true)   // default eingeklappt — manuell aufklappen
+  const [previewPopupOpen,  setPreviewPopupOpen]  = useState(false)  // Briefvorschau als grosses Popup
   // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),
   // lokal gespeichert damit haeufige eigene Eintraege als Buttons bleiben.
   const [customVUs, setCustomVUs] = useState<string[]>(() => {
@@ -2589,9 +2590,10 @@ export default function RecallPage() {
     // ── Body: Reminder ───────────────────────────────────────────────────────
     const bodyReminder = `
       ${salut}
-      <p>Ihre letzte augen&#228;rztliche Untersuchung liegt bereits einige Zeit zur&#252;ck. Wir bitten Sie, sich f&#252;r einen neuen Kontrolltermin zu melden.</p>
-      <p>Sie erreichen uns unter <strong>062 842 18 46</strong>, <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
-      <p>Falls Sie bereits einen Termin haben oder inzwischen anderweitig betreut werden, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
+      <p>Ihre letzte augen&#228;rztliche Untersuchung liegt bereits einige Zeit zur&#252;ck. F&#252;r Ihre Augengesundheit empfehlen wir eine erneute Kontrolle und bitten Sie, einen Termin mit uns zu vereinbaren.</p>
+      <p>Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
+      <p><strong>Falls Sie inzwischen von einer anderen Augen&#228;rztin oder einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze R&#252;ckmeldung</strong> &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Daten entsprechend aktualisieren k&#246;nnen.</p>
+      <p>Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
       <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>
     `
 
@@ -2776,7 +2778,8 @@ export default function RecallPage() {
         '  Web   www.augenzentrum-suhr.ch',
         '',
         'Bitte melden Sie sich zeitnah, damit wir einen passenden Termin für Sie reservieren können.',
-        'Falls Sie inzwischen von einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze Abmeldung.',
+        '',
+        'Falls Sie inzwischen von einer anderen Augenärztin oder einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular –, damit wir Ihre Daten entsprechend aktualisieren können.',
         '',
         'Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
         '',
@@ -4727,44 +4730,38 @@ export default function RecallPage() {
 
               </div>{/* end left form panel */}
 
-              {/* Right: versand buttons + live preview (klappbar) */}
-              {previewCollapsed ? (
+              {/* Right: schmaler Button öffnet die Briefvorschau als grosses Popup */}
+              {livePreviewHtml && (
                 <button
-                  onClick={() => setPreviewCollapsed(false)}
-                  title="Vorschau ausklappen"
-                  className="shrink-0 w-10 bg-gray-100 border-l border-gray-200 hover:bg-gray-200 flex flex-col items-center justify-center text-gray-500 transition-colors gap-1"
+                  onClick={() => setPreviewPopupOpen(true)}
+                  title="Briefvorschau als grosses Popup öffnen"
+                  className="shrink-0 w-11 bg-indigo-50 border-l border-indigo-100 hover:bg-indigo-100 flex flex-col items-center justify-center text-indigo-600 transition-colors gap-1.5"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <Search className="w-4 h-4" />
                   <span className="text-[10px] font-semibold tracking-wider [writing-mode:vertical-rl] rotate-180">Vorschau</span>
                 </button>
-              ) : (
-                <div className="flex-1 bg-gray-100 overflow-auto flex flex-col">
-                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 pt-3 pb-2 bg-gray-50 border-b border-gray-200">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vorschau</span>
-                    <button
-                      onClick={() => setPreviewCollapsed(true)}
-                      title="Vorschau einklappen"
-                      className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {livePreviewHtml ? (
-                    <iframe
-                      srcDoc={livePreviewHtml}
-                      className="flex-1 w-full border-none"
-                      style={{ minHeight: '600px' }}
-                      title="Vorschau"
-                    />
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                      {(af.art === 'Brief' || af.art === 'Reminder') ? 'Formular ausfüllen für Vorschau' : 'Vorschau nur für Brief/Reminder verfügbar'}
-                    </div>
-                  )}
-                </div>
               )}
 
               </div>{/* end two-column */}
+
+              {/* Briefvorschau-Popup — gross, statt enges Seitenpanel */}
+              {previewPopupOpen && livePreviewHtml && (
+                <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setPreviewPopupOpen(false)}>
+                  <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                       style={{ width: 'min(820px, 96vw)', height: 'min(96vh, 1180px)' }}
+                       onClick={e => e.stopPropagation()}>
+                    <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-gray-50">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Briefvorschau · {af.art === 'Reminder' ? 'Reminder' : 'Briefaufgebot'}
+                      </span>
+                      <button onClick={() => setPreviewPopupOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <iframe srcDoc={livePreviewHtml} className="flex-1 w-full border-none bg-white" title="Briefvorschau" />
+                  </div>
+                </div>
+              )}
 
               {/* Footer */}
               {aufgebotConfirmPending ? (
