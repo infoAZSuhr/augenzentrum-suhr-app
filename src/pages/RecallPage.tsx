@@ -3178,6 +3178,16 @@ export default function RecallPage() {
     if (formErrors[k as string]) setFormErrors(prev => ({ ...prev, [k as string]: false }))
   }
 
+  // Regel: Liegt «…erstellt am» (aufgebotErstellt) zeitlich NACH «RC zu erstellen
+  // ab» (aufgebotFuer), ist das RC-Datum obsolet — das Aufgebot wurde nach dem
+  // geplanten RC-Termin bereits erstellt. Dann «RC zu erstellen ab» leeren.
+  // (beide sind YYYY-MM-DD aus Date-Inputs → String-Vergleich korrekt)
+  useEffect(() => {
+    if (editTarget && form.aufgebotErstellt && form.aufgebotFuer && form.aufgebotErstellt > form.aufgebotFuer) {
+      setField('aufgebotFuer', '')
+    }
+  }, [editTarget, form.aufgebotErstellt, form.aufgebotFuer]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /** Drop-Props für Datumsfelder: hineingezogener Text wird als Datum geparst.
    *  Verwendung: <input type="date" {...dateDrop('gebDatum')} … /> */
   function dateDrop(field: keyof EditForm) {
