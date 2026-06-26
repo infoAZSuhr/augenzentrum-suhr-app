@@ -1489,19 +1489,23 @@ export default function BrowserPanel() {
       function vis(el){ if(!el||el.offsetParent===null) return false; var r=el.getBoundingClientRect(); return r.width>0&&r.height>0; }
       function classStr(el){ var c=el.className; if(c&&c.baseVal!==undefined) return c.baseVal; return ''+(c||''); }
       function isGreen(el){ try{ var s=getComputedStyle(el); function g(c){ var m=c&&c.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/); if(!m) return false; var r=+m[1],gr=+m[2],b=+m[3]; return gr>90 && gr>r+25 && gr>b+25; } return g(s.color)||g(s.backgroundColor)||g(s.borderColor)||g(s.fill); }catch(e){return false;} }
-      var cands=document.querySelectorAll('button,a,i,span,svg,[role="button"],[onclick]');
+      function iconName(el){ var s = el.tagName.toLowerCase()==='svg-icon' ? el : (el.querySelector && el.querySelector('svg-icon')); return s ? (s.getAttribute('name')||'') : ''; }
+      var cands=document.querySelectorAll('button,a,[role="button"],[onclick],svg-icon');
       var out=[], seen={};
-      for(var k=0;k<cands.length && out.length<40;k++){
+      for(var k=0;k<cands.length && out.length<60;k++){
         var el=cands[k];
         if(!vis(el)) continue;
-        var meta=(classStr(el)+' '+(el.id||'')+' '+(el.title||'')+' '+((el.getAttribute&&el.getAttribute('aria-label'))||'')).toLowerCase();
+        var ic = iconName(el);
+        var meta=(classStr(el)+' '+(el.id||'')+' '+(el.title||'')+' '+ic+' '+((el.getAttribute&&el.getAttribute('aria-label'))||'')).toLowerCase();
         var calish=/cal|termin|kalender|agenda|gr(ue|ü)n|green/.test(meta);
-        if(!calish && !isGreen(el)) continue;
-        var html=(el.outerHTML||'').replace(/\\s+/g,' ').slice(0,400);
-        if(seen[html]) continue; seen[html]=1;
-        out.push('['+el.tagName.toLowerCase()+'] '+html);
+        var green = isGreen(el) || (el.querySelector && isGreen(el.querySelector('svg-icon')||el));
+        if(!calish && !green) continue;
+        // kompakt: Tag | icon-name | class | title | grün?
+        var line='['+el.tagName.toLowerCase()+'] icon='+(ic||'-')+' | class="'+classStr(el)+'" | title="'+(el.title||'')+'" | href="'+(el.getAttribute&&el.getAttribute('href')||'')+'" | green='+(green?'JA':'nein');
+        if(seen[line]) continue; seen[line]=1;
+        out.push(line);
       }
-      return out.length ? out.join('\\n\\n———\\n\\n') : 'KEINE grünen/kalender-artigen Buttons gefunden — bitte erst einen Patienten mit der Zeitleiste öffnen.';
+      return out.length ? out.join('\\n') : 'KEINE grünen/kalender-artigen Buttons gefunden — bitte erst einen Patienten mit der Zeitleiste öffnen.';
     })()`).then((r: any) => setInspectResult(typeof r === 'string' ? r : JSON.stringify(r)))
       .catch((e: any) => setInspectResult('Fehler beim Auslesen: ' + (e?.message || e)))
   }
