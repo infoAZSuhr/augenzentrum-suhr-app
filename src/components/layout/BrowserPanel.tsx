@@ -506,7 +506,12 @@ export default function BrowserPanel() {
   // Anzahl im aktuellen Liris-View markierter (noch nicht aktualisierter) Patienten
   const [markStaleCount, setMarkStaleCount] = useState(0)
   const [markMissingCount, setMarkMissingCount] = useState(0)
-  const [dayHistory, setDayHistory] = useState<Record<string, { stale: number; missing: number }>>({})
+  // Markierte PIDs des letzten Scans (eindeutig). Werden pro Tag in dayHistory
+  // gespeichert, damit die angezeigte Zahl live gegen die aktuellen offenen
+  // Recall-PIDs berechnet werden kann (Selbstkorrektur beim Bearbeiten).
+  const [markStalePids, setMarkStalePids] = useState<string[]>([])
+  const [markMissingPids, setMarkMissingPids] = useState<string[]>([])
+  const [dayHistory, setDayHistory] = useState<Record<string, { stalePids: string[]; missingPids: string[] }>>({})
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem('liris-panel-width'))
     return saved >= 300 && saved <= 1200 ? saved : 480
@@ -874,9 +879,12 @@ export default function BrowserPanel() {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
             st.textContent =
-              '.az-recall-row-stale{outline:3px solid #f59e0b !important;outline-offset:2px !important;}'+
-              '.az-recall-row-missing{outline:3px solid #dc2626 !important;outline-offset:2px !important;}'+
-              '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;}';
+              // Outline (aeusserer Rand) + Hintergrund-Tint. Der Tint rendert
+              // zuverlaessig auf jedem Element-Typ (auch <tr>/<td>/Flex), wo
+              // eine reine outline manchmal nicht sichtbar ist.
+              '.az-recall-row-stale{outline:3px solid #f59e0b !important;outline-offset:2px !important;background-color:rgba(245,158,11,0.22) !important;}'+
+              '.az-recall-row-missing{outline:3px solid #dc2626 !important;outline-offset:2px !important;background-color:rgba(220,38,38,0.20) !important;}'+
+              '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;background-color:transparent !important;}';
             document.documentElement.appendChild(st);
           }
           // TreeWalker: alle Text-Nodes mit '#' scannen
@@ -997,15 +1005,17 @@ export default function BrowserPanel() {
           document.querySelectorAll('.az-recall-row-missing').forEach(function(el){
             var p = el.getAttribute('data-az-recall-pid'); if (p) missPids[p] = 1;
           });
-          var staleN = Object.keys(stalePids).length;
-          var missN  = Object.keys(missPids).length;
-          return { stale: staleN, missing: missN };
+          var staleList = Object.keys(stalePids);
+          var missList  = Object.keys(missPids);
+          return { stale: staleList.length, missing: missList.length, stalePids: staleList, missingPids: missList };
         })();
       `
       wv.executeJavaScript(script).then(function(r: any) {
         if (r && typeof r === 'object') {
           setMarkStaleCount(r.stale || 0)
           setMarkMissingCount(r.missing || 0)
+          setMarkStalePids(Array.isArray(r.stalePids) ? r.stalePids : [])
+          setMarkMissingPids(Array.isArray(r.missingPids) ? r.missingPids : [])
         }
       }).catch(() => {})
     }
@@ -1107,15 +1117,16 @@ export default function BrowserPanel() {
         })
       }, 3000)  // 3s Debounce — gründliche Überprüfung vor Anzeige
     } else {
-      // Speichere die Zähler für diesen Tag
+      // Speichere die markierten PIDs für diesen Tag. Die Anzeige-Zahl wird
+      // später live gegen die aktuellen offenen Recall-PIDs berechnet.
       if (zeroCountTimeoutRef.current) clearTimeout(zeroCountTimeoutRef.current)
       setDayHistory(prev => {
         const newHistory = { ...prev }
-        newHistory[staleReferenceDate] = { stale: markStaleCount, missing: markMissingCount }
+        newHistory[staleReferenceDate] = { stalePids: markStalePids, missingPids: markMissingPids }
         return newHistory
       })
     }
-  }, [staleReferenceDate, markStaleCount, markMissingCount, todayIso, isOpen])
+  }, [staleReferenceDate, markStaleCount, markMissingCount, markStalePids, markMissingPids, todayIso, isOpen])
 
   // Cleanup debounce Timer
   useEffect(() => {
@@ -1470,8 +1481,19 @@ export default function BrowserPanel() {
   if (!isOpen) return null
 
   // Aggregierte Meldung: zeige max. 2 Tage mit unverarbeiteten Patienten
-  // (neueste zuerst)
+  // (neueste zuerst). Die Zahl wird LIVE berechnet: von den damals pro Tag
+  // markierten PIDs zaehlen nur die, die JETZT noch offen sind (stale = noch
+  // in staleRecallPids; missing = weiterhin nicht im Recall). So sinkt die
+  // Zahl automatisch sobald ein Patient bearbeitet wurde — auch ohne den Tag
+  // erneut zu oeffnen — und ein hängengebliebener Zaehler verschwindet.
+  const liveStaleSet = new Set(staleRecallPids)
+  const liveKnownSet = new Set(knownRecallPids)
   const dayEntries = Object.entries(dayHistory)
+    .map(([date, rec]) => {
+      const stale = rec.stalePids.filter(p => liveStaleSet.has(p)).length
+      const missing = rec.missingPids.filter(p => !liveKnownSet.has(p)).length
+      return [date, { stale, missing }] as const
+    })
     .filter(([, counts]) => counts.stale > 0 || counts.missing > 0)
     .sort(([a], [b]) => b.localeCompare(a))  // Neueste zuerst
     .slice(0, 2)  // Nur die letzten 2 Tage
