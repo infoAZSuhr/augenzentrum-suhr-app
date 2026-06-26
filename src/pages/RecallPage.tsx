@@ -507,15 +507,6 @@ export default function RecallPage() {
   const [syncMsg, setSyncMsg]     = useState('')   // shown inside the loading screen
   const [loadError, setLoadError] = useState(false)
 
-  // ── Liris-Abgleich (Admin-Test): überfällige Patienten automatisch in Liris
-  //    prüfen und sichere Fälle übernehmen, Rest in eine Review-Liste. ──────────
-  const [abgleichRunning, setAbgleichRunning]   = useState(false)
-  const [abgleichProgress, setAbgleichProgress] = useState<{ done: number; total: number; current: string }>({ done: 0, total: 0, current: '' })
-  const [abgleichResult, setAbgleichResult]     = useState<{ updated: string[]; review: string[]; errors: string[] } | null>(null)
-  const abgleichRunningRef = useRef(false)
-  const lirisExtractRef    = useRef(lirisExtract)
-  useEffect(() => { lirisExtractRef.current = lirisExtract }, [lirisExtract])
-
   // Search
   const [search, setSearch]         = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -849,8 +840,6 @@ export default function RecallPage() {
   useEffect(() => {
     if (!recallPidRequest) return
     if (Date.now() - recallPidRequest.at > 5000) { clearRecallPidRequest(); return }
-    // Während des Liris-Abgleich-Laufs kein Auto-Open des Bearbeiten-Modals.
-    if (abgleichRunningRef.current) { clearRecallPidRequest(); return }
     // Solange das Aufbieten-Modal offen ist, kein Auto-Open des Patient-
     // bearbeiten-Modals — der User hat bewusst Brief/Reminder gewaehlt und
     // bekommt die Liris-Daten via lirisExtract direkt ins Aufbieten-Formular.
@@ -1288,105 +1277,6 @@ export default function RecallPage() {
 
   async function reloadAllTabs() {
     if (editTarget) { pendingReload.current = true; return }
-    await loadAll()
-  }
-
-  // Liris-Abgleich (Admin-Test): überfällige Patienten nacheinander in Liris
-  // öffnen, Daten auslesen und SICHERE Fälle automatisch übernehmen
-  // (verstorben, zukünftiger Termin in Liris, neueres letztes Konsil).
-  // Alles Mehrdeutige landet in einer Review-Liste. Nur Electron.
-  async function runLirisAbgleich() {
-    if (abgleichRunningRef.current) return
-    if (!isElectron) { toast.error('Liris-Abgleich ist nur in der Desktop-App möglich.'); return }
-    // Überfällige, aktive Patienten sammeln (gleiche Kriterien wie der overdue-Filter).
-    const candidates: RecallPatient[] = []
-    for (const list of allData.values()) {
-      for (const p of list) {
-        if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') continue
-        if (isStorniert(p)) continue
-        if (!isOverdue(p)) continue
-        if (!normalizePid(p.pid)) continue
-        candidates.push(p)
-      }
-    }
-    const LIMIT = 5  // Test-Version: erstmal max. 5 Patienten pro Lauf
-    const batch = candidates.slice(0, LIMIT)
-    if (!batch.length) { toast.info('Keine überfälligen Patienten gefunden.'); return }
-
-    abgleichRunningRef.current = true
-    setAbgleichRunning(true)
-    setAbgleichResult(null)
-    openBrowser()  // Liris-Panel öffnen
-    const sleep = (ms: number) => new Promise<void>(r => window.setTimeout(r, ms))
-    const today = new Date().toISOString().slice(0, 10)
-    const updated: string[] = [], review: string[] = [], errors: string[] = []
-
-    for (let i = 0; i < batch.length; i++) {
-      const p = batch[i]
-      const pidN = normalizePid(p.pid)
-      const name = `${p.vorname || '—'} #${pidN}`
-      setAbgleichProgress({ done: i, total: batch.length, current: name })
-      const startAt = Date.now()
-      openWithPid(pidN)
-      // Auf frischen, passenden Liris-Extract warten (max. ~10s).
-      let ex = null as (typeof lirisExtract)
-      const deadline = Date.now() + 10000
-      while (Date.now() < deadline) {
-        await sleep(400)
-        const cur = lirisExtractRef.current
-        if (cur && cur.at >= startAt && normalizePid(cur.pid) === pidN) { ex = cur; break }
-      }
-      if (!ex) { errors.push(`${name}: Liris nicht geladen / kein Treffer`); continue }
-      if (ex.notFound || ex.pidMatchesLiris === false) { review.push(`${name}: PID in Liris nicht gefunden`); continue }
-      try {
-        // verstorben bleibt eine sichere, eindeutige Übernahme.
-        if (ex.verstorben) {
-          await updateRecallPatient(p.id, { patientenStatus: 'verstorben' } as any, displayLabel)
-          updated.push(`${name}: als verstorben markiert`); continue
-        }
-        // NUR Daten der LETZTEN UNTERSUCHUNG übernehmen:
-        // «Untersuchung vom» (letzteKons) + das dort dokumentierte Intervall
-        // → RC-Datum (gleiche Logik wie der manuelle Liris-Auto-Fill).
-        // Gebuchte Kalendertermine (naechsterTerminDatum) werden NICHT verwendet.
-        const exDate = ex.letzteKons
-        if (!exDate) { review.push(`${name}: keine Untersuchung in Liris gefunden`); continue }
-        let intervalStr = ''
-        if (ex.intervalWeeks) {
-          const w = ex.intervalWeeks
-          if      (w % 52 === 0 && w / 52 <= 120) intervalStr = `${w / 52}j`
-          else if (w % 4  === 0 && w / 4  <= 120) intervalStr = `${w / 4}m`
-          else if (w <= 120)                      intervalStr = `${w}w`
-        }
-        let autoAufgebotFuer = ''
-        if (intervalStr) {
-          const computed = computeNextKons(exDate, intervalStr)
-          if (computed) {
-            const lk2 = new Date(exDate + 'T00:00:00Z'); lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-            if (computed <= lk2.toISOString().slice(0, 10)) autoAufgebotFuer = today
-            else { const d = new Date(computed + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 2); autoAufgebotFuer = d.toISOString().slice(0, 10) }
-          }
-        }
-        if (autoAufgebotFuer) {
-          // Vollständig: letzte Untersuchung + RC-Datum aus deren Intervall.
-          await updateRecallPatient(p.id, { letzteKons: exDate, aufgebotFuer: autoAufgebotFuer, naechsteKons: null } as any, displayLabel)
-          updated.push(`${name}: letzte Unters. ${formatDate(exDate)} → RC ab ${formatDate(autoAufgebotFuer)}`)
-        } else if (exDate !== (p.letzteKons || '')) {
-          // Untersuchung neuer, aber kein verwertbares Intervall → nur Datum, RC manuell.
-          await updateRecallPatient(p.id, { letzteKons: exDate } as any, displayLabel)
-          review.push(`${name}: letzte Unters. ${formatDate(exDate)} übernommen — Intervall unklar, RC manuell`)
-        } else {
-          review.push(`${name}: keine neue Untersuchungs-Info — manuell prüfen`)
-        }
-      } catch {
-        errors.push(`${name}: Schreibfehler beim Speichern`)
-      }
-      await sleep(300)
-    }
-
-    setAbgleichProgress({ done: batch.length, total: batch.length, current: '' })
-    abgleichRunningRef.current = false
-    setAbgleichRunning(false)
-    setAbgleichResult({ updated, review, errors })
     await loadAll()
   }
 
@@ -3830,58 +3720,6 @@ export default function RecallPage() {
                 </button>
               )}
             </>
-          )}
-
-          {/* Liris-Abgleich (Admin-Test): überfällige Patienten automatisch prüfen */}
-          {isAdmin && isElectron && (
-            <button
-              onClick={runLirisAbgleich}
-              disabled={abgleichRunning}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium border border-violet-300 text-violet-700 bg-violet-50 rounded-xl hover:bg-violet-100 disabled:opacity-50 transition-colors shrink-0"
-              title="Überfällige Patienten automatisch in Liris prüfen und aktualisieren (Test, nur Admin)"
-            >
-              {abgleichRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListChecks className="w-4 h-4" />}
-              <span className="hidden sm:inline">
-                {abgleichRunning ? `Liris-Abgleich… ${abgleichProgress.done}/${abgleichProgress.total}` : 'Liris-Abgleich (Test)'}
-              </span>
-            </button>
-          )}
-
-          {/* Fortschritts-Overlay während des Laufs */}
-          {abgleichRunning && (
-            <div className="fixed bottom-4 right-4 z-[60] w-80 bg-white rounded-2xl shadow-2xl border border-violet-200 p-4 text-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <Loader2 className="w-4 h-4 animate-spin text-violet-600" />
-                <h3 className="font-bold text-gray-900">Liris-Abgleich läuft…</h3>
-              </div>
-              <p className="text-xs text-gray-500 truncate">{abgleichProgress.done}/{abgleichProgress.total} — {abgleichProgress.current}</p>
-              <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-violet-500 transition-all" style={{ width: `${abgleichProgress.total ? (abgleichProgress.done / abgleichProgress.total * 100) : 0}%` }} />
-              </div>
-            </div>
-          )}
-
-          {/* Ergebnis-Overlay nach dem Lauf */}
-          {abgleichResult && !abgleichRunning && (
-            <div className="fixed bottom-4 right-4 z-[60] w-96 max-h-[70vh] overflow-auto bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 text-sm">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold text-gray-900">Liris-Abgleich – Ergebnis</h3>
-                <button onClick={() => setAbgleichResult(null)} className="p-1 rounded hover:bg-gray-100"><X className="w-4 h-4" /></button>
-              </div>
-              <p className="text-xs text-gray-500 mb-2">
-                {abgleichResult.updated.length} automatisch aktualisiert · {abgleichResult.review.length} zur Prüfung · {abgleichResult.errors.length} Fehler
-              </p>
-              {([['updated', '✅ Automatisch aktualisiert'], ['review', '⚠️ Manuell prüfen'], ['errors', '❌ Fehler']] as const).map(([k, titel]) =>
-                abgleichResult[k].length > 0 && (
-                  <div key={k} className="mb-2">
-                    <p className="font-semibold text-xs mb-1 text-gray-700">{titel}</p>
-                    <ul className="space-y-0.5">
-                      {abgleichResult[k].map((s, idx) => <li key={idx} className="text-xs text-gray-600">{s}</li>)}
-                    </ul>
-                  </div>
-                )
-              )}
-            </div>
           )}
 
           {/* Aufgebot-Plan -> jetzt ueber den gleichnamigen Tab oben */}
