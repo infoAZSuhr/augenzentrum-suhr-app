@@ -214,10 +214,15 @@ function isFutureDate(val: string | null): boolean {
   const today = new Date().toISOString().slice(0, 10)
   return m[1] >= today
 }
-function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null; aufgebotFuer?: string | null; patientenStatus?: string | null }): boolean {
+function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null; aufgebotFuer?: string | null; patientenStatus?: string | null; aufgebotErstellt?: string | null; aufgebotArt?: string | null }): boolean {
   // Selbstmelder ("kein Aufgebot"): wollen bewusst keine Aufgebote und melden
   // sich bei Bedarf selbst -> nie überfällig.
   if (p.patientenStatus === 'kein Aufgebot') return false
+  // Aufgebot/Reminder bereits erstellt (z.B. Reminder gesendet) -> Patient wurde
+  // kontaktiert, gilt nicht mehr als überfällig. Nur "aktuell": das Aufgebot muss
+  // NACH dem letzten Konsil erstellt worden sein (sonst ist es aus einem alten
+  // Zyklus und der Patient ist wieder fällig). Konsistent mit dem Tabellen-Badge.
+  if (p.aufgebotArt && p.aufgebotErstellt && p.aufgebotErstellt >= (p.letzteKons || '')) return false
   const today = new Date().toISOString().slice(0, 10)
   if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return false
   if (!p.letzteKons || p.letzteKons >= today) return false
