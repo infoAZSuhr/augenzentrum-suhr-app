@@ -629,6 +629,7 @@ export default function RecallPage() {
     // Folge-Vorgehen bei "nicht erreicht": was nun?
     telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
+    nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
     art: null, pupille: false, anrede: '', adressBlock: '',
@@ -636,6 +637,7 @@ export default function RecallPage() {
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
+    nachnameOverride: '',
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
@@ -2478,7 +2480,7 @@ export default function RecallPage() {
     const adressLines = form.adressBlock.trim().split('\n').map(l => l.trim()).filter(Boolean)
     const nameLine    = adressLines[0] || ''
     const nameWords   = nameLine.split(/\s+/).filter(Boolean)
-    const nachname    = titleCaseName(nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine))
+    const nachname    = titleCaseName(form.nachnameOverride.trim() || (nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine)))
 
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : form.anrede === 'Frau' ? 'geehrte Frau' : 'geehrte Damen und Herren'
 
@@ -2783,7 +2785,7 @@ export default function RecallPage() {
     const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim())
     const nameLine     = (form.adressBlock.trim().split('\n')[0] || '').trim()
     const nameWordsE   = nameLine.split(/\s+/).filter(Boolean)
-    const nachname     = titleCaseName(nameWordsE[0] || nameLine)
+    const nachname     = titleCaseName(form.nachnameOverride.trim() || nameWordsE[0] || nameLine)
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : 'geehrte Frau'
     // Minderjährig (< 18): immer an die Familie, Kind namentlich nennen.
     const eAge = (() => {
@@ -4640,6 +4642,34 @@ export default function RecallPage() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Nachname mehrdeutig (Name mit 3+ Wörtern) → MPA wählt den
+                        Nachnamen für die Anrede. Erscheint nur im Zweifel. */}
+                    {(() => {
+                      const nameLine = (af.adressBlock.trim().split('\n')[0] || '').trim()
+                      const words = nameLine.split(/\s+/).filter(Boolean)
+                      if (words.length < 3) return null
+                      const options: string[] = []
+                      for (let n = 1; n < words.length; n++) options.push(titleCaseName(words.slice(0, n).join(' ')))
+                      const current = af.nachnameOverride.trim()
+                        ? titleCaseName(af.nachnameOverride.trim())
+                        : titleCaseName(words.slice(0, -1).join(' '))
+                      return (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-xs font-semibold text-amber-800 mb-1.5">⚠️ Name mehrdeutig — welcher Teil ist der Nachname? (für die Anrede)</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {options.map(opt => (
+                              <button key={opt} type="button"
+                                onClick={() => setAf({ nachnameOverride: opt })}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                                  current === opt ? 'border-amber-500 bg-amber-100 text-amber-800' : 'border-amber-200 bg-white text-gray-600 hover:bg-amber-50'
+                                }`}>{opt}</button>
+                            ))}
+                          </div>
+                          <p className="mt-1.5 text-[10px] text-amber-600">Anrede: «Sehr geehrte/r … {current}»</p>
+                        </div>
+                      )
+                    })()}
 
                     {/* Postadresse + Versand-Buttons direkt darunter */}
                     <div>
