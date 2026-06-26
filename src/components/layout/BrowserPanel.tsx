@@ -512,6 +512,7 @@ export default function BrowserPanel() {
   const [markStalePids, setMarkStalePids] = useState<string[]>([])
   const [markMissingPids, setMarkMissingPids] = useState<string[]>([])
   const [dayHistory, setDayHistory] = useState<Record<string, { stalePids: string[]; missingPids: string[] }>>({})
+  const [inspectResult, setInspectResult] = useState<string | null>(null)  // Admin: Liris-Button-HTML auslesen
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem('liris-panel-width'))
     return saved >= 300 && saved <= 1200 ? saved : 480
@@ -1478,6 +1479,33 @@ export default function BrowserPanel() {
     })()`).catch(() => {})
   }
 
+  // Admin-Diagnose: liest sichtbare kalender-/grün-artige Buttons aus dem
+  // Liris-Webview und zeigt deren outerHTML — damit wir den grünen
+  // Kalender-Button identifizieren können (DevTools im Webview gesperrt).
+  const runLirisInspect = () => {
+    const wv = webviewRef.current as any
+    if (!wv?.executeJavaScript) { setInspectResult('Liris-Webview nicht bereit. Bitte zuerst einen Patienten öffnen.'); return }
+    wv.executeJavaScript(`(function(){
+      function vis(el){ if(!el||el.offsetParent===null) return false; var r=el.getBoundingClientRect(); return r.width>0&&r.height>0; }
+      function classStr(el){ var c=el.className; if(c&&c.baseVal!==undefined) return c.baseVal; return ''+(c||''); }
+      function isGreen(el){ try{ var s=getComputedStyle(el); function g(c){ var m=c&&c.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/); if(!m) return false; var r=+m[1],gr=+m[2],b=+m[3]; return gr>90 && gr>r+25 && gr>b+25; } return g(s.color)||g(s.backgroundColor)||g(s.borderColor)||g(s.fill); }catch(e){return false;} }
+      var cands=document.querySelectorAll('button,a,i,span,svg,[role="button"],[onclick]');
+      var out=[], seen={};
+      for(var k=0;k<cands.length && out.length<40;k++){
+        var el=cands[k];
+        if(!vis(el)) continue;
+        var meta=(classStr(el)+' '+(el.id||'')+' '+(el.title||'')+' '+((el.getAttribute&&el.getAttribute('aria-label'))||'')).toLowerCase();
+        var calish=/cal|termin|kalender|agenda|gr(ue|ü)n|green/.test(meta);
+        if(!calish && !isGreen(el)) continue;
+        var html=(el.outerHTML||'').replace(/\\s+/g,' ').slice(0,400);
+        if(seen[html]) continue; seen[html]=1;
+        out.push('['+el.tagName.toLowerCase()+'] '+html);
+      }
+      return out.length ? out.join('\\n\\n———\\n\\n') : 'KEINE grünen/kalender-artigen Buttons gefunden — bitte erst einen Patienten mit der Zeitleiste öffnen.';
+    })()`).then((r: any) => setInspectResult(typeof r === 'string' ? r : JSON.stringify(r)))
+      .catch((e: any) => setInspectResult('Fehler beim Auslesen: ' + (e?.message || e)))
+  }
+
   if (!isOpen) return null
 
   // Aggregierte Meldung: zeige max. 2 Tage mit unverarbeiteten Patienten
@@ -1504,6 +1532,22 @@ export default function BrowserPanel() {
       className="flex flex-row flex-shrink-0 border-l border-gray-200 bg-white relative z-50"
       style={{ width }}
     >
+      {/* Admin: Ergebnis des Liris-Button-Auslesens */}
+      {inspectResult !== null && (
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4" onClick={() => setInspectResult(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col p-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-gray-900">Liris-Buttons (Admin-Diagnose)</h3>
+              <button onClick={() => setInspectResult(null)} className="p-1 rounded hover:bg-gray-100"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">Klick ins Feld (markiert alles), kopiere den Text und sende ihn im Chat.</p>
+            <textarea readOnly value={inspectResult}
+              onFocus={e => e.currentTarget.select()}
+              className="flex-1 w-full min-h-[300px] text-[11px] font-mono border border-gray-200 rounded-lg p-2 resize-none" />
+          </div>
+        </div>
+      )}
+
       {/* Resize grip */}
       <div
         className="absolute left-0 top-0 bottom-0 w-3 flex items-center justify-center cursor-col-resize z-10 hover:bg-primary-50 group"
@@ -1538,6 +1582,13 @@ export default function BrowserPanel() {
           >
             <RotateCcw className={`w-3.5 h-3.5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          {isAdmin && (
+            <button
+              onClick={runLirisInspect}
+              className="px-1.5 py-0.5 rounded text-[11px] font-bold text-amber-600 hover:bg-amber-100 transition-colors"
+              title="Admin: Liris-Buttons auslesen (zum Identifizieren des grünen Kalender-Buttons)"
+            >🔍 Buttons</button>
+          )}
 
           <div className="flex-1" />
 
