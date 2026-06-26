@@ -2764,7 +2764,7 @@ export default function RecallPage() {
     setBriefPreview(html)
   }
 
-  function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm) {
+  function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
     const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
     const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
 
@@ -2879,9 +2879,13 @@ export default function RecallPage() {
       '  Web   www.augenzentrum-suhr.ch',
     ].join('\n')
 
+    // Empfänger: bevorzugt die übergebene Patienten-E-Mail (aus Liris),
+    // sonst der Adressblock falls er selbst eine E-Mail ist.
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const adressTrimmedLocal = form.adressBlock.trim()
-    const isEmailLocal = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adressTrimmedLocal)
-    const to = isEmailLocal ? adressTrimmedLocal : ''
+    const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
+             : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal
+             : ''
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + signatur)}`
 
     // ── DEAD CODE BELOW (kept as reference for HTML approach) ─────────────────
@@ -4659,7 +4663,7 @@ export default function RecallPage() {
                             </button>
                             <button
                               disabled={!hasEmail}
-                              onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, { ...af, adressBlock: af.adressBlock || patientEmail }) }}
+                              onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, af, patientEmail) }}
                               title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                                 !hasEmail ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
