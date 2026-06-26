@@ -471,7 +471,7 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 }
 
 export default function RecallPage() {
-  const { user: currentUser, profile, isAdmin, isGeschaeftsleitung } = useAuth()
+  const { user: currentUser, profile, isAdmin, isGeschaeftsleitung, isArzt } = useAuth()
   // Electron-Erkennung — Liris-Integration (Webview + Auto-PID) funktioniert
   // NUR in der Desktop-App. Im Browser blockiert CORS, daher Buttons
   // ausblenden statt einen toten Link anzubieten.
@@ -2024,7 +2024,55 @@ export default function RecallPage() {
     }
     duplicatePidGroups.sort((a, b) => b.entries.length - a.entries.length || a.pid.localeCompare(b.pid))
 
-    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length }
+    // ── (GL/Arzt/Admin) 1) Recall-Effektivität: Conversion aufgeboten → Termin ──
+    // Von den aufgebotenen Patienten (aufgebotErstellt + aufgebotArt gesetzt):
+    // wie viele haben einen echten nächsten Termin? Gesamt + pro Kanal.
+    const hasRealTermin = (p: RecallPatient) => !!p.naechsteKons && p.naechsteKons !== 'kein Termin'
+    const recall = {
+      gesamt: { auf: 0, termin: 0 },
+      Brief:  { auf: 0, termin: 0 },
+      Tel:    { auf: 0, termin: 0 },
+      Praxis: { auf: 0, termin: 0 },
+    } as Record<'gesamt' | 'Brief' | 'Tel' | 'Praxis', { auf: number; termin: number }>
+    for (const p of activeAll) {
+      if (!p.aufgebotErstellt || !p.aufgebotArt) continue
+      recall.gesamt.auf++
+      if (hasRealTermin(p)) recall.gesamt.termin++
+      const ch = (p.aufgebotArt === 'Brief' || p.aufgebotArt === 'Tel' || p.aufgebotArt === 'Praxis') ? p.aufgebotArt : null
+      if (ch) { recall[ch].auf++; if (hasRealTermin(p)) recall[ch].termin++ }
+    }
+
+    // ── (GL/Arzt/Admin) 2) RC-Last: offene Recalls nach Fälligkeit ──────────────
+    // Patienten mit «RC zu erstellen ab», aber noch kein Aufgebot erstellt.
+    const todayIsoG = now.toISOString().slice(0, 10)
+    const addWeeksIso = (weeks: number) => { const d = new Date(now); d.setDate(now.getDate() + weeks * 7); return d.toISOString().slice(0, 10) }
+    const w4 = addWeeksIso(4), w8 = addWeeksIso(8), w12 = addWeeksIso(12)
+    const rcLast = { ueberfaellig: 0, w0_4: 0, w4_8: 0, w8_12: 0, spaeter: 0 }
+    for (const p of activeAll) {
+      if (!p.aufgebotFuer || p.aufgebotErstellt) continue
+      const d = s(p.aufgebotFuer).slice(0, 10)
+      if (!d) continue
+      if      (d <  todayIsoG) rcLast.ueberfaellig++
+      else if (d <= w4)        rcLast.w0_4++
+      else if (d <= w8)        rcLast.w4_8++
+      else if (d <= w12)       rcLast.w8_12++
+      else                     rcLast.spaeter++
+    }
+
+    // ── (GL/Arzt/Admin) 3) Altersverteilung (aus Geburtsjahr) ───────────────────
+    const ageBuckets = { '0-17': 0, '18-39': 0, '40-59': 0, '60-74': 0, '75+': 0, unbekannt: 0 } as Record<string, number>
+    for (const p of activeAll) {
+      const by = parseInt(s(p.gebDatum).slice(0, 4), 10)
+      if (!by || by < 1900 || by > now.getFullYear()) { ageBuckets.unbekannt++; continue }
+      const age = now.getFullYear() - by
+      if      (age < 18) ageBuckets['0-17']++
+      else if (age < 40) ageBuckets['18-39']++
+      else if (age < 60) ageBuckets['40-59']++
+      else if (age < 75) ageBuckets['60-74']++
+      else               ageBuckets['75+']++
+    }
+
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
@@ -5237,6 +5285,83 @@ export default function RecallPage() {
                   ))}
                 </div>
               </div>
+
+              {/* ── Praxis-Kennzahlen (nur GL / Ärzte / Admin) ── */}
+              {(isGeschaeftsleitung || isArzt || isAdmin) && (
+                <div className="space-y-5 p-4 rounded-2xl border border-indigo-100 bg-indigo-50/30">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4 text-indigo-600" />
+                    <h3 className="font-semibold text-gray-800">Praxis-Kennzahlen</h3>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">GL · Ärzte · Admin</span>
+                  </div>
+
+                  {/* 1) Wiedereinbestellung: Aufgebot → Termin (Conversion) */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Wiedereinbestellung — Aufgebot → Termin</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                      {([
+                        ['Gesamt',  auswertungStats.recall.gesamt],
+                        ['Brief',   auswertungStats.recall.Brief],
+                        ['Telefon', auswertungStats.recall.Tel],
+                        ['Praxis',  auswertungStats.recall.Praxis],
+                      ] as const).map(([label, r]) => {
+                        const pct = r.auf ? Math.round(r.termin / r.auf * 100) : 0
+                        return (
+                          <div key={label} className="flex flex-col px-3 py-2.5 rounded-xl border border-indigo-100 bg-white">
+                            <span className="text-xl font-bold tabular-nums text-indigo-700">{r.auf ? `${pct}%` : '—'}</span>
+                            <span className="text-[11px] font-medium text-gray-600">{label}</span>
+                            <span className="text-[10px] text-gray-400">{r.termin}/{r.auf} mit Termin</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p className="mt-1 text-[10px] text-gray-400">Anteil der aufgebotenen Patienten mit gesetztem nächstem Termin.</p>
+                  </div>
+
+                  {/* 2) RC-Last: offene Recalls nach Fälligkeit */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">RC-Last — offene Recalls nach Fälligkeit</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+                      {([
+                        ['Überfällig', auswertungStats.rcLast.ueberfaellig, 'bg-red-50 text-red-700 border-red-100'],
+                        ['0–4 Wo.',    auswertungStats.rcLast.w0_4,         'bg-amber-50 text-amber-700 border-amber-100'],
+                        ['4–8 Wo.',    auswertungStats.rcLast.w4_8,         'bg-yellow-50 text-yellow-700 border-yellow-100'],
+                        ['8–12 Wo.',   auswertungStats.rcLast.w8_12,        'bg-lime-50 text-lime-700 border-lime-100'],
+                        ['Später',     auswertungStats.rcLast.spaeter,      'bg-gray-50 text-gray-600 border-gray-200'],
+                      ] as const).map(([label, val, color]) => (
+                        <div key={label} className={`flex flex-col px-3 py-2.5 rounded-xl border ${color}`}>
+                          <span className="text-xl font-bold tabular-nums">{val}</span>
+                          <span className="text-[11px] font-medium opacity-90">{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[10px] text-gray-400">Patienten mit «RC zu erstellen ab», aber noch ohne erstelltes Aufgebot.</p>
+                  </div>
+
+                  {/* 3) Altersverteilung */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Altersverteilung (aktive Patienten)</h4>
+                    {(() => {
+                      const ab = auswertungStats.ageBuckets
+                      const order = ['0-17', '18-39', '40-59', '60-74', '75+', 'unbekannt']
+                      const max = Math.max(...order.map(k => ab[k] || 0), 1)
+                      return (
+                        <div className="space-y-1.5">
+                          {order.map(k => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="w-20 text-xs text-gray-500 shrink-0">{k === 'unbekannt' ? 'unbekannt' : `${k} J.`}</span>
+                              <div className="flex-1 h-4 bg-gray-100 rounded overflow-hidden">
+                                <div className="h-full bg-indigo-400" style={{ width: `${(ab[k] || 0) / max * 100}%` }} />
+                              </div>
+                              <span className="w-10 text-right text-xs tabular-nums font-medium text-gray-700">{ab[k] || 0}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
 
               {/* ── Per-Arzt Übersicht ── */}
               <div>
