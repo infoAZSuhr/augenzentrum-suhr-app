@@ -2391,10 +2391,14 @@ export default function RecallPage() {
       const patch: Partial<typeof f> = {}
       if (!f.anrede && lirisExtract.anrede) patch.anrede = lirisExtract.anrede as any
       if (!f.adressBlock.trim() && lirisExtract.postAdresse) {
-        // Name-Zeile vorne ergaenzen damit der Brief-Header passt
+        // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
+        // manuellen Einfügen. Alle Parser (Begrüßung, Adress-Anzeige, E-Mail)
+        // erwarten diese Reihenfolge: das letzte Wort ist der Vorname.
+        // Dadurch nutzt die Anrede den Nachnamen, und die gedruckte Adresse
+        // wird korrekt zu "Vorname Nachname" umsortiert.
         const vorname = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
         const nachname = (lirisExtract.nachname || '').trim()
-        const name = [vorname, nachname].filter(Boolean).join(' ')
+        const name = [nachname, vorname].filter(Boolean).join(' ')
         patch.adressBlock = (name ? name + '\n' : '') + lirisExtract.postAdresse
       }
       const kws = lirisExtract.bpKeywords ?? []
