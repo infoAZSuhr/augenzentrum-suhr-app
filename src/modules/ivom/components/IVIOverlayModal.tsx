@@ -131,7 +131,7 @@ async function renderPdfToCanvas(url: string, scale: number): Promise<HTMLCanvas
   const canvas = document.createElement('canvas')
   canvas.width = vp.width
   canvas.height = vp.height
-  await page.render({ canvasContext: canvas.getContext('2d')!, viewport: vp }).promise
+  await page.render({ canvasContext: canvas.getContext('2d')!, viewport: vp, canvas }).promise
   return canvas
 }
 
@@ -272,7 +272,7 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
       const vp = page.getViewport({ scale: PRINT_SCALE })
       const c = document.createElement('canvas')
       c.width = vp.width; c.height = vp.height
-      await page.render({ canvasContext: c.getContext('2d')!, viewport: vp }).promise
+      await page.render({ canvasContext: c.getContext('2d')!, viewport: vp, canvas: c }).promise
       setLirisDataUrl(c.toDataURL('image/jpeg', 0.92))
     } catch (e) { console.error(e) }
     setLirisLoading(false)
