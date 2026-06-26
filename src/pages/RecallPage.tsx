@@ -5320,7 +5320,9 @@ export default function RecallPage() {
                     <BarChart2 className="w-4 h-4 text-indigo-600" />
                     <h3 className="font-semibold text-gray-800">Praxis-Kennzahlen</h3>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">GL · Ärzte · Admin</span>
-                    <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" title="Momentaufnahme — Stand HEUTE, gerechnet über alle aktiven Patienten (ohne inaktiv / verstorben / storniert). Es ist KEIN Datums-Zeitraum, sondern der aktuelle Bestand. Für jede Zahl gibt es eine eigene Erklärung beim Darüberfahren." />
+                    <span className="cursor-help" title="Momentaufnahme — Stand HEUTE, gerechnet über alle aktiven Patienten (ohne inaktiv / verstorben / storniert). Es ist KEIN Datums-Zeitraum, sondern der aktuelle Bestand. Für jede Zahl gibt es eine eigene Erklärung beim Darüberfahren.">
+                      <Info className="w-3.5 h-3.5 text-gray-400" />
+                    </span>
                   </div>
                   <p className="-mt-3 text-[11px] text-gray-500">Momentaufnahme · Stand heute · alle aktiven Patienten (kein Zeitraum). Erklärungen per Maus über die Überschriften und Zahlen.</p>
 
