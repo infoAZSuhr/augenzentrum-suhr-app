@@ -220,13 +220,14 @@ function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null
   if (p.patientenStatus === 'kein Aufgebot') return false
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
-  // Aufgebot/Reminder bereits erstellt (z.B. Reminder gesendet) -> Patient wurde
-  // kontaktiert, gilt vorerst nicht als überfällig. Bedingungen: NACH dem letzten
-  // Konsil erstellt (sonst alter Zyklus) UND höchstens 6 Monate alt. Reagiert der
-  // Patient innert 6 Monaten nicht, erscheint er danach wieder als überfällig.
+  // NUR Reminder: ein gesendeter Reminder hat KEINEN fixen Termin (anders als
+  // Brief/Tel/Praxis, die den Termin in «Nächste Konst.» setzen). Er unterdrückt
+  // «überfällig» nur für 6 Monate: NACH dem letzten Konsil erstellt (sonst alter
+  // Zyklus) UND höchstens 6 Monate alt. Reagiert der Patient innert 6 Monaten
+  // nicht, erscheint er danach wieder als überfällig.
   const sixMo = new Date(now); sixMo.setMonth(now.getMonth() - 6)
   const sixMoIso = sixMo.toISOString().slice(0, 10)
-  if (p.aufgebotArt && p.aufgebotErstellt && p.aufgebotErstellt >= (p.letzteKons || '') && p.aufgebotErstellt >= sixMoIso) return false
+  if (p.aufgebotArt === 'Reminder' && p.aufgebotErstellt && p.aufgebotErstellt >= (p.letzteKons || '') && p.aufgebotErstellt >= sixMoIso) return false
   if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return false
   if (!p.letzteKons || p.letzteKons >= today) return false
   if (p.naechsteKons && p.naechsteKons !== 'kein Termin') return true
