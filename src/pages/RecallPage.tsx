@@ -1339,19 +1339,44 @@ export default function RecallPage() {
       if (!ex) { errors.push(`${name}: Liris nicht geladen / kein Treffer`); continue }
       if (ex.notFound || ex.pidMatchesLiris === false) { review.push(`${name}: PID in Liris nicht gefunden`); continue }
       try {
+        // verstorben bleibt eine sichere, eindeutige Übernahme.
         if (ex.verstorben) {
           await updateRecallPatient(p.id, { patientenStatus: 'verstorben' } as any, displayLabel)
           updated.push(`${name}: als verstorben markiert`); continue
         }
-        if (ex.naechsterTerminDatum && ex.naechsterTerminDatum >= today) {
-          await updateRecallPatient(p.id, { naechsteKons: ex.naechsterTerminDatum, aufgebotFuer: null } as any, displayLabel)
-          updated.push(`${name}: Termin ${formatDate(ex.naechsterTerminDatum)} aus Liris übernommen`); continue
+        // NUR Daten der LETZTEN UNTERSUCHUNG übernehmen:
+        // «Untersuchung vom» (letzteKons) + das dort dokumentierte Intervall
+        // → RC-Datum (gleiche Logik wie der manuelle Liris-Auto-Fill).
+        // Gebuchte Kalendertermine (naechsterTerminDatum) werden NICHT verwendet.
+        const exDate = ex.letzteKons
+        if (!exDate) { review.push(`${name}: keine Untersuchung in Liris gefunden`); continue }
+        let intervalStr = ''
+        if (ex.intervalWeeks) {
+          const w = ex.intervalWeeks
+          if      (w % 52 === 0 && w / 52 <= 120) intervalStr = `${w / 52}j`
+          else if (w % 4  === 0 && w / 4  <= 120) intervalStr = `${w / 4}m`
+          else if (w <= 120)                      intervalStr = `${w}w`
         }
-        if (ex.letzteKons && ex.letzteKons !== (p.letzteKons || '')) {
-          await updateRecallPatient(p.id, { letzteKons: ex.letzteKons } as any, displayLabel)
-          updated.push(`${name}: letztes Konsil ${formatDate(ex.letzteKons)} übernommen`); continue
+        let autoAufgebotFuer = ''
+        if (intervalStr) {
+          const computed = computeNextKons(exDate, intervalStr)
+          if (computed) {
+            const lk2 = new Date(exDate + 'T00:00:00Z'); lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+            if (computed <= lk2.toISOString().slice(0, 10)) autoAufgebotFuer = today
+            else { const d = new Date(computed + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 2); autoAufgebotFuer = d.toISOString().slice(0, 10) }
+          }
         }
-        review.push(`${name}: keine eindeutige Aktualisierung — manuell prüfen`)
+        if (autoAufgebotFuer) {
+          // Vollständig: letzte Untersuchung + RC-Datum aus deren Intervall.
+          await updateRecallPatient(p.id, { letzteKons: exDate, aufgebotFuer: autoAufgebotFuer, naechsteKons: null } as any, displayLabel)
+          updated.push(`${name}: letzte Unters. ${formatDate(exDate)} → RC ab ${formatDate(autoAufgebotFuer)}`)
+        } else if (exDate !== (p.letzteKons || '')) {
+          // Untersuchung neuer, aber kein verwertbares Intervall → nur Datum, RC manuell.
+          await updateRecallPatient(p.id, { letzteKons: exDate } as any, displayLabel)
+          review.push(`${name}: letzte Unters. ${formatDate(exDate)} übernommen — Intervall unklar, RC manuell`)
+        } else {
+          review.push(`${name}: keine neue Untersuchungs-Info — manuell prüfen`)
+        }
       } catch {
         errors.push(`${name}: Schreibfehler beim Speichern`)
       }
