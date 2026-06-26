@@ -2355,22 +2355,28 @@ export default function RecallPage() {
     toast.info('Termin anlegen wird in Liris vorbereitet…')
   }
 
-  function openAufgebotDialog(entry: WPEntry) {
+  function openAufgebotDialog(entry: WPEntry, presetArt?: AufgebotArt) {
     // Self-Service-Patienten ("kein Aufgebot") wollen bewusst nicht aufgeboten
-    // werden -> warnen, aber Fortfahren erlauben (Ausnahmefall).
-    if (entry.patient.patientenStatus === 'kein Aufgebot') {
+    // werden -> warnen, aber Fortfahren erlauben. Ein bewusst gewählter Reminder
+    // ist für sie OK (sie melden sich selbst) -> dann keine Warnung.
+    if (entry.patient.patientenStatus === 'kein Aufgebot' && presetArt !== 'Reminder') {
       if (!window.confirm('Patient wünscht kein Aufgebot.\n\nTrotzdem aufbieten?')) return
     }
     setAufgebotTarget(entry)
     const doctor = entry.patient.doctor
     setAufgebotForm({
       ...emptyAufgebotForm(),
+      art:       presetArt ?? null,
       arztName:  doctorFullName(doctor),
       fachtitel: doctorFachtitelMap[doctor] ?? '',
     })
     setAufgebotPdfCreated(false)
-    // Liris wird NICHT automatisch geoeffnet — erst wenn der User Brief
-    // oder Reminder auswaehlt, holen wir Anrede/Adresse aus der Akte.
+    // Bei vorgewählter Art (Brief/Reminder) gleich die Liris-Akte öffnen,
+    // damit Anrede/Adresse via lirisExtract ins Formular gefüllt werden.
+    if ((presetArt === 'Brief' || presetArt === 'Reminder')) {
+      const pid = normalizePid(entry.patient.pid)
+      if (pid) openWithPid(pid)
+    }
   }
 
   // Liris-Extract -> Aufbieten-Formular auto-fuellen, sofern das Modal
@@ -3006,7 +3012,11 @@ export default function RecallPage() {
     setAufgebotSaving(true)
     // Bei Brief: PDF automatisch erzeugen (in Postausgang) wenn noch nicht
     // geschehen — egal ob 'Per Post' bereits geklickt wurde oder nicht.
-    if (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum && aufgebotForm.versand !== 'Email') {
+    const willGeneratePdf = aufgebotForm.versand !== 'Email' && (
+      (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum) ||
+      aufgebotForm.art === 'Reminder'
+    )
+    if (willGeneratePdf) {
       try { generateBriefPDF(aufgebotTarget.patient, aufgebotForm) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
     }
     try {
@@ -4331,13 +4341,16 @@ export default function RecallPage() {
         const canSave = !!af.art && (
           af.art === 'Tel'
             ? !!af.notiz.trim()
-            : !!af.adressBlock.trim() && !!af.versand && !!af.anrede && !!af.terminDatum && !!af.terminZeit
+            : af.art === 'Reminder'
+              ? !!af.adressBlock.trim() && !!af.versand && !!af.anrede
+              : !!af.adressBlock.trim() && !!af.versand && !!af.anrede && !!af.terminDatum && !!af.terminZeit
         )
-        const livePreviewHtml = af.art === 'Brief' ? buildBriefHtml(p, af) : null
+        const livePreviewHtml = (af.art === 'Brief' || af.art === 'Reminder') ? buildBriefHtml(p, af) : null
 
         const ART_BUTTONS: { art: AufgebotArt; Icon: React.ComponentType<{className?:string}>; label: string; sub: string; color: string }[] = [
-          { art: 'Brief', Icon: Mail,  label: 'Brief / Reminder', sub: 'Mit Datum = Brief · ohne = Reminder', color: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' },
-          { art: 'Tel',   Icon: Phone, label: 'Telefon',          sub: 'Anruf mit Grundvermerk',              color: 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' },
+          { art: 'Brief',    Icon: Mail,  label: 'Briefaufgebot', sub: 'Einladung zu festem Termin',        color: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' },
+          { art: 'Reminder', Icon: Bell,  label: 'Reminder',      sub: 'ohne Termin · meldet sich selbst',   color: 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100' },
+          { art: 'Tel',      Icon: Phone, label: 'Telefon',       sub: 'Anruf mit Grundvermerk',             color: 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' },
         ]
 
         return (
@@ -4390,10 +4403,10 @@ export default function RecallPage() {
                         onClick={() => {
                           const next = af.art === art ? null : art
                           setAf({ art: next, versand: '', notiz: '', pupille: false })
-                          // Bei Auswahl von Brief -> Liris-Akte oeffnen, damit
+                          // Bei Brief ODER Reminder -> Liris-Akte oeffnen, damit
                           // Anrede/Adresse via lirisExtract-Handler ins Formular
                           // gefuellt werden. Tel braucht das nicht.
-                          if (next === 'Brief' && aufgebotTarget) {
+                          if ((next === 'Brief' || next === 'Reminder') && aufgebotTarget) {
                             const pid = normalizePid(aufgebotTarget.patient.pid)
                             if (pid) openWithPid(pid)
                           }
@@ -4425,9 +4438,11 @@ export default function RecallPage() {
                   </div>
                 )}
 
-                {/* Brief-specific fields */}
-                {af.art === 'Brief' && (
+                {/* Brief- & Reminder-Felder (Adresse/Versand gemeinsam) */}
+                {(af.art === 'Brief' || af.art === 'Reminder') && (
                   <>
+                    {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
+                    {af.art === 'Brief' && (<>
                     {/* Pupillenerweiterung */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Untersuchungsart</p>
@@ -4545,6 +4560,7 @@ export default function RecallPage() {
                         )}
                       </div>
                     </div>
+                    </>)}
 
                     {/* Anrede */}
                     <div>
@@ -4742,7 +4758,7 @@ export default function RecallPage() {
                     />
                   ) : (
                     <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                      {af.art === 'Brief' ? 'Formular ausfüllen für Vorschau' : 'Vorschau nur für Brief verfügbar'}
+                      {(af.art === 'Brief' || af.art === 'Reminder') ? 'Formular ausfüllen für Vorschau' : 'Vorschau nur für Brief/Reminder verfügbar'}
                     </div>
                   )}
                 </div>
@@ -4881,14 +4897,25 @@ export default function RecallPage() {
                 <CalendarClock className="w-3.5 h-3.5" />
                 Termin
               </button>
-              <button
-                onClick={() => openAufgebotDialog(entry)}
-                title="Aufgebot erstellen"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0"
-              >
-                <CalendarDays className="w-3.5 h-3.5" />
-                Aufbieten
-              </button>
+              {p.patientenStatus === 'kein Aufgebot' ? (
+                <button
+                  onClick={() => openAufgebotDialog(entry, 'Reminder')}
+                  title="Reminder erstellen (Patient meldet sich selbst)"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors shrink-0"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  Reminder
+                </button>
+              ) : (
+                <button
+                  onClick={() => openAufgebotDialog(entry)}
+                  title="Aufgebot erstellen"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0"
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  Aufbieten
+                </button>
+              )}
             </div>
           )
         }
@@ -6306,11 +6333,12 @@ export default function RecallPage() {
                       type="button"
                       onClick={() => {
                         const next = form.aufgebotArt === value ? '' : value
-                        // Briefaufgebot: vollen Aufbieten-Dialog öffnen (Adresse,
-                        // Termin, PDF/Postausgang). Das Bearbeiten-Formular wird
-                        // geschlossen — der Dialog übernimmt das Speichern.
-                        if (next === 'Brief' && editTarget && editTarget !== 'new') {
-                          openAufgebotDialog({ patient: editTarget })
+                        // Briefaufgebot UND Reminder: jeweils den vollen Aufbieten-
+                        // Dialog mit vorgewählter Art öffnen (Adresse, ggf. Termin,
+                        // PDF/Postausgang). Das Bearbeiten-Formular wird geschlossen
+                        // — der Dialog übernimmt das Speichern. Getrennt, nicht kombiniert.
+                        if ((next === 'Brief' || next === 'Reminder') && editTarget && editTarget !== 'new') {
+                          openAufgebotDialog({ patient: editTarget }, next)
                           setEditTarget(null)
                           return
                         }
