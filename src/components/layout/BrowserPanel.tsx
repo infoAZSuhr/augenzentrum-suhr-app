@@ -1377,6 +1377,25 @@ export default function BrowserPanel() {
     const day = parseInt(mIso[3], 10)
     const sleep = (ms: number) => new Promise<void>(res => window.setTimeout(res, ms))
 
+    // Schritt 0: Befindet man sich in der Patienten-Akte, ist KEIN Mini-Kalender
+    // sichtbar. Dann zuerst ueber den "Terminkalender"-Link (oben links in Liris)
+    // zur Kalenderansicht wechseln und auf den Mini-Kalender warten.
+    const hasMiniCal = () => wv.executeJavaScript(`!!document.getElementById('cal-event-mini-calendar')`).catch(() => false)
+    if (!(await hasMiniCal())) {
+      await wv.executeJavaScript(`(function(){
+        var as = [].slice.call(document.querySelectorAll('a'));
+        for (var k=0;k<as.length;k++){
+          if ((as[k].innerText || as[k].textContent || '').trim() === 'Terminkalender') { as[k].click(); return true; }
+        }
+        return false;
+      })()`).catch(() => false)
+      // Auf den Mini-Kalender warten (max. ~3s)
+      for (let i = 0; i < 15; i++) {
+        await sleep(200)
+        if (await hasMiniCal()) break
+      }
+    }
+
     // Liest Monat+Jahr aus dem Mini-Kalender-Header. Erkennt volle deutsche
     // Monatsnamen, 3-Buchstaben-Abkuerzungen und numerische MM.YYYY / MM/YYYY.
     const readMonth = `(function(){
