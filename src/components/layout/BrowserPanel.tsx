@@ -902,8 +902,15 @@ export default function BrowserPanel() {
               var times = t.match(/@\\d{2}:\\d{2}/g);
               var hasPid = /#\\s*\\d/.test(t);
               var hasGeb = /\\d{2}\\.\\d{2}\\.\\d{4}/.test(t);
+              // Nachname steht in Liris in GROSSBUCHSTABEN (z.B. "PUMA TORIERI"),
+              // oft auf einer eigenen Zeile getrennt von Zeit/PID/Geburtsdatum.
+              // Diese Bedingung verlangt, dass das Element AUCH den Namen enthält,
+              // damit die Schleife bis zum vollen Patienten-Block hochsteigt und
+              // die Umrandung Name + Vorname mit umschliesst (sonst nur die
+              // PID-Zeile -> kaum sichtbar).
+              var hasName = /[A-Z\\u00c4\\u00d6\\u00dc]{2,}/.test(t);
               // Akzeptiere nur kleine Elemente (Patienten-Zeilen), nicht große Container
-              if (hasPid && hasGeb && times && times.length === 1 && t.length < 250) {
+              if (hasPid && hasGeb && hasName && times && times.length === 1 && t.length < 350) {
                 return el; // Sofort zurückgeben, nicht weiter hochgehen
               }
               el = el.parentElement;
