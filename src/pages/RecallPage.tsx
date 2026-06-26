@@ -214,7 +214,10 @@ function isFutureDate(val: string | null): boolean {
   const today = new Date().toISOString().slice(0, 10)
   return m[1] >= today
 }
-function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null; aufgebotFuer?: string | null }): boolean {
+function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null; aufgebotFuer?: string | null; patientenStatus?: string | null }): boolean {
+  // Selbstmelder ("kein Aufgebot"): wollen bewusst keine Aufgebote und melden
+  // sich bei Bedarf selbst -> nie überfällig.
+  if (p.patientenStatus === 'kein Aufgebot') return false
   const today = new Date().toISOString().slice(0, 10)
   if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return false
   if (!p.letzteKons || p.letzteKons >= today) return false
@@ -3952,7 +3955,7 @@ export default function RecallPage() {
                   // Taggenau (einheitlich mit isOverdue + RC-Badge): überfällig
                   // sobald das RC-Datum in der Vergangenheit liegt, kein 1-Monats-Karenz.
                   const today = new Date().toISOString().slice(0, 10)
-                  const overdue = !rcErstellt && row.aufgebotFuer < today
+                  const overdue = !rcErstellt && row.aufgebotFuer < today && row.patientenStatus !== 'kein Aufgebot'
                   return <span className={`font-medium ${overdue ? 'text-red-500' : 'text-gray-500'}`}>RC: {label}{overdue ? ' !' : ''}</span>
                 })()}
                 {row.aufgebotArt && (() => {
@@ -4124,7 +4127,7 @@ export default function RecallPage() {
                             const hatZukunftsTermin = row.naechsteKons && row.naechsteKons !== 'kein Termin' && row.naechsteKons >= today
                             const lkInPast = row.letzteKons && row.letzteKons < today
                             const aufgebotInZukunft = row.aufgebotFuer && row.aufgebotFuer >= today
-                            const isOverdue = !rcErstellt && !hatZukunftsTermin && !!lkInPast && !aufgebotInZukunft
+                            const isOverdue = !rcErstellt && !hatZukunftsTermin && !!lkInPast && !aufgebotInZukunft && row.patientenStatus !== 'kein Aufgebot'
                             return <span className="flex flex-col gap-0.5"><span>{label}</span>{isOverdue && <span className="text-[10px] font-semibold text-red-500">überfällig</span>}</span>
                           })()}
                         </div>
