@@ -6159,6 +6159,9 @@ export default function RecallPage() {
                         const next = form.aufgebotArt === value ? '' : value
                         setField('aufgebotArt', next)
                         if (next) {
+                          // Aufgebotsart gewählt (Brief/Reminder/Tel/Praxis) → das
+                          // Aufgebot wird erstellt, «RC zu erstellen ab» ist obsolet.
+                          setField('aufgebotFuer', '')
                           // Praxis-Aufgebot: meist beim letzten Konsil direkt
                           // vereinbart -> letzteKons als Default-Datum, sonst
                           // muss der User das nachtraeglich korrigieren.
@@ -6209,13 +6212,7 @@ export default function RecallPage() {
                   }</label>
                   <div className="relative">
                     <input type="date" value={form.aufgebotErstellt} {...dateDrop('aufgebotErstellt')}
-                      onChange={e => {
-                        const val = e.target.value
-                        setField('aufgebotErstellt', val)
-                        // Sobald das Aufgebot erstellt wurde, ist «RC zu erstellen ab»
-                        // obsolet (Recall ist erledigt, nicht mehr pendent) → leeren.
-                        if (val) setField('aufgebotFuer', '')
-                      }}
+                      onChange={e => setField('aufgebotErstellt', e.target.value)}
                       className={`${inputCls} pr-6${chCls('aufgebotErstellt')}`} />
                     <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
                   </div>
