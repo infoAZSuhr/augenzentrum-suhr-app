@@ -275,6 +275,18 @@ function normalizePid(val: string | null | undefined): string {
   return s(val).replace(/^#+/, '').replace(/^0+(\d)/, '$1')
 }
 
+/** Wandelt VOLLSTÄNDIG grossgeschriebene Namens-Wörter (Liris liefert oft
+ *  "PUMA TORIERI") in normale Schreibweise um: erster Buchstabe gross, Rest
+ *  klein. Bereits gemischt geschriebene Wörter (z.B. "McDonald") bleiben
+ *  unverändert. Bindestriche/Apostrophe werden je Teil korrekt behandelt. */
+function titleCaseName(val: string | null | undefined): string {
+  return s(val).replace(/\p{L}+/gu, w =>
+    w.length > 1 && w === w.toUpperCase()
+      ? w.charAt(0) + w.slice(1).toLowerCase()
+      : w
+  )
+}
+
 /** Returns true if the recallTimestamp is within the last 7 days */
 function isWithin7Days(erstelltStamp: string | null | undefined): boolean {
   const ps = parseStamp(erstelltStamp ?? null)
@@ -2466,7 +2478,7 @@ export default function RecallPage() {
     const adressLines = form.adressBlock.trim().split('\n').map(l => l.trim()).filter(Boolean)
     const nameLine    = adressLines[0] || ''
     const nameWords   = nameLine.split(/\s+/).filter(Boolean)
-    const nachname    = nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine)
+    const nachname    = titleCaseName(nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine))
 
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : form.anrede === 'Frau' ? 'geehrte Frau' : 'geehrte Damen und Herren'
 
@@ -2487,9 +2499,9 @@ export default function RecallPage() {
     // Reorder name: "Nachname Vorname" → "Vorname Nachname" for address window.
     // (nameWords ist oben schon definiert — wiederverwendet)
     const escLine    = (l: string) => l.replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    const nameDisplay = nameWords.length >= 2
+    const nameDisplay = titleCaseName(nameWords.length >= 2
       ? `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`
-      : nameLine
+      : nameLine)
     const kindHinweis = isMinor ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(nameDisplay)}</strong>.</p>` : ''
     // Build structured address: Anrede / Vorname Nachname / Strasse / PLZ Ort
     const adressHtml = [form.anrede, nameDisplay, adressLines[1] ?? '', adressLines[2] ?? '']
@@ -2771,7 +2783,7 @@ export default function RecallPage() {
     const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim())
     const nameLine     = (form.adressBlock.trim().split('\n')[0] || '').trim()
     const nameWordsE   = nameLine.split(/\s+/).filter(Boolean)
-    const nachname     = nameWordsE[0] || nameLine
+    const nachname     = titleCaseName(nameWordsE[0] || nameLine)
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : 'geehrte Frau'
     // Minderjährig (< 18): immer an die Familie, Kind namentlich nennen.
     const eAge = (() => {
@@ -2784,7 +2796,7 @@ export default function RecallPage() {
       return a
     })()
     const eMinor   = eAge !== null && eAge >= 0 && eAge < 18
-    const childName = nameWordsE.length >= 2 ? `${nameWordsE[nameWordsE.length - 1]} ${nameWordsE.slice(0, -1).join(' ')}` : nameLine
+    const childName = titleCaseName(nameWordsE.length >= 2 ? `${nameWordsE[nameWordsE.length - 1]} ${nameWordsE.slice(0, -1).join(' ')}` : nameLine)
     const salut    = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
     const arztName     = form.arztName || doctorFullName(patient.doctor)
     const FEMALE_DOCTORS = new Set(['Malinina','Papazoglou'])
