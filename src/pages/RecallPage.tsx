@@ -2389,6 +2389,17 @@ export default function RecallPage() {
     setAufgebotForm(f => {
       const patch: Partial<typeof f> = {}
       if (!f.anrede && lirisExtract.anrede) patch.anrede = lirisExtract.anrede as any
+      // Minderjährig (< 18): Anrede IMMER auf «Familie» — Brief geht an die Familie.
+      {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(aufgebotTarget.patient.gebDatum || ''))
+        if (m) {
+          const t = new Date()
+          let a = t.getFullYear() - parseInt(m[1], 10)
+          const mo = t.getMonth() + 1, d = t.getDate()
+          if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
+          if (a >= 0 && a < 18) patch.anrede = 'Familie'
+        }
+      }
       if (!f.adressBlock.trim() && lirisExtract.postAdresse) {
         // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
         // manuellen Einfügen. Alle Parser (Begrüßung, Adress-Anzeige, E-Mail)
@@ -2459,12 +2470,27 @@ export default function RecallPage() {
 
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : form.anrede === 'Frau' ? 'geehrte Frau' : 'geehrte Damen und Herren'
 
+    // Minderjährig (< 18): Aufgebots-/Reminderbriefe IMMER an die Familie
+    // richten und den Namen des Kindes im Brief nennen.
+    const childAge = (() => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.gebDatum || ''))
+      if (!m) return null
+      const t = new Date()
+      let a = t.getFullYear() - parseInt(m[1], 10)
+      const mo = t.getMonth() + 1, d = t.getDate()
+      if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
+      return a
+    })()
+    const isMinor = childAge !== null && childAge >= 0 && childAge < 18
+    const effAnredeAnrede = isMinor ? 'geehrte Familie' : anredeAnrede
+
     // Reorder name: "Nachname Vorname" → "Vorname Nachname" for address window.
     // (nameWords ist oben schon definiert — wiederverwendet)
     const escLine    = (l: string) => l.replace(/&/g,'&amp;').replace(/</g,'&lt;')
     const nameDisplay = nameWords.length >= 2
       ? `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`
       : nameLine
+    const kindHinweis = isMinor ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(nameDisplay)}</strong>.</p>` : ''
     // Build structured address: Anrede / Vorname Nachname / Strasse / PLZ Ort
     const adressHtml = [form.anrede, nameDisplay, adressLines[1] ?? '', adressLines[2] ?? '']
       .filter(Boolean)
@@ -2552,7 +2578,7 @@ export default function RecallPage() {
       : hasTermin ? 'Terminvorschlag f&#252;r die Routine Augenkontrolle'
       : 'Einladung zur Augenkontrolle'
 
-    const salut = `<p class="salut">Sehr ${anredeAnrede} ${nachname}</p>`
+    const salut = `<p class="salut">Sehr ${effAnredeAnrede} ${nachname}</p>`
 
     const terminBlock = hasTermin ? `
       <div class="termin-box-wrap">
@@ -2569,6 +2595,7 @@ export default function RecallPage() {
     // ── Body: mit Pupillenerweiterung ────────────────────────────────────────
     const bodyMit = `
       ${salut}
+      ${kindHinweis}
       <p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>mit Pupillenerweiterung</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>
       ${terminBlock}
       ${vuBlock}
@@ -2581,6 +2608,7 @@ export default function RecallPage() {
     // ── Body: ohne Pupillenerweiterung ───────────────────────────────────────
     const bodyOhne = `
       ${salut}
+      ${kindHinweis}
       <p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>ohne Pupillenerweiterung</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>
       ${terminBlock}
       ${vuBlock}
@@ -2593,6 +2621,7 @@ export default function RecallPage() {
     // ── Body: Reminder ───────────────────────────────────────────────────────
     const bodyReminder = `
       ${salut}
+      ${kindHinweis}
       <p>Ihre letzte augen&#228;rztliche Untersuchung liegt bereits einige Zeit zur&#252;ck. F&#252;r Ihre Augengesundheit empfehlen wir eine erneute Kontrolle und bitten Sie, einen Termin mit uns zu vereinbaren.</p>
       <p>Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
       <p><strong>Falls Sie inzwischen von einer anderen Augen&#228;rztin oder einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze R&#252;ckmeldung</strong> &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Daten entsprechend aktualisieren k&#246;nnen.</p>
@@ -2741,9 +2770,22 @@ export default function RecallPage() {
 
     const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim())
     const nameLine     = (form.adressBlock.trim().split('\n')[0] || '').trim()
-    const nachname     = nameLine.split(/\s+/)[0] || nameLine
+    const nameWordsE   = nameLine.split(/\s+/).filter(Boolean)
+    const nachname     = nameWordsE[0] || nameLine
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : 'geehrte Frau'
-    const salut        = `Sehr ${anredeAnrede} ${nachname}`
+    // Minderjährig (< 18): immer an die Familie, Kind namentlich nennen.
+    const eAge = (() => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.gebDatum || ''))
+      if (!m) return null
+      const t = new Date()
+      let a = t.getFullYear() - parseInt(m[1], 10)
+      const mo = t.getMonth() + 1, d = t.getDate()
+      if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
+      return a
+    })()
+    const eMinor   = eAge !== null && eAge >= 0 && eAge < 18
+    const childName = nameWordsE.length >= 2 ? `${nameWordsE[nameWordsE.length - 1]} ${nameWordsE.slice(0, -1).join(' ')}` : nameLine
+    const salut    = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
     const arztName     = form.arztName || doctorFullName(patient.doctor)
     const FEMALE_DOCTORS = new Set(['Malinina','Papazoglou'])
     const isFemale     = FEMALE_DOCTORS.has(patient.doctor)
@@ -2771,6 +2813,7 @@ export default function RecallPage() {
     if (isReminder) {
       body = [
         `${salut}`, '',
+        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
         'Wir möchten Sie daran erinnern, dass Ihre letzte augenärztliche Untersuchung bereits einige Zeit zurückliegt.',
         '',
         'Um Ihre Augengesundheit weiterhin optimal zu betreuen, bitten wir Sie, sich für einen neuen Kontrolltermin mit unserer Praxis in Verbindung zu setzen.',
@@ -2820,6 +2863,7 @@ export default function RecallPage() {
       ].join('\n')
       body = [
         `${salut}`, '',
+        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
         `Wir freuen uns, Sie bald wieder in unserer Praxis begrüssen zu dürfen. Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? `, ${arztName},` : ''} an.`,
         terminSection, vuSection, sehSection, mitbringen,
       ].join('\n')
