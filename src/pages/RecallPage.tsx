@@ -629,8 +629,7 @@ export default function RecallPage() {
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   const [emailCopied,       setEmailCopied]       = useState(false)
-  const [previewCollapsed,  setPreviewCollapsed]  = useState(true)   // default eingeklappt — manuell aufklappen
-  const [previewPopupOpen,  setPreviewPopupOpen]  = useState(false)  // Briefvorschau als grosses Popup
+  const [previewCollapsed]  = useState(true)   // Dialog bleibt schmal (Vorschau ist Popup)
   // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),
   // lokal gespeichert damit haeufige eigene Eintraege als Buttons bleiben.
   const [customVUs, setCustomVUs] = useState<string[]>(() => {
@@ -4734,38 +4733,7 @@ export default function RecallPage() {
 
               </div>{/* end left form panel */}
 
-              {/* Right: schmaler Button öffnet die Briefvorschau als grosses Popup */}
-              {livePreviewHtml && (
-                <button
-                  onClick={() => setPreviewPopupOpen(true)}
-                  title="Briefvorschau als grosses Popup öffnen"
-                  className="shrink-0 w-11 bg-indigo-50 border-l border-indigo-100 hover:bg-indigo-100 flex flex-col items-center justify-center text-indigo-600 transition-colors gap-1.5"
-                >
-                  <Search className="w-4 h-4" />
-                  <span className="text-[10px] font-semibold tracking-wider [writing-mode:vertical-rl] rotate-180">Vorschau</span>
-                </button>
-              )}
-
               </div>{/* end two-column */}
-
-              {/* Briefvorschau-Popup — gross, statt enges Seitenpanel */}
-              {previewPopupOpen && livePreviewHtml && (
-                <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setPreviewPopupOpen(false)}>
-                  <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-                       style={{ width: 'min(820px, 96vw)', height: 'min(96vh, 1180px)' }}
-                       onClick={e => e.stopPropagation()}>
-                    <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-gray-50">
-                      <span className="text-sm font-semibold text-gray-700">
-                        Briefvorschau · {af.art === 'Reminder' ? 'Reminder' : 'Briefaufgebot'}
-                      </span>
-                      <button onClick={() => setPreviewPopupOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <iframe srcDoc={livePreviewHtml} className="flex-1 w-full border-none bg-white" title="Briefvorschau" />
-                  </div>
-                </div>
-              )}
 
               {/* Footer */}
               {aufgebotConfirmPending ? (
@@ -4792,6 +4760,15 @@ export default function RecallPage() {
                 </div>
               ) : (
                 <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  {livePreviewHtml && (
+                    <button
+                      onClick={() => setBriefPreview(livePreviewHtml)}
+                      title="Briefvorschau in grossem Popup öffnen (mit Drucken/Speichern)"
+                      className="btn btn-secondary text-sm mr-auto"
+                    >
+                      <Search className="w-4 h-4" /> Vorschau
+                    </button>
+                  )}
                   <button onClick={() => { setAufgebotTarget(null); setAufgebotConfirmPending(false) }} className="btn btn-secondary text-sm">
                     Abbrechen
                   </button>
