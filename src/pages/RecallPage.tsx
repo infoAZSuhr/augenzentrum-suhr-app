@@ -3949,7 +3949,10 @@ export default function RecallPage() {
                   const d = new Date(row.aufgebotFuer + 'T00:00:00Z')
                   if (isNaN(d.getTime())) return null
                   const label = `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`
-                  const overdue = !rcErstellt && d <= (() => { const x = new Date(); x.setUTCMonth(x.getUTCMonth()-1); return x })()
+                  // Taggenau (einheitlich mit isOverdue + RC-Badge): überfällig
+                  // sobald das RC-Datum in der Vergangenheit liegt, kein 1-Monats-Karenz.
+                  const today = new Date().toISOString().slice(0, 10)
+                  const overdue = !rcErstellt && row.aufgebotFuer < today
                   return <span className={`font-medium ${overdue ? 'text-red-500' : 'text-gray-500'}`}>RC: {label}{overdue ? ' !' : ''}</span>
                 })()}
                 {row.aufgebotArt && (() => {
