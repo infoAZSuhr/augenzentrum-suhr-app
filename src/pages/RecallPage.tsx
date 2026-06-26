@@ -41,7 +41,7 @@ const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler'
 const ZU_BEARB   = 'Zu bearbeiten'
 const OFFEN_TAB  = 'offen'                       // interner Doctor-Wert in der DB
 const OFFEN_LABEL = 'Inaktive Ärzte'              // sichtbares Label im UI
-const AUFGEBOT_TAB = '📅 Aufgebot-Plan'
+const AUFGEBOT_TAB = '📅 RECALL'
 const PAGE_SIZE  = 50
 
 const STORNO_GRUENDE = ['kein Bedarf', 'Selbstmeldung', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit']
@@ -218,12 +218,15 @@ function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null
   // Selbstmelder ("kein Aufgebot"): wollen bewusst keine Aufgebote und melden
   // sich bei Bedarf selbst -> nie überfällig.
   if (p.patientenStatus === 'kein Aufgebot') return false
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
   // Aufgebot/Reminder bereits erstellt (z.B. Reminder gesendet) -> Patient wurde
-  // kontaktiert, gilt nicht mehr als überfällig. Nur "aktuell": das Aufgebot muss
-  // NACH dem letzten Konsil erstellt worden sein (sonst ist es aus einem alten
-  // Zyklus und der Patient ist wieder fällig). Konsistent mit dem Tabellen-Badge.
-  if (p.aufgebotArt && p.aufgebotErstellt && p.aufgebotErstellt >= (p.letzteKons || '')) return false
-  const today = new Date().toISOString().slice(0, 10)
+  // kontaktiert, gilt vorerst nicht als überfällig. Bedingungen: NACH dem letzten
+  // Konsil erstellt (sonst alter Zyklus) UND höchstens 6 Monate alt. Reagiert der
+  // Patient innert 6 Monaten nicht, erscheint er danach wieder als überfällig.
+  const sixMo = new Date(now); sixMo.setMonth(now.getMonth() - 6)
+  const sixMoIso = sixMo.toISOString().slice(0, 10)
+  if (p.aufgebotArt && p.aufgebotErstellt && p.aufgebotErstellt >= (p.letzteKons || '') && p.aufgebotErstellt >= sixMoIso) return false
   if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return false
   if (!p.letzteKons || p.letzteKons >= today) return false
   if (p.naechsteKons && p.naechsteKons !== 'kein Termin') return true
@@ -5005,7 +5008,7 @@ export default function RecallPage() {
               <div className="flex items-center px-6 py-4 border-b border-gray-200 shrink-0">
                 <div className="flex items-center gap-3">
                   <CalendarDays className="w-5 h-5 text-primary-600" />
-                  <h2 className="font-bold text-gray-900 text-lg">Aufgebot-Plan</h2>
+                  <h2 className="font-bold text-gray-900 text-lg">RECALL</h2>
                 </div>
               </div>
 
