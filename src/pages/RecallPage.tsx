@@ -2709,7 +2709,7 @@ export default function RecallPage() {
   .info-section ul li{margin-bottom:.08cm;line-height:1.25;padding-left:.1cm}
   .vu-dauer{font-size:9pt;color:#1a3a6e;font-weight:normal}
   .vu-total{font-size:9.5pt;color:#1a3a6e;margin-top:.2cm !important}
-  .body a{color:#111;text-decoration:none}
+  .body a{color:#111;text-decoration:none;font-weight:bold}
   .sig{margin-top:1.8cm;line-height:1.7}
   .sig .gruss{margin-bottom:.4cm}
   @page{margin:0;size:A4}
