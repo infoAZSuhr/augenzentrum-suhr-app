@@ -6480,14 +6480,20 @@ export default function RecallPage() {
                       type="button"
                       onClick={() => {
                         const next = form.aufgebotArt === value ? '' : value
-                        // Briefaufgebot UND Reminder: jeweils den vollen Aufbieten-
-                        // Dialog mit vorgewählter Art öffnen (Adresse, ggf. Termin,
-                        // PDF/Postausgang). Das Bearbeiten-Formular wird geschlossen
-                        // — der Dialog übernimmt das Speichern. Getrennt, nicht kombiniert.
+                        // Briefaufgebot/Reminder: nachfragen, ob der Brief erstellt
+                        // werden soll (Dialog) ODER nur das Datum eingetragen wird
+                        // (inline, ohne Brief). OK = Brief erstellen, Abbrechen = nur Datum.
                         if ((next === 'Brief' || next === 'Reminder') && editTarget && editTarget !== 'new') {
-                          openAufgebotDialog({ patient: editTarget }, next)
-                          setEditTarget(null)
-                          return
+                          const artLabel = next === 'Brief' ? 'Briefaufgebot' : 'Reminder'
+                          const br_erstellen = window.confirm(
+                            `${artLabel}: Brief jetzt erstellen?\n\nOK = Brief erstellen (Dialog mit Adresse/Vorschau)\nAbbrechen = nur Datum eintragen (ohne Brief)`
+                          )
+                          if (br_erstellen) {
+                            openAufgebotDialog({ patient: editTarget }, next)
+                            setEditTarget(null)
+                            return
+                          }
+                          // sonst: weiter unten nur Datum eintragen (inline)
                         }
                         setField('aufgebotArt', next)
                         if (next) {
