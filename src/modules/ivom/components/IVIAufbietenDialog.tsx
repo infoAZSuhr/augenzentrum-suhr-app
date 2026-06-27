@@ -63,7 +63,28 @@ export default function IVIAufbietenDialog({ patient, onClose }: { patient: Pati
       <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>`
   }
 
-  const generate = async () => {
+  const patientEmail = (lx?.email || '').trim()
+  const hasEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patientEmail)
+
+  // Plaintext-Variante des Briefs für den E-Mail-Body.
+  const buildPlainBody = (): string => {
+    const salut = `Sehr ${anredeForm(anrede)} ${nachname}`
+    const sig = ['', '─────────────────────────────────', 'Freundliche Grüsse', 'Augenzentrum Suhr Team', '', '  Tel.  +41 62 842 18 46', '  Mail  info@augenzentrum-suhr.ch', '  Web   www.augenzentrum-suhr.ch'].join('\n')
+    if (art === 'Brief') {
+      return [salut, '',
+        'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir haben für Sie folgenden Termin reserviert:',
+        '', `  ${formatTerminLong(terminDatum, terminZeit)}`, '',
+        'Sollten Sie diesen Termin nicht wahrnehmen können, bitten wir Sie um eine Rückmeldung bis spätestens 24 Stunden vorher per Tel. 062 842 18 46 oder info@augenzentrum-suhr.ch.',
+        'Wir danken Ihnen für Ihr Vertrauen.', sig].join('\n')
+    }
+    return [salut, '',
+      'Im Rahmen Ihrer intravitrealen Therapie wäre Ihre nächste Kontrolle bzw. Behandlung fällig. Für den bestmöglichen Behandlungserfolg ist eine regelmässige Kontrolle wichtig.',
+      '', 'Bitte vereinbaren Sie einen Termin mit uns. Sie erreichen uns telefonisch unter 062 842 18 46, per E-Mail an info@augenzentrum-suhr.ch oder über unser Web-Formular auf www.augenzentrum-suhr.ch.',
+      '', 'Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
+      'Wir danken Ihnen für Ihr Vertrauen.', sig].join('\n')
+  }
+
+  const generate = async (versand: 'Post' | 'Email') => {
     const ea = (window as unknown as { electronApp?: ElectronBriefApi }).electronApp
     if (!ea?.renderBriefPdf) { setMsg({ kind: 'err', text: 'Nur in der Desktop-App verfügbar.' }); return }
     setSaving(true)
@@ -87,8 +108,14 @@ export default function IVIAufbietenDialog({ patient, onClose }: { patient: Pati
         filename: `IVI_${art}_${nachname || pid}_${today}.pdf`,
         blob,
       })
-      setMsg({ kind: 'ok', text: '✓ Im Postausgang abgelegt — von dort drucken / ins Liris hochladen.' })
-      setTimeout(onClose, 1200)
+      if (versand === 'Email') {
+        const subject = art === 'Brief' ? 'Terminreservation – intravitreale Therapie' : 'Erinnerung – intravitreale Therapie'
+        window.location.href = `mailto:${encodeURIComponent(patientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainBody())}`
+        setMsg({ kind: 'ok', text: '✓ E-Mail in Outlook geöffnet · Brief im Postausgang (für Liris-Ablage).' })
+      } else {
+        setMsg({ kind: 'ok', text: '✓ Im Postausgang abgelegt — von dort drucken / ins Liris hochladen.' })
+      }
+      setTimeout(onClose, 1400)
     } catch (e) {
       setMsg({ kind: 'err', text: 'Fehler: ' + String(e) })
     } finally {
@@ -148,14 +175,19 @@ export default function IVIAufbietenDialog({ patient, onClose }: { patient: Pati
           <div className={`text-xs px-3 py-2 rounded-lg mb-3 ${msg.kind === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>
         )}
 
-        <div className="flex items-center justify-end gap-2">
-          <button onClick={onClose} className="btn btn-secondary text-sm">Abbrechen</button>
-          <button onClick={generate} disabled={!canSave || saving} className="btn btn-primary text-sm disabled:opacity-40">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          <button onClick={onClose} className="btn btn-secondary text-sm mr-auto">Abbrechen</button>
+          <button onClick={() => generate('Email')} disabled={!canSave || saving || !hasEmail}
+            title={hasEmail ? `Per E-Mail an ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
+            className="btn btn-secondary text-sm disabled:opacity-40">
+            <Mail className="w-4 h-4" /> Per E-Mail
+          </button>
+          <button onClick={() => generate('Post')} disabled={!canSave || saving} className="btn btn-primary text-sm disabled:opacity-40">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-            Erstellen &amp; in Postausgang
+            Per Post (Postausgang)
           </button>
         </div>
-        <p className="mt-2 text-[10px] text-gray-400 flex items-center gap-1"><Mail className="w-3 h-3" /> Im Postausgang kannst du den Brief einzeln drucken oder automatisch ins Liris hochladen.</p>
+        <p className="mt-2 text-[10px] text-gray-400 flex items-center gap-1"><Printer className="w-3 h-3" /> Der Brief landet immer im Postausgang (Druck / Liris-Ablage). «Per E-Mail» öffnet zusätzlich Outlook an den Patienten.</p>
       </div>
     </div>
   )

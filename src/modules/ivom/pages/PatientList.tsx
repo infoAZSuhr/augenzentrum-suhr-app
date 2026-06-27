@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Users, ShieldAlert } from 'lucide-react'
+import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Users, ShieldAlert, Bell } from 'lucide-react'
 import { getPatients, createPatient, deletePatient } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
@@ -184,6 +184,14 @@ export default function PatientList() {
                             >
                               <ShieldAlert className="w-2.5 h-2.5" />
                               {p.allergies}
+                            </span>
+                          )}
+                          {p.aufzubieten && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap"
+                              title="Aufzubieten — muss für den nächsten Termin aufgeboten werden"
+                            >
+                              <Bell className="w-2.5 h-2.5" /> Aufzubieten
                             </span>
                           )}
                         </div>

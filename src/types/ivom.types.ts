@@ -13,6 +13,7 @@ export interface Patient {
   anaesthetics?: string[]
   notes?: string
   status: 'aktiv' | 'pausiert' | 'abgeschlossen'
+  aufzubieten?: boolean        // markiert: Patient muss für nächsten Termin aufgeboten werden
   createdAt?: string
   updatedAt?: string
   // computed

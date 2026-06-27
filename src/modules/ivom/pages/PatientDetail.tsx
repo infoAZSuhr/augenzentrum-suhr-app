@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check, Bell } from 'lucide-react'
 import BackButton from '../../../components/ui/BackButton'
 import IVTIntervallblatt from '../components/IVTIntervallblatt'
 import {
@@ -76,6 +76,14 @@ export default function PatientDetail() {
       qc.invalidateQueries({ queryKey: ['patient', id] })
       qc.invalidateQueries({ queryKey: ['patients'] })
       setShowEditPatient(false)
+    },
+  })
+
+  const toggleAufbietenMut = useMutation({
+    mutationFn: () => updatePatient(id!, { aufzubieten: !patient?.aufzubieten } as any),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patient', id] })
+      qc.invalidateQueries({ queryKey: ['patients'] })
     },
   })
 
@@ -156,6 +164,16 @@ export default function PatientDetail() {
             <BackButton fallback="/ivom/patienten" />
             <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
               <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
+            </button>
+            <button
+              className={patient?.aufzubieten
+                ? 'px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium text-amber-700 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-colors flex items-center gap-2'
+                : 'btn-secondary'}
+              onClick={() => toggleAufbietenMut.mutate()}
+              disabled={toggleAufbietenMut.isPending}
+              title="Markieren, dass dieser Patient aufgeboten werden muss"
+            >
+              <Bell className="w-4 h-4" /> <span className="hidden sm:inline">{patient?.aufzubieten ? '✓ Aufzubieten' : 'Aufzubieten'}</span>
             </button>
             <button
               className="btn-secondary"
