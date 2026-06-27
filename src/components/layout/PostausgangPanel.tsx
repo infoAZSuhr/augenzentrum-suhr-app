@@ -26,11 +26,17 @@ export default function PostausgangPanel() {
   const [printPreviewTitle, setPrintPreviewTitle] = useState('Druckvorschau')
   const [merging, setMerging] = useState(false)
 
-  // Einzelnen Brief drucken: Blob als Vorschau anzeigen, von dort drucken.
+  // Druck in einem SEPARATEN Fenster öffnen (window.open). Nötig weil der
+  // Liris-<webview> in-page Overlays oft verdeckt. Fallback: In-Page-Vorschau,
+  // falls das Popup blockiert wird.
+  const openPrintWindow = (url: string, title: string) => {
+    const w = window.open(url, '_blank')
+    if (!w) { setPrintPreviewTitle(title); setPrintPreviewUrl(url) }
+  }
+
+  // Einzelnen Brief drucken.
   const printOne = (it: PostausgangItem) => {
-    const url = URL.createObjectURL(it.blob)
-    setPrintPreviewTitle(`Brief — ${it.vorname || it.filename}`)
-    setPrintPreviewUrl(url)
+    openPrintWindow(URL.createObjectURL(it.blob), `Brief — ${it.vorname || it.filename}`)
   }
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
   const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
@@ -153,8 +159,7 @@ export default function PostausgangPanel() {
       }
       const out = await merged.save()
       const url = URL.createObjectURL(new Blob([out.buffer as ArrayBuffer], { type: 'application/pdf' }))
-      setPrintPreviewTitle(`Sammeldruck — ${items.length} Brief${items.length === 1 ? '' : 'e'}`)
-      setPrintPreviewUrl(url)
+      openPrintWindow(url, `Sammeldruck — ${items.length} Brief${items.length === 1 ? '' : 'e'}`)
     } catch (e) {
       setStatusMsg({ kind: 'err', text: 'Buendeln fehlgeschlagen: ' + String(e) })
     } finally {
