@@ -516,6 +516,7 @@ export default function BrowserPanel() {
     const saved = Number(localStorage.getItem('liris-panel-width'))
     return saved >= 300 && saved <= 1200 ? saved : 480
   })
+  const [collapsed, setCollapsed] = useState(false)  // schnell eingeklappt — Liris bleibt geladen
   const webviewRef   = useRef<HTMLElement>(null)
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
@@ -1501,17 +1502,32 @@ export default function BrowserPanel() {
 
   return (
     <div
-      className="flex flex-row flex-shrink-0 border-l border-gray-200 bg-white relative z-50"
-      style={{ width }}
+      className="flex flex-row flex-shrink-0 border-l border-gray-200 bg-white relative z-50 overflow-hidden"
+      style={{ width: collapsed ? 40 : width }}
     >
 
-      {/* Resize grip */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-3 flex items-center justify-center cursor-col-resize z-10 hover:bg-primary-50 group"
-        onMouseDown={onResizeMouseDown}
-      >
-        <GripVertical className="w-3 h-3 text-gray-300 group-hover:text-primary-400" />
-      </div>
+      {/* Eingeklappt: schmaler Streifen zum schnellen Aufklappen.
+          Das Webview bleibt darunter gemountet → Liris lädt NICHT neu. */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          title="Liris aufklappen"
+          className="absolute inset-0 z-30 w-10 bg-gray-50 hover:bg-primary-50 border-l border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-primary-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-[10px] font-semibold tracking-wider [writing-mode:vertical-rl] rotate-180">Liris</span>
+        </button>
+      )}
+
+      {/* Resize grip (nur ausgeklappt) */}
+      {!collapsed && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-3 flex items-center justify-center cursor-col-resize z-10 hover:bg-primary-50 group"
+          onMouseDown={onResizeMouseDown}
+        >
+          <GripVertical className="w-3 h-3 text-gray-300 group-hover:text-primary-400" />
+        </div>
+      )}
 
       {/* Panel content */}
       <div className="flex flex-col flex-1 pl-3 min-w-0">
@@ -1701,8 +1717,15 @@ export default function BrowserPanel() {
           )}
 
           <button
+            onClick={() => setCollapsed(true)}
+            className="p-1.5 rounded hover:bg-gray-200 transition-colors ml-1"
+            title="Liris einklappen (bleibt geladen)"
+          >
+            <ArrowRight className="w-3.5 h-3.5 text-gray-500" />
+          </button>
+          <button
             onClick={close}
-            className="p-1.5 rounded hover:bg-red-50 hover:text-red-500 transition-colors ml-1"
+            className="p-1.5 rounded hover:bg-red-50 hover:text-red-500 transition-colors"
             title="Browser schliessen"
           >
             <X className="w-3.5 h-3.5 text-gray-500" />
