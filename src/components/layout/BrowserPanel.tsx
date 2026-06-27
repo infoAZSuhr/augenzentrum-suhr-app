@@ -517,6 +517,8 @@ export default function BrowserPanel() {
     return saved >= 300 && saved <= 1200 ? saved : 480
   })
   const [collapsed, setCollapsed] = useState(false)  // schnell eingeklappt — Liris bleibt geladen
+  const [resizing, setResizing] = useState(false)    // true während Breiten-Drag (Overlay über Webview)
+  const resizeRafRef = useRef<number | null>(null)
   // Tastenkürzel Strg+L / Cmd+L: Liris ein-/ausklappen.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1365,18 +1367,23 @@ export default function BrowserPanel() {
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     resizeRef.current = { startX: e.clientX, startW: width }
+    setResizing(true)  // Overlay über das Webview legen, damit es die Maus-Events nicht schluckt
     const onMove = (ev: MouseEvent) => {
       if (!resizeRef.current) return
       const delta = resizeRef.current.startX - ev.clientX
       const newW = Math.max(300, Math.min(1200, resizeRef.current.startW + delta))
-      setWidth(newW)
+      // Per requestAnimationFrame aktualisieren → flüssig, max. 1 Update pro Frame.
+      if (resizeRafRef.current) cancelAnimationFrame(resizeRafRef.current)
+      resizeRafRef.current = requestAnimationFrame(() => setWidth(newW))
     }
     const onUp = () => {
+      if (resizeRafRef.current) { cancelAnimationFrame(resizeRafRef.current); resizeRafRef.current = null }
       if (resizeRef.current) {
         // Endbreite persistieren, damit sie nach Neustart erhalten bleibt
         setWidth(w => { localStorage.setItem('liris-panel-width', String(w)); return w })
       }
       resizeRef.current = null
+      setResizing(false)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
@@ -1539,6 +1546,10 @@ export default function BrowserPanel() {
           <GripVertical className="w-3 h-3 text-gray-300 group-hover:text-primary-400" />
         </div>
       )}
+
+      {/* Während des Resize: transparentes Overlay über das ganze Fenster,
+          damit das <webview> die Maus-Events nicht schluckt → flüssiges Ziehen. */}
+      {resizing && <div className="fixed inset-0 z-[100] cursor-col-resize select-none" />}
 
       {/* Panel content */}
       <div className="flex flex-col flex-1 pl-3 min-w-0">
