@@ -2889,10 +2889,13 @@ export default function RecallPage() {
         '  • Krankenkassenausweis',
         ...(form.pupille ? ['  • Sonnenbrille (empfohlen)'] : []),
       ].join('\n')
+      const introLineEmail = form.briefVariante === 'neuerArzt'
+        ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}`
+        : `Wir freuen uns, Sie bald wieder in unserer Praxis begrüssen zu dürfen. Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? `, ${arztName},` : ''} an.`
       body = [
         `${salut}`, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        `Wir freuen uns, Sie bald wieder in unserer Praxis begrüssen zu dürfen. Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? `, ${arztName},` : ''} an.`,
+        introLineEmail,
         terminSection, vuSection, sehSection, mitbringen,
       ].join('\n')
     }
