@@ -14,6 +14,7 @@ import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import TreatmentForm, { type TreatmentFormValues } from '../components/TreatmentForm'
 import TreatmentTimeline from '../components/TreatmentTimeline'
 import PatientForm from '../components/PatientForm'
+import IVIAufbietenDialog from '../components/IVIAufbietenDialog'
 import { formatDate, daysUntil } from '../../../utils/dateUtils'
 import type { Treatment } from '../../../types/ivom.types'
 import { useBrowser } from '../../../contexts/BrowserContext'
@@ -33,6 +34,7 @@ export default function PatientDetail() {
   const [confirmDeletePatient, setConfirmDeletePatient] = useState(false)
   const [deleteTreatmentTarget, setDeleteTreatmentTarget] = useState<Treatment | null>(null)
   const [showIntervallblatt, setShowIntervallblatt] = useState(false)
+  const [showAufbieten, setShowAufbieten] = useState(false)
   const [pidCopied, setPidCopied] = useState(false)
   const qc = useQueryClient()
   const { openWithPid } = useBrowser()
@@ -157,10 +159,10 @@ export default function PatientDetail() {
             </button>
             <button
               className="btn-secondary"
-              onClick={() => navigate('/recall?tab=aufgebot')}
-              title="Aufgebot- oder Reminder-Brief erstellen"
+              onClick={() => setShowAufbieten(true)}
+              title="Aufgebots-/Reminder-Brief für den nächsten IVI-Termin erstellen (mit Liris-Ablage)"
             >
-              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Aufgebot-Brief</span>
+              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Aufbieten</span>
             </button>
             <button className="btn-secondary" onClick={() => setShowEditPatient(true)} title="Bearbeiten">
               <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
@@ -339,6 +341,10 @@ export default function PatientDetail() {
           onSubmit={(data) => editPatientMut.mutate(data)}
           isLoading={editPatientMut.isPending}
         />
+      )}
+
+      {showAufbieten && patient && (
+        <IVIAufbietenDialog patient={patient} onClose={() => setShowAufbieten(false)} />
       )}
 
       {editTreatment && (
