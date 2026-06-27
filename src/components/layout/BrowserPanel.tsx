@@ -517,6 +517,17 @@ export default function BrowserPanel() {
     return saved >= 300 && saved <= 1200 ? saved : 480
   })
   const [collapsed, setCollapsed] = useState(false)  // schnell eingeklappt — Liris bleibt geladen
+  // Tastenkürzel Strg+L / Cmd+L: Liris ein-/ausklappen.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault()
+        setCollapsed(c => !c)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const webviewRef   = useRef<HTMLElement>(null)
   const resizeRef    = useRef<{ startX: number; startW: number } | null>(null)
   const webviewReady = useRef(false)   // true sobald dom-ready einmal gefeuert hat
@@ -1511,7 +1522,7 @@ export default function BrowserPanel() {
       {collapsed && (
         <button
           onClick={() => setCollapsed(false)}
-          title="Liris aufklappen"
+          title="Liris aufklappen · Strg+L"
           className="absolute inset-0 z-30 w-10 bg-gray-50 hover:bg-primary-50 border-l border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-primary-600 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -1719,7 +1730,7 @@ export default function BrowserPanel() {
           <button
             onClick={() => setCollapsed(true)}
             className="p-1.5 rounded hover:bg-gray-200 transition-colors ml-1"
-            title="Liris einklappen (bleibt geladen)"
+            title="Liris einklappen (bleibt geladen) · Strg+L"
           >
             <ArrowRight className="w-3.5 h-3.5 text-gray-500" />
           </button>
