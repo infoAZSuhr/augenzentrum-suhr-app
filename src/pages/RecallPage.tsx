@@ -551,6 +551,14 @@ export default function RecallPage() {
   const [syncMsg, setSyncMsg]     = useState('')   // shown inside the loading screen
   const [loadError, setLoadError] = useState(false)
 
+  // ── Sammel-Reminder (Modell A): gefilterte Patienten sequenziell aufbieten ──
+  const [sammelRunning, setSammelRunning]   = useState(false)
+  const [sammelProgress, setSammelProgress] = useState<{ done: number; total: number; current: string }>({ done: 0, total: 0, current: '' })
+  const [sammelResult, setSammelResult]     = useState<{ created: string[]; noAddr: string[]; errors: string[] } | null>(null)
+  const sammelRunningRef = useRef(false)
+  const lirisExtractRef  = useRef(lirisExtract)
+  useEffect(() => { lirisExtractRef.current = lirisExtract }, [lirisExtract])
+
   // Search
   const [search, setSearch]         = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -888,6 +896,7 @@ export default function RecallPage() {
   useEffect(() => {
     if (!recallPidRequest) return
     if (Date.now() - recallPidRequest.at > 5000) { clearRecallPidRequest(); return }
+    if (sammelRunningRef.current) { clearRecallPidRequest(); return }   // während Sammel-Lauf kein Auto-Open
     // Solange das Aufbieten-Modal offen ist, kein Auto-Open des Patient-
     // bearbeiten-Modals — der User hat bewusst Brief/Reminder gewaehlt und
     // bekommt die Liris-Daten via lirisExtract direkt ins Aufbieten-Formular.
@@ -1326,6 +1335,80 @@ export default function RecallPage() {
   async function reloadAllTabs() {
     if (editTarget) { pendingReload.current = true; return }
     await loadAll()
+  }
+
+  // Sammel-Reminder (Modell A): die übergebenen Patienten sequenziell aufbieten —
+  // pro Patient Liris öffnen, Adresse holen, Reminder-Brief erzeugen → Postausgang
+  // (→ Liris-Ablage + 'aufgeboten markieren' via Postausgang-Payload). Fehlt eine
+  // Adresse, kommt der Patient auf eine «manuell»-Liste. Nur Electron.
+  async function runSammelReminder(patients: RecallPatient[]) {
+    if (sammelRunningRef.current) return
+    if (!isElectron) { toast.error('Sammel-Reminder ist nur in der Desktop-App möglich.'); return }
+    const ea = (window as any).electronApp
+    if (!ea?.renderBriefPdf) { toast.error('PDF-Erzeugung erfordert ein App-Update.'); return }
+    const LIMIT = 30
+    const batch = patients.filter(p => normalizePid(p.pid)).slice(0, LIMIT)
+    if (!batch.length) { toast.info('Keine passenden Patienten in der Liste.'); return }
+
+    sammelRunningRef.current = true
+    setSammelRunning(true)
+    setSammelResult(null)
+    openBrowser()
+    const sleep = (ms: number) => new Promise<void>(r => window.setTimeout(r, ms))
+    const today = new Date().toISOString().slice(0, 10)
+    const created: string[] = [], noAddr: string[] = [], errors: string[] = []
+
+    for (let i = 0; i < batch.length; i++) {
+      const p = batch[i]
+      const pidN = normalizePid(p.pid)
+      const name = `${p.vorname || '—'} #${pidN}`
+      setSammelProgress({ done: i, total: batch.length, current: name })
+      const startAt = Date.now()
+      openWithPid(pidN)
+      // Auf frischen, passenden Extract MIT Adresse warten (max. ~12s).
+      let ex = null as (typeof lirisExtract)
+      const deadline = Date.now() + 12000
+      while (Date.now() < deadline) {
+        await sleep(400)
+        const cur = lirisExtractRef.current
+        if (cur && cur.at >= startAt && normalizePid(cur.pid) === pidN && cur.postAdresse) { ex = cur; break }
+      }
+      if (!ex || !ex.postAdresse) { noAddr.push(name); continue }
+      try {
+        // Name in Liris-Reihenfolge "Nachname Vorname" für korrekte Anrede.
+        const vorname = (ex.vorname || p.vorname || '').trim()
+        const nachname = (ex.nachname || '').trim()
+        const nameLine = [nachname, vorname].filter(Boolean).join(' ')
+        const form: AufgebotForm = {
+          ...emptyAufgebotForm(),
+          art: 'Reminder',
+          anrede: (ex.anrede as any) || '',
+          adressBlock: (nameLine ? nameLine + '\n' : '') + ex.postAdresse,
+          arztName: doctorFullName(p.doctor),
+          versand: 'Post',
+        }
+        const res = await ea.renderBriefPdf(buildBriefHtml(p, form))
+        if (!res?.ok || !res.buffer) { errors.push(`${name}: PDF-Fehler`); continue }
+        const blob = new Blob([res.buffer], { type: 'application/pdf' })
+        await postausgang.add({
+          pid: pidN || null,
+          vorname: p.vorname || name,
+          arzt: p.doctor,
+          filename: `Reminder_${nachname || pidN}_${today}.pdf`,
+          blob,
+          aufgebot: { patient: p, form },   // -> nach Verarbeitung 'aufgeboten markieren'
+        })
+        created.push(name)
+      } catch {
+        errors.push(`${name}: Fehler beim Erzeugen`)
+      }
+      await sleep(300)
+    }
+
+    setSammelProgress({ done: batch.length, total: batch.length, current: '' })
+    sammelRunningRef.current = false
+    setSammelRunning(false)
+    setSammelResult({ created, noAddr, errors })
   }
 
   /** Aus einer Duplikat-Gruppe den Eintrag bestimmen der HEUTE erfasst wurde.
@@ -3964,6 +4047,54 @@ export default function RecallPage() {
             </button>
           )
         })}
+
+        {/* Sammel-Reminder für die gefilterte Liste (überfällig / nachfassen / ohne Termin) */}
+        {(filterTermin === 'overdue' || filterTermin === 'nachfass' || filterTermin === 'ohneTermin') && rows.length > 0 && (
+          <button
+            onClick={() => {
+              const n = Math.min(rows.length, 30)
+              if (window.confirm(`Sammel-Reminder: für ${n} Patient${n === 1 ? '' : 'en'} je einen Reminder-Brief erzeugen (in den Postausgang)?\n\nDie App öffnet dafür jeden Patienten kurz in Liris, um die Adresse zu holen.${rows.length > 30 ? `\n\nHinweis: max. 30 pro Lauf — aktuell ${rows.length} gefiltert.` : ''}`)) {
+                runSammelReminder(rows)
+              }
+            }}
+            disabled={sammelRunning}
+            title="Für die gefilterten Patienten je einen Reminder-Brief erzeugen (Adresse aus Liris, Ablage im Postausgang)"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border border-primary-300 bg-primary-50 text-primary-700 hover:bg-primary-100 disabled:opacity-50 transition-colors"
+          >
+            {sammelRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+            {sammelRunning ? `Sammel-Reminder… ${sammelProgress.done}/${sammelProgress.total}` : `Sammel-Reminder (${Math.min(rows.length, 30)})`}
+          </button>
+        )}
+
+        {sammelRunning && (
+          <div className="fixed bottom-4 right-4 z-[60] w-80 bg-white rounded-2xl shadow-2xl border border-primary-200 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+              <h3 className="font-bold text-gray-900 text-sm">Sammel-Reminder läuft…</h3>
+            </div>
+            <p className="text-xs text-gray-500 truncate">{sammelProgress.done}/{sammelProgress.total} — {sammelProgress.current}</p>
+            <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-primary-500 transition-all" style={{ width: `${sammelProgress.total ? (sammelProgress.done / sammelProgress.total * 100) : 0}%` }} />
+            </div>
+          </div>
+        )}
+        {sammelResult && !sammelRunning && (
+          <div className="fixed bottom-4 right-4 z-[60] w-96 max-h-[70vh] overflow-auto bg-white rounded-2xl shadow-2xl border border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-gray-900 text-sm">Sammel-Reminder – Ergebnis</h3>
+              <button onClick={() => setSammelResult(null)} className="p-1 rounded hover:bg-gray-100"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">{sammelResult.created.length} erstellt · {sammelResult.noAddr.length} ohne Adresse · {sammelResult.errors.length} Fehler</p>
+            {([['created', '✅ Erstellt (im Postausgang)'], ['noAddr', '⚠️ Keine Adresse — manuell'], ['errors', '❌ Fehler']] as const).map(([k, titel]) =>
+              sammelResult[k].length > 0 && (
+                <div key={k} className="mb-2">
+                  <p className="font-semibold text-xs mb-1 text-gray-700">{titel}</p>
+                  <ul className="space-y-0.5">{sammelResult[k].map((sx, idx) => <li key={idx} className="text-xs text-gray-600">{sx}</li>)}</ul>
+                </div>
+              )
+            )}
+          </div>
+        )}
 
         {/* Reminder fällig chip */}
         {(tabStats.reminderFaellig > 0 || filterReminderFaellig) && (
