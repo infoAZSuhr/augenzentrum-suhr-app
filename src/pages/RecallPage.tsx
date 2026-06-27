@@ -4958,18 +4958,24 @@ export default function RecallPage() {
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">{p.doctor}</span>
                 </div>
                 <div className="flex items-center gap-3 mt-1">
-                  {p.letzteKons && (
-                    <span className="text-xs text-gray-600 font-semibold cursor-help"
-                          title="Letzte KU = Datum der letzten Konsultation / Untersuchung. Grundlage, um den nächsten Termin bzw. das Intervall korrekt zu setzen.">
-                      Letzte KU: {formatDate(p.letzteKons)}
-                    </span>
-                  )}
                   {p.aufgebotFuer && (
                     <span className="text-xs text-green-700 font-semibold cursor-help"
                           title="RC ab = «Recall zu erstellen ab». Ab diesem Datum soll das Aufgebot erstellt werden — berechnet aus letztem Konsil + Kontrollintervall (minus Vorlauf).">
                       RC ab: {formatDate(p.aufgebotFuer)}
                     </span>
                   )}
+                  {p.aufgebotFuer && (() => {
+                    const d = new Date(p.aufgebotFuer + 'T00:00:00Z')
+                    if (isNaN(d.getTime())) return null
+                    d.setUTCMonth(d.getUTCMonth() + 2)
+                    const iso = d.toISOString().slice(0, 10)
+                    return (
+                      <span className="text-xs text-violet-700 font-semibold cursor-help"
+                            title="Ungefähres KU-Datum (Konsultationstermin) = RC-Datum + 2 Monate. Richtwert zum Setzen des Termins.">
+                        KU ca.: {formatDate(iso)}
+                      </span>
+                    )
+                  })()}
                   {p.naechsteKons && p.naechsteKons !== 'kein Termin' && (
                     <span className="text-xs text-blue-700 font-semibold cursor-help"
                           title="Nächste KU = bereits vereinbarter nächster Termin (Nächste Konsultation).">
