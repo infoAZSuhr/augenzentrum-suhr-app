@@ -362,7 +362,11 @@ export default function PatientDetail() {
       )}
 
       {showAufbieten && patient && (
-        <IVIAufbietenDialog patient={patient} onClose={() => setShowAufbieten(false)} />
+        <IVIAufbietenDialog
+          patient={patient}
+          onClose={() => setShowAufbieten(false)}
+          onAufgeboten={() => { if (patient.aufzubieten) toggleAufbietenMut.mutate() }}
+        />
       )}
 
       {editTreatment && (

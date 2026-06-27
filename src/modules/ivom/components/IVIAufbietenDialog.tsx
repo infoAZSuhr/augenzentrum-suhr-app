@@ -18,7 +18,7 @@ function titleCase(s: string): string {
 
 /** IVI-Aufbieten: Brief- oder Reminder-Schreiben für den nächsten IVOM-Termin
  *  erstellen und in den Postausgang legen (→ Liris-Ablage). */
-export default function IVIAufbietenDialog({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten }: { patient: Patient; onClose: () => void; onAufgeboten?: () => void }) {
   const { lirisExtract } = useBrowser()
   const postausgang = usePostausgang()
 
@@ -108,6 +108,8 @@ export default function IVIAufbietenDialog({ patient, onClose }: { patient: Pati
         filename: `IVI_${art}_${nachname || pid}_${today}.pdf`,
         blob,
       })
+      // Brief erstellt -> «Aufzubieten»-Markierung entfernen.
+      onAufgeboten?.()
       if (versand === 'Email') {
         const subject = art === 'Brief' ? 'Terminreservation – intravitreale Therapie' : 'Erinnerung – intravitreale Therapie'
         window.location.href = `mailto:${encodeURIComponent(patientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainBody())}`
