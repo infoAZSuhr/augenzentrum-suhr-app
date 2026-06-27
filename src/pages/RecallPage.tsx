@@ -2645,11 +2645,11 @@ export default function RecallPage() {
     const bodyReminder = `
       ${salut}
       ${kindHinweis}
-      <p>Ihre letzte augen&#228;rztliche Untersuchung liegt bereits einige Zeit zur&#252;ck. F&#252;r Ihre Augengesundheit empfehlen wir eine erneute Kontrolle und bitten Sie, einen Termin mit uns zu vereinbaren.</p>
-      <p>Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
-      <p><strong>Falls Sie inzwischen von einer anderen Augen&#228;rztin oder einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze R&#252;ckmeldung</strong> &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Daten entsprechend aktualisieren k&#246;nnen.</p>
-      <p>Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
-      <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>
+      <p>Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.</p>
+      <p>Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder bequem &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
+      <p>Sollten Sie inzwischen anderweitig augen&#228;rztlich betreut werden, freuen wir uns &#252;ber eine kurze R&#252;ckmeldung &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Angaben aktuell halten k&#246;nnen.</p>
+      <p>Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
+      <p>Herzlichen Dank f&#252;r Ihr Vertrauen. Wir sind gerne f&#252;r Sie da.</p>
     `
 
     const bodyHtml = isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
@@ -2837,22 +2837,18 @@ export default function RecallPage() {
       body = [
         `${salut}`, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        'Wir möchten Sie daran erinnern, dass Ihre letzte augenärztliche Untersuchung bereits einige Zeit zurückliegt.',
+        'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.',
         '',
-        'Um Ihre Augengesundheit weiterhin optimal zu betreuen, bitten wir Sie, sich für einen neuen Kontrolltermin mit unserer Praxis in Verbindung zu setzen.',
-        '',
-        'Sie erreichen uns unter:',
+        'Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns unter:',
         '  Tel.  +41 62 842 18 46',
         '  Mail  info@augenzentrum-suhr.ch',
         '  Web   www.augenzentrum-suhr.ch',
         '',
-        'Bitte melden Sie sich zeitnah, damit wir einen passenden Termin für Sie reservieren können.',
+        'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular –, damit wir Ihre Angaben aktuell halten können.',
         '',
-        'Falls Sie inzwischen von einer anderen Augenärztin oder einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular –, damit wir Ihre Daten entsprechend aktualisieren können.',
+        'Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
         '',
-        'Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
-        '',
-        'Wir danken Ihnen für Ihr Vertrauen und freuen uns auf Ihre Rückmeldung.',
+        'Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
       ].join('\n')
     } else {
       const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
