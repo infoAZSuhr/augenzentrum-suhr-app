@@ -18,7 +18,7 @@ const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
   const { items, remove, markUploaded, markVersendet } = usePostausgang()
-  const { lirisWebContentsId } = useBrowser()
+  const { lirisWebContentsId, openWithPid } = useBrowser()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
@@ -54,6 +54,13 @@ export default function PostausgangPanel() {
       return
     }
     setUploadingId(it.id)
+    // Patientenakte automatisch in Liris öffnen (per PID), damit der Import
+    // nicht voraussetzt, dass der Patient schon offen ist.
+    if (it.pid) {
+      setStatusMsg({ kind: 'ok', text: 'Öffne Patientenakte in Liris…' })
+      openWithPid(it.pid)
+      await new Promise(r => setTimeout(r, 4500))  // auf das Laden der Akte warten
+    }
     setStatusMsg({ kind: 'ok', text: 'Auto-Import läuft…' })
     try {
       const res = await electronApi.autoImportToLiris(lirisWebContentsId, it.tmpPath, it.arzt || '')
