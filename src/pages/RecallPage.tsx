@@ -96,7 +96,7 @@ const VU_MIN: Record<string, number> = {
 }
 const SONSTIGE_MIN = 5
 
-type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin'
+type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin' | 'nachfass'
 type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot' | 'wartetBericht'
 const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   heute:      'Heute',
@@ -105,6 +105,7 @@ const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   overdue:    'Überfällig',
   inPlanung:  'Geplante Recalls',
   ohneTermin: 'Ohne Termin',
+  nachfass:   'Nachfassen',
 }
 
 function formatDate(val: string | null): string {
@@ -234,6 +235,28 @@ function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null
   if (!p.aufgebotFuer) return true
   return false
 }
+
+/** Nachfass fällig: Es wurde ein Aufgebot/Reminder erstellt (aktueller Zyklus,
+ *  also nach dem letzten Konsil), seit mind. `weeks` Wochen, aber es wurde noch
+ *  KEIN (zukünftiger) Termin gebucht. -> Patient hat nicht reagiert. */
+function isNachfassFaellig(
+  p: { letzteKons?: string | null; naechsteKons?: string | null; patientenStatus?: string | null; aufgebotErstellt?: string | null; aufgebotArt?: string | null },
+  weeks = 4,
+): boolean {
+  if (p.patientenStatus === 'kein Aufgebot' || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
+  if (!p.aufgebotArt || !p.aufgebotErstellt) return false
+  const today = new Date().toISOString().slice(0, 10)
+  if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return false  // Termin gebucht → erledigt
+  if (p.aufgebotErstellt < (p.letzteKons || '')) return false                                       // Aufgebot aus altem Zyklus
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - weeks * 7)
+  return p.aufgebotErstellt <= cutoff.toISOString().slice(0, 10)
+}
+
+/** Vorgeschlagene nächste Eskalationsstufe: nach Brief/Reminder/Praxis → Telefon, nach Telefon → Brief. */
+function nachfassNext(art?: string | null): 'Tel' | 'Brief' {
+  return art === 'Tel' ? 'Brief' : 'Tel'
+}
+
 function toInputDate(val: string | null | undefined): string {
   if (!val || val === 'kein Termin') return ''
   const m = val.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -1975,6 +1998,7 @@ export default function RecallPage() {
       overdue:   activeAll.filter(isOverdue).length,
       inPlanung: activeAll.filter(isInPlanung).length,
       ohneTermin:activeAll.filter(isOhneTermin).length,
+      nachfass:  activeAll.filter(p => isNachfassFaellig(p)).length,
       // Status-basierte Unter-Kategorien (warum "ohne Termin"):
       statusReminder:     activeAll.filter(p => p.patientenStatus === 'Reminder').length,
       statusKeinAufgebot: activeAll.filter(p => p.patientenStatus === 'kein Aufgebot').length,
@@ -2256,6 +2280,7 @@ export default function RecallPage() {
           case 'overdue':    return isOverdue(p)
           case 'inPlanung':  return isInPlanung(p)
           case 'ohneTermin': return isOhneTermin(p)
+          case 'nachfass':   return isNachfassFaellig(p)
         }
       })
     }
@@ -2294,6 +2319,7 @@ export default function RecallPage() {
       overdue:    active.filter(isOverdue).length,
       inPlanung:  active.filter(isInPlanung).length,
       ohneTermin: active.filter(isOhneTermin).length,
+      nachfass:   active.filter(p => isNachfassFaellig(p)).length,
       neupatient:        base.filter(p => p.neupatient === true).length,
       storniert:         base.filter(isStorniert).length,
       inaktiv:           base.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben').length,
@@ -3922,6 +3948,7 @@ export default function RecallPage() {
         {/* Termin-chips: nur die 3 wichtigsten immer sichtbar */}
         {([
           { key: 'overdue'    as FilterTermin, label: 'Überfällig',  count: tabStats.overdue,    cls: 'bg-red-100 text-red-700 border-red-300' },
+          { key: 'nachfass'   as FilterTermin, label: 'Nachfassen',  count: tabStats.nachfass,   cls: 'bg-orange-100 text-orange-700 border-orange-300' },
           { key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', count: tabStats.inPlanung, cls: 'bg-amber-100 text-amber-700 border-amber-300' },
           { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300' },
         ]).map(chip => {
@@ -4326,6 +4353,13 @@ export default function RecallPage() {
                             )
                           })}
                         </div>
+                        {isNachfassFaellig(row) && (
+                          <span
+                            title="Aufgeboten, aber seit über 4 Wochen kein Termin gebucht — Vorschlag für die nächste Eskalationsstufe."
+                            className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap w-fit">
+                            Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
@@ -5437,6 +5471,7 @@ export default function RecallPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {([
                     { kind: 'termin' as const, key: 'inPlanung'    as FilterTermin, label: 'Geplante Recalls', sub: 'RC-Datum oder im Recall',           value: auswertungStats.upcoming.inPlanung,         color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                    { kind: 'termin' as const, key: 'nachfass'     as FilterTermin, label: 'Nachfassen',       sub: 'aufgeboten, >4 Wo. ohne Termin',    value: auswertungStats.upcoming.nachfass,          color: 'bg-orange-50 text-orange-700 border-orange-100' },
                     { kind: 'termin' as const, key: 'ohneTermin'   as FilterTermin, label: 'Wirklich offen',   sub: 'kein Termin, kein RC',              value: auswertungStats.upcoming.ohneTermin,        color: 'bg-gray-50 text-gray-700 border-gray-200' },
                     { kind: 'status' as const, key: 'wartetBericht'as FilterStatus, label: 'Wartet auf Bericht', sub: 'Zuweisung ausstehend',            value: auswertungStats.upcoming.wartetBericht,     color: 'bg-cyan-50 text-cyan-700 border-cyan-100' },
                     { kind: 'status' as const, key: 'reminder'     as FilterStatus, label: 'Status: Reminder', sub: 'meldet sich noch',                  value: auswertungStats.upcoming.statusReminder,    color: 'bg-purple-50 text-purple-700 border-purple-100' },
