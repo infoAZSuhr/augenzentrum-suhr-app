@@ -1289,25 +1289,25 @@ export default function BrowserPanel() {
           // fest steht. Daher window.setTimeout direkt + KEIN tracking.
           // Mehrere Versuche mit steigender Wartezeit — Liris braucht
           // manchmal lange bis die Detailseite fertig gerendert ist.
+          // Mehrere Versuche mit steigender Wartezeit. WICHTIG: Solange die
+          // Postadresse (Kontaktangaben-Block) noch fehlt, wird WEITER nachgeladen
+          // — der Block erscheint in Liris oft verzoegert. Name/Geb. etc. werden
+          // bei jedem Versuch sofort uebernommen, die Adresse sobald sie da ist.
+          const ADDR_MAX = 5
+          const delays = [1200, 2500, 4000, 6000, 8000]
           const tryExtract = (attempt: number) => {
-            const delay = attempt === 0 ? 1500 : attempt === 1 ? 3000 : 5000
+            const delay = delays[Math.min(attempt, delays.length - 1)]
             window.setTimeout(() => {
               console.log('[Liris] starting extract for pid=', pid, 'attempt', attempt + 1)
               extractLirisInfo(wv, pid).then(info => {
-                console.log('[Liris] extract result:', info)
                 if (info) {
-                  // PID wurde ueber Dropdown ausgewaehlt — Patient existiert
-                  // definitiv in Liris. pidMatchesLiris erzwingen falls die
-                  // Seite beim Extract noch nicht fertig geladen war.
+                  // PID wurde ueber Dropdown ausgewaehlt — Patient existiert.
                   setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
-                } else if (attempt < 2) {
-                  console.log('[Liris] extract empty, retrying...')
+                }
+                const needMore = (!info || !info.postAdresse) && attempt < ADDR_MAX - 1
+                if (needMore) {
+                  console.log('[Liris] extract ohne Adresse — erneut versuchen…')
                   tryExtract(attempt + 1)
-                } else {
-                  // Patient wurde ueber Dropdown gefunden, also existiert er.
-                  // Extract lieferte trotzdem nichts — kein notFound setzen,
-                  // einfach ohne Auto-Fill weitermachen.
-                  console.log('[Liris] extract empty after all retries, skipping')
                 }
               }).catch((err: unknown) => console.warn('[Liris] extract threw:', err))
             }, delay)
