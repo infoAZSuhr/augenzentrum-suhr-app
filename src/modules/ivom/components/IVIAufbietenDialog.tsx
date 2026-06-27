@@ -51,13 +51,13 @@ export default function IVIAufbietenDialog({ patient, onClose }: { patient: Pati
     if (art === 'Brief') {
       const terminZeile = formatTerminLong(terminDatum, terminZeit)
       return `${salut}
-        <p>Im Rahmen Ihrer laufenden Augenbehandlung (IVOM-Therapie) steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir haben f&#252;r Sie folgenden Termin <strong>reserviert</strong>:</p>
+        <p>Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir haben f&#252;r Sie folgenden Termin <strong>reserviert</strong>:</p>
         <div class="termin-box-wrap"><div class="termin-box"><div class="termin-box-label">Reservierter Termin</div><div class="termin-box-date">${terminZeile}</div></div></div>
         <p>Sollten Sie diesen Termin nicht wahrnehmen k&#246;nnen, bitten wir Sie um eine R&#252;ckmeldung bis sp&#228;testens 24 Stunden vorher per Tel. <strong>062 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a>.</p>
         <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>`
     }
     return `${salut}
-      <p>Im Rahmen Ihrer Augenbehandlung (IVOM-Therapie) w&#228;re Ihre n&#228;chste Kontrolle bzw. Behandlung f&#228;llig. F&#252;r den bestm&#246;glichen Behandlungserfolg ist eine regelm&#228;ssige Kontrolle wichtig.</p>
+      <p>Im Rahmen Ihrer intravitrealen Therapie w&#228;re Ihre n&#228;chste Kontrolle bzw. Behandlung f&#228;llig. F&#252;r den bestm&#246;glichen Behandlungserfolg ist eine regelm&#228;ssige Kontrolle wichtig.</p>
       <p>Bitte vereinbaren Sie einen Termin mit uns. Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
       <p>Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
       <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>`
@@ -69,7 +69,7 @@ export default function IVIAufbietenDialog({ patient, onClose }: { patient: Pati
     setSaving(true)
     setMsg(null)
     try {
-      const title = art === 'Brief' ? 'Terminreservation &#8211; Augenbehandlung (IVOM)' : 'Erinnerung &#8211; Augenbehandlung (IVOM)'
+      const title = art === 'Brief' ? 'Terminreservation &#8211; intravitreale Therapie' : 'Erinnerung &#8211; intravitreale Therapie'
       const html = buildPraxisBriefHtml({
         anrede, nameDisplay,
         addressLine2: adressLines[1] || '',
