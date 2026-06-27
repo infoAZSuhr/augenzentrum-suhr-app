@@ -640,6 +640,7 @@ export default function RecallPage() {
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
     briefVariante: '' | 'neuerArzt'   // Brief-Textvariante ('' = Standard)
+    frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
     art: null, pupille: false, anrede: '', adressBlock: '',
@@ -647,7 +648,7 @@ export default function RecallPage() {
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
-    nachnameOverride: '', briefVariante: '',
+    nachnameOverride: '', briefVariante: '', frueherArzt: '',
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
@@ -2619,7 +2620,8 @@ export default function RecallPage() {
     // ── Einleitungs-Absatz je Brief-Variante ─────────────────────────────────
     const pupTxt = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
     const introStandard = `<p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>${pupTxt}</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>`
-    const introNeuerArzt = `<p>Ihre augen&#228;rztliche Betreuung in unserer Praxis liegt neu in guten H&#228;nden: Gerne stellen wir Ihnen ${arztArtikel}${arztName ? ` ${arztName}` : ''} vor, ${isFemale ? 'die' : 'der'} Sie k&#252;nftig betreut. Aus diesem Anlass laden wir Sie herzlich zu einer Augenkontrolle <strong>${pupTxt}</strong> ein.</p>`
+    const frueherArztTxt = escLine(form.frueherArzt.trim())
+    const introNeuerArzt = `<p>Gem&#228;ss unseren Unterlagen w&#228;re bei Ihnen wieder eine Kontrolle f&#228;llig.${frueherArztTxt ? ` Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ` Gerne schlagen wir Ihnen folgenden Termin vor:`}</p>`
     const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt : introStandard
 
     // ── Body: mit Pupillenerweiterung ────────────────────────────────────────
@@ -4538,6 +4540,15 @@ export default function RecallPage() {
                             }`}>{label}</button>
                         ))}
                       </div>
+                      {af.briefVariante === 'neuerArzt' && (
+                        <div className="mt-2">
+                          <input type="text" value={af.frueherArzt}
+                            onChange={e => setAf({ frueherArzt: e.target.value })}
+                            placeholder="Früherer Arzt, z.B. Frau Dr. Nessmann"
+                            className="input text-sm w-full" />
+                          <p className="mt-1 text-[10px] text-gray-400">Wird im Brief genannt: «Da [Name] nicht mehr in unserer Praxis tätig ist …»</p>
+                        </div>
+                      )}
                     </div>
                     {/* Pupillenerweiterung */}
                     <div>
