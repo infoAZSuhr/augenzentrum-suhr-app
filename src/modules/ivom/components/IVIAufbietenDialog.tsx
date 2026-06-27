@@ -18,7 +18,9 @@ function titleCase(s: string): string {
 
 /** IVI-Aufbieten: Brief- oder Reminder-Schreiben für den nächsten IVOM-Termin
  *  erstellen und in den Postausgang legen (→ Liris-Ablage). */
-export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten }: { patient: Patient; onClose: () => void; onAufgeboten?: () => void }) {
+export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arztName }: { patient: Patient; onClose: () => void; onAufgeboten?: () => void; arztName?: string }) {
+  // Nachname des behandelnden Arztes (für die Liris-Ablage / Auto-Import).
+  const arztNachname = (arztName || '').trim().split(/\s+/).pop() || ''
   const { lirisExtract } = useBrowser()
   const postausgang = usePostausgang()
 
@@ -104,7 +106,7 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten }: {
       await postausgang.add({
         pid: pid || null,
         vorname: `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || nameDisplay,
-        arzt: '',
+        arzt: arztNachname,
         filename: `IVI_${art}_${nachname || pid}_${today}.pdf`,
         blob,
       })

@@ -364,6 +364,7 @@ export default function PatientDetail() {
       {showAufbieten && patient && (
         <IVIAufbietenDialog
           patient={patient}
+          arztName={[...treatments].filter(t => t.performedBy).sort((a, b) => (b.treatmentDate || '').localeCompare(a.treatmentDate || ''))[0]?.performedBy || ''}
           onClose={() => setShowAufbieten(false)}
           onAufgeboten={() => { if (patient.aufzubieten) toggleAufbietenMut.mutate() }}
         />
