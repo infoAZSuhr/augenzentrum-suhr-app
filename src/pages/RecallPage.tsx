@@ -639,6 +639,7 @@ export default function RecallPage() {
     telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
+    briefVariante: '' | 'neuerArzt'   // Brief-Textvariante ('' = Standard)
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
     art: null, pupille: false, anrede: '', adressBlock: '',
@@ -646,7 +647,7 @@ export default function RecallPage() {
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
-    nachnameOverride: '',
+    nachnameOverride: '', briefVariante: '',
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
@@ -2615,11 +2616,17 @@ export default function RecallPage() {
       <p>Termin vereinbaren: Tel. <strong>+41 62 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a>.</p>
     `
 
+    // ── Einleitungs-Absatz je Brief-Variante ─────────────────────────────────
+    const pupTxt = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
+    const introStandard = `<p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>${pupTxt}</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>`
+    const introNeuerArzt = `<p>Ihre augen&#228;rztliche Betreuung in unserer Praxis liegt neu in guten H&#228;nden: Gerne stellen wir Ihnen ${arztArtikel}${arztName ? ` ${arztName}` : ''} vor, ${isFemale ? 'die' : 'der'} Sie k&#252;nftig betreut. Aus diesem Anlass laden wir Sie herzlich zu einer Augenkontrolle <strong>${pupTxt}</strong> ein.</p>`
+    const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt : introStandard
+
     // ── Body: mit Pupillenerweiterung ────────────────────────────────────────
     const bodyMit = `
       ${salut}
       ${kindHinweis}
-      <p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>mit Pupillenerweiterung</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>
+      ${introPara}
       ${terminBlock}
       ${vuBlock}
       ${sehHinweis}
@@ -2632,7 +2639,7 @@ export default function RecallPage() {
     const bodyOhne = `
       ${salut}
       ${kindHinweis}
-      <p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>ohne Pupillenerweiterung</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>
+      ${introPara}
       ${terminBlock}
       ${vuBlock}
       <p>Nach der Untersuchung k&#246;nnen Sie Ihren Alltag wie gewohnt fortsetzen.</p>
@@ -4516,6 +4523,22 @@ export default function RecallPage() {
                   <>
                     {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
                     {af.art === 'Brief' && (<>
+                    {/* Brief-Variante */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Brief-Variante</p>
+                      <div className="flex gap-2">
+                        {([
+                          ['', 'Standard', 'Übliche Einladung zur Kontrolle'],
+                          ['neuerArzt', 'Neuer Arzt', 'Vorstellung des neuen Arztes (z.B. nach Arztwechsel)'],
+                        ] as const).map(([v, label, hint]) => (
+                          <button key={v || 'std'} type="button" title={hint}
+                            onClick={() => setAf({ briefVariante: v })}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                              af.briefVariante === v ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                            }`}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
                     {/* Pupillenerweiterung */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Untersuchungsart</p>
