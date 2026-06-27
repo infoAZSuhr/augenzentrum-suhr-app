@@ -2622,14 +2622,14 @@ export default function RecallPage() {
 
     // ── Einleitungs-Absatz je Brief-Variante ─────────────────────────────────
     const pupTxt = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
-    const introStandard = `<p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>${pupTxt}</strong> bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.</p>`
+    const introStandard = `<p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>${pupTxt}</strong> bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''} an.</p>`
     const frueherArztTxt = escLine(form.frueherArzt.trim())
     const introNeuerArzt = `<p>Gem&#228;ss unseren Unterlagen w&#228;re bei Ihnen wieder eine Kontrolle f&#228;llig.${frueherArztTxt ? ` Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ` Gerne schlagen wir Ihnen folgenden Termin vor:`}</p>`
     const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt : introStandard
     // Reminder-Variante «Neuen Arzt vorschlagen»: zusätzlicher Hinweis-Absatz.
     const reminderArztHinweis = form.briefVariante === 'neuerArzt'
       ? (frueherArztTxt
-          ? `<p>Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, wird Ihre augen&#228;rztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} &#252;bernommen. Gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`
+          ? `<p>Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, wird Ihre augen&#228;rztliche Betreuung neu von ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''} &#252;bernommen. Gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`
           : `<p>Ihre augen&#228;rztliche Betreuung in unserer Praxis liegt neu in guten H&#228;nden &#8211; gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`)
       : ''
 
