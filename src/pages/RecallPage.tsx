@@ -3112,11 +3112,12 @@ export default function RecallPage() {
     setAufgebotConfirmPending(false)
     setAufgebotSaving(true)
     // PDF erzeugen und in den Postausgang legen (→ Liris-Upload). Gilt für
-    // Post UND E-Mail: auch bei E-Mail-Versand soll der Brief/Reminder in Liris
-    // hochgeladen werden. Bei Post wurde er ggf. schon per Button erzeugt.
-    const willGeneratePdf =
+    // Post UND E-Mail. NUR wenn nicht schon per «Per Post (PDF)»-Button erzeugt —
+    // sonst landet der Brief doppelt im Postausgang.
+    const willGeneratePdf = !aufgebotPdfCreated && (
       (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum) ||
       aufgebotForm.art === 'Reminder'
+    )
     if (willGeneratePdf) {
       try { generateBriefPDF(aufgebotTarget.patient, aufgebotForm) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
     }

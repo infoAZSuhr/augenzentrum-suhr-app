@@ -23,7 +23,15 @@ export default function PostausgangPanel() {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
   const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null)
+  const [printPreviewTitle, setPrintPreviewTitle] = useState('Druckvorschau')
   const [merging, setMerging] = useState(false)
+
+  // Einzelnen Brief drucken: Blob als Vorschau anzeigen, von dort drucken.
+  const printOne = (it: PostausgangItem) => {
+    const url = URL.createObjectURL(it.blob)
+    setPrintPreviewTitle(`Brief — ${it.vorname || it.filename}`)
+    setPrintPreviewUrl(url)
+  }
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
   const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
 
@@ -145,6 +153,7 @@ export default function PostausgangPanel() {
       }
       const out = await merged.save()
       const url = URL.createObjectURL(new Blob([out.buffer as ArrayBuffer], { type: 'application/pdf' }))
+      setPrintPreviewTitle(`Sammeldruck — ${items.length} Brief${items.length === 1 ? '' : 'e'}`)
       setPrintPreviewUrl(url)
     } catch (e) {
       setStatusMsg({ kind: 'err', text: 'Buendeln fehlgeschlagen: ' + String(e) })
@@ -210,6 +219,9 @@ export default function PostausgangPanel() {
                       {!it.uploaded && it.versendet && <span className="ml-1 text-green-600 font-semibold">· an Praxis gesendet</span>}
                     </div>
                   </div>
+                  <button onClick={() => printOne(it)} title="Diesen Brief einzeln drucken" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
                   {!it.uploaded && (
                     <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris: Dokument importieren + Arzt + Mail gesendet + Datei. Patient muss in Liris geoeffnet sein." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
                       <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
@@ -268,9 +280,7 @@ export default function PostausgangPanel() {
       {printPreviewUrl && (
         <div className="fixed inset-0 z-[80] flex flex-col bg-black/60">
           <div className="shrink-0 flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shadow-sm">
-            <span className="font-semibold text-gray-800 text-sm">
-              Sammeldruck — {items.length} Brief{items.length === 1 ? '' : 'e'}
-            </span>
+            <span className="font-semibold text-gray-800 text-sm">{printPreviewTitle}</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
