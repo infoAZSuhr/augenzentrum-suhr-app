@@ -2414,6 +2414,9 @@ export default function RecallPage() {
     setAufgebotForm(f => {
       const patch: Partial<typeof f> = {}
       if (!f.anrede && lirisExtract.anrede) patch.anrede = lirisExtract.anrede as any
+      // Früherer Arzt = Autor der letzten Untersuchung (für Variante «Neuen Arzt
+      // vorschlagen»). Nur vorbefüllen, MPA kann korrigieren.
+      if (!f.frueherArzt && lirisExtract.autor) patch.frueherArzt = lirisExtract.autor.trim()
       // Minderjährig (< 18): Anrede IMMER auf «Familie» — Brief geht an die Familie.
       {
         const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(aufgebotTarget.patient.gebDatum || ''))
