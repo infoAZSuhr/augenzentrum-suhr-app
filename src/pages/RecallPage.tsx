@@ -4530,8 +4530,8 @@ export default function RecallPage() {
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Brief-Variante</p>
                       <div className="flex gap-2">
                         {([
-                          ['', 'Standard', 'Übliche Einladung zur Kontrolle'],
-                          ['neuerArzt', 'Neuer Arzt', 'Vorstellung des neuen Arztes (z.B. nach Arztwechsel)'],
+                          ['', 'Normales Aufgebot', 'Übliche Einladung zur Kontrolle'],
+                          ['neuerArzt', 'Neuen Arzt vorschlagen', 'Bestehender Patient: neuen Arzt vorschlagen (früherer Arzt nicht mehr in der Praxis)'],
                         ] as const).map(([v, label, hint]) => (
                           <button key={v || 'std'} type="button" title={hint}
                             onClick={() => setAf({ briefVariante: v })}
