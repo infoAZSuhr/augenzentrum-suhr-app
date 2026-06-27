@@ -2626,6 +2626,12 @@ export default function RecallPage() {
     const frueherArztTxt = escLine(form.frueherArzt.trim())
     const introNeuerArzt = `<p>Gem&#228;ss unseren Unterlagen w&#228;re bei Ihnen wieder eine Kontrolle f&#228;llig.${frueherArztTxt ? ` Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ` Gerne schlagen wir Ihnen folgenden Termin vor:`}</p>`
     const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt : introStandard
+    // Reminder-Variante «Neuen Arzt vorschlagen»: zusätzlicher Hinweis-Absatz.
+    const reminderArztHinweis = form.briefVariante === 'neuerArzt'
+      ? (frueherArztTxt
+          ? `<p>Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, wird Ihre augen&#228;rztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} &#252;bernommen. Gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`
+          : `<p>Ihre augen&#228;rztliche Betreuung in unserer Praxis liegt neu in guten H&#228;nden &#8211; gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`)
+      : ''
 
     // ── Body: mit Pupillenerweiterung ────────────────────────────────────────
     const bodyMit = `
@@ -2658,6 +2664,7 @@ export default function RecallPage() {
       ${salut}
       ${kindHinweis}
       <p>Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.</p>
+      ${reminderArztHinweis}
       <p>Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder bequem &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
       <p>Sollten Sie inzwischen anderweitig augen&#228;rztlich betreut werden, freuen wir uns &#252;ber eine kurze R&#252;ckmeldung &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Angaben aktuell halten k&#246;nnen.</p>
       <p>Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
@@ -2851,6 +2858,12 @@ export default function RecallPage() {
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
         'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.',
         '',
+        ...(form.briefVariante === 'neuerArzt' ? [
+          form.frueherArzt.trim()
+            ? `Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, wird Ihre augenärztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} übernommen. Gerne dürfen Sie sich für einen Termin bei uns melden.`
+            : 'Ihre augenärztliche Betreuung in unserer Praxis liegt neu in guten Händen – gerne dürfen Sie sich für einen Termin bei uns melden.',
+          '',
+        ] : []),
         'Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns unter:',
         '  Tel.  +41 62 842 18 46',
         '  Mail  info@augenzentrum-suhr.ch',
@@ -4529,15 +4542,13 @@ export default function RecallPage() {
                 {/* Brief- & Reminder-Felder (Adresse/Versand gemeinsam) */}
                 {(af.art === 'Brief' || af.art === 'Reminder') && (
                   <>
-                    {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
-                    {af.art === 'Brief' && (<>
-                    {/* Brief-Variante */}
+                    {/* Variante — gilt für Briefaufgebot UND Reminder */}
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Brief-Variante</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Variante</p>
                       <div className="flex gap-2">
                         {([
-                          ['', 'Normales Aufgebot', 'Übliche Einladung zur Kontrolle'],
-                          ['neuerArzt', 'Neuen Arzt vorschlagen', 'Bestehender Patient: neuen Arzt vorschlagen (früherer Arzt nicht mehr in der Praxis)'],
+                          ['', 'Normal', 'Übliche Einladung / Erinnerung zur Kontrolle'],
+                          ['neuerArzt', 'Neuen Arzt vorschlagen', 'Bestehender Patient: neuen Arzt vorschlagen/erwähnen (früherer Arzt nicht mehr in der Praxis)'],
                         ] as const).map(([v, label, hint]) => (
                           <button key={v || 'std'} type="button" title={hint}
                             onClick={() => setAf({ briefVariante: v })}
@@ -4552,10 +4563,13 @@ export default function RecallPage() {
                             onChange={e => setAf({ frueherArzt: e.target.value })}
                             placeholder="Früherer Arzt, z.B. Frau Dr. Nessmann"
                             className="input text-sm w-full" />
-                          <p className="mt-1 text-[10px] text-gray-400">Wird im Brief genannt: «Da [Name] nicht mehr in unserer Praxis tätig ist …»</p>
+                          <p className="mt-1 text-[10px] text-gray-400">Wird im Brief/Reminder genannt: «Da [Name] nicht mehr in unserer Praxis tätig ist …»</p>
                         </div>
                       )}
                     </div>
+
+                    {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
+                    {af.art === 'Brief' && (<>
                     {/* Pupillenerweiterung */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Untersuchungsart</p>
