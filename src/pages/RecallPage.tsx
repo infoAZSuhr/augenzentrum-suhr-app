@@ -3286,8 +3286,19 @@ export default function RecallPage() {
     if (willGeneratePdf) {
       try { generateBriefPDF(aufgebotTarget.patient, aufgebotForm) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
     }
+    // Reihenfolge: Wenn ein Brief in den Postausgang gelegt wurde UND der
+    // Liris-Auto-Upload verfügbar ist (Desktop-App), wird der Patient ERST
+    // NACH erfolgreicher Liris-Ablage als aufgeboten/Reminder markiert — das
+    // erledigt der Post-Upload-Effekt (it.uploaded → persistAufgebot). Sonst
+    // (Web / Tel / Praxis ohne Brief) wie bisher sofort markieren.
+    const briefImPostausgang = aufgebotPdfCreated || willGeneratePdf
+    const wirdAutoHochgeladen = briefImPostausgang && !!(window as any).electronApp?.autoImportToLiris
     try {
-      await persistAufgebot(aufgebotTarget.patient, aufgebotForm)
+      if (!wirdAutoHochgeladen) {
+        await persistAufgebot(aufgebotTarget.patient, aufgebotForm)
+      } else {
+        toast.info('Brief wird zuerst ins Liris hochgeladen — danach wird automatisch als aufgeboten markiert.')
+      }
       reloadLiris()
       setAufgebotTarget(null)
     } catch {
@@ -4986,7 +4997,13 @@ export default function RecallPage() {
                             </button>
                             <button
                               disabled={!hasEmail}
-                              onClick={() => { setAf({ versand: 'Email' }); openEmailInOutlook(p, af, patientEmail) }}
+                              onClick={() => {
+                                setAf({ versand: 'Email' })
+                                openEmailInOutlook(p, af, patientEmail)
+                                // Brief zusätzlich in den Postausgang legen → Liris-Auto-Upload
+                                // startet sofort (wie bei «Per Post»), nicht erst beim Speichern.
+                                generateBriefPDF(p, { ...af, versand: 'Email' })
+                              }}
                               title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                                 !hasEmail ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
