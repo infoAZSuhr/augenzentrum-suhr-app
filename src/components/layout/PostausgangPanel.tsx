@@ -24,19 +24,21 @@ export default function PostausgangPanel() {
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
   const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null)
   const [printPreviewTitle, setPrintPreviewTitle] = useState('Druckvorschau')
+  const [printAuto, setPrintAuto] = useState(false)
   const [merging, setMerging] = useState(false)
 
-  // Druck in einem SEPARATEN Fenster öffnen (window.open). Nötig weil der
-  // Liris-<webview> in-page Overlays oft verdeckt. Fallback: In-Page-Vorschau,
-  // falls das Popup blockiert wird.
-  const openPrintWindow = (url: string, title: string) => {
-    const w = window.open(url, '_blank')
-    if (!w) { setPrintPreviewTitle(title); setPrintPreviewUrl(url) }
+  // Druckvorschau als In-Page-Popup öffnen (KEIN window.open — das löst im
+  // Browser eine Download-/App-Aufforderung aus). Der Druckdialog startet
+  // automatisch, sobald die PDF im iframe geladen ist (printAuto).
+  const openPrint = (url: string, title: string) => {
+    setPrintPreviewTitle(title)
+    setPrintAuto(true)
+    setPrintPreviewUrl(url)
   }
 
   // Einzelnen Brief drucken.
   const printOne = (it: PostausgangItem) => {
-    openPrintWindow(URL.createObjectURL(it.blob), `Brief — ${it.vorname || it.filename}`)
+    openPrint(URL.createObjectURL(it.blob), `Brief — ${it.vorname || it.filename}`)
   }
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
   const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
@@ -184,7 +186,7 @@ export default function PostausgangPanel() {
       }
       const out = await merged.save()
       const url = URL.createObjectURL(new Blob([out.buffer as ArrayBuffer], { type: 'application/pdf' }))
-      openPrintWindow(url, `Sammeldruck — ${items.length} Brief${items.length === 1 ? '' : 'e'}`)
+      openPrint(url, `Sammeldruck — ${items.length} Brief${items.length === 1 ? '' : 'e'}`)
     } catch (e) {
       setStatusMsg({ kind: 'err', text: 'Buendeln fehlgeschlagen: ' + String(e) })
     } finally {
@@ -195,6 +197,7 @@ export default function PostausgangPanel() {
   const closePrintPreview = () => {
     if (printPreviewUrl) URL.revokeObjectURL(printPreviewUrl)
     setPrintPreviewUrl(null)
+    setPrintAuto(false)
   }
 
   return (
@@ -335,8 +338,14 @@ export default function PostausgangPanel() {
           <iframe
             id="postausgang-print-frame"
             src={printPreviewUrl}
+            onLoad={e => {
+              // Druckdialog automatisch starten, sobald die PDF geladen ist.
+              if (!printAuto) return
+              const win = e.currentTarget.contentWindow
+              try { win?.focus(); win?.print() } catch { /* fallback: manueller Drucken-Button */ }
+            }}
             className="flex-1 w-full border-none bg-gray-200"
-            title="Sammeldruck-Vorschau"
+            title="Druckvorschau"
           />
         </div>
       )}
