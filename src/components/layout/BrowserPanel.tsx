@@ -1509,9 +1509,9 @@ export default function BrowserPanel() {
   const liveKnownSet = new Set(knownRecallPids)
   const dayEntries = Object.entries(dayHistory)
     .map(([date, rec]) => {
-      const stale = rec.stalePids.filter(p => liveStaleSet.has(p)).length
-      const missing = rec.missingPids.filter(p => !liveKnownSet.has(p)).length
-      return [date, { stale, missing }] as const
+      const stalePids = rec.stalePids.filter(p => liveStaleSet.has(p))
+      const missingPids = rec.missingPids.filter(p => !liveKnownSet.has(p))
+      return [date, { stale: stalePids.length, missing: missingPids.length, stalePids, missingPids }] as const
     })
     .filter(([, counts]) => counts.stale > 0 || counts.missing > 0)
     .sort(([a], [b]) => b.localeCompare(a))  // Neueste zuerst
@@ -1592,6 +1592,12 @@ export default function BrowserPanel() {
                   const parts: string[] = []
                   if (counts.stale > 0) parts.push(`${counts.stale} vom ${dateStr}`)
                   if (counts.missing > 0) parts.push(`${counts.missing} neu${counts.stale > 0 ? '' : ` vom ${dateStr}`}`)
+                  // Konkrete PIDs in den Tooltip — damit man sieht, WELCHE Patienten
+                  // gemeint sind (auch wenn man gerade nicht auf dem Tag ist).
+                  const pidInfo = [
+                    counts.stalePids.length ? `zu aktualisieren: ${counts.stalePids.map(p => '#' + p).join(', ')}` : '',
+                    counts.missingPids.length ? `neu (nicht im Recall): ${counts.missingPids.map(p => '#' + p).join(', ')}` : '',
+                  ].filter(Boolean).join('\n')
                   return (
                     <span key={date}>
                       {idx > 0 && ' · '}
@@ -1599,7 +1605,7 @@ export default function BrowserPanel() {
                         type="button"
                         onClick={() => navigateLirisToDay(date)}
                         className="underline decoration-dotted underline-offset-2 hover:text-orange-900 hover:decoration-solid cursor-pointer"
-                        title={`In Liris zum ${dateStr} springen`}
+                        title={`In Liris zum ${dateStr} springen.\n${pidInfo}`}
                       >
                         {parts.join(' + ')}
                       </button>
