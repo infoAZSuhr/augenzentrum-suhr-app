@@ -898,8 +898,8 @@ export default function BrowserPanel() {
               // eine reine outline manchmal nicht sichtbar ist.
               '.az-recall-row-stale{outline:3px solid #eab308 !important;outline-offset:2px !important;background-color:rgba(234,179,8,0.25) !important;position:relative !important;z-index:9999 !important;}'+
               '.az-recall-row-missing{outline:4px solid #0284c7 !important;outline-offset:2px !important;background-color:rgba(2,132,199,0.30) !important;position:relative !important;z-index:9999 !important;}'+
-              '.az-recall-row-stale::before{content:"\\25B6\\00A0" !important;color:#ca8a04 !important;font-weight:bold !important;}'+
-              '.az-recall-row-missing::before{content:"\\25B6\\00A0" !important;color:#0284c7 !important;font-weight:bold !important;}'+
+              '.az-recall-row-stale::before{content:"\\25B6" !important;position:absolute !important;left:-1.15em !important;top:50% !important;transform:translateY(-50%) !important;color:#ca8a04 !important;font-weight:bold !important;font-size:1.35em !important;line-height:1 !important;z-index:10000 !important;}'+
+              '.az-recall-row-missing::before{content:"\\25B6" !important;position:absolute !important;left:-1.15em !important;top:50% !important;transform:translateY(-50%) !important;color:#0284c7 !important;font-weight:bold !important;font-size:1.35em !important;line-height:1 !important;z-index:10000 !important;}'+
               '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;background-color:transparent !important;}';
             document.documentElement.appendChild(st);
           }
