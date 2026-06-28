@@ -2045,18 +2045,28 @@ export default function RecallPage() {
       .sort((a, b) => b.count - a.count)
 
     // ── Per-doctor stats ────────────────────────────────────────────────────
+    // Jeder Patient wird GENAU EINER Kategorie zugeordnet (Priorität von oben),
+    // damit die Spalten exakt die Gesamtzahl ergeben. «Neupatient» ist eine
+    // Querschnitts-Markierung (kann in jeder Kategorie sein) → separat als «davon neu».
+    const classifyPatient = (p: RecallPatient): 'mitTermin' | 'imRecall' | 'ohneRecall' | 'keinAufgebot' | 'wartetBericht' | 'sonstige' | 'inaktiv' | 'storniert' => {
+      if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return 'inaktiv'
+      if (isStorniert(p)) return 'storniert'
+      if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && isFutureDate(p.naechsteKons)) return 'mitTermin'
+      if (isInPlanung(p)) return 'imRecall'
+      if (p.patientenStatus === 'kein Aufgebot') return 'keinAufgebot'
+      if (isAwaitingZuweisungsBericht(p)) return 'wartetBericht'
+      if (isOhneTermin(p)) return 'ohneRecall'
+      return 'sonstige'
+    }
     const docStats = [...doctors, ZU_BEARB].map(doc => {
       const pts = allData.get(doc) ?? []
-      const active = pts.filter(p => p.patientenStatus !== 'inaktiv' && p.patientenStatus !== 'verstorben' && !isStorniert(p))
+      const c = { mitTermin: 0, imRecall: 0, ohneRecall: 0, keinAufgebot: 0, wartetBericht: 0, sonstige: 0, inaktiv: 0, storniert: 0 }
+      for (const p of pts) c[classifyPatient(p)]++
       return {
-        name:        doc,
-        total:       pts.length,
-        mitTermin:   active.filter(p => p.naechsteKons && p.naechsteKons !== 'kein Termin' && isFutureDate(p.naechsteKons)).length,
-        inPlanung:   active.filter(isInPlanung).length,
-        inaktiv:     pts.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben').length,
-        storniert:   pts.filter(isStorniert).length,
-        offen:       active.filter(isOhneTermin).length,
-        neupatient:  pts.filter(p => p.neupatient === true).length,
+        name:       doc,
+        total:      pts.length,
+        ...c,
+        neupatient: pts.filter(p => p.neupatient === true).length,
       }
     }).filter(d => d.total > 0)
 
@@ -5727,12 +5737,15 @@ export default function RecallPage() {
                       <tr>
                         <th className="text-left px-4 py-2.5">Arzt</th>
                         <th className="text-right px-4 py-2.5">Gesamt</th>
-                        <th className="text-right px-4 py-2.5">Neupatienten</th>
                         <th className="text-right px-4 py-2.5">Mit Termin</th>
                         <th className="text-right px-4 py-2.5">Im Recall</th>
                         <th className="text-right px-4 py-2.5" title="Aktive Patienten ohne Nächste Konst. und ohne RC-Datum — wirklich offen">Ohne Recall</th>
+                        <th className="text-right px-4 py-2.5" title="Status «kein Aufgebot» — Self-Service, meldet sich selbst">kein Aufgebot</th>
+                        <th className="text-right px-4 py-2.5" title="Wartet auf Abschluss-Bericht einer Zuweisung">wartet Bericht</th>
+                        <th className="text-right px-4 py-2.5" title="Aktive Patienten, die in keine andere Kategorie fallen (z.B. verpasster Termin in der Vergangenheit, Aufgebot erstellt ohne neuen Termin)">Sonstige</th>
                         <th className="text-right px-4 py-2.5">Inaktiv/✝</th>
                         <th className="text-right px-4 py-2.5">Storniert</th>
+                        <th className="text-right px-4 py-2.5 border-l border-gray-200" title="Querschnitt: davon Neupatienten (in den obigen Kategorien enthalten, NICHT Teil der Summe)">davon neu</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -5740,19 +5753,12 @@ export default function RecallPage() {
                         <tr key={d.name} className={`hover:bg-gray-50 ${d.name === ZU_BEARB ? 'bg-amber-50/40' : ''}`}>
                           <td className="px-4 py-2.5 font-medium text-gray-800">{d.name}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{d.total}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-green-700 font-medium">
-                            {d.neupatient > 0
-                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100 text-xs font-semibold">{d.neupatient}</span>
-                              : <span className="text-gray-300">—</span>}
-                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-green-700 font-medium">{d.mitTermin || '—'}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">{d.inPlanung || '—'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">{d.imRecall || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums">
-                            {d.offen > 0 && d.name !== ZU_BEARB ? (
+                            {d.ohneRecall > 0 && d.name !== ZU_BEARB ? (
                               <button
                                 onClick={() => {
-                                  // In den Arzt-Tab springen und Filter "Ohne Termin" setzen
-                                  // -> direkt sichtbar welche Patienten betroffen sind.
                                   setActiveTab(d.name)
                                   setFilterTermin('ohneTermin')
                                   setFilterNeupatient(false)
@@ -5760,23 +5766,31 @@ export default function RecallPage() {
                                   setAuswertungOpen(false)
                                   setPage(1)
                                 }}
-                                title={`${d.offen} Patient(en) ohne geplanten Recall — anzeigen`}
+                                title={`${d.ohneRecall} Patient(en) ohne geplanten Recall — anzeigen`}
                                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
                               >
-                                {d.offen}
+                                {d.ohneRecall}
                               </button>
-                            ) : <span className="text-gray-300">{d.offen || '—'}</span>}
+                            ) : <span className="text-gray-300">{d.ohneRecall || '—'}</span>}
                           </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{d.keinAufgebot || '—'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-cyan-700">{d.wartetBericht || '—'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{d.sonstige || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.inaktiv || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{d.storniert || '—'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-green-700 border-l border-gray-200">
+                            {d.neupatient > 0
+                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100 text-xs font-semibold">{d.neupatient}</span>
+                              : <span className="text-gray-300">—</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-700">
                       <tr>
                         <td className="px-4 py-2.5">Total</td>
-                        {(['total','neupatient','mitTermin','inPlanung','offen','inaktiv','storniert'] as const).map(k => (
-                          <td key={k} className="px-4 py-2.5 text-right tabular-nums">
+                        {(['total','mitTermin','imRecall','ohneRecall','keinAufgebot','wartetBericht','sonstige','inaktiv','storniert','neupatient'] as const).map(k => (
+                          <td key={k} className={`px-4 py-2.5 text-right tabular-nums${k === 'neupatient' ? ' border-l border-gray-200' : ''}`}>
                             {auswertungStats.docStats.reduce((sum, d) => sum + d[k], 0) || '—'}
                           </td>
                         ))}
