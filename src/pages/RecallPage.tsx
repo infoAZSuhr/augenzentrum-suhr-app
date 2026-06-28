@@ -2062,8 +2062,7 @@ export default function RecallPage() {
       if (isOhneTermin(p)) return 'ohneRecall'
       return 'sonstige'
     }
-    const buildDocStat = (doc: string, label?: string) => {
-      const pts = allData.get(doc) ?? []
+    const buildDocStatFromPts = (label: string, pts: RecallPatient[]) => {
       const c = { mitTermin: 0, imRecall: 0, ohneRecall: 0, keinAufgebot: 0, wartetBericht: 0, sonstige: 0, inaktiv: 0, storniert: 0 }
       const sonstigeList: { pid: string; name: string; grund: string; patient: RecallPatient }[] = []
       for (const p of pts) {
@@ -2085,16 +2084,28 @@ export default function RecallPage() {
       }
       sonstigeList.sort((a, b) => a.name.localeCompare(b.name, 'de'))
       return {
-        name:       label ?? doc,
+        name:       label,
         total:      pts.length,
         ...c,
         sonstigeList,
         neupatient: pts.filter(p => p.neupatient === true).length,
       }
     }
+    const buildDocStat = (doc: string, label?: string) => buildDocStatFromPts(label ?? doc, allData.get(doc) ?? [])
     const docStats = [...doctors, ZU_BEARB].map(doc => buildDocStat(doc)).filter(d => d.total > 0)
-    // Ausgeschiedene / inaktive Ärzte (Sammel-Bucket «offen») — separat & zugeklappt.
-    const inactiveDocStat = buildDocStat(OFFEN_TAB, OFFEN_LABEL)
+    // Ausgeschiedene / inaktive Ärzte (Sammel-Bucket «offen») — pro ehemaligem Arzt
+    // gruppiert (p.doctor trägt den ursprünglichen Arzt; «offen» = Ohne Zuordnung).
+    const offenPts = allData.get(OFFEN_TAB) ?? []
+    const offenByDoc = new Map<string, RecallPatient[]>()
+    for (const p of offenPts) {
+      const key = p.doctor && p.doctor !== OFFEN_TAB ? p.doctor : '__none__'
+      const arr = offenByDoc.get(key); if (arr) arr.push(p); else offenByDoc.set(key, [p])
+    }
+    const inactiveDocStats = [...offenByDoc.entries()]
+      .map(([key, pts]) => buildDocStatFromPts(key === '__none__' ? 'Ohne Zuordnung' : doctorFullName(key), pts))
+      .filter(d => d.total > 0)
+      .sort((a, b) => (a.name === 'Ohne Zuordnung' ? 1 : b.name === 'Ohne Zuordnung' ? -1 : b.total - a.total))
+    const inactiveDocTotal = inactiveDocStats.reduce((s, d) => s + d.total, 0)
 
     // ── Aufgebot Art ────────────────────────────────────────────────────────
     const aufgebot = { Brief: 0, Tel: 0, Praxis: 0, kein: 0 }
@@ -2240,7 +2251,7 @@ export default function RecallPage() {
       else               ageBuckets['75+']++
     }
 
-    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStat, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets }
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStats, inactiveDocTotal, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
@@ -5823,52 +5834,49 @@ export default function RecallPage() {
                           </td>
                         </tr>
                       ))}
-                      {/* Ausgeschiedene / inaktive Ärzte — zugeklappt, separat vom Total der aktiven Ärzte */}
-                      {auswertungStats.inactiveDocStat.total > 0 && (() => {
-                        const d = auswertungStats.inactiveDocStat
-                        return (
-                          <>
-                            <tr
-                              className="bg-gray-50/60 hover:bg-gray-100 cursor-pointer"
-                              onClick={() => setShowInactiveDocs(v => !v)}
-                            >
-                              <td className="px-4 py-2 text-gray-600 font-medium" colSpan={11}>
-                                <span className="inline-flex items-center gap-1.5">
-                                  {showInactiveDocs
-                                    ? <ChevronDown className="w-4 h-4 text-gray-400" />
-                                    : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                                  Ausgeschiedene Ärzte
-                                  <span className="text-xs font-normal text-gray-400">
-                                    ({d.total} Patient{d.total === 1 ? '' : 'en'} — nicht im Total der aktiven Ärzte enthalten)
-                                  </span>
+                      {/* Ausgeschiedene / inaktive Ärzte — pro ehemaligem Arzt, zugeklappt, separat vom Total der aktiven Ärzte */}
+                      {auswertungStats.inactiveDocTotal > 0 && (
+                        <>
+                          <tr
+                            className="bg-gray-50/60 hover:bg-gray-100 cursor-pointer"
+                            onClick={() => setShowInactiveDocs(v => !v)}
+                          >
+                            <td className="px-4 py-2 text-gray-600 font-medium" colSpan={11}>
+                              <span className="inline-flex items-center gap-1.5">
+                                {showInactiveDocs
+                                  ? <ChevronDown className="w-4 h-4 text-gray-400" />
+                                  : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                                Ausgeschiedene Ärzte
+                                <span className="text-xs font-normal text-gray-400">
+                                  ({auswertungStats.inactiveDocStats.length} Ärzte · {auswertungStats.inactiveDocTotal} Patient{auswertungStats.inactiveDocTotal === 1 ? '' : 'en'} — nicht im Total der aktiven Ärzte enthalten)
                                 </span>
+                              </span>
+                            </td>
+                          </tr>
+                          {showInactiveDocs && auswertungStats.inactiveDocStats.map(d => (
+                            <tr key={`inactive-${d.name}`} className="bg-gray-50/30 hover:bg-gray-50 text-gray-600">
+                              <td className="px-4 py-2.5 pl-10 font-medium">{d.name}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{d.total}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-green-700">{d.mitTermin || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">{d.imRecall || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">{d.ohneRecall || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{d.keinAufgebot || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-cyan-700">{d.wartetBericht || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
+                                {d.sonstige > 0 ? (
+                                  <button
+                                    onClick={() => setSonstigePopup({ arzt: d.name, list: d.sonstigeList })}
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
+                                  >{d.sonstige}</button>
+                                ) : <span className="text-gray-300">—</span>}
                               </td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.inaktiv || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{d.storniert || '—'}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-green-700 border-l border-gray-200">{d.neupatient || '—'}</td>
                             </tr>
-                            {showInactiveDocs && (
-                              <tr className="bg-gray-50/30 hover:bg-gray-50 text-gray-600">
-                                <td className="px-4 py-2.5 pl-10 font-medium">{d.name}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{d.total}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-green-700">{d.mitTermin || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">{d.imRecall || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums">{d.ohneRecall || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{d.keinAufgebot || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-cyan-700">{d.wartetBericht || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
-                                  {d.sonstige > 0 ? (
-                                    <button
-                                      onClick={() => setSonstigePopup({ arzt: d.name, list: d.sonstigeList })}
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
-                                    >{d.sonstige}</button>
-                                  ) : <span className="text-gray-300">—</span>}
-                                </td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.inaktiv || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{d.storniert || '—'}</td>
-                                <td className="px-4 py-2.5 text-right tabular-nums text-green-700 border-l border-gray-200">{d.neupatient || '—'}</td>
-                              </tr>
-                            )}
-                          </>
-                        )
-                      })()}
+                          ))}
+                        </>
+                      )}
                     </tbody>
                     <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-700">
                       <tr>
