@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Mail, Trash2, X, FileText, Inbox, Upload, Printer, CheckCircle2, Loader2 } from 'lucide-react'
 import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
 import { useBrowser } from '../../contexts/BrowserContext'
@@ -77,6 +77,21 @@ export default function PostausgangPanel() {
       setUploadingId(null)
     }
   }
+
+  // Auto-Import: Briefe mit autoUpload-Flag (aus «Per Post» / «Per E-Mail»)
+  // automatisch ins Liris hochladen — einzeln, nacheinander. Fehlgeschlagene
+  // werden NICHT endlos wiederholt (autoTried-Set). Wenn Liris/Electron nicht
+  // verfügbar ist, bleibt der Brief liegen (kein Fehler-Spam, manueller Fallback).
+  const autoTried = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (uploadingId) return  // ein Upload läuft bereits → seriell abarbeiten
+    const next = items.find(it => it.autoUpload && !it.uploaded && !autoTried.current.has(it.id))
+    if (!next) return
+    if (!electronApi?.autoImportToLiris || !lirisWebContentsId || !next.tmpPath) return
+    autoTried.current.add(next.id)
+    setOpen(true)            // Panel öffnen, damit der Fortschritt sichtbar ist
+    uploadToLiris(next)
+  }, [items, uploadingId, lirisWebContentsId])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Panel ist immer sichtbar — auch leer — damit der User direkt sieht
   // wo Briefe landen. Bei leerem Postausgang verkleinert sich der Button

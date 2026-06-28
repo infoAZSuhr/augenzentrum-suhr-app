@@ -12,6 +12,7 @@ export interface PostausgangItem {
   blob:        Blob
   tmpPath?:    string         // gesetzt durch Electron-IPC (write-pdf-tmp)
   uploaded?:   boolean        // true sobald erfolgreich ins Liris hochgeladen
+  autoUpload?: boolean        // true → Postausgang-Panel importiert automatisch ins Liris
   versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
   recallSaved?: boolean       // true sobald der Recall-Patient als 'aufgeboten' markiert wurde
   aufgebot?:   unknown        // Payload (patient + form) fuer das automatische 'aufgeboten markieren'

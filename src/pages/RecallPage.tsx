@@ -2937,11 +2937,14 @@ export default function RecallPage() {
             vorname:  patient.vorname || lastName,
             arzt:     patient.doctor,
             filename, blob,
+            // autoUpload → Postausgang lädt den Brief automatisch ins Liris hoch
+            // (gilt für «Per Post» und «Per E-Mail», beide laufen hierüber).
+            autoUpload: true,
             // Payload fuer automatisches 'aufgeboten markieren' nach
             // Verarbeitung (Liris-Upload oder Mail an Praxis).
             aufgebot: { patient, form },
           })
-          toast.success('In Postausgang abgelegt')
+          toast.success('In Postausgang abgelegt — wird ins Liris hochgeladen…')
         } catch (e) {
           console.error('[Brief] Postausgang-Add fehlgeschlagen', e)
           toast.error('PDF erstellt, aber Postausgang-Ablage fehlgeschlagen')
