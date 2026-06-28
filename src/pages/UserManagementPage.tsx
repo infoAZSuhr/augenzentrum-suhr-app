@@ -85,7 +85,7 @@ export default function UserManagementPage() {
   const [deleteErr, setDeleteErr] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [editUser, setEditUser] = useState<UserProfile | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '', mustSetRealEmail: false })
+  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '', fotoUrl: '', mustSetRealEmail: false })
   const [editSaving, setEditSaving] = useState(false)
   const [editErr, setEditErr] = useState('')
   const [loginRequests, setLoginRequests] = useState<LoginRequest[]>([])
@@ -253,7 +253,7 @@ export default function UserManagementPage() {
 
   const openEdit = (u: UserProfile) => {
     setEditUser(u)
-    setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '', mustSetRealEmail: u.mustSetRealEmail ?? false })
+    setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '', fotoUrl: (u as any).fotoUrl ?? '', mustSetRealEmail: u.mustSetRealEmail ?? false })
     setEditErr('')
   }
 
@@ -280,6 +280,7 @@ export default function UserManagementPage() {
         role:             editForm.role,
         additionalRoles:  editForm.additionalRoles,
         fachtitel:        editForm.fachtitel.trim() || null,
+        fotoUrl:          editForm.fotoUrl.trim() || null,
         mustSetRealEmail: editForm.mustSetRealEmail,
       })
 
@@ -621,6 +622,23 @@ export default function UserManagementPage() {
                     onChange={e => setEditForm(f => ({ ...f, fachtitel: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="z.B. Fachärztin FMH für Ophthalmologie" />
+                </div>
+              )}
+              {(editForm.role === 'arzt' || editForm.additionalRoles.includes('arzt')) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Foto-Link <span className="text-gray-400 font-normal">(URL, erscheint im «neuer Arzt»-Brief neben dem Termin)</span>
+                  </label>
+                  <input type="url" value={editForm.fotoUrl}
+                    onChange={e => setEditForm(f => ({ ...f, fotoUrl: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="https://…/portrait.jpg" />
+                  {editForm.fotoUrl.trim() && (
+                    <img src={editForm.fotoUrl.trim()} alt="Vorschau"
+                      className="mt-2 w-16 h-20 object-cover rounded-lg border border-gray-200"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                      onLoad={e => { (e.currentTarget as HTMLImageElement).style.display = '' }} />
+                  )}
                 </div>
               )}
               {editErr && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{editErr}</p>}
