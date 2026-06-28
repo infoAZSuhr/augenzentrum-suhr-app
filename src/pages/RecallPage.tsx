@@ -4,6 +4,7 @@ import { useBrowser } from '../contexts/BrowserContext'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
+import { doctorPhoto } from '../lib/doctorPhotos'
 import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ArrowLeft } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import {
@@ -2695,6 +2696,10 @@ export default function RecallPage() {
     const fachtitelDisplay = form.fachtitel.trim()
       || (isFemale ? 'Fachärztin für Augenheilkunde' : 'Facharzt für Augenheilkunde')
 
+    // Arztfoto NUR bei der «neuer Arzt vorschlagen»-Variante (Vorstellung des
+    // neuen behandelnden Arztes). Leer wenn kein Foto hinterlegt ist.
+    const docPhoto = form.briefVariante === 'neuerArzt' ? doctorPhoto(patient.doctor) : ''
+
     // Letterhead doctor line
     const letterheadDoctor = arztName || 'Dr. med. Svetlana Malinina'
 
@@ -2870,6 +2875,9 @@ export default function RecallPage() {
   .body a{color:#111;text-decoration:none;font-weight:bold}
   .sig{margin-top:1.8cm;line-height:1.7}
   .sig .gruss{margin-bottom:.4cm}
+  .doc-card{display:flex;align-items:center;gap:.4cm;margin-bottom:.55cm}
+  .doc-photo{width:2cm;height:2.4cm;object-fit:cover;border-radius:5px;border:1px solid #ccc}
+  .doc-cap{font-size:9.5pt;line-height:1.3;text-align:left;color:#1a3a6e}
   @page{margin:0;size:A4}
   @media print{html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head>
@@ -2902,6 +2910,7 @@ export default function RecallPage() {
   </div>
 
   <div class="right-col"><div class="right-col-inner sig">
+    ${docPhoto ? `<div class="doc-card"><img class="doc-photo" src="${docPhoto}" alt="${arztName}"><div class="doc-cap"><strong>${arztName}</strong><br>${fachtitelDisplay}</div></div>` : ''}
     <p class="gruss">Freundliche Gr&#252;sse</p>
     <p>Augenzentrum Suhr Team</p>
   </div></div>
