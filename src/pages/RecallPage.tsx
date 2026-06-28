@@ -1750,6 +1750,8 @@ export default function RecallPage() {
 
   // ── Auswertung ───────────────────────────────────────────────────────────────
   const [auswertungOpen, setAuswertungOpen] = useState(false)
+  // Popup mit der Patientenliste der «Sonstige»-Spalte (Auswertung pro Arzt)
+  const [sonstigePopup, setSonstigePopup] = useState<{ arzt: string; list: { pid: string; name: string; grund: string }[] } | null>(null)
   type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'year' | 'lastYear' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
@@ -2061,11 +2063,29 @@ export default function RecallPage() {
     const docStats = [...doctors, ZU_BEARB].map(doc => {
       const pts = allData.get(doc) ?? []
       const c = { mitTermin: 0, imRecall: 0, ohneRecall: 0, keinAufgebot: 0, wartetBericht: 0, sonstige: 0, inaktiv: 0, storniert: 0 }
-      for (const p of pts) c[classifyPatient(p)]++
+      const sonstigeList: { pid: string; name: string; grund: string }[] = []
+      for (const p of pts) {
+        const cat = classifyPatient(p)
+        c[cat]++
+        if (cat === 'sonstige') {
+          // Grund-Heuristik: warum fällt der Patient in keine Kategorie?
+          let grund = 'unklar'
+          if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && !isFutureDate(p.naechsteKons)) grund = 'Termin in Vergangenheit'
+          else if (p.aufgebotArt && p.aufgebotArt !== '') grund = 'Aufgebot ohne neuen Termin'
+          else if (!p.naechsteKons || p.naechsteKons === 'kein Termin') grund = 'kein nächster Termin gesetzt'
+          sonstigeList.push({
+            pid: normalizePid(p.pid ?? ''),
+            name: titleCaseName((p.vorname ?? '').trim()) || '(ohne Name)',
+            grund,
+          })
+        }
+      }
+      sonstigeList.sort((a, b) => a.name.localeCompare(b.name, 'de'))
       return {
         name:       doc,
         total:      pts.length,
         ...c,
+        sonstigeList,
         neupatient: pts.filter(p => p.neupatient === true).length,
       }
     }).filter(d => d.total > 0)
@@ -5775,7 +5795,19 @@ export default function RecallPage() {
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{d.keinAufgebot || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-cyan-700">{d.wartetBericht || '—'}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{d.sonstige || '—'}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
+                            {d.sonstige > 0 ? (
+                              <button
+                                onClick={() => setSonstigePopup({ arzt: d.name, list: d.sonstigeList })}
+                                title={`${d.sonstige} Patient(en) ohne eindeutige Kategorie — Liste anzeigen:\n` +
+                                  d.sonstigeList.slice(0, 12).map(s => `• ${s.name}${s.pid ? ` (${s.pid})` : ''} – ${s.grund}`).join('\n') +
+                                  (d.sonstigeList.length > 12 ? `\n… und ${d.sonstigeList.length - 12} weitere` : '')}
+                                className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
+                              >
+                                {d.sonstige}
+                              </button>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.inaktiv || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{d.storniert || '—'}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-green-700 border-l border-gray-200">
@@ -7445,6 +7477,56 @@ export default function RecallPage() {
 
       {/* Unknown-Doctor-Popup entfernt — der inline-Hinweis am Arzt-Feld
           reicht (rote Border + 'Bitte Arzt waehlen' unter dem Dropdown). */}
+
+      {/* «Sonstige»-Popup: Patienten ohne eindeutige Kategorie (Auswertung pro Arzt) */}
+      {sonstigePopup && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setSonstigePopup(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-800">Sonstige — {sonstigePopup.arzt}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{sonstigePopup.list.length} Patient(en) ohne eindeutige Kategorie</p>
+              </div>
+              <button
+                onClick={() => setSonstigePopup(null)}
+                className="text-gray-400 hover:text-gray-700 text-xl leading-none px-2"
+              >×</button>
+            </div>
+            <div className="overflow-auto p-2">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                    <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium">PID</th>
+                    <th className="px-3 py-2 font-medium">Grund</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sonstigePopup.list.map((s, i) => (
+                    <tr key={`${s.pid}-${i}`} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-800">{s.name}</td>
+                      <td className="px-3 py-2 tabular-nums text-gray-500">{s.pid || '—'}</td>
+                      <td className="px-3 py-2 text-gray-600">{s.grund}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-200 text-right">
+              <button
+                onClick={() => setSonstigePopup(null)}
+                className="px-4 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200"
+              >Schliessen</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Liris-Mismatch-Dialog: Patient existiert nicht (mehr) in Liris.
           Bietet "Patient loeschen" oder "Schliessen" an. */}
