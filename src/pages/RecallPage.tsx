@@ -1751,7 +1751,7 @@ export default function RecallPage() {
   // ── Auswertung ───────────────────────────────────────────────────────────────
   const [auswertungOpen, setAuswertungOpen] = useState(false)
   // Popup mit der Patientenliste der «Sonstige»-Spalte (Auswertung pro Arzt)
-  const [sonstigePopup, setSonstigePopup] = useState<{ arzt: string; list: { pid: string; name: string; grund: string }[] } | null>(null)
+  const [sonstigePopup, setSonstigePopup] = useState<{ arzt: string; list: { pid: string; name: string; grund: string; patient: RecallPatient }[] } | null>(null)
   type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'year' | 'lastYear' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
@@ -2063,7 +2063,7 @@ export default function RecallPage() {
     const docStats = [...doctors, ZU_BEARB].map(doc => {
       const pts = allData.get(doc) ?? []
       const c = { mitTermin: 0, imRecall: 0, ohneRecall: 0, keinAufgebot: 0, wartetBericht: 0, sonstige: 0, inaktiv: 0, storniert: 0 }
-      const sonstigeList: { pid: string; name: string; grund: string }[] = []
+      const sonstigeList: { pid: string; name: string; grund: string; patient: RecallPatient }[] = []
       for (const p of pts) {
         const cat = classifyPatient(p)
         c[cat]++
@@ -2077,6 +2077,7 @@ export default function RecallPage() {
             pid: normalizePid(p.pid ?? ''),
             name: titleCaseName((p.vorname ?? '').trim()) || '(ohne Name)',
             grund,
+            patient: p,
           })
         }
       }
@@ -7509,8 +7510,13 @@ export default function RecallPage() {
                 </thead>
                 <tbody>
                   {sonstigePopup.list.map((s, i) => (
-                    <tr key={`${s.pid}-${i}`} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-3 py-2 text-gray-800">{s.name}</td>
+                    <tr
+                      key={`${s.pid}-${i}`}
+                      onClick={() => { setSonstigePopup(null); setAuswertungOpen(false); switchTab(s.patient.doctor); openEdit(s.patient) }}
+                      title="Patient bearbeiten"
+                      className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer"
+                    >
+                      <td className="px-3 py-2 text-blue-700 font-medium hover:underline">{s.name}</td>
                       <td className="px-3 py-2 tabular-nums text-gray-500">{s.pid || '—'}</td>
                       <td className="px-3 py-2 text-gray-600">{s.grund}</td>
                     </tr>
