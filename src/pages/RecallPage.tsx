@@ -2302,7 +2302,36 @@ export default function RecallPage() {
       .map(p => toRisk(p, p.nachfassAdresse === 'veraltet' ? 'Adresse veraltet' : 'Brief retour'))
       .sort(byName)
 
-    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStats, inactiveDocTotal, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets, riskZuweisung, riskReminder, riskAdresse }
+    // 5) Kürzlich deaktiviert (Fehlklick-Audit): in den letzten 30 Tagen auf
+    //    inaktiv / kein Aufgebot / storniert gesetzt — zur Kontrolle.
+    const day30 = new Date(now); day30.setDate(now.getDate() - 30)
+    const day30Iso = day30.toISOString().slice(0, 10)
+    const riskDeaktiviert = all
+      .filter(p => {
+        const deaktiviert = p.patientenStatus === 'inaktiv' || p.patientenStatus === 'kein Aufgebot' || isStorniert(p)
+        if (!deaktiviert || p.patientenStatus === 'verstorben') return false
+        const ps = parseStamp(p.aktualisiert)
+        return !!ps?.isoDate && ps.isoDate >= day30Iso
+      })
+      .map(p => {
+        const ps = parseStamp(p.aktualisiert)
+        const grund = p.patientenStatus === 'kein Aufgebot' ? 'kein Aufgebot'
+          : p.patientenStatus === 'inaktiv' ? 'inaktiv'
+          : (p.grundStornierung || 'storniert')
+        return toRisk(p, `${grund}${ps ? ` · ${ps.dateStr}${ps.user ? ' · ' + ps.user.split(' ')[0] : ''}` : ''}`)
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+
+    // 6) Ausgeschiedene Ärzte: aktive Patienten im «offen»-Bucket, die einen
+    //    Recall bräuchten (überfällig oder ohne Recall) — haben keinen
+    //    aktiven Verantwortlichen → müssen neu zugewiesen werden.
+    const riskAusgeschieden = (allData.get(OFFEN_TAB) ?? [])
+      .filter(p => p.patientenStatus !== 'inaktiv' && p.patientenStatus !== 'verstorben' && !isStorniert(p)
+        && (isOverdue(p) || isOhneTermin(p)))
+      .map(p => toRisk(p, `${p.doctor && p.doctor !== OFFEN_TAB ? p.doctor + ' · ' : ''}${isOverdue(p) ? 'überfällig' : 'ohne Recall'}`))
+      .sort(byName)
+
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStats, inactiveDocTotal, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets, riskZuweisung, riskReminder, riskAdresse, riskDeaktiviert, riskAusgeschieden }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
@@ -5888,9 +5917,11 @@ export default function RecallPage() {
                     { key: 'brief', label: 'Hängende Briefe',          sub: '> 24 h nicht hochgeladen/versandt',  list: haengende,                     color: 'red'    },
                     { key: 'rem',   label: 'Reminder ohne Reaktion',   sub: '4–26 Wochen, kein Termin gebucht',   list: auswertungStats.riskReminder,  color: 'sky'    },
                     { key: 'addr',  label: 'Adresse veraltet / retour', sub: 'Brief erreicht den Patienten nicht', list: auswertungStats.riskAdresse,   color: 'orange' },
+                    { key: 'deakt', label: 'Kürzlich deaktiviert',      sub: 'inaktiv/kein Aufgebot < 30 Tage – prüfen', list: auswertungStats.riskDeaktiviert, color: 'amber' },
+                    { key: 'ausg',  label: 'Ausgeschiedene Ärzte',      sub: 'Recall nötig, kein Verantwortlicher', list: auswertungStats.riskAusgeschieden, color: 'red' },
                   ]
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {cards.map(c => {
                         const n = c.list.length
                         const palette = n === 0 ? 'bg-gray-50 text-gray-400 border-gray-200'
