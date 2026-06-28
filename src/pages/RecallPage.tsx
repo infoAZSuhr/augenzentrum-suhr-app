@@ -4167,15 +4167,17 @@ export default function RecallPage() {
 
           {/* Aufgebot-Plan -> jetzt ueber den gleichnamigen Tab oben */}
 
-          {/* Auswertung */}
-          <button
-            onClick={() => setAuswertungOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors shrink-0"
-            title="Auswertung"
-          >
-            <BarChart2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Auswertung</span>
-          </button>
+          {/* Auswertung — nur GL / Ärzte / Admin */}
+          {(isGeschaeftsleitung || isArzt || isAdmin) && (
+            <button
+              onClick={() => setAuswertungOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors shrink-0"
+              title="Auswertung"
+            >
+              <BarChart2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Auswertung</span>
+            </button>
+          )}
         </div>
 
         {/* Tab stats */}
@@ -5501,8 +5503,8 @@ export default function RecallPage() {
         )
       })()}
 
-      {/* ── Auswertung modal ─────────────────────────────────────────────────── */}
-      {auswertungOpen && (
+      {/* ── Auswertung modal (nur GL / Ärzte / Admin) ────────────────────────── */}
+      {auswertungOpen && (isGeschaeftsleitung || isArzt || isAdmin) && (
         <>
           <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setAuswertungOpen(false)} />
           <div className="fixed inset-2 sm:inset-8 z-[51] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
