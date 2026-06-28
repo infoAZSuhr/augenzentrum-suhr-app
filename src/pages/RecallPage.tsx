@@ -738,6 +738,7 @@ export default function RecallPage() {
   const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)
   const [briefPreview, setBriefPreview] = useState<string | null>(null)
   const [doctorFachtitelMap, setDoctorFachtitelMap] = useState<Record<string, string>>({})
+  const [doctorFotoMap, setDoctorFotoMap] = useState<Record<string, string>>({})
   const briefIframeRef = useRef<HTMLIFrameElement>(null)
   function copyToClipboard(val: string, key: string) {
     navigator.clipboard.writeText(val).then(() => {
@@ -862,16 +863,23 @@ export default function RecallPage() {
   useEffect(() => {
     getDocs(collection(db, 'users')).then(snap => {
       const map: Record<string, string> = {}
+      const fotoMap: Record<string, string> = {}
       for (const d of snap.docs) {
         const data = d.data()
-        if (!data.fachtitel) continue
         // Key by last word of displayName → matches recall keys ("Artemiev", "Menke" …)
         const lastName = String(data.displayName ?? '').trim().split(/\s+/).pop()
-        if (lastName) map[lastName] = data.fachtitel
-        // Also key by username as additional fallback
-        if (data.username) map[data.username] = data.fachtitel
+        if (data.fachtitel) {
+          if (lastName) map[lastName] = data.fachtitel
+          if (data.username) map[data.username] = data.fachtitel
+        }
+        // Arztfoto-URL (wie Material-Bild in der Lagerverwaltung)
+        if (data.fotoUrl) {
+          if (lastName) fotoMap[lastName] = data.fotoUrl
+          if (data.username) fotoMap[data.username] = data.fotoUrl
+        }
       }
       setDoctorFachtitelMap(map)
+      setDoctorFotoMap(fotoMap)
     }).catch(() => {})
   }, [])
 
@@ -2697,8 +2705,14 @@ export default function RecallPage() {
       || (isFemale ? 'Fachärztin für Augenheilkunde' : 'Facharzt für Augenheilkunde')
 
     // Arztfoto NUR bei der «neuer Arzt vorschlagen»-Variante (Vorstellung des
-    // neuen behandelnden Arztes). Leer wenn kein Foto hinterlegt ist.
-    const docPhoto = form.briefVariante === 'neuerArzt' ? doctorPhoto(patient.doctor) : ''
+    // neuen behandelnden Arztes). URL aus dem Arzt-Profil (fotoUrl) bevorzugt,
+    // sonst Code-Tabelle. Leer wenn kein Foto hinterlegt ist.
+    const docPhoto = form.briefVariante === 'neuerArzt'
+      ? doctorPhoto(patient.doctor, doctorFotoMap[patient.doctor])
+      : ''
+    const docPhotoCard = docPhoto
+      ? `<div class="doc-card"><img class="doc-photo" src="${docPhoto}" alt="${arztName}"><div class="doc-cap"><strong>${arztName}</strong><br>${fachtitelDisplay}</div></div>`
+      : ''
 
     // Letterhead doctor line
     const letterheadDoctor = arztName || 'Dr. med. Svetlana Malinina'
@@ -2773,9 +2787,12 @@ export default function RecallPage() {
 
     const terminBlock = hasTermin ? `
       <div class="termin-box-wrap">
-        <div class="termin-box">
-          <div class="termin-box-label">Vorgeschlagener Termin</div>
-          <div class="termin-box-date">${terminZeile}</div>
+        <div class="termin-row">
+          <div class="termin-box">
+            <div class="termin-box-label">Vorgeschlagener Termin</div>
+            <div class="termin-box-date">${terminZeile}</div>
+          </div>
+          ${docPhotoCard}
         </div>
       </div>
       <p>Bei Terminänderung bitten wir um R&#252;ckmeldung bis <strong>24 Stunden vorher</strong> per Tel. <strong>+41 62 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a>.</p>
@@ -2875,9 +2892,10 @@ export default function RecallPage() {
   .body a{color:#111;text-decoration:none;font-weight:bold}
   .sig{margin-top:1.8cm;line-height:1.7}
   .sig .gruss{margin-bottom:.4cm}
-  .doc-card{display:flex;align-items:center;gap:.4cm;margin-bottom:.55cm}
+  .termin-row{display:flex;align-items:center;justify-content:center;gap:.7cm;flex-wrap:wrap}
+  .doc-card{display:flex;align-items:center;gap:.35cm}
   .doc-photo{width:2cm;height:2.4cm;object-fit:cover;border-radius:5px;border:1px solid #ccc}
-  .doc-cap{font-size:9.5pt;line-height:1.3;text-align:left;color:#1a3a6e}
+  .doc-cap{font-size:9pt;line-height:1.3;text-align:left;color:#1a3a6e}
   @page{margin:0;size:A4}
   @media print{html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head>
@@ -2910,7 +2928,6 @@ export default function RecallPage() {
   </div>
 
   <div class="right-col"><div class="right-col-inner sig">
-    ${docPhoto ? `<div class="doc-card"><img class="doc-photo" src="${docPhoto}" alt="${arztName}"><div class="doc-cap"><strong>${arztName}</strong><br>${fachtitelDisplay}</div></div>` : ''}
     <p class="gruss">Freundliche Gr&#252;sse</p>
     <p>Augenzentrum Suhr Team</p>
   </div></div>
