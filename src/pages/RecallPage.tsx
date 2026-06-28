@@ -2944,7 +2944,11 @@ export default function RecallPage() {
             // Verarbeitung (Liris-Upload oder Mail an Praxis).
             aufgebot: { patient, form },
           })
-          toast.success('In Postausgang abgelegt — wird ins Liris hochgeladen…')
+          toast.success(
+            (window as any).electronApp?.autoImportToLiris
+              ? 'In Postausgang abgelegt — wird ins Liris hochgeladen…'
+              : 'In Postausgang abgelegt'
+          )
         } catch (e) {
           console.error('[Brief] Postausgang-Add fehlgeschlagen', e)
           toast.error('PDF erstellt, aber Postausgang-Ablage fehlgeschlagen')

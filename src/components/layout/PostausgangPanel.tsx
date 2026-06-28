@@ -40,6 +40,9 @@ export default function PostausgangPanel() {
   }
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
   const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
+  // Liris-Upload ist NUR in der Desktop-App (Electron) möglich. In der
+  // Web-Version wird der Upload-Button ausgegraut und ist nicht klickbar.
+  const canUploadLiris = !!electronApi?.autoImportToLiris
 
   // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei. Vorbedingung:
   // Patient ist in Liris geoeffnet.
@@ -230,10 +233,10 @@ export default function PostausgangPanel() {
               {items.map(it => (
                 <div
                   key={it.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, it)}
-                  title="Ziehen zum Hochladen ins Liris"
-                  className="group flex items-center gap-2 px-3 py-2 border-b border-gray-100 hover:bg-primary-50 cursor-grab active:cursor-grabbing"
+                  draggable={canUploadLiris}
+                  onDragStart={(e) => { if (canUploadLiris) handleDragStart(e, it) }}
+                  title={canUploadLiris ? 'Ziehen zum Hochladen ins Liris' : undefined}
+                  className={`group flex items-center gap-2 px-3 py-2 border-b border-gray-100 hover:bg-primary-50 ${canUploadLiris ? 'cursor-grab active:cursor-grabbing' : ''}`}
                 >
                   {(it.uploaded || it.versendet)
                     ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-500" />
@@ -250,9 +253,15 @@ export default function PostausgangPanel() {
                     <Printer className="w-3.5 h-3.5" />
                   </button>
                   {!it.uploaded && (
-                    <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris: Dokument importieren + Arzt + Mail gesendet + Datei. Patient muss in Liris geoeffnet sein." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
-                      <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
-                    </button>
+                    canUploadLiris ? (
+                      <button onClick={() => uploadToLiris(it)} disabled={uploadingId === it.id} title="Auto-Import ins Liris: Dokument importieren + Arzt + Mail gesendet + Datei. Patient muss in Liris geoeffnet sein." className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-green-600 transition-opacity disabled:opacity-50">
+                        <Upload className={`w-3.5 h-3.5 ${uploadingId === it.id ? 'animate-pulse' : ''}`} />
+                      </button>
+                    ) : (
+                      <span title="Liris-Upload nur in der Desktop-App verfügbar" className="p-1 text-gray-300 cursor-not-allowed">
+                        <Upload className="w-3.5 h-3.5" />
+                      </span>
+                    )
                   )}
                   {!it.versendet && !it.uploaded && (
                     <button onClick={() => mailOne(it)} title={`An ${PRAXIS_EMAIL} senden`} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">
