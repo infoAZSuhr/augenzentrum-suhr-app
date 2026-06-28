@@ -44,7 +44,7 @@ const OFFEN_LABEL = 'Inaktive Ärzte'              // sichtbares Label im UI
 const AUFGEBOT_TAB = '📅 RECALL'
 const PAGE_SIZE  = 50
 
-const STORNO_GRUENDE = ['kein Bedarf', 'Selbstmeldung', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit']
+const STORNO_GRUENDE = ['Terminverschiebung', 'kein Bedarf', 'Selbstmeldung', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit', 'Zweitmeinung - einmalige Konst.', 'Notfall - einmalige Konst.']
 
 const AUFGEBOT_OPTIONS = [
   { value: 'Brief',    Icon: Mail,      label: 'Briefaufgebot' },
@@ -6928,104 +6928,82 @@ export default function RecallPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>Storniert</label>
-                  <select value={form.storniert}
-                    onChange={e => {
-                      const v = e.target.value
-                      setField('storniert', v)
-                      // Sobald ein Storno-Status aktiv ist (ja/nein/Terminverschiebung),
-                      // ist ein offener RC obsolet — Termin steht entweder fest, ist
-                      // abgesagt oder wird in der Terminverschiebung-Logik neu gesetzt.
-                      if (v === 'ja' || v === 'nein' || v === 'Terminverschiebung') {
-                        setField('aufgebotFuer', '')
-                      }
-                      // Storniert = 'ja': wenn der relevante Arzt nicht mehr
-                      // aktiv ist (weder der zugewiesene noch der aktuell
-                      // gewaehlte in der Arztliste), -> 'Keinem Arzt
-                      // zugewiesen'. Greift auch wenn assignDoctor schon
-                      // (per Auto-Fill) gesetzt war.
-                      if (v === 'ja' && editTarget && editTarget !== 'new') {
-                        const cur = (editTarget as RecallPatient).doctor
-                        const relevant = assignDoctor || cur
-                        const isActive = !!relevant && (relevant === ZU_BEARB || doctors.includes(relevant))
-                        console.log('[Storniert] relevant Arzt=', relevant, 'aktiv?', isActive, 'doctors=', doctors)
-                        // Inaktiver Arzt bleibt — nicht mehr auf 'offen' umhängen
-                      }
-                      if (v === 'Terminverschiebung') {
-                        setField('grundStornierung', '')
-                        setTimeout(() => naechsteKonsRef.current?.focus(), 50)
-                      }
-                    }}
-                    className={inputCls + chCls('storniert')}>
-                    <option value="">—</option>
-                    <option value="ja">ja</option>
-                    <option value="nein">nein</option>
-                    <option value="Terminverschiebung">Terminverschiebung</option>
-                  </select>
-                </div>
-                {form.storniert === 'Terminverschiebung' ? (
-                  <div className="flex items-end pb-0.5">
-                    <p className="text-xs text-amber-600 font-medium leading-snug">
-                      ↑ Bitte vereinbarten Termin unter <strong>«Nächste Konst.»</strong> oben eintragen.
-                    </p>
-                  </div>
-                ) : (
-                <div>
-                  <label className={labelCls}>Grund f. Stornierung</label>
-                  {(() => {
-                    const isCustom = form.grundStornierung !== '' && !STORNO_GRUENDE.includes(form.grundStornierung)
-                    const selVal = isCustom ? 'Sonstiges' : form.grundStornierung
-                    return (
-                      <>
-                        <select value={selVal}
-                          onChange={e => {
-                            const v = e.target.value
-                            if (v === 'Sonstiges') setField('grundStornierung', ' ')
-                            else setField('grundStornierung', v)
-                            if (v === 'kein Bedarf' || v === 'Selbstmeldung') setField('patientenStatus', 'kein Aufgebot')
-                            if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
-                            if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
-                            if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
-                              setField('verlauf', form.verlauf.map(ve =>
-                                ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
-                              ))
-                              if (lastLirisAutor.current) {
-                                const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
-                                const words = cleaned.split(/\s+/)
-                                let arztAktiv = false
-                                for (let n = 1; n <= words.length; n++) {
-                                  const cand = words.slice(-n).join(' ').toLowerCase()
-                                  if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
-                                }
-                                if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
+              <div>
+                <label className={labelCls}>Grund f. Stornierung / Terminverschiebung</label>
+                {(() => {
+                  const isCustom = form.grundStornierung !== '' && !STORNO_GRUENDE.includes(form.grundStornierung)
+                  const selVal = isCustom ? 'Sonstiges' : form.grundStornierung
+                  return (
+                    <>
+                      <select value={selVal}
+                        onChange={e => {
+                          const v = e.target.value
+                          // Leer → alles zurücksetzen
+                          if (v === '') {
+                            setField('grundStornierung', '')
+                            setField('storniert', '')
+                            return
+                          }
+                          // Terminverschiebung = KEINE Stornierung, sondern neuer Termin.
+                          // Offener RC wird obsolet, Fokus auf «Nächste Konst.» (oben).
+                          if (v === 'Terminverschiebung') {
+                            setField('grundStornierung', 'Terminverschiebung')
+                            setField('storniert', '')
+                            setField('aufgebotFuer', '')
+                            setTimeout(() => naechsteKonsRef.current?.focus(), 50)
+                            return
+                          }
+                          // Alle übrigen Gründe = Stornierung → storniert='ja',
+                          // offener RC obsolet.
+                          if (v === 'Sonstiges') setField('grundStornierung', ' ')
+                          else setField('grundStornierung', v)
+                          setField('storniert', 'ja')
+                          setField('aufgebotFuer', '')
+                          if (v === 'kein Bedarf' || v === 'Selbstmeldung') setField('patientenStatus', 'kein Aufgebot')
+                          if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
+                          if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
+                          if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
+                            setField('verlauf', form.verlauf.map(ve =>
+                              ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
+                            ))
+                            if (lastLirisAutor.current) {
+                              const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+                              const words = cleaned.split(/\s+/)
+                              let arztAktiv = false
+                              for (let n = 1; n <= words.length; n++) {
+                                const cand = words.slice(-n).join(' ').toLowerCase()
+                                if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
                               }
+                              if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
                             }
-                          }}
-                          className={(formErrors.grundStornierung ? inputClsErr : inputCls) + chCls('grundStornierung')}>
-                          <option value="">—</option>
-                          {STORNO_GRUENDE.map(g => <option key={g} value={g}>{g}</option>)}
-                          <option value="Sonstiges">Sonstiges…</option>
-                        </select>
-                        {selVal === 'Sonstiges' && (
-                          <input type="text" value={form.grundStornierung.trimStart()}
-                            onChange={e => setField('grundStornierung', e.target.value)}
-                            className={`${inputCls} mt-2${chCls('grundStornierung')}`}
-                            placeholder="Weiterer Grund…" autoFocus />
-                        )}
-                      </>
-                    )
-                  })()}
-                </div>
-                )}
+                          }
+                        }}
+                        className={(formErrors.grundStornierung ? inputClsErr : inputCls) + chCls('grundStornierung')}>
+                        <option value="">—</option>
+                        {STORNO_GRUENDE.map(g => <option key={g} value={g}>{g}</option>)}
+                        <option value="Sonstiges">Sonstiges…</option>
+                      </select>
+                      {selVal === 'Sonstiges' && (
+                        <input type="text" value={form.grundStornierung.trimStart()}
+                          onChange={e => setField('grundStornierung', e.target.value)}
+                          className={`${inputCls} mt-2${chCls('grundStornierung')}`}
+                          placeholder="Weiterer Grund…" autoFocus />
+                      )}
+                      {form.grundStornierung === 'Terminverschiebung' && (
+                        <p className="mt-2 text-xs text-amber-600 font-medium leading-snug">
+                          ↑ Bitte vereinbarten Termin unter <strong>«Nächste Konst.»</strong> oben eintragen.
+                        </p>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* ── Weiteres Vorgehen & Verlauf ──────────────────────────────────
                   Sichtbar wenn: Storno-Grund gesetzt, oder Storniert=nein gewählt
                   (auch ohne Grund — Patient soll dann angerufen/kontaktiert werden),
                   oder bereits Verlauf-Eintraege existieren. */}
-              {editTarget !== 'new' && (form.grundStornierung !== '' || form.storniert === 'nein' || form.verlauf.length > 0) && (
+              {editTarget !== 'new' && ((form.grundStornierung !== '' && form.grundStornierung !== 'Terminverschiebung') || form.storniert === 'nein' || form.verlauf.length > 0) && (
                 <div className="pt-3 border-t border-amber-200 bg-amber-50 -mx-6 px-6 pb-4">
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                     <ListChecks className="w-3.5 h-3.5" /> Weiteres Vorgehen
@@ -7034,7 +7012,7 @@ export default function RecallPage() {
                   {/* Contact method toggles – wenn ein Storno-Grund gesetzt (ausser
                       Verstorben/Arztwechsel — bei denen ist Kontakt obsolet) ODER
                       Storniert=nein (Patient soll kontaktiert werden). */}
-                  {((form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel') || form.storniert === 'nein') && (
+                  {((form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel' && form.grundStornierung !== 'Terminverschiebung') || form.storniert === 'nein') && (
                     <>
                       {/* "Weshalb anrufen?" — gehört zum Schritt "Patient anrufen",
                           nicht ins Telefon-Detail-Panel. Wird beim Klick auf die
