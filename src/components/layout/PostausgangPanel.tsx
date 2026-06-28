@@ -17,7 +17,7 @@ const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
  *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
-  const { items, remove, markUploaded, markVersendet } = usePostausgang()
+  const { items, remove, markUploaded, markPrinted, markVersendet } = usePostausgang()
   const { lirisWebContentsId, openWithPid } = useBrowser()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -25,6 +25,7 @@ export default function PostausgangPanel() {
   const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null)
   const [printPreviewTitle, setPrintPreviewTitle] = useState('Druckvorschau')
   const [printAuto, setPrintAuto] = useState(false)
+  const [printingIds, setPrintingIds] = useState<string[]>([])
   const [merging, setMerging] = useState(false)
 
   // Druckvorschau als In-Page-Popup öffnen (KEIN window.open — das löst im
@@ -38,8 +39,24 @@ export default function PostausgangPanel() {
 
   // Einzelnen Brief drucken.
   const printOne = (it: PostausgangItem) => {
+    setPrintingIds([it.id])
     openPrint(URL.createObjectURL(it.blob), `Brief — ${it.vorname || it.filename}`)
   }
+
+  // Druck auslösen (Auto beim Laden ODER manueller Button) → Items als
+  // gedruckt markieren. Hochgeladene + gedruckte Briefe werden anschliessend
+  // automatisch aus dem Postausgang entfernt (siehe Effekt unten).
+  const triggerPrint = (win: Window | null | undefined) => {
+    try { win?.focus(); win?.print() } catch { /* Fallback: manueller Button */ }
+    if (printingIds.length) markPrinted(printingIds)
+  }
+
+  // Hochgeladene UND gedruckte Briefe automatisch entfernen.
+  useEffect(() => {
+    const done = items.filter(it => it.uploaded && it.printed)
+    if (done.length === 0) return
+    done.forEach(it => remove(it.id))
+  }, [items, remove])
   const electronApi = (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
   const appVersion = (window as unknown as { electronApp?: { version?: string } }).electronApp?.version || '—'
   // Liris-Upload ist NUR in der Desktop-App (Electron) möglich. In der
@@ -175,6 +192,7 @@ export default function PostausgangPanel() {
     if (items.length === 0 || merging) return
     setMerging(true)
     setStatusMsg(null)
+    setPrintingIds(items.map(i => i.id))
     try {
       const { PDFDocument } = await import('pdf-lib')
       const merged = await PDFDocument.create()
@@ -198,6 +216,7 @@ export default function PostausgangPanel() {
     if (printPreviewUrl) URL.revokeObjectURL(printPreviewUrl)
     setPrintPreviewUrl(null)
     setPrintAuto(false)
+    setPrintingIds([])
   }
 
   return (
@@ -324,7 +343,7 @@ export default function PostausgangPanel() {
               <button
                 onClick={() => {
                   const frame = document.getElementById('postausgang-print-frame') as HTMLIFrameElement | null
-                  frame?.contentWindow?.print()
+                  triggerPrint(frame?.contentWindow)
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors"
               >
@@ -341,8 +360,7 @@ export default function PostausgangPanel() {
             onLoad={e => {
               // Druckdialog automatisch starten, sobald die PDF geladen ist.
               if (!printAuto) return
-              const win = e.currentTarget.contentWindow
-              try { win?.focus(); win?.print() } catch { /* fallback: manueller Drucken-Button */ }
+              triggerPrint(e.currentTarget.contentWindow)
             }}
             className="flex-1 w-full border-none bg-gray-200"
             title="Druckvorschau"

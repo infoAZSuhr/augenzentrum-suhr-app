@@ -12,6 +12,7 @@ export interface PostausgangItem {
   blob:        Blob
   tmpPath?:    string         // gesetzt durch Electron-IPC (write-pdf-tmp)
   uploaded?:   boolean        // true sobald erfolgreich ins Liris hochgeladen
+  printed?:    boolean        // true sobald gedruckt (Druckdialog gestartet)
   autoUpload?: boolean        // true → Postausgang-Panel importiert automatisch ins Liris
   versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
   recallSaved?: boolean       // true sobald der Recall-Patient als 'aufgeboten' markiert wurde
@@ -24,6 +25,7 @@ interface PostausgangContextType {
   add: (item: Omit<PostausgangItem, 'id' | 'createdAt'>) => Promise<PostausgangItem>
   remove: (id: string) => void
   markUploaded: (id: string) => void
+  markPrinted: (ids: string[]) => void
   markVersendet: (ids: string[]) => void
   markRecallSaved: (id: string) => void
   clear: () => void
@@ -34,6 +36,7 @@ const PostausgangContext = createContext<PostausgangContextType>({
   add: async () => { throw new Error('Provider missing') },
   remove: () => {},
   markUploaded: () => {},
+  markPrinted: () => {},
   markVersendet: () => {},
   markRecallSaved: () => {},
   clear: () => {},
@@ -85,6 +88,11 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, uploaded: true } : i))
   }, [])
 
+  const markPrinted = useCallback((ids: string[]) => {
+    const set = new Set(ids)
+    setItems(prev => prev.map(i => set.has(i.id) ? { ...i, printed: true } : i))
+  }, [])
+
   const markVersendet = useCallback((ids: string[]) => {
     const set = new Set(ids)
     setItems(prev => prev.map(i => set.has(i.id) ? { ...i, versendet: true } : i))
@@ -115,7 +123,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
   }, [pendingCount])
 
   return (
-    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markVersendet, markRecallSaved, clear }}>
+    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markPrinted, markVersendet, markRecallSaved, clear }}>
       {children}
     </PostausgangContext.Provider>
   )
