@@ -2159,6 +2159,8 @@ export default function RecallPage() {
           pid:       p.pid,
           vorname:   p.vorname ?? '',
           doctor:    p.doctor,
+          // Ist der zugeordnete Arzt noch aktiv? (für Arztwechsel-Unterscheidung)
+          doctorActive: !!p.doctor && doctors.includes(p.doctor),
           kind,                                                              // präziser als nur 'inaktiv'/'verstorben'
           grund:     (p.grundStornierung ?? '').trim(),
           by:        ps?.user.trim() ?? '',
@@ -5848,7 +5850,7 @@ export default function RecallPage() {
                                   : <ChevronRight className="w-4 h-4 text-gray-400" />}
                                 Ausgeschiedene Ärzte
                                 <span className="text-xs font-normal text-gray-400">
-                                  ({auswertungStats.inactiveDocStats.length} Ärzte · {auswertungStats.inactiveDocTotal} Patient{auswertungStats.inactiveDocTotal === 1 ? '' : 'en'} — nicht im Total der aktiven Ärzte enthalten)
+                                  ({auswertungStats.inactiveDocStats.length} Ärzte · {auswertungStats.inactiveDocTotal} Patient{auswertungStats.inactiveDocTotal === 1 ? '' : 'en'} — im Total enthalten, hier aufklappen)
                                 </span>
                               </span>
                             </td>
@@ -5880,10 +5882,10 @@ export default function RecallPage() {
                     </tbody>
                     <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-700">
                       <tr>
-                        <td className="px-4 py-2.5">Total</td>
+                        <td className="px-4 py-2.5">Total <span className="font-normal text-gray-400 text-xs">(inkl. ausgeschiedene)</span></td>
                         {(['total','mitTermin','imRecall','ohneRecall','keinAufgebot','wartetBericht','sonstige','inaktiv','storniert','neupatient'] as const).map(k => (
                           <td key={k} className={`px-4 py-2.5 text-right tabular-nums${k === 'neupatient' ? ' border-l border-gray-200' : ''}`}>
-                            {auswertungStats.docStats.reduce((sum, d) => sum + d[k], 0) || '—'}
+                            {[...auswertungStats.docStats, ...auswertungStats.inactiveDocStats].reduce((sum, d) => sum + d[k], 0) || '—'}
                           </td>
                         ))}
                       </tr>
@@ -5985,7 +5987,15 @@ export default function RecallPage() {
                                 <span className="font-medium">{r.vorname || <span className="text-gray-400 italic">ohne Name</span>}</span>
                                 {r.pid && <span className="ml-2 text-xs text-gray-400 tabular-nums">#{r.pid}</span>}
                               </td>
-                              <td className="px-4 py-2.5 text-gray-600 text-xs">{r.doctor}</td>
+                              <td className="px-4 py-2.5 text-gray-600 text-xs">
+                                <span>{r.doctor === OFFEN_TAB ? <span className="text-gray-400 italic">ohne Zuordnung</span> : r.doctor}</span>
+                                {r.kind === 'arztwechsel' && (
+                                  <span className={`ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-semibold ${r.doctorActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}
+                                    title={r.doctorActive ? 'Wechsel zu einem aktiven Arzt der Praxis' : 'Zugeordneter Arzt ist ausgeschieden / inaktiv'}>
+                                    {r.doctorActive ? 'aktiver Arzt' : 'ausgeschieden'}
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-4 py-2.5">
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${pill.cls}`}>
                                   {pill.label}
