@@ -4,7 +4,7 @@ import { useBrowser } from '../contexts/BrowserContext'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ArrowLeft } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ArrowLeft } from 'lucide-react'
 import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
@@ -1752,6 +1752,8 @@ export default function RecallPage() {
   const [auswertungOpen, setAuswertungOpen] = useState(false)
   // Popup mit der Patientenliste der «Sonstige»-Spalte (Auswertung pro Arzt)
   const [sonstigePopup, setSonstigePopup] = useState<{ arzt: string; list: { pid: string; name: string; grund: string; patient: RecallPatient }[] } | null>(null)
+  // Ausgeschiedene / inaktive Ärzte in der «Übersicht pro Arzt» — standardmässig zugeklappt
+  const [showInactiveDocs, setShowInactiveDocs] = useState(false)
   type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'year' | 'lastYear' | 'all'
   const [actPeriod, setActPeriod] = useState<ActPeriod>('week')
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
@@ -2060,7 +2062,7 @@ export default function RecallPage() {
       if (isOhneTermin(p)) return 'ohneRecall'
       return 'sonstige'
     }
-    const docStats = [...doctors, ZU_BEARB].map(doc => {
+    const buildDocStat = (doc: string, label?: string) => {
       const pts = allData.get(doc) ?? []
       const c = { mitTermin: 0, imRecall: 0, ohneRecall: 0, keinAufgebot: 0, wartetBericht: 0, sonstige: 0, inaktiv: 0, storniert: 0 }
       const sonstigeList: { pid: string; name: string; grund: string; patient: RecallPatient }[] = []
@@ -2083,13 +2085,16 @@ export default function RecallPage() {
       }
       sonstigeList.sort((a, b) => a.name.localeCompare(b.name, 'de'))
       return {
-        name:       doc,
+        name:       label ?? doc,
         total:      pts.length,
         ...c,
         sonstigeList,
         neupatient: pts.filter(p => p.neupatient === true).length,
       }
-    }).filter(d => d.total > 0)
+    }
+    const docStats = [...doctors, ZU_BEARB].map(doc => buildDocStat(doc)).filter(d => d.total > 0)
+    // Ausgeschiedene / inaktive Ärzte (Sammel-Bucket «offen») — separat & zugeklappt.
+    const inactiveDocStat = buildDocStat(OFFEN_TAB, OFFEN_LABEL)
 
     // ── Aufgebot Art ────────────────────────────────────────────────────────
     const aufgebot = { Brief: 0, Tel: 0, Praxis: 0, kein: 0 }
@@ -2235,7 +2240,7 @@ export default function RecallPage() {
       else               ageBuckets['75+']++
     }
 
-    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets }
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStat, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
@@ -5818,6 +5823,52 @@ export default function RecallPage() {
                           </td>
                         </tr>
                       ))}
+                      {/* Ausgeschiedene / inaktive Ärzte — zugeklappt, separat vom Total der aktiven Ärzte */}
+                      {auswertungStats.inactiveDocStat.total > 0 && (() => {
+                        const d = auswertungStats.inactiveDocStat
+                        return (
+                          <>
+                            <tr
+                              className="bg-gray-50/60 hover:bg-gray-100 cursor-pointer"
+                              onClick={() => setShowInactiveDocs(v => !v)}
+                            >
+                              <td className="px-4 py-2 text-gray-600 font-medium" colSpan={11}>
+                                <span className="inline-flex items-center gap-1.5">
+                                  {showInactiveDocs
+                                    ? <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                                  Ausgeschiedene Ärzte
+                                  <span className="text-xs font-normal text-gray-400">
+                                    ({d.total} Patient{d.total === 1 ? '' : 'en'} — nicht im Total der aktiven Ärzte enthalten)
+                                  </span>
+                                </span>
+                              </td>
+                            </tr>
+                            {showInactiveDocs && (
+                              <tr className="bg-gray-50/30 hover:bg-gray-50 text-gray-600">
+                                <td className="px-4 py-2.5 pl-10 font-medium">{d.name}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{d.total}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-green-700">{d.mitTermin || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-amber-700">{d.imRecall || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums">{d.ohneRecall || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{d.keinAufgebot || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-cyan-700">{d.wartetBericht || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
+                                  {d.sonstige > 0 ? (
+                                    <button
+                                      onClick={() => setSonstigePopup({ arzt: d.name, list: d.sonstigeList })}
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
+                                    >{d.sonstige}</button>
+                                  ) : <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{d.inaktiv || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-red-500">{d.storniert || '—'}</td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-green-700 border-l border-gray-200">{d.neupatient || '—'}</td>
+                              </tr>
+                            )}
+                          </>
+                        )
+                      })()}
                     </tbody>
                     <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-700">
                       <tr>
