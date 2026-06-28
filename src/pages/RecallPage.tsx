@@ -1760,7 +1760,7 @@ export default function RecallPage() {
   // ── Auswertung ───────────────────────────────────────────────────────────────
   const [auswertungOpen, setAuswertungOpen] = useState(false)
   // Popup mit der Patientenliste der «Sonstige»-Spalte (Auswertung pro Arzt)
-  const [sonstigePopup, setSonstigePopup] = useState<{ arzt: string; list: { pid: string; name: string; grund: string; patient: RecallPatient }[] } | null>(null)
+  const [listePopup, setListePopup] = useState<{ titel: string; subtitel: string; list: { pid: string; name: string; grund: string; patient: RecallPatient }[] } | null>(null)
   // Ausgeschiedene / inaktive Ärzte in der «Übersicht pro Arzt» — standardmässig zugeklappt
   const [showInactiveDocs, setShowInactiveDocs] = useState(false)
   type ActPeriod = 'today' | 'week' | 'lastWeek' | 'month' | 'lastMonth' | 'year' | 'lastYear' | 'all'
@@ -2262,7 +2262,47 @@ export default function RecallPage() {
       else               ageBuckets['75+']++
     }
 
-    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStats, inactiveDocTotal, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets }
+    // ── Sicherheitsnetz: Risikogruppen, in denen Patienten durchrutschen ──────
+    // Jede Liste ist anklickbar (Popup → Patient bearbeiten).
+    const wochenAgoIso = (n: number) => { const d = new Date(now); d.setDate(now.getDate() - n * 7); return d.toISOString().slice(0, 10) }
+    const w4ago = wochenAgoIso(4), w8ago = wochenAgoIso(8), w26ago = wochenAgoIso(26)
+    const toRisk = (p: RecallPatient, grund: string) => ({
+      pid: normalizePid(p.pid ?? ''),
+      name: titleCaseName((p.vorname ?? '').trim()) || '(ohne Name)',
+      doctor: p.doctor,
+      grund,
+      patient: p,
+    })
+    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'de')
+
+    // 1) Zuweisung überfällig: Abschlussbericht seit > 8 Wochen ausstehend.
+    const riskZuweisung = activeAll
+      .filter(p => isAwaitingZuweisungsBericht(p) && (p.zuweisung?.datum || '') !== '' && (p.zuweisung?.datum || '') <= w8ago)
+      .map(p => {
+        const wochen = Math.floor((now.getTime() - new Date((p.zuweisung!.datum) + 'T00:00:00Z').getTime()) / (7 * 864e5))
+        return toRisk(p, `Bericht ausstehend seit ${wochen} Wochen`)
+      })
+      .sort(byName)
+
+    // 3) Reminder ohne Reaktion: Reminder im aktuellen Zyklus, kein Termin
+    //    gebucht, 4–26 Wochen her (schliesst das 6-Monats-Blindfenster).
+    const riskReminder = activeAll
+      .filter(p => p.aufgebotArt === 'Reminder' && p.aufgebotErstellt
+        && !hasRealTermin(p)
+        && p.aufgebotErstellt >= (p.letzteKons || '')
+        && p.aufgebotErstellt <= w4ago && p.aufgebotErstellt >= w26ago)
+      .map(p => toRisk(p, `Reminder vom ${formatDate(p.aufgebotErstellt)} – keine Reaktion`))
+      .sort(byName)
+
+    // 4) Adresse veraltet / Brief retour — über ALLE (auch stornierte, da
+    //    «Brief ungeöffnet retourniert» den Patienten storniert), ohne Verstorbene.
+    const riskAdresse = all
+      .filter(p => p.patientenStatus !== 'verstorben'
+        && (p.nachfassAdresse === 'veraltet' || (p.grundStornierung || '').toLowerCase().includes('retourniert')))
+      .map(p => toRisk(p, p.nachfassAdresse === 'veraltet' ? 'Adresse veraltet' : 'Brief retour'))
+      .sort(byName)
+
+    return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStats, inactiveDocTotal, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets, riskZuweisung, riskReminder, riskAdresse }
   }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
@@ -5829,6 +5869,50 @@ export default function RecallPage() {
                 </div>
               )}
 
+              {/* ── Sicherheitsnetz: Risikogruppen, in denen Patienten durchrutschen ── */}
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" /> Sicherheitsnetz
+                </h3>
+                <p className="text-xs text-gray-400 mb-3">Risikogruppen, in denen Patienten unbemerkt liegen bleiben können — anklicken zum Bearbeiten.</p>
+                {(() => {
+                  const haengende = postausgang.items
+                    .filter(it => !it.uploaded && !it.versendet && (Date.now() - it.createdAt) > 24 * 3600 * 1000)
+                    .map(it => {
+                      const p = (it.aufgebot as { patient?: RecallPatient } | undefined)?.patient
+                      const tage = Math.floor((Date.now() - it.createdAt) / 864e5)
+                      return { pid: it.pid ?? '', name: it.vorname || it.filename, grund: `seit ${tage} Tag(en) nicht hochgeladen`, patient: p as RecallPatient }
+                    })
+                  const cards = [
+                    { key: 'zuw',   label: 'Zuweisung überfällig',     sub: 'Bericht > 8 Wochen ausstehend',     list: auswertungStats.riskZuweisung, color: 'amber'  },
+                    { key: 'brief', label: 'Hängende Briefe',          sub: '> 24 h nicht hochgeladen/versandt',  list: haengende,                     color: 'red'    },
+                    { key: 'rem',   label: 'Reminder ohne Reaktion',   sub: '4–26 Wochen, kein Termin gebucht',   list: auswertungStats.riskReminder,  color: 'sky'    },
+                    { key: 'addr',  label: 'Adresse veraltet / retour', sub: 'Brief erreicht den Patienten nicht', list: auswertungStats.riskAdresse,   color: 'orange' },
+                  ]
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {cards.map(c => {
+                        const n = c.list.length
+                        const palette = n === 0 ? 'bg-gray-50 text-gray-400 border-gray-200'
+                          : c.color === 'red'   ? 'bg-red-50 text-red-700 border-red-200'
+                          : c.color === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : c.color === 'sky'   ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          :                       'bg-orange-50 text-orange-700 border-orange-200'
+                        return (
+                          <button key={c.key} disabled={n === 0}
+                            onClick={() => setListePopup({ titel: c.label, subtitel: c.sub, list: c.list })}
+                            className={`flex flex-col px-4 py-3 rounded-xl border text-left transition ${palette} ${n > 0 ? 'hover:opacity-80 active:scale-95 cursor-pointer' : 'cursor-default'}`}>
+                            <span className="text-2xl font-bold tabular-nums">{n}</span>
+                            <span className="text-xs mt-0.5 font-medium">{c.label}</span>
+                            <span className="text-[10px] mt-0.5 opacity-70">{c.sub}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+
               {/* ── Per-Arzt Übersicht ── */}
               <div>
                 <h3 className="font-semibold text-gray-800 mb-3">Übersicht pro Arzt</h3>
@@ -5879,7 +5963,7 @@ export default function RecallPage() {
                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
                             {d.sonstige > 0 ? (
                               <button
-                                onClick={() => setSonstigePopup({ arzt: d.name, list: d.sonstigeList })}
+                                onClick={() => setListePopup({ titel: `Sonstige — ${d.name}`, subtitel: 'Patienten ohne eindeutige Kategorie', list: d.sonstigeList })}
                                 title={`${d.sonstige} Patient(en) ohne eindeutige Kategorie — Liste anzeigen:\n` +
                                   d.sonstigeList.slice(0, 12).map(s => `• ${s.name}${s.pid ? ` (${s.pid})` : ''} – ${s.grund}`).join('\n') +
                                   (d.sonstigeList.length > 12 ? `\n… und ${d.sonstigeList.length - 12} weitere` : '')}
@@ -5929,7 +6013,7 @@ export default function RecallPage() {
                               <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">
                                 {d.sonstige > 0 ? (
                                   <button
-                                    onClick={() => setSonstigePopup({ arzt: d.name, list: d.sonstigeList })}
+                                    onClick={() => setListePopup({ titel: `Sonstige — ${d.name}`, subtitel: 'Patienten ohne eindeutige Kategorie', list: d.sonstigeList })}
                                     className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
                                   >{d.sonstige}</button>
                                 ) : <span className="text-gray-300">—</span>}
@@ -7589,10 +7673,10 @@ export default function RecallPage() {
           reicht (rote Border + 'Bitte Arzt waehlen' unter dem Dropdown). */}
 
       {/* «Sonstige»-Popup: Patienten ohne eindeutige Kategorie (Auswertung pro Arzt) */}
-      {sonstigePopup && (
+      {listePopup && (
         <div
           className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
-          onClick={() => setSonstigePopup(null)}
+          onClick={() => setListePopup(null)}
         >
           <div
             className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
@@ -7600,11 +7684,11 @@ export default function RecallPage() {
           >
             <div className="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-800">Sonstige — {sonstigePopup.arzt}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{sonstigePopup.list.length} Patient(en) ohne eindeutige Kategorie</p>
+                <h3 className="font-semibold text-gray-800">{listePopup.titel}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{listePopup.list.length} Patient(en) · {listePopup.subtitel}</p>
               </div>
               <button
-                onClick={() => setSonstigePopup(null)}
+                onClick={() => setListePopup(null)}
                 className="text-gray-400 hover:text-gray-700 text-xl leading-none px-2"
               >×</button>
             </div>
@@ -7618,14 +7702,14 @@ export default function RecallPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sonstigePopup.list.map((s, i) => (
+                  {listePopup.list.map((s, i) => (
                     <tr
                       key={`${s.pid}-${i}`}
-                      onClick={() => { setSonstigePopup(null); setAuswertungOpen(false); switchTab(s.patient.doctor); openEdit(s.patient) }}
-                      title="Patient bearbeiten"
-                      className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer"
+                      onClick={() => { if (!s.patient) return; setListePopup(null); setAuswertungOpen(false); switchTab(s.patient.doctor); openEdit(s.patient) }}
+                      title={s.patient ? 'Patient bearbeiten' : 'Kein verknüpfter Patient'}
+                      className={`border-b border-gray-50 ${s.patient ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}`}
                     >
-                      <td className="px-3 py-2 text-blue-700 font-medium hover:underline">{s.name}</td>
+                      <td className={`px-3 py-2 font-medium ${s.patient ? 'text-blue-700 hover:underline' : 'text-gray-700'}`}>{s.name}</td>
                       <td className="px-3 py-2 tabular-nums text-gray-500">{s.pid || '—'}</td>
                       <td className="px-3 py-2 text-gray-600">{s.grund}</td>
                     </tr>
@@ -7635,7 +7719,7 @@ export default function RecallPage() {
             </div>
             <div className="px-5 py-3 border-t border-gray-200 text-right">
               <button
-                onClick={() => setSonstigePopup(null)}
+                onClick={() => setListePopup(null)}
                 className="px-4 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200"
               >Schliessen</button>
             </div>
