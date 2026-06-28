@@ -896,8 +896,8 @@ export default function BrowserPanel() {
               // Outline (aeusserer Rand) + Hintergrund-Tint. Der Tint rendert
               // zuverlaessig auf jedem Element-Typ (auch <tr>/<td>/Flex), wo
               // eine reine outline manchmal nicht sichtbar ist.
-              '.az-recall-row-stale{outline:3px solid #f59e0b !important;outline-offset:2px !important;background-color:rgba(245,158,11,0.22) !important;}'+
-              '.az-recall-row-missing{outline:3px solid #dc2626 !important;outline-offset:2px !important;background-color:rgba(220,38,38,0.20) !important;}'+
+              '.az-recall-row-stale{outline:3px solid #eab308 !important;outline-offset:2px !important;background-color:rgba(234,179,8,0.25) !important;}'+
+              '.az-recall-row-missing{outline:3px solid #38bdf8 !important;outline-offset:2px !important;background-color:rgba(56,189,248,0.28) !important;}'+
               '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;background-color:transparent !important;}';
             document.documentElement.appendChild(st);
           }
