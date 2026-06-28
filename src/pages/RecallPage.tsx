@@ -2713,6 +2713,11 @@ export default function RecallPage() {
     const docPhotoCard = docPhoto
       ? `<div class="doc-card"><img class="doc-photo" src="${docPhoto}" alt="${arztName}"><div class="doc-cap"><strong>${arztName}</strong><br>${fachtitelDisplay}</div></div>`
       : ''
+    // Nur das Foto (ohne Namensunterschrift) — für die Platzierung direkt neben
+    // dem Text, der den neuen Arzt bereits namentlich nennt (Reminder).
+    const docPhotoImg = docPhoto
+      ? `<img class="doc-photo" src="${docPhoto}" alt="${arztName}">`
+      : ''
 
     // Letterhead doctor line
     const letterheadDoctor = arztName || 'Dr. med. Svetlana Malinina'
@@ -2844,8 +2849,9 @@ export default function RecallPage() {
       ${salut}
       ${kindHinweis}
       <p>Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.</p>
-      ${reminderArztHinweis}
-      ${docPhotoCard ? `<div class="doc-card-wrap">${docPhotoCard}</div>` : ''}
+      ${docPhotoImg
+        ? `<div class="arzt-vorstellung"><div class="av-text">${reminderArztHinweis}</div>${docPhotoImg}</div>`
+        : reminderArztHinweis}
       <p>Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder bequem &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
       <p>Sollten Sie inzwischen anderweitig augen&#228;rztlich betreut werden, freuen wir uns &#252;ber eine kurze R&#252;ckmeldung &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Angaben aktuell halten k&#246;nnen.</p>
       <p>Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
@@ -2895,6 +2901,10 @@ export default function RecallPage() {
   .sig .gruss{margin-bottom:.4cm}
   .termin-row{display:flex;align-items:center;justify-content:center;gap:.7cm;flex-wrap:wrap}
   .doc-card-wrap{display:flex;justify-content:center;margin:.35cm 0}
+  .arzt-vorstellung{display:flex;align-items:center;gap:.55cm;margin:.15cm 0}
+  .arzt-vorstellung .av-text{flex:1}
+  .arzt-vorstellung .av-text p{margin-bottom:0}
+  .arzt-vorstellung .doc-photo{flex-shrink:0}
   .doc-card{display:flex;align-items:center;gap:.35cm}
   .doc-photo{width:2cm;height:2.4cm;object-fit:cover;border-radius:5px;border:1px solid #ccc}
   .doc-cap{font-size:9pt;line-height:1.3;text-align:left;color:#1a3a6e}
