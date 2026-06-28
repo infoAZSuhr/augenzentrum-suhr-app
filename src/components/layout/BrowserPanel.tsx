@@ -1478,22 +1478,34 @@ export default function BrowserPanel() {
       await sleep(220)
     }
 
-    // Schritt 2: den Tag im Mini-Kalender anklicken (Blatt-Element bevorzugen,
-    // Nachbarmonats-/deaktivierte Zellen ueberspringen).
+    // Schritt 2: den Tag im Mini-Kalender anklicken. ACHTUNG: In der Monats-
+    // ansicht erscheinen auch Nachbarmonats-Tage gleicher Zahl (z.B. 30. April
+    // in der Mai-Ansicht). Daher Kandidaten sammeln und den AKTUELLEN-Monat-Tag
+    // wählen: nicht-adjazent (Klasse/Transparenz) bevorzugen, dann Positions-
+    // Heuristik (grosse Tage stehen in der aktuellen Ansicht weiter unten).
     await wv.executeJavaScript(`(function(){
       var mc = document.getElementById('cal-event-mini-calendar');
       if (!mc) return 'no-mc';
+      var dayNum = ${day};
       var cells = mc.querySelectorAll('td,a,div,span,button');
+      var cands = [];
       for (var i=0;i<cells.length;i++){
         var el = cells[i];
-        if ((el.textContent||'').trim() !== '${day}') continue;
-        var cls = (el.className||'').toLowerCase();
-        if (/other|muted|disabled|adjacent|outside|sibling|prev|next|grey|gray/.test(cls)) continue;
+        if ((el.textContent||'').trim() !== String(dayNum)) continue;
         if (el.children && el.children.length > 2) continue;
-        el.click();
-        return 'day-clicked';
+        var cls = ((el.className||'')+' '+((el.parentElement&&el.parentElement.className)||'')).toLowerCase();
+        var adj = /other|muted|disabled|adjacent|outside|sibling|prev|next|grey|gray|faded|inactive|dim/.test(cls) ? 1 : 0;
+        var op = 1; try { op = parseFloat(getComputedStyle(el).opacity||'1'); } catch(e){}
+        cands.push({ el: el, adj: adj, op: isNaN(op)?1:op, idx: i });
       }
-      return 'no-day';
+      if (!cands.length) return 'no-day';
+      cands.sort(function(a,b){
+        if (a.adj !== b.adj) return a.adj - b.adj;            // nicht-adjazent zuerst
+        if (Math.abs(a.op-b.op) > 0.05) return b.op - a.op;   // deckender zuerst
+        return dayNum > 15 ? b.idx - a.idx : a.idx - b.idx;   // Positions-Heuristik
+      });
+      cands[0].el.click();
+      return 'day-clicked';
     })()`).catch(() => {})
   }
 
