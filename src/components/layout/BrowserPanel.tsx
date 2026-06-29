@@ -1196,6 +1196,22 @@ export default function BrowserPanel() {
       if (!wv?.executeJavaScript) return
       const script = `
         (function() {
+          var pidStr0 = ${JSON.stringify(pid)};
+          function vis0(n){ if(!n||n.offsetParent===null) return false; var r=n.getBoundingClientRect(); return r.width>0&&r.height>0; }
+          // 0) Ist der Termin des Patienten im aktuellen Kalender sichtbar?
+          //    Dann Einfachklick auf das FullCalendar-Event (a.fc-event) →
+          //    Liris öffnet "Termin bearbeiten" (statt Suche → Akte).
+          var marked = document.querySelector('[data-az-recall-pid="'+pidStr0+'"]');
+          if (marked) {
+            var fcEv = marked.classList && marked.classList.contains('fc-event') ? marked
+              : (marked.closest ? marked.closest('.fc-event') : null);
+            if (fcEv && vis0(fcEv)) {
+              fcEv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              fcEv.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true }));
+              fcEv.click();
+              return 'termin-clicked';
+            }
+          }
           var sel = 'input[placeholder^="Allgemeine Suche"]';
           var el = document.querySelector(sel);
           if (!el) return 'no-input-found';
@@ -1311,6 +1327,12 @@ export default function BrowserPanel() {
         .then((res: any) => {
           console.log('[Liris] inject script done, result=', res)
           clearPendingPid()
+          // Termin-Event angeklickt → "Termin bearbeiten" ist offen, keine Akte.
+          // Kein Auto-Auslesen (die Termin-Ansicht enthält die Akten-Daten nicht).
+          if (res === 'termin-clicked') {
+            console.log('[Liris] Termin bearbeiten geöffnet (Einfachklick auf Kalender-Event)')
+            return
+          }
           // Kein Suchfeld oder kein Dropdown-Treffer: Retry nach kurzer
           // Wartezeit statt sofort notFound — Liris braucht manchmal
           // laenger bis das Suchfeld sichtbar ist.
