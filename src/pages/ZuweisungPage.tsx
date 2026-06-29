@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
-  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText,
+  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail,
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, updateRecallPatient } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
@@ -12,6 +12,37 @@ function formatDate(s: string | null | undefined): string {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (!m) return s
   return `${m[3]}.${m[2]}.${m[1]}`
+}
+
+/** Vergangene volle Wochen seit dem Datum (oder null wenn ungültig). */
+function wochenSeit(datum: string | null | undefined): number | null {
+  if (!datum) return null
+  const m = datum.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return null
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  const diff = Date.now() - d.getTime()
+  return diff < 0 ? 0 : Math.floor(diff / (7 * 24 * 3600 * 1000))
+}
+
+/** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
+ *  Empfänger bleibt leer — die Adresse der Zielstelle wird vom Nutzer ergänzt. */
+function sendBerichtNachfrage(p: RecallPatient) {
+  const z = p.zuweisung!
+  const name = (p.vorname || '').trim() || 'unserer Patientin / unserem Patienten'
+  const pid = p.pid ? ` (PID #${p.pid})` : ''
+  const subject = `Bericht-Nachfrage – Zuweisung ${name}${pid}`
+  const body = [
+    'Sehr geehrte Damen und Herren',
+    '',
+    `am ${formatDate(z.datum)} haben wir Ihnen ${name}${p.gebDatum ? ` (geb. ${formatDate(p.gebDatum)})` : ''} zugewiesen${z.grund ? ` – Grund: ${z.grund}` : ''}.`,
+    'Bisher ist bei uns noch kein Abschlussbericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
+    '',
+    'Besten Dank und freundliche Grüsse',
+    'Augenzentrum Suhr',
+    'Tel. +41 62 842 18 46 · info@augenzentrum-suhr.ch',
+  ].join('\n')
+  const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  try { window.open(url) } catch { window.location.href = url }
 }
 
 type FilterStatus = 'alle' | 'pendent' | 'erledigt'
@@ -199,6 +230,20 @@ export default function ZuweisungPage() {
                         <CalendarDays className="w-3 h-3" />
                         Zugewiesen: {formatDate(z.datum)}
                       </span>
+                      {!isErledigt && (() => {
+                        const w = wochenSeit(z.datum)
+                        if (w === null) return null
+                        const cls = w >= 8 ? 'bg-red-50 text-red-700 border-red-200'
+                          : w >= 4 ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-gray-50 text-gray-500 border-gray-200'
+                        return (
+                          <span className={`flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded-full border ${cls}`}
+                            title={w >= 8 ? 'Bericht überfällig (> 8 Wochen)' : 'Wochen seit der Zuweisung'}>
+                            <Clock className="w-3 h-3" />
+                            {w === 0 ? 'diese Woche' : `seit ${w} Woche${w === 1 ? '' : 'n'}`}
+                          </span>
+                        )
+                      })()}
                       {isErledigt && z.erledigtAm && (
                         <span className="text-green-600 font-medium flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
@@ -219,6 +264,16 @@ export default function ZuweisungPage() {
 
                   {/* Actions */}
                   <div className="shrink-0 flex items-center gap-1.5">
+                    {!z.berichtErhalten && (
+                      <button
+                        onClick={() => sendBerichtNachfrage(p)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                        title="Bericht per E-Mail nachfragen (Empfänger ergänzen)"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Bericht anfragen
+                      </button>
+                    )}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
