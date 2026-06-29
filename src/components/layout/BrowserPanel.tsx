@@ -1529,6 +1529,9 @@ export default function BrowserPanel() {
   // erneut zu oeffnen — und ein hängengebliebener Zaehler verschwindet.
   const liveStaleSet = new Set(staleRecallPids)
   const liveKnownSet = new Set(knownRecallPids)
+  // Nur Tage im ±14-Tage-Fenster um den aktuell geprüften Tag berücksichtigen.
+  const refMs = staleReferenceDate ? Date.parse(staleReferenceDate + 'T00:00:00Z') : null
+  const WINDOW_MS = 14 * 24 * 3600 * 1000
   const dayEntries = Object.entries(dayHistory)
     .map(([date, rec]) => {
       const stalePids = rec.stalePids.filter(p => liveStaleSet.has(p))
@@ -1536,8 +1539,13 @@ export default function BrowserPanel() {
       return [date, { stale: stalePids.length, missing: missingPids.length, stalePids, missingPids }] as const
     })
     .filter(([, counts]) => counts.stale > 0 || counts.missing > 0)
+    .filter(([date]) => {
+      if (refMs === null) return true
+      const d = Date.parse(date + 'T00:00:00Z')
+      return Number.isNaN(d) ? true : Math.abs(d - refMs) <= WINDOW_MS
+    })
     .sort(([a], [b]) => b.localeCompare(a))  // Neueste zuerst
-    .slice(0, 2)  // Nur die letzten 2 Tage
+    .slice(0, 2)  // Nur die letzten 2 Tage gleichzeitig — weitere rücken nach
   const hasAnyPastData = dayEntries.length > 0
 
   return (
