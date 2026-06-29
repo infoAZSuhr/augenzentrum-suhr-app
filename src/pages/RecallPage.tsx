@@ -527,7 +527,7 @@ export default function RecallPage() {
   const toast = useToast()
   const navigate     = useNavigate()
   const location     = useLocation()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris, requestTerminAnlegen, setLirisSuppressed } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris, requestTerminAnlegen, setLirisSuppressed, lirisPanelWidth } = useBrowser()
   const postausgang = usePostausgang()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
@@ -675,11 +675,13 @@ export default function RecallPage() {
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
 
-  // Liris-Webview unsichtbar schalten, solange ein App-Dialog offen ist
-  // (Bearbeiten / Aufgebot) — sonst malt das <webview> darüber (z-index-Bug).
+  // Aufgebot-Dialog: Liris ausblenden (würde sonst darüber malen).
+  // «Patienten bearbeiten» blendet Liris NICHT aus — der Dialog wird stattdessen
+  // neben das Liris-Panel versetzt (siehe modal-Style), damit man den Termin in
+  // Liris gleichzeitig sieht/bearbeiten kann.
   useEffect(() => {
-    setLirisSuppressed(!!editTarget || !!aufgebotTarget)
-  }, [editTarget, aufgebotTarget, setLirisSuppressed])
+    setLirisSuppressed(!!aufgebotTarget)
+  }, [aufgebotTarget, setLirisSuppressed])
   useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed]  = useState(true)   // Dialog bleibt schmal (Vorschau ist Popup)
@@ -6284,7 +6286,9 @@ export default function RecallPage() {
             ref={modalRef}
             style={modalPos
               ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))' }
-              : { position: 'fixed', left: '50%',       top: '50%',      zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))', transform: 'translate(-50%,-50%)' }
+              // Standardposition: in der Mitte des SICHTBAREN App-Bereichs (links
+              // vom Liris-Panel), damit der Dialog nicht von Liris überdeckt wird.
+              : { position: 'fixed', left: `calc(50% - ${lirisPanelWidth / 2}px)`, top: '50%', zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))', transform: 'translate(-50%,-50%)' }
             }
             className="bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col"
           >

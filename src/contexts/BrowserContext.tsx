@@ -92,6 +92,10 @@ interface BrowserContextType {
    *  Das Webview bleibt geladen — kein Reload. */
   lirisSuppressed: boolean
   setLirisSuppressed: (v: boolean) => void
+  /** Sichtbare Breite des Liris-Panels in px (0 wenn nicht offen). Vom
+   *  BrowserPanel gemeldet, damit App-Dialoge daneben statt darüber liegen. */
+  lirisPanelWidth: number
+  setLirisPanelWidth: (w: number) => void
 }
 
 const BrowserContext = createContext<BrowserContextType>({
@@ -129,6 +133,8 @@ const BrowserContext = createContext<BrowserContextType>({
   setStaleReferenceDate: () => {},
   lirisSuppressed: false,
   setLirisSuppressed: () => {},
+  lirisPanelWidth: 0,
+  setLirisPanelWidth: () => {},
 })
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
@@ -148,12 +154,15 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [knownRecallPids, setKnownRecallPids] = useState<string[]>([])
   const [staleReferenceDate, setStaleReferenceDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [lirisSuppressed, setLirisSuppressed] = useState(false)
+  const [lirisPanelWidth, setLirisPanelWidth] = useState(0)
 
   return (
     <BrowserContext.Provider value={{
       isOpen,
       lirisSuppressed,
       setLirisSuppressed,
+      lirisPanelWidth,
+      setLirisPanelWidth,
       selectedText,
       defaultUrl,
       pendingPid,

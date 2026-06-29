@@ -393,7 +393,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest, lirisSuppressed } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest, lirisSuppressed, setLirisPanelWidth } = useBrowser()
 
   // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
   // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
@@ -519,6 +519,13 @@ export default function BrowserPanel() {
   })
   const [collapsed, setCollapsed] = useState(false)  // schnell eingeklappt — Liris bleibt geladen
   const [resizing, setResizing] = useState(false)    // true während Breiten-Drag (Overlay über Webview)
+
+  // Sichtbare Panel-Breite an den Context melden, damit App-Dialoge
+  // (Patient bearbeiten) daneben statt darüber positioniert werden können.
+  useEffect(() => {
+    setLirisPanelWidth(collapsed ? 40 : width)
+    return () => setLirisPanelWidth(0)
+  }, [collapsed, width, setLirisPanelWidth])
   const resizeRafRef = useRef<number | null>(null)
   // Tastenkürzel Strg+L / Cmd+L: Liris ein-/ausklappen.
   useEffect(() => {
