@@ -507,9 +507,6 @@ export default function BrowserPanel() {
   const [markStaleCount, setMarkStaleCount] = useState(0)
   const [markMissingCount, setMarkMissingCount] = useState(0)
   const [markIsAkte, setMarkIsAkte] = useState(false)   // Patienten-Akte offen (keine Tagesliste)
-  // Entwickler-Helfer: nächstes in Liris angeklicktes Element abfangen + anzeigen
-  const [inspecting, setInspecting] = useState(false)
-  const [inspectResult, setInspectResult] = useState<string | null>(null)
   // Markierte PIDs des letzten Scans (eindeutig). Werden pro Tag in dayHistory
   // gespeichert, damit die angezeigte Zahl live gegen die aktuellen offenen
   // Recall-PIDs berechnet werden kann (Selbstkorrektur beim Bearbeiten).
@@ -1649,70 +1646,6 @@ export default function BrowserPanel() {
             className="min-w-0 flex-1 max-w-[260px] px-2 py-0.5 text-[10px] text-gray-600 bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary-300 truncate"
           />
 
-          {/* Entwickler-Helfer: nächstes angeklicktes Liris-Element melden */}
-          <button
-            onClick={async () => {
-              const wv = webviewRef.current as any
-              if (!wv?.executeJavaScript) return
-              setInspectResult(null)
-              setInspecting(true)
-              try {
-                const r = await wv.executeJavaScript(`(function(){
-                  return new Promise(function(resolve){
-                    function fmt(n){ if(!n||!n.tagName) return ''; var c=(n.className&&n.className.toString)?n.className.toString():''; return n.tagName.toLowerCase()+(n.id?('#'+n.id):'')+(c?('.'+c.trim().split(/\\s+/).join('.')):''); }
-                    function handler(e){
-                      document.removeEventListener('click', handler, true);
-                      try { e.preventDefault(); e.stopPropagation(); } catch(_){}
-                      var el=e.target; var chain=[]; var c=el;
-                      for(var i=0;i<6&&c;i++){ chain.push(fmt(c)); c=c.parentElement; }
-                      var oc=(el.getAttribute&&el.getAttribute('onclick'))||'';
-                      resolve('ELEMENT: '+fmt(el)+'\\nonclick: '+oc+'\\nKETTE: '+chain.join('  >  ')+'\\n\\nOUTER-HTML:\\n'+((el.outerHTML||'').slice(0,1500)));
-                    }
-                    document.addEventListener('click', handler, true);
-                    setTimeout(function(){ document.removeEventListener('click', handler, true); resolve('(kein Klick erkannt — abgebrochen)'); }, 30000);
-                  });
-                })()`)
-                setInspectResult(typeof r === 'string' ? r : JSON.stringify(r))
-              } catch (e) {
-                setInspectResult('Fehler: ' + String(e))
-              } finally {
-                setInspecting(false)
-              }
-            }}
-            title="Entwickler: nächstes in Liris angeklicktes Element anzeigen"
-            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors ${inspecting ? 'bg-amber-100 text-amber-700 border-amber-300 animate-pulse' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}`}
-          >
-            {inspecting ? 'klick…' : 'HTML'}
-          </button>
-
-          {/* Entwickler-Helfer: «Termin bearbeiten»-Panel-Struktur auslesen */}
-          <button
-            onClick={async () => {
-              const wv = webviewRef.current as any
-              if (!wv?.executeJavaScript) return
-              setInspectResult('lese…')
-              try {
-                const r = await wv.executeJavaScript(`(function(){
-                  function info(n){ if(!n||!n.tagName) return ''; var c=(n.className&&n.className.toString)?n.className.toString():''; return n.tagName.toLowerCase()+(n.id?('#'+n.id):'')+(c?('.'+c.trim().split(/\\s+/).slice(0,8).join('.')):''); }
-                  var els=document.querySelectorAll('div,span,a,h1,h2,h3,h4,td,th,button,label');
-                  var hdr=null;
-                  for(var i=0;i<els.length;i++){ var tx=(els[i].textContent||'').trim(); if(tx==='Termin bearbeiten'||tx.indexOf('Zur')===0&&tx.indexOf('ck zu')>0){ hdr=els[i]; break; } }
-                  if(!hdr){ for(var j=0;j<els.length;j++){ var t2=(els[j].textContent||'').trim(); if(t2.indexOf('Zusätzliche Kommentare')>=0||t2==='Grund'){ hdr=els[j]; break; } } }
-                  if(!hdr) return 'Kein Termin-Header gefunden. Bitte zuerst "Termin bearbeiten" anzeigen.';
-                  var panel=hdr; for(var k=0;k<6;k++){ if(panel.parentElement) panel=panel.parentElement; }
-                  var hidden=[]; var d=panel.querySelectorAll('*');
-                  for(var m=0;m<d.length;m++){ try{ var s=getComputedStyle(d[m]); }catch(_){ continue; } if((s.display==='none'||s.visibility==='hidden') && (d[m].textContent||'').trim()){ hidden.push(info(d[m])+'  txt="'+(d[m].textContent||'').trim().slice(0,28)+'"'); if(hidden.length>=30) break; } }
-                  return 'HEADER: '+info(hdr)+'\\n\\nVERSTECKTE ELEMENTE ('+hidden.length+'):\\n'+hidden.join('\\n')+'\\n\\nPANEL-HTML (gekürzt):\\n'+((panel.outerHTML||'').slice(0,6000));
-                })()`)
-                setInspectResult(typeof r === 'string' ? r : JSON.stringify(r))
-              } catch (e) { setInspectResult('Fehler: ' + String(e)) }
-            }}
-            title="Entwickler: Struktur des «Termin bearbeiten»-Bereichs auslesen"
-            className="px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-white text-gray-500 border-gray-200 hover:bg-gray-100 transition-colors"
-          >
-            Panel
-          </button>
-
           <div className="flex-1" />
 
           {/* Meldung: Aggregierte Zähler von mehreren vergangenen Tagen.
@@ -1908,27 +1841,11 @@ export default function BrowserPanel() {
             disablewebsecurity="false"
             // visibility:hidden statt display:none → Webview bleibt geladen
             // (kein Liris-Reload), malt aber nicht über App-Dialoge.
-            style={{ minHeight: 0, visibility: (lirisSuppressed || !!inspectResult) ? 'hidden' : 'visible' }}
+            style={{ minHeight: 0, visibility: lirisSuppressed ? 'hidden' : 'visible' }}
           />
-          {lirisSuppressed && !inspectResult && (
+          {lirisSuppressed && (
             <div className="absolute inset-0 bg-white/95 flex items-center justify-center text-center px-3 text-xs text-gray-400 select-none">
               Liris ausgeblendet, während ein Dialog offen ist
-            </div>
-          )}
-          {inspectResult && (
-            <div className="absolute inset-0 bg-white flex flex-col p-3 gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-700">Liris-Element (für die Entwicklung)</span>
-                <button onClick={() => setInspectResult(null)} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
-              </div>
-              <textarea readOnly value={inspectResult} className="flex-1 w-full text-[10px] font-mono border border-gray-200 rounded p-2 resize-none" onFocus={e => e.currentTarget.select()} />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { navigator.clipboard?.writeText(inspectResult).catch(() => {}) }}
-                  className="px-3 py-1 rounded bg-primary-600 text-white text-xs font-semibold hover:bg-primary-700"
-                >Kopieren</button>
-                <button onClick={() => setInspectResult(null)} className="px-3 py-1 rounded bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200">Schliessen</button>
-              </div>
             </div>
           )}
         </div>
