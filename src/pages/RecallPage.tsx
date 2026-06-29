@@ -4091,7 +4091,8 @@ export default function RecallPage() {
         </div>
       )}
 
-      {/* Toolbar — mobile: icons-only, kompakte Paddings; ab sm: volle Labels */}
+      {/* Toolbar (Neu, Zuweisungen, Auswertung …) — im RECALL-Register ausgeblendet */}
+      {activeTab !== AUFGEBOT_TAB && (
       <div className="shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between px-2 sm:px-6 py-2 sm:py-3 bg-white border-b border-gray-200">
         <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto">
 
@@ -4179,6 +4180,7 @@ export default function RecallPage() {
           )}
         </div>
       </div>
+      )}
 
 
 
