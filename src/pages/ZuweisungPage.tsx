@@ -6,6 +6,9 @@ import {
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, updateRecallPatient } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
+import { useBrowser } from '../contexts/BrowserContext'
+
+const isElectron = typeof window !== 'undefined' && !!(window as { electronApp?: unknown }).electronApp
 
 function formatDate(s: string | null | undefined): string {
   if (!s || s === 'kein Termin') return '—'
@@ -26,9 +29,18 @@ function wochenSeit(datum: string | null | undefined): number | null {
 
 /** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
  *  Empfänger bleibt leer — die Adresse der Zielstelle wird vom Nutzer ergänzt. */
+/** Vollständiger Name inkl. Nachname. `vorname` enthält bei Liris-Daten oft schon
+ *  «Nachname Vorname»; das Legacy-Feld `name` wird ergänzt, falls noch nicht enthalten. */
+function vollName(p: RecallPatient): string {
+  const v = (p.vorname || '').trim()
+  const n = ((p as { name?: string | null }).name || '').trim()
+  if (n && (!v || !v.toLowerCase().includes(n.toLowerCase()))) return `${n} ${v}`.trim()
+  return v || n
+}
+
 function sendBerichtNachfrage(p: RecallPatient) {
   const z = p.zuweisung!
-  const name = (p.vorname || '').trim() || 'unserer Patientin / unserem Patienten'
+  const name = vollName(p) || 'unserer Patientin / unserem Patienten'
   const pid = p.pid ? ` (PID #${p.pid})` : ''
   const subject = `Bericht-Nachfrage – Zuweisung ${name}${pid}`
   const body = [
@@ -51,7 +63,14 @@ type FilterTyp    = 'alle' | 'intern' | 'extern'
 export default function ZuweisungPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const { open: openBrowser, openWithPid } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
+
+  const openInLiris = (p: RecallPatient) => {
+    if (!p.pid) return
+    openBrowser()
+    openWithPid(p.pid)
+  }
 
   const [patients, setPatients] = useState<RecallPatient[]>([])
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('pendent')
@@ -264,6 +283,16 @@ export default function ZuweisungPage() {
 
                   {/* Actions */}
                   <div className="shrink-0 flex items-center gap-1.5">
+                    {isElectron && p.pid && (
+                      <button
+                        onClick={() => openInLiris(p)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors"
+                        title="Patient in Liris öffnen"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Liris
+                      </button>
+                    )}
                     {!z.berichtErhalten && (
                       <button
                         onClick={() => sendBerichtNachfrage(p)}

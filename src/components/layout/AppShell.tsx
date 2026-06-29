@@ -1410,7 +1410,7 @@ export default function AppShell() {
             Interaktion, daher auch hier hidden. */}
         {typeof window !== 'undefined'
           && (window as any).electronApp
-          && (location.pathname.startsWith('/recall') || location.pathname.startsWith('/ivom'))
+          && (location.pathname.startsWith('/recall') || location.pathname.startsWith('/ivom') || location.pathname.startsWith('/zuweisung'))
           && <BrowserPanel />}
       </div>
 
