@@ -4005,29 +4005,6 @@ export default function RecallPage() {
       <div className="px-6 pt-4 border-b border-gray-200 bg-white shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <BackButton />
-          {/* Suche — nur in den Arzt-/Listen-Registern, NICHT im RECALL-Register.
-              Filtert die Liste arztübergreifend (Name, PID, Geb.-Datum). */}
-          {activeTab !== AUFGEBOT_TAB && (
-          <div className="relative flex-1 sm:max-w-md ml-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Suche (Name, PID, Geburtsdatum)…"
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                title="Suche leeren"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          )}
         </div>
         <nav className="flex gap-1 flex-wrap">
           {allTabs.map(tab => {
@@ -4085,6 +4062,32 @@ export default function RecallPage() {
         <div className="shrink-0 px-4 sm:px-6 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
           {importingZuBearb && <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin shrink-0" />}
           <p className="text-xs text-amber-800 font-medium">{syncMsg}</p>
+        </div>
+      )}
+
+      {/* Such-Zeile — nur in den Arzt-/Listen-Registern, NICHT im RECALL-Register.
+          Filtert die Liste arztübergreifend (Name, PID, Geburtsdatum). */}
+      {activeTab !== AUFGEBOT_TAB && (
+        <div className="shrink-0 px-2 sm:px-6 py-2 bg-white border-b border-gray-100">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Suche (Name, PID, Geburtsdatum)…"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                title="Suche leeren"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
