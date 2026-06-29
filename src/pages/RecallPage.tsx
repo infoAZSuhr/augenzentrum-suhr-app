@@ -562,17 +562,6 @@ export default function RecallPage() {
 
   // Search
   const [search, setSearch]         = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
-  const popupRef  = useRef<HTMLDivElement>(null)
-  const [inputRect, setInputRect] = useState<{ top: number; left: number; width: number } | null>(null)
-
-  function captureRect() {
-    if (searchRef.current) {
-      const r = searchRef.current.getBoundingClientRect()
-      setInputRect({ top: r.bottom + 6, left: r.left, width: r.width })
-    }
-  }
 
   // Edit modal
   const [editTarget, setEditTarget] = useState<EditTarget>(null)
@@ -2369,22 +2358,10 @@ export default function RecallPage() {
     }
   }, [allData])
 
-  // Close popup on click outside (checks both the input wrapper AND the popup itself)
-  useEffect(() => {
-    function onMouseDown(e: MouseEvent) {
-      const t = e.target as Node
-      const inSearch = searchRef.current?.contains(t) ?? false
-      const inPopup  = popupRef.current?.contains(t)  ?? false
-      if (!inSearch && !inPopup) setSearchOpen(false)
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [])
-
-  // Close popup on Escape
+  // Suche per Escape leeren
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { setSearchOpen(false); setSearch('') }
+      if (e.key === 'Escape') setSearch('')
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -4028,6 +4005,26 @@ export default function RecallPage() {
       <div className="px-6 pt-4 border-b border-gray-200 bg-white shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <BackButton />
+          {/* Suche — filtert die Liste arztübergreifend (Name, PID, Geb.-Datum) */}
+          <div className="relative flex-1 sm:max-w-md ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Suche (Name, PID, Geburtsdatum)…"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                title="Suche leeren"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
         <nav className="flex gap-1 flex-wrap">
           {allTabs.map(tab => {
@@ -4091,27 +4088,6 @@ export default function RecallPage() {
       {/* Toolbar — mobile: icons-only, kompakte Paddings; ab sm: volle Labels */}
       <div className="shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between px-2 sm:px-6 py-2 sm:py-3 bg-white border-b border-gray-200">
         <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto">
-
-          {/* Global search */}
-          <div ref={searchRef} className="flex-1 sm:w-96 relative">
-            <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setSearchOpen(true); captureRect() }}
-              onFocus={() => { if (search.trim().length >= 2) { setSearchOpen(true); captureRect() } }}
-              placeholder="Suche…"
-              className="w-full pl-8 sm:pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
-            />
-            {search && (
-              <button
-                onClick={() => { setSearch(''); setSearchOpen(false) }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
 
           {/* New patient */}
           <button
