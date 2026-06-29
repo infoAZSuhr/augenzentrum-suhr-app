@@ -893,12 +893,13 @@ export default function BrowserPanel() {
             var st = document.createElement('style');
             st.id = '__az_recall_css';
             st.textContent =
-              // Outline (aeusserer Rand) + Hintergrund-Tint. Der Tint rendert
-              // zuverlaessig auf jedem Element-Typ (auch <tr>/<td>/Flex), wo
-              // eine reine outline manchmal nicht sichtbar ist.
-              '.az-recall-row-stale{outline:3px solid #eab308 !important;outline-offset:2px !important;background-color:rgba(234,179,8,0.25) !important;position:relative !important;z-index:9999 !important;}'+
-              '.az-recall-row-missing{outline:3px solid #0284c7 !important;outline-offset:2px !important;background-color:rgba(2,132,199,0.25) !important;position:relative !important;z-index:9999 !important;}'+
-              '[data-az-recall-pid] [data-az-recall-pid]{outline:none !important;background-color:transparent !important;}';
+              // INNEN liegender Rahmen (box-shadow inset) statt outline: wird
+              // innerhalb der Zeile gezeichnet und kann daher NICHT von
+              // benachbarten markierten Zeilen ueberlappt/uebermalt werden →
+              // jede markierte Zeile hat denselben sauberen Rahmen + Tint.
+              '.az-recall-row-stale{box-shadow:inset 0 0 0 3px #eab308 !important;background-color:rgba(234,179,8,0.25) !important;position:relative !important;z-index:9999 !important;}'+
+              '.az-recall-row-missing{box-shadow:inset 0 0 0 3px #0284c7 !important;background-color:rgba(2,132,199,0.25) !important;position:relative !important;z-index:9999 !important;}'+
+              '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;background-color:transparent !important;}';
             document.documentElement.appendChild(st);
           }
           // TreeWalker: alle Text-Nodes mit '#' scannen
