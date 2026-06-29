@@ -1322,6 +1322,12 @@ export default function BrowserPanel() {
         .then((res: any) => {
           console.log('[Liris] inject script done, result=', res)
           clearPendingPid()
+          // WICHTIG: Nach der Injektion hat das Liris-<webview> den Tastatur-
+          // Fokus (el.focus() für die Suche). Den Fokus aktiv ans App-Fenster
+          // zurückgeben, sonst sind Eingaben im «Patient bearbeiten»-Modal
+          // blockiert. Mehrfach blurren, da Liris den Fokus verzögert greift.
+          const releaseFocus = () => { try { (webviewRef.current as any)?.blur?.() } catch { /* ignore */ } }
+          releaseFocus(); [120, 400, 900].forEach(ms => window.setTimeout(releaseFocus, ms))
           // Termin-Event angeklickt → "Termin bearbeiten" ist offen, keine Akte.
           // Kein Auto-Auslesen (die Termin-Ansicht enthält die Akten-Daten nicht).
           if (res === 'termin-clicked') {
