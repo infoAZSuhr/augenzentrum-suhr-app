@@ -4586,6 +4586,13 @@ export default function RecallPage() {
                             if (upcoming) return <span title={`Reminder geplant am ${formatDate(upcoming)}`} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 shrink-0">🔔 {formatDate(upcoming)}</span>
                             return null
                           })()}
+                          {isNachfassFaellig(row) && (
+                            <span
+                              title="Aufgeboten, aber seit über 8 Wochen kein Termin gebucht — bitte nachfassen. Nach dem 1. Brief als nächste Stufe telefonisch nachfassen."
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 shrink-0 cursor-help">
+                              ↻ Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
+                            </span>
+                          )}
                         </span>
                         {search.trim().length >= 2 && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 self-start leading-tight">{row.doctor}</span>
@@ -4660,13 +4667,6 @@ export default function RecallPage() {
                             )
                           })}
                         </div>
-                        {isNachfassFaellig(row) && (
-                          <span
-                            title="Aufgeboten, aber seit über 8 Wochen kein Termin gebucht — Vorschlag für die nächste Eskalationsstufe."
-                            className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap w-fit">
-                            Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
