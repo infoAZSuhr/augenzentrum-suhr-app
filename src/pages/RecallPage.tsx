@@ -242,7 +242,7 @@ function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null
  *  KEIN (zukünftiger) Termin gebucht. -> Patient hat nicht reagiert. */
 function isNachfassFaellig(
   p: { letzteKons?: string | null; naechsteKons?: string | null; patientenStatus?: string | null; aufgebotErstellt?: string | null; aufgebotArt?: string | null },
-  weeks = 4,
+  weeks = 8,
 ): boolean {
   if (p.patientenStatus === 'kein Aufgebot' || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
   if (!p.aufgebotArt || !p.aufgebotErstellt) return false
@@ -2265,7 +2265,7 @@ export default function RecallPage() {
     // ── Sicherheitsnetz: Risikogruppen, in denen Patienten durchrutschen ──────
     // Jede Liste ist anklickbar (Popup → Patient bearbeiten).
     const wochenAgoIso = (n: number) => { const d = new Date(now); d.setDate(now.getDate() - n * 7); return d.toISOString().slice(0, 10) }
-    const w4ago = wochenAgoIso(4), w8ago = wochenAgoIso(8), w26ago = wochenAgoIso(26)
+    const w8ago = wochenAgoIso(8), w26ago = wochenAgoIso(26)
     const toRisk = (p: RecallPatient, grund: string) => ({
       pid: normalizePid(p.pid ?? ''),
       name: titleCaseName((p.vorname ?? '').trim()) || '(ohne Name)',
@@ -2285,12 +2285,12 @@ export default function RecallPage() {
       .sort(byName)
 
     // 3) Reminder ohne Reaktion: Reminder im aktuellen Zyklus, kein Termin
-    //    gebucht, 4–26 Wochen her (schliesst das 6-Monats-Blindfenster).
+    //    gebucht, 8–26 Wochen her (schliesst das 6-Monats-Blindfenster).
     const riskReminder = activeAll
       .filter(p => p.aufgebotArt === 'Reminder' && p.aufgebotErstellt
         && !hasRealTermin(p)
         && p.aufgebotErstellt >= (p.letzteKons || '')
-        && p.aufgebotErstellt <= w4ago && p.aufgebotErstellt >= w26ago)
+        && p.aufgebotErstellt <= w8ago && p.aufgebotErstellt >= w26ago)
       .map(p => toRisk(p, `Reminder vom ${formatDate(p.aufgebotErstellt)} – keine Reaktion`))
       .sort(byName)
 
@@ -4662,7 +4662,7 @@ export default function RecallPage() {
                         </div>
                         {isNachfassFaellig(row) && (
                           <span
-                            title="Aufgeboten, aber seit über 4 Wochen kein Termin gebucht — Vorschlag für die nächste Eskalationsstufe."
+                            title="Aufgeboten, aber seit über 8 Wochen kein Termin gebucht — Vorschlag für die nächste Eskalationsstufe."
                             className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap w-fit">
                             Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
                           </span>
@@ -5784,7 +5784,7 @@ export default function RecallPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {([
                     { kind: 'termin' as const, key: 'inPlanung'    as FilterTermin, label: 'Geplante Recalls', sub: 'RC-Datum oder im Recall',           value: auswertungStats.upcoming.inPlanung,         color: 'bg-amber-50 text-amber-700 border-amber-100' },
-                    { kind: 'termin' as const, key: 'nachfass'     as FilterTermin, label: 'Nachfassen',       sub: 'aufgeboten, >4 Wo. ohne Termin',    value: auswertungStats.upcoming.nachfass,          color: 'bg-orange-50 text-orange-700 border-orange-100' },
+                    { kind: 'termin' as const, key: 'nachfass'     as FilterTermin, label: 'Nachfassen',       sub: 'aufgeboten, >8 Wo. ohne Termin',    value: auswertungStats.upcoming.nachfass,          color: 'bg-orange-50 text-orange-700 border-orange-100' },
                     { kind: 'termin' as const, key: 'ohneTermin'   as FilterTermin, label: 'Wirklich offen',   sub: 'kein Termin, kein RC',              value: auswertungStats.upcoming.ohneTermin,        color: 'bg-gray-50 text-gray-700 border-gray-200' },
                     { kind: 'status' as const, key: 'wartetBericht'as FilterStatus, label: 'Wartet auf Bericht', sub: 'Zuweisung ausstehend',            value: auswertungStats.upcoming.wartetBericht,     color: 'bg-cyan-50 text-cyan-700 border-cyan-100' },
                     { kind: 'status' as const, key: 'reminder'     as FilterStatus, label: 'Status: Reminder', sub: 'meldet sich noch',                  value: auswertungStats.upcoming.statusReminder,    color: 'bg-purple-50 text-purple-700 border-purple-100' },
@@ -5917,7 +5917,7 @@ export default function RecallPage() {
                   const cards = [
                     { key: 'zuw',   label: 'Zuweisung überfällig',     sub: 'Bericht > 8 Wochen ausstehend',     list: auswertungStats.riskZuweisung, color: 'amber'  },
                     { key: 'brief', label: 'Hängende Briefe',          sub: '> 24 h nicht hochgeladen/versandt',  list: haengende,                     color: 'red'    },
-                    { key: 'rem',   label: 'Reminder ohne Reaktion',   sub: '4–26 Wochen, kein Termin gebucht',   list: auswertungStats.riskReminder,  color: 'sky'    },
+                    { key: 'rem',   label: 'Reminder ohne Reaktion',   sub: '8–26 Wochen, kein Termin gebucht',   list: auswertungStats.riskReminder,  color: 'sky'    },
                     { key: 'addr',  label: 'Adresse veraltet / retour', sub: 'Brief erreicht den Patienten nicht', list: auswertungStats.riskAdresse,   color: 'orange' },
                     { key: 'deakt', label: 'Kürzlich deaktiviert',      sub: 'inaktiv/kein Aufgebot < 30 Tage – prüfen', list: auswertungStats.riskDeaktiviert, color: 'amber' },
                     { key: 'ausg',  label: 'Ausgeschiedene Ärzte',      sub: 'Recall nötig, kein Verantwortlicher', list: auswertungStats.riskAusgeschieden, color: 'red' },
