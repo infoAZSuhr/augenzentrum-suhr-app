@@ -1608,6 +1608,19 @@ export default function BrowserPanel() {
             <RotateCcw className={`w-3.5 h-3.5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
+          {/* Kompakte URL-Leiste */}
+          <input
+            type="text"
+            value={inputUrl}
+            onChange={e => setInputUrl(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { navigate(inputUrl); (e.currentTarget as HTMLInputElement).blur() } }}
+            onFocus={e => e.currentTarget.select()}
+            spellCheck={false}
+            title={inputUrl}
+            placeholder="URL…"
+            className="min-w-0 flex-1 max-w-[260px] px-2 py-0.5 text-[10px] text-gray-600 bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary-300 truncate"
+          />
+
           <div className="flex-1" />
 
           {/* Meldung: Aggregierte Zähler von mehreren vergangenen Tagen.
