@@ -506,6 +506,7 @@ export default function BrowserPanel() {
   // Anzahl im aktuellen Liris-View markierter (noch nicht aktualisierter) Patienten
   const [markStaleCount, setMarkStaleCount] = useState(0)
   const [markMissingCount, setMarkMissingCount] = useState(0)
+  const [markIsAkte, setMarkIsAkte] = useState(false)   // Patienten-Akte offen (keine Tagesliste)
   // Markierte PIDs des letzten Scans (eindeutig). Werden pro Tag in dayHistory
   // gespeichert, damit die angezeigte Zahl live gegen die aktuellen offenen
   // Recall-PIDs berechnet werden kann (Selbstkorrektur beim Bearbeiten).
@@ -1022,7 +1023,10 @@ export default function BrowserPanel() {
           });
           var staleList = Object.keys(stalePids);
           var missList  = Object.keys(missPids);
-          return { stale: staleList.length, missing: missList.length, stalePids: staleList, missingPids: missList };
+          // Patienten-Akte offen? (kein Tageskalender mit Liste) -> dann den
+          // Tageszaehler NICHT veraendern, damit die Backlog-Meldung weiter steht.
+          var isAkte = /Untersuchung\\s+vom\\s+\\d/i.test(document.body ? (document.body.innerText || '') : '');
+          return { stale: staleList.length, missing: missList.length, stalePids: staleList, missingPids: missList, isAkte: isAkte };
         })();
       `
       wv.executeJavaScript(script).then(function(r: any) {
@@ -1031,6 +1035,7 @@ export default function BrowserPanel() {
           setMarkMissingCount(r.missing || 0)
           setMarkStalePids(Array.isArray(r.stalePids) ? r.stalePids : [])
           setMarkMissingPids(Array.isArray(r.missingPids) ? r.missingPids : [])
+          setMarkIsAkte(!!r.isAkte)
         }
       }).catch(() => {})
     }
@@ -1119,6 +1124,10 @@ export default function BrowserPanel() {
 
   useEffect(() => {
     if (!staleReferenceDate || !isOpen) return
+    // In der Patienten-Akte gibt es keine Tagesliste → der Scan meldet 0 und
+    // würde den Tag sonst löschen. Banner soll weiter angezeigt werden, also
+    // dayHistory hier unverändert lassen.
+    if (markIsAkte) return
     if (staleReferenceDate >= todayIso) return  // Nur vergangene Tage
 
     if (markStaleCount === 0 && markMissingCount === 0) {
@@ -1141,7 +1150,7 @@ export default function BrowserPanel() {
         return newHistory
       })
     }
-  }, [staleReferenceDate, markStaleCount, markMissingCount, markStalePids, markMissingPids, todayIso, isOpen])
+  }, [staleReferenceDate, markStaleCount, markMissingCount, markStalePids, markMissingPids, todayIso, isOpen, markIsAkte])
 
   // Cleanup debounce Timer
   useEffect(() => {
