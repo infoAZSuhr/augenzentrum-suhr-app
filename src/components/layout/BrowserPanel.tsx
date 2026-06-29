@@ -1689,6 +1689,34 @@ export default function BrowserPanel() {
             {inspecting ? 'klick…' : 'HTML'}
           </button>
 
+          {/* Entwickler-Helfer: «Termin bearbeiten»-Panel-Struktur auslesen */}
+          <button
+            onClick={async () => {
+              const wv = webviewRef.current as any
+              if (!wv?.executeJavaScript) return
+              setInspectResult('lese…')
+              try {
+                const r = await wv.executeJavaScript(`(function(){
+                  function info(n){ if(!n||!n.tagName) return ''; var c=(n.className&&n.className.toString)?n.className.toString():''; return n.tagName.toLowerCase()+(n.id?('#'+n.id):'')+(c?('.'+c.trim().split(/\\s+/).slice(0,8).join('.')):''); }
+                  var els=document.querySelectorAll('div,span,a,h1,h2,h3,h4,td,th,button,label');
+                  var hdr=null;
+                  for(var i=0;i<els.length;i++){ var tx=(els[i].textContent||'').trim(); if(tx==='Termin bearbeiten'||tx.indexOf('Zur')===0&&tx.indexOf('ck zu')>0){ hdr=els[i]; break; } }
+                  if(!hdr){ for(var j=0;j<els.length;j++){ var t2=(els[j].textContent||'').trim(); if(t2.indexOf('Zusätzliche Kommentare')>=0||t2==='Grund'){ hdr=els[j]; break; } } }
+                  if(!hdr) return 'Kein Termin-Header gefunden. Bitte zuerst "Termin bearbeiten" anzeigen.';
+                  var panel=hdr; for(var k=0;k<6;k++){ if(panel.parentElement) panel=panel.parentElement; }
+                  var hidden=[]; var d=panel.querySelectorAll('*');
+                  for(var m=0;m<d.length;m++){ try{ var s=getComputedStyle(d[m]); }catch(_){ continue; } if((s.display==='none'||s.visibility==='hidden') && (d[m].textContent||'').trim()){ hidden.push(info(d[m])+'  txt="'+(d[m].textContent||'').trim().slice(0,28)+'"'); if(hidden.length>=30) break; } }
+                  return 'HEADER: '+info(hdr)+'\\n\\nVERSTECKTE ELEMENTE ('+hidden.length+'):\\n'+hidden.join('\\n')+'\\n\\nPANEL-HTML (gekürzt):\\n'+((panel.outerHTML||'').slice(0,6000));
+                })()`)
+                setInspectResult(typeof r === 'string' ? r : JSON.stringify(r))
+              } catch (e) { setInspectResult('Fehler: ' + String(e)) }
+            }}
+            title="Entwickler: Struktur des «Termin bearbeiten»-Bereichs auslesen"
+            className="px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-white text-gray-500 border-gray-200 hover:bg-gray-100 transition-colors"
+          >
+            Panel
+          </button>
+
           <div className="flex-1" />
 
           {/* Meldung: Aggregierte Zähler von mehreren vergangenen Tagen.
