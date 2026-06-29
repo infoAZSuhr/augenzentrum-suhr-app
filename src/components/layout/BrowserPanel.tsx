@@ -393,7 +393,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 }
 
 export default function BrowserPanel() {
-  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest } = useBrowser()
+  const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest, lirisSuppressed } = useBrowser()
 
   // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
   // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
@@ -1805,15 +1805,25 @@ export default function BrowserPanel() {
 
         {/* Webview — partition ist pro User, damit Liris-Logins nicht geteilt werden */}
         {/* @ts-ignore */}
-        <webview
-          ref={webviewRef as any}
-          src={currentUrl}
-          partition={partition}
-          className="flex-1 w-full"
-          allowpopups="true"
-          disablewebsecurity="false"
-          style={{ minHeight: 0 }}
-        />
+        <div className="relative flex-1 min-w-0 flex">
+          {/* @ts-ignore */}
+          <webview
+            ref={webviewRef as any}
+            src={currentUrl}
+            partition={partition}
+            className="flex-1 w-full"
+            allowpopups="true"
+            disablewebsecurity="false"
+            // visibility:hidden statt display:none → Webview bleibt geladen
+            // (kein Liris-Reload), malt aber nicht über App-Dialoge.
+            style={{ minHeight: 0, visibility: lirisSuppressed ? 'hidden' : 'visible' }}
+          />
+          {lirisSuppressed && (
+            <div className="absolute inset-0 bg-white/95 flex items-center justify-center text-center px-3 text-xs text-gray-400 select-none">
+              Liris ausgeblendet, während ein Dialog offen ist
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

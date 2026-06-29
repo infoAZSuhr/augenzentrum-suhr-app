@@ -527,7 +527,7 @@ export default function RecallPage() {
   const toast = useToast()
   const navigate     = useNavigate()
   const location     = useLocation()
-  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris, requestTerminAnlegen } = useBrowser()
+  const { openWithPid, open: openBrowser, lirisExtract, setLirisExtract, recallPidRequest, clearRecallPidRequest, recallNewRequest, clearRecallNewRequest, requestRecallNew, setStaleRecallPids, setKnownRecallPids, staleReferenceDate, reloadLiris, requestTerminAnlegen, setLirisSuppressed } = useBrowser()
   const postausgang = usePostausgang()
   const username     = profile?.username || profile?.displayName || 'System'
   const displayLabel = profile?.displayName || profile?.username || 'System'
@@ -674,6 +674,13 @@ export default function RecallPage() {
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
+
+  // Liris-Webview unsichtbar schalten, solange ein App-Dialog offen ist
+  // (Bearbeiten / Aufgebot) — sonst malt das <webview> darüber (z-index-Bug).
+  useEffect(() => {
+    setLirisSuppressed(!!editTarget || !!aufgebotTarget)
+  }, [editTarget, aufgebotTarget, setLirisSuppressed])
+  useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed]  = useState(true)   // Dialog bleibt schmal (Vorschau ist Popup)
   // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),

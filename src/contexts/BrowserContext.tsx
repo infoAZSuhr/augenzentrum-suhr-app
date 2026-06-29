@@ -87,6 +87,11 @@ interface BrowserContextType {
   setStaleRecallPids: (pids: string[]) => void
   setKnownRecallPids: (pids: string[]) => void
   setStaleReferenceDate: (iso: string) => void
+  /** Wenn true, wird das Liris-<webview> unsichtbar geschaltet (visibility:hidden),
+   *  damit es nicht über App-Dialoge (z.B. «Patienten bearbeiten») malt.
+   *  Das Webview bleibt geladen — kein Reload. */
+  lirisSuppressed: boolean
+  setLirisSuppressed: (v: boolean) => void
 }
 
 const BrowserContext = createContext<BrowserContextType>({
@@ -122,6 +127,8 @@ const BrowserContext = createContext<BrowserContextType>({
   setStaleRecallPids: () => {},
   setKnownRecallPids: () => {},
   setStaleReferenceDate: () => {},
+  lirisSuppressed: false,
+  setLirisSuppressed: () => {},
 })
 
 export function BrowserProvider({ children }: { children: ReactNode }) {
@@ -140,10 +147,13 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const [staleRecallPids, setStaleRecallPids] = useState<string[]>([])
   const [knownRecallPids, setKnownRecallPids] = useState<string[]>([])
   const [staleReferenceDate, setStaleReferenceDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [lirisSuppressed, setLirisSuppressed] = useState(false)
 
   return (
     <BrowserContext.Provider value={{
       isOpen,
+      lirisSuppressed,
+      setLirisSuppressed,
       selectedText,
       defaultUrl,
       pendingPid,
