@@ -913,8 +913,8 @@ export default function BrowserPanel() {
               // innerhalb der Zeile gezeichnet und kann daher NICHT von
               // benachbarten markierten Zeilen ueberlappt/uebermalt werden →
               // jede markierte Zeile hat denselben sauberen Rahmen + Tint.
-              '.az-recall-row-stale{box-shadow:inset 0 0 0 3px #eab308 !important;background-color:rgba(234,179,8,0.25) !important;position:relative !important;z-index:9999 !important;}'+
-              '.az-recall-row-missing{box-shadow:inset 0 0 0 3px #0284c7 !important;background-color:rgba(2,132,199,0.25) !important;position:relative !important;z-index:9999 !important;}'+
+              '.az-recall-row-stale{box-shadow:inset 0 0 0 3px #eab308 !important;position:relative !important;z-index:9999 !important;}'+
+              '.az-recall-row-missing{box-shadow:inset 0 0 0 3px #0284c7 !important;position:relative !important;z-index:9999 !important;}'+
               '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;background-color:transparent !important;}';
             document.documentElement.appendChild(st);
           }
