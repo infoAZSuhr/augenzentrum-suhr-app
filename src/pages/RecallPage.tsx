@@ -4112,10 +4112,10 @@ export default function RecallPage() {
           {/* Zuweisungen */}
           <button
             onClick={() => navigate('/zuweisungen')}
-            title="Zuweisungen verwalten"
+            title="ZW-Management (Zuweisungen verwalten)"
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
           >
-            <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">Zuweisungen</span>
+            <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">ZW-Management</span>
           </button>
 
           {/* Kimenda Excel import – nur auf "Zu bearbeiten" tab UND nur für Admin/GL */}

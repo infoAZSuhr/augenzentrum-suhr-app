@@ -130,7 +130,7 @@ export default function ZuweisungPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-gray-900 leading-tight">Zuweisungen</h1>
+            <h1 className="text-base font-bold text-gray-900 leading-tight">ZW-Management</h1>
             <p className="text-xs text-gray-400 leading-tight">
               {ausstehendCount} pendent · {erledigtCount} erledigt
             </p>
