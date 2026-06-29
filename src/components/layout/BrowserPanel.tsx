@@ -892,6 +892,18 @@ export default function BrowserPanel() {
           // Legacy-Spans entfernen (aeltere Bundle-Versionen).
           var oldSpans = document.querySelectorAll('.az-recall-stale,.az-recall-missing');
           oldSpans.forEach(function(el){var p=el.parentNode;if(p){p.replaceChild(document.createTextNode(el.textContent),el);p.normalize();}});
+          // Alt-Last entfernen: früher injiziertes Layout-CSS liess den
+          // Termin-Formularbereich (#cal-event-edit) auf Höhe 0 kollabieren und
+          // blieb in der Liris-Seite hängen. Hier proaktiv löschen (ohne Reload).
+          var __legacyFormCss = document.getElementById('__az_form_css');
+          if (__legacyFormCss && __legacyFormCss.parentNode) __legacyFormCss.parentNode.removeChild(__legacyFormCss);
+          // Alt-Last: ein evtl. früher von uns gesetztes inline display:none auf
+          // Liris-Such-/Termin-Formularen wieder aufheben (sonst bleibt das
+          // «Termin bearbeiten»-Formular bis zum Reload zugeklappt).
+          ['input[name="pirca-search"]','input[placeholder*="atientensuche"]'].forEach(function(sel){
+            var inp = document.querySelector(sel);
+            if(inp){ var box = inp.closest ? inp.closest('form, .search') : null; if(box && box.style && box.style.display === 'none') box.style.display = ''; }
+          });
           // CSS sicherstellen
           if (!document.getElementById('__az_recall_css')) {
             var st = document.createElement('style');
@@ -1060,19 +1072,10 @@ export default function BrowserPanel() {
     // Klick im Liris (waehrend ein Recall-Modal offen ist) alle 2.5s der
     // Mismatch-/Auto-Fill-Effect, was zu wiederholt aufpoppenden Meldungen
     // fuehrt. Detail-Extract laeuft nur bei echter Navigation/dom-ready.
-    // Blendet das globale 'Allgemeine Suche'-Feld (pirca-search) aus,
-    // sobald eine Patientenakte offen ist (erkannt am Patient-Header).
-    const toggleGlobalSearch = () => {
-      wv.executeJavaScript(`(function(){
-        var body = document.body ? (document.body.textContent || '') : '';
-        var akteOffen = !!document.querySelector('#patient-settings, #soft-id, .patient-header-navigation');
-        var search = document.querySelector('input[name="pirca-search"]');
-        if(search){ var box = search.closest('form, .search') || search; var want = akteOffen ? 'none' : ''; if(box.style.display !== want) box.style.display = want; }
-        var patientSel = /Patientenakte\\s*:?\\s*#|Beauftragter Arzt|Zugewiesener Standort/i.test(body);
-        var pf = document.querySelector('input[placeholder*="atientensuche"]');
-        if(pf){ var pbox = pf.closest('form, .search') || pf; var w2 = patientSel ? 'none' : ''; if(pbox.style.display !== w2) pbox.style.display = w2; }
-      })()`).catch(() => {})
-    }
+    // (Früher: toggleGlobalSearch — blendete redundante Liris-Suchfelder per
+    //  closest('form') aus. Das hat jedoch das ganze «Termin bearbeiten»-Formular
+    //  mit ausgeblendet (das Patientensuche-Feld liegt im selben Formular) →
+    //  Formular klappte alle 3 s zu. Entfernt; rein kosmetischer Nutzen.)
 
     const poll = window.setInterval(() => {
       // Polling laeuft auch bevor dom-ready einmal gefeuert hat — Liris
@@ -1083,7 +1086,6 @@ export default function BrowserPanel() {
       // hat zusaetzlich einen Dirty-Check (laeuft nur bei Aenderungen).
       checkCalendarDay()
       highlightRecallPids()
-      toggleGlobalSearch()
     }, 3000)
 
     return () => {
