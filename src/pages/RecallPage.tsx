@@ -4005,7 +4005,9 @@ export default function RecallPage() {
       <div className="px-6 pt-4 border-b border-gray-200 bg-white shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <BackButton />
-          {/* Suche — filtert die Liste arztübergreifend (Name, PID, Geb.-Datum) */}
+          {/* Suche — nur in den Arzt-/Listen-Registern, NICHT im RECALL-Register.
+              Filtert die Liste arztübergreifend (Name, PID, Geb.-Datum). */}
+          {activeTab !== AUFGEBOT_TAB && (
           <div className="relative flex-1 sm:max-w-md ml-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
@@ -4025,6 +4027,7 @@ export default function RecallPage() {
               </button>
             )}
           </div>
+          )}
         </div>
         <nav className="flex gap-1 flex-wrap">
           {allTabs.map(tab => {
