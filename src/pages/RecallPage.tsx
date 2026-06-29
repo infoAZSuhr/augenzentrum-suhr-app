@@ -4074,17 +4074,19 @@ export default function RecallPage() {
         </div>
       )}
 
-      {/* Such-Zeile — nur in den Arzt-/Listen-Registern, NICHT im RECALL-Register.
-          Filtert die Liste arztübergreifend (Name, PID, Geburtsdatum). */}
+      {/* Toolbar: Suche + Neu, Zuweisungen, Auswertung … — im RECALL-Register ausgeblendet */}
       {activeTab !== AUFGEBOT_TAB && (
-        <div className="shrink-0 px-2 sm:px-6 py-2 bg-white border-b border-gray-100">
-          <div className="relative w-full sm:max-w-md">
+      <div className="shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between px-2 sm:px-6 py-2 sm:py-3 bg-white border-b border-gray-200">
+        <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto">
+
+          {/* Suche — filtert die Liste arztübergreifend (Name, PID, Geburtsdatum) */}
+          <div className="relative flex-1 sm:flex-none sm:w-72 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Suche (Name, PID, Geburtsdatum)…"
+              placeholder="Suche (Name, PID, Geb.-Datum)…"
               className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
             />
             {search && (
@@ -4097,13 +4099,6 @@ export default function RecallPage() {
               </button>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Toolbar (Neu, Zuweisungen, Auswertung …) — im RECALL-Register ausgeblendet */}
-      {activeTab !== AUFGEBOT_TAB && (
-      <div className="shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between px-2 sm:px-6 py-2 sm:py-3 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto">
 
           {/* New patient */}
           <button
