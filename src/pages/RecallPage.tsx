@@ -45,7 +45,7 @@ const OFFEN_LABEL = 'Inaktive Ärzte'              // sichtbares Label im UI
 const AUFGEBOT_TAB = '📅 RECALL'
 const PAGE_SIZE  = 50
 
-const STORNO_GRUENDE = ['Terminverschiebung', 'kein Bedarf', 'Selbstmeldung', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit', 'Zweitmeinung - einmalige Konst.', 'Notfall - einmalige Konst.']
+const STORNO_GRUENDE = ['Terminverschiebung', 'WV bei Bedarf', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit', 'Zweitmeinung - einmalige Konst.', 'Notfall - einmalige Konst.']
 
 const AUFGEBOT_OPTIONS = [
   { value: 'Brief',    Icon: Mail,      label: 'Briefaufgebot' },
@@ -7148,7 +7148,7 @@ export default function RecallPage() {
                           else setField('grundStornierung', v)
                           setField('storniert', 'ja')
                           setField('aufgebotFuer', '')
-                          if (v === 'kein Bedarf' || v === 'Selbstmeldung') setField('patientenStatus', 'kein Aufgebot')
+                          if (v === 'WV bei Bedarf') setField('patientenStatus', 'kein Aufgebot')
                           if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
                           if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
                           if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
