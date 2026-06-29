@@ -693,16 +693,12 @@ export default function BrowserPanel() {
           }
         }, true);
 
-        // Form-Section oben fixieren damit sie nicht weggescrollt wird
-        if (!document.getElementById('__az_form_css')) {
-          var st = document.createElement('style');
-          st.id = '__az_form_css';
-          st.textContent =
-            '#cal-event-side-modules{display:flex !important;flex-direction:column !important;}'+
-            '#cal-event-edit{flex-shrink:0 !important;flex-grow:0 !important;}'+
-            '#cal-event-mini-calendar{flex-shrink:1 !important;overflow:auto !important;}';
-          document.documentElement.appendChild(st);
-        }
+        // (Früher wurde hier CSS injiziert, um die Form-Section oben zu fixieren —
+        //  das liess #cal-event-edit (Formular) jedoch auf Höhe 0 kollabieren und
+        //  blieb dauerhaft in der Liris-Seite hängen → nur Kalender sichtbar.
+        //  Entfernt. Zur Sicherheit ein evtl. früher injiziertes Style-Tag löschen.)
+        var oldCss = document.getElementById('__az_form_css');
+        if (oldCss && oldCss.parentNode) oldCss.parentNode.removeChild(oldCss);
 
         return 'injected';
       })();
