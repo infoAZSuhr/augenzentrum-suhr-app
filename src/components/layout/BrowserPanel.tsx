@@ -205,15 +205,29 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         // Zusätzlicher Kontakt (Eltern/Erziehungsberechtigte bei Minderjährigen)
         var zkStart = allText.search(/Zus[aä]tzlicher\\s+Kontakt/i);
         if (zkStart >= 0) {
-          var zkBlock = allText.slice(zkStart, zkStart + 300);
+          var zkBlock = allText.slice(zkStart, zkStart + 400);
           var zkLines = zkBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
-          // Erste Zeile = Label "Zusätzlicher Kontakt", zweite = Name, danach Adresse
-          if (zkLines.length >= 2) {
-            result.zusKontaktName = zkLines[1];
+          // zkLines[0] = "Zusätzlicher Kontakt"
+          // zkLines[1] kann Sub-Label sein ("Gesetzlicher Vertreter & Rechnungskontakt :")
+          // → überspringen falls es wie ein Titel/Rolle aussieht (endet mit : oder enthält Schlüsselwörter)
+          var zkNameIdx = -1;
+          for (var zi = 1; zi < zkLines.length && zi < 4; zi++) {
+            var ztest = zkLines[zi];
+            if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben)/i.test(ztest)) break;
+            // Sub-Label erkennen: endet mit Doppelpunkt oder enthält Vertreter/Rechnungskontakt/gesetzlich
+            if (/:\\s*$/.test(ztest) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(ztest)) continue;
+            zkNameIdx = zi; break;
+          }
+          if (zkNameIdx >= 0) {
+            // Name bereinigen: "(Vater), 078/..." oder ", 078/..." am Ende abschneiden
+            var zkRaw = zkLines[zkNameIdx];
+            var zkName = zkRaw.replace(/\\s*\\([^)]*\\)/, '').replace(/,\\s*0\\d[\\d\\/\\s]+$/, '').trim();
+            result.zusKontaktName = zkName;
             var zkAddr = [];
-            for (var zi = 2; zi < zkLines.length && zi < 6; zi++) {
-              var zl = zkLines[zi];
+            for (var zj = zkNameIdx + 1; zj < zkLines.length && zj < zkNameIdx + 5; zj++) {
+              var zl = zkLines[zj];
               if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Zus)/i.test(zl)) break;
+              if (/:\\s*$/.test(zl) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(zl)) break;
               var zCombo = zl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
               if (zCombo) { zkAddr.push(zCombo[1].trim(), zCombo[2].trim()); break; }
               if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(zl)) { zkAddr.push(zl); continue; }
