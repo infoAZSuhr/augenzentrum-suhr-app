@@ -22,6 +22,8 @@ export interface LirisExtract {
   naechsterTerminZeit?:  string | null  // HH:MM eines zukuenftigen Liris-Termins
   naechsterTerminRaw?:   string | null  // Rohtext "Nächster Termin"-Spalte aus Liris
   bpText?:               string | null  // Rohtext "Beurteilung und Prozedere" aus Liris
+  zusKontaktName?:       string | null  // Name des zusätzlichen Kontakts (Elternteil bei Minderjährigen)
+  zusKontaktAdresse?:    string | null  // Adresse des zusätzlichen Kontakts (Strasse\nPLZ Ort)
   at:               number              // Timestamp damit Consumer nur frisches sehen
 }
 

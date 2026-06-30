@@ -9,14 +9,14 @@ import { useAuth } from '../../lib/AuthContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null; zusKontaktName: string | null; zusKontaktAdresse: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, zusKontaktName: null, zusKontaktAdresse: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -201,6 +201,28 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(l)) { addrLines.push(l); continue; }
         }
         if (addrLines.length) result.postAdresse = addrLines.join('\\n');
+
+        // Zusätzlicher Kontakt (Eltern/Erziehungsberechtigte bei Minderjährigen)
+        var zkStart = allText.search(/Zus[aä]tzlicher\\s+Kontakt/i);
+        if (zkStart >= 0) {
+          var zkBlock = allText.slice(zkStart, zkStart + 300);
+          var zkLines = zkBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
+          // Erste Zeile = Label "Zusätzlicher Kontakt", zweite = Name, danach Adresse
+          if (zkLines.length >= 2) {
+            result.zusKontaktName = zkLines[1];
+            var zkAddr = [];
+            for (var zi = 2; zi < zkLines.length && zi < 6; zi++) {
+              var zl = zkLines[zi];
+              if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Zus)/i.test(zl)) break;
+              var zCombo = zl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
+              if (zCombo) { zkAddr.push(zCombo[1].trim(), zCombo[2].trim()); break; }
+              if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(zl)) { zkAddr.push(zl); continue; }
+              if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(zl)) { zkAddr.push(zl); break; }
+            }
+            if (zkAddr.length) result.zusKontaktAdresse = zkAddr.join('\\n');
+          }
+        }
+
         // Email aus dem gesamten Kontaktangaben-Bereich (inkl. Telefonbereich
         // darunter) extrahieren. Wir greifen den 600-Zeichen-Block nach
         // 'Kontaktangaben' und nehmen das erste E-Mail-Muster.
@@ -359,7 +381,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       await new Promise(r => setTimeout(r, 1200))
     }
     try {
-      const res = await wv.executeJavaScript(script)
+      const res = await wv.executeJavaScript(script) as any
       if (res?.gebDatum || res?.autor || res?.letzteKons || res?.notFound || res?.vorname || res?.pidMatchesLiris || res?.intervalWeeks || res?.verstorben) {
         console.log('[Liris-Extract] attempt', attempt + 1, 'success:', res)
         return {
@@ -381,6 +403,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           naechsterTerminZeit:  res.naechsterTerminZeit  ?? null,
           naechsterTerminRaw:   res.naechsterTerminRaw   ?? null,
           bpText:              res.bpText               ?? null,
+          zusKontaktName:      res.zusKontaktName       ?? null,
+          zusKontaktAdresse:   res.zusKontaktAdresse    ?? null,
         }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)

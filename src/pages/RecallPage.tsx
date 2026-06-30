@@ -2652,7 +2652,8 @@ export default function RecallPage() {
       // Früherer Arzt = Autor der letzten Untersuchung (für Variante «Neuen Arzt
       // vorschlagen»). Nur vorbefüllen, MPA kann korrigieren.
       if (!f.frueherArzt && lirisExtract.autor) patch.frueherArzt = lirisExtract.autor.trim()
-      // Minderjährig (< 18): Anrede IMMER auf «Familie» — Brief geht an die Familie.
+      // Minderjährig (< 18): Anrede auf «Familie» + Adresse des zusätzlichen Kontakts (Eltern).
+      let isMinor = false
       {
         const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(aufgebotTarget.patient.gebDatum || ''))
         if (m) {
@@ -2660,19 +2661,29 @@ export default function RecallPage() {
           let a = t.getFullYear() - parseInt(m[1], 10)
           const mo = t.getMonth() + 1, d = t.getDate()
           if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
-          if (a >= 0 && a < 18) patch.anrede = 'Familie'
+          if (a >= 0 && a < 18) { patch.anrede = 'Familie'; isMinor = true }
         }
       }
-      if (!f.adressBlock.trim() && lirisExtract.postAdresse) {
-        // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
-        // manuellen Einfügen. Alle Parser (Begrüßung, Adress-Anzeige, E-Mail)
-        // erwarten diese Reihenfolge: das letzte Wort ist der Vorname.
-        // Dadurch nutzt die Anrede den Nachnamen, und die gedruckte Adresse
-        // wird korrekt zu "Vorname Nachname" umsortiert.
-        const vorname = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
-        const nachname = (lirisExtract.nachname || '').trim()
-        const name = [nachname, vorname].filter(Boolean).join(' ')
-        patch.adressBlock = (name ? name + '\n' : '') + lirisExtract.postAdresse
+      if (!f.adressBlock.trim()) {
+        // Minderjährige: Adresse und Name des zusätzlichen Kontakts (Elternteil) verwenden.
+        if (isMinor && lirisExtract.zusKontaktName && lirisExtract.zusKontaktAdresse) {
+          patch.adressBlock = lirisExtract.zusKontaktName + '\n' + lirisExtract.zusKontaktAdresse
+          // nachnameOverride aus dem Elternnamen: letztes Wort = Nachname
+          if (!f.nachnameOverride) {
+            const words = lirisExtract.zusKontaktName.trim().split(/\s+/)
+            patch.nachnameOverride = words[words.length - 1] || ''
+          }
+        } else if (lirisExtract.postAdresse) {
+          // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
+          // manuellen Einfügen. Alle Parser (Begrüßung, Adress-Anzeige, E-Mail)
+          // erwarten diese Reihenfolge: das letzte Wort ist der Vorname.
+          // Dadurch nutzt die Anrede den Nachnamen, und die gedruckte Adresse
+          // wird korrekt zu "Vorname Nachname" umsortiert.
+          const vorname = (lirisExtract.vorname || aufgebotTarget.patient.vorname || '').trim()
+          const nachname = (lirisExtract.nachname || '').trim()
+          const name = [nachname, vorname].filter(Boolean).join(' ')
+          patch.adressBlock = (name ? name + '\n' : '') + lirisExtract.postAdresse
+        }
       }
       const kws = lirisExtract.bpKeywords ?? []
       if (kws.includes('Myd') && !f.pupille) patch.pupille = true
