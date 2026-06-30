@@ -52,10 +52,11 @@ function zielEmail(ziel: string | null | undefined): string {
 /** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
  *  Empfänger wird – wenn bekannt – automatisch gesetzt (z. B. KSA Augenklinik),
  *  sonst leer gelassen. Patient: Nach-/Vorname + Geburtsdatum (keine interne PID). */
-function sendBerichtNachfrage(p: RecallPatient) {
+function sendBerichtNachfrage(p: RecallPatient, nameOverride?: string, gebOverride?: string | null) {
   const z = p.zuweisung!
-  const name = vollName(p) || 'unbekannt'
-  const geb = p.gebDatum ? formatDate(p.gebDatum) : ''
+  const name = (nameOverride && nameOverride.trim()) || vollName(p) || 'unbekannt'
+  const gebSrc = (gebOverride && gebOverride.trim()) || p.gebDatum
+  const geb = gebSrc ? formatDate(gebSrc) : ''
   const ident = `${name}${geb ? `, geb. ${geb}` : ''}`
   const empfaenger = zielEmail(z.ziel)
   const subject = `Bericht-Nachfrage – ${ident}`
@@ -82,14 +83,49 @@ type FilterTyp    = 'alle' | 'intern' | 'extern'
 export default function ZuweisungPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const { open: openBrowser, openWithPid } = useBrowser()
+  const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
+
+  // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet
+  const [pendingMail, setPendingMail] = useState<{ p: RecallPatient } | null>(null)
+  const pendingMailTimer = useState<{ id: number | null }>(() => ({ id: null }))[0]
+
+  const onlyDigits = (s: string | null | undefined) => (s || '').replace(/\D/g, '').replace(/^0+/, '')
 
   const openInLiris = (p: RecallPatient) => {
     if (!p.pid) return
     openBrowser()
     openWithPid(p.pid)
   }
+
+  // Klick «Bericht anfragen»: in der Desktop-App zuerst die Liris-Akte öffnen
+  // und den vollständigen Namen daraus lesen; sonst sofort mit lokalem Namen.
+  const onBerichtAnfragen = (p: RecallPatient) => {
+    if (isElectron && p.pid) {
+      openBrowser()
+      openWithPid(p.pid)
+      setPendingMail({ p })
+      if (pendingMailTimer.id) window.clearTimeout(pendingMailTimer.id)
+      // Fallback: nach 12 s ohne Liris-Namen mit den lokalen Daten senden.
+      pendingMailTimer.id = window.setTimeout(() => {
+        setPendingMail(cur => { if (cur && cur.p.id === p.id) { sendBerichtNachfrage(cur.p); return null } return cur })
+      }, 12000)
+    } else {
+      sendBerichtNachfrage(p)
+    }
+  }
+
+  // Sobald der Liris-Extract für den wartenden Patienten eintrifft → Mail mit
+  // dem Liris-Namen (Nachname + Vorname) öffnen.
+  useEffect(() => {
+    if (!pendingMail || !lirisExtract) return
+    if (onlyDigits(lirisExtract.pid) !== onlyDigits(pendingMail.p.pid)) return
+    const name = [lirisExtract.nachname, lirisExtract.vorname].filter(Boolean).join(' ').trim()
+    if (!name) return
+    if (pendingMailTimer.id) { window.clearTimeout(pendingMailTimer.id); pendingMailTimer.id = null }
+    sendBerichtNachfrage(pendingMail.p, name, lirisExtract.gebDatum)
+    setPendingMail(null)
+  }, [lirisExtract, pendingMail]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [patients, setPatients] = useState<RecallPatient[]>([])
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('pendent')
@@ -312,16 +348,20 @@ export default function ZuweisungPage() {
                         Liris
                       </button>
                     )}
-                    {!z.berichtErhalten && (
-                      <button
-                        onClick={() => sendBerichtNachfrage(p)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-                        title={zielEmail(z.ziel) ? `Bericht per E-Mail nachfragen an ${zielEmail(z.ziel)}` : 'Bericht per E-Mail nachfragen (Empfänger ergänzen)'}
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        Bericht anfragen
-                      </button>
-                    )}
+                    {!z.berichtErhalten && (() => {
+                      const wartet = pendingMail?.p.id === p.id
+                      return (
+                        <button
+                          onClick={() => onBerichtAnfragen(p)}
+                          disabled={wartet}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                          title={zielEmail(z.ziel) ? `Bericht per E-Mail nachfragen an ${zielEmail(z.ziel)}` : 'Bericht per E-Mail nachfragen (Empfänger ergänzen)'}
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          {wartet ? 'Lese Namen…' : 'Bericht anfragen'}
+                        </button>
+                      )
+                    })()}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
