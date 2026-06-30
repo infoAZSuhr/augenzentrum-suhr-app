@@ -4031,7 +4031,7 @@ export default function RecallPage() {
         <div className="flex items-center gap-3 mb-3">
           <BackButton />
         </div>
-        <div className="flex items-end justify-between gap-2 flex-wrap">
+        <div className="flex items-end gap-2 flex-wrap">
         <nav className="flex gap-1 flex-wrap">
           {allTabs.map(tab => {
             const rawCount = allData.get(tab)?.length ?? 0
