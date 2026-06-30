@@ -193,7 +193,7 @@ export default function ZuweisungPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   // Inline-Formular «weitere Zuweisung» (pro Patient)
   const [addFor, setAddFor] = useState<string | null>(null)   // patient.id
-  const [addForm, setAddForm] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string }>({ typ: 'extern', ziel: '', grund: '' })
+  const [addForm, setAddForm] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
 
   useEffect(() => subscribeZuweisungPatients(setPatients), [])
 
@@ -235,9 +235,10 @@ export default function ZuweisungPage() {
   }
 
   // «Weitere Zuweisung» zu einem Patienten hinzufügen.
-  async function addWeitereZuweisung(p: RecallPatient, typ: 'intern' | 'extern', ziel: string, grund: string) {
+  async function addWeitereZuweisung(p: RecallPatient, typ: 'intern' | 'extern', ziel: string, grund: string, datum?: string) {
     if (!ziel.trim()) return
-    const list = [...patientZuweisungen(p), newZuweisung(typ, ziel.trim(), grund.trim(), displayLabel)]
+    const zw = { ...newZuweisung(typ, ziel.trim(), grund.trim(), displayLabel), ...(datum ? { datum } : {}) }
+    const list = [...patientZuweisungen(p), zw]
     try { await saveZuweisungen(p.id, list, displayLabel) } catch (e) { console.warn('[Zuweisung] hinzufügen fehlgeschlagen', e) }
   }
 
@@ -521,7 +522,7 @@ export default function ZuweisungPage() {
                       Patient bearbeiten
                     </button>
                     <button
-                      onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '' }) }}
+                      onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }}
                       className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -547,14 +548,19 @@ export default function ZuweisungPage() {
                         ))}
                       </div>
                       <input type="text" value={addForm.ziel} onChange={e => setAddForm(f => ({ ...f, ziel: e.target.value }))}
-                        placeholder="Zielstelle (z. B. Augenklinik KSA, Dr. …)" autoFocus
+                        placeholder="Klinik / Praxis / Arzt (z. B. Augenklinik KSA)" autoFocus
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
                       <input type="text" value={addForm.grund} onChange={e => setAddForm(f => ({ ...f, grund: e.target.value }))}
                         placeholder="Grund (z. B. YAG, OP, Abklärung)"
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 shrink-0">ZW-Datum</label>
+                        <input type="date" value={addForm.datum} onChange={e => setAddForm(f => ({ ...f, datum: e.target.value }))}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      </div>
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => setAddFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">Abbrechen</button>
-                        <button onClick={() => { addWeitereZuweisung(p, addForm.typ, addForm.ziel, addForm.grund); setAddFor(null) }}
+                        <button onClick={() => { addWeitereZuweisung(p, addForm.typ, addForm.ziel, addForm.grund, addForm.datum); setAddFor(null) }}
                           disabled={!addForm.ziel.trim()}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Hinzufügen</button>
                       </div>
