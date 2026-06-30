@@ -1217,7 +1217,10 @@ export default function BrowserPanel() {
           else el.value = ${JSON.stringify(pid)};
           el.dispatchEvent(new Event('input',  { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
-          el.focus();
+          // KEIN el.focus() — würde den Tastatur-Fokus ins Liris-Webview ziehen und
+          // Eingaben in App-Feldern (Suche/Bearbeiten) blockieren. Das Autocomplete
+          // reagiert auf das input-Event auch ohne Fokus; die Treffer-Auswahl unten
+          // findet den Eintrag per PID-Text.
 
           // Autocomplete-Dropdown abwarten und ersten Treffer auswaehlen.
           // Liris laedt die Vorschlaege per AJAX -> kurz warten.

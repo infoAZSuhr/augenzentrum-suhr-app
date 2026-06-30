@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
-  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2,
+  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
@@ -90,8 +90,16 @@ type FilterTyp    = 'alle' | 'intern' | 'extern'
 export default function ZuweisungPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
+  const { open: openBrowser, openWithPid, lirisExtract, requestRecallByPid } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
+  const [search, setSearch] = useState('')
+
+  // Klick auf Patientennamen → Recall öffnen und «Patient bearbeiten» starten.
+  const openRecallEdit = (p: RecallPatient) => {
+    if (!p.pid) { navigate('/recall'); return }
+    requestRecallByPid(p.pid)
+    navigate('/recall')
+  }
 
   // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
   const [pendingMail, setPendingMail] = useState<{ p: RecallPatient; z: Zuweisung & { id: string } } | null>(null)
@@ -156,9 +164,14 @@ export default function ZuweisungPage() {
   type Row = { p: RecallPatient; z: Zuweisung & { id: string }; key: string }
   const rows: Row[] = patients
     .flatMap(p => patientZuweisungen(p).map(z => ({ p, z, key: `${p.id}:${z.id}` })))
-    .filter(({ z }) => {
+    .filter(({ p, z }) => {
       if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
       if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
+      const q = search.trim().toLowerCase()
+      if (q) {
+        const hay = `${p.vorname ?? ''} ${(p as { name?: string }).name ?? ''} ${p.pid ?? ''} ${z.ziel ?? ''} ${z.grund ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
       return true
     })
     .sort((a, b) => {
@@ -211,11 +224,27 @@ export default function ZuweisungPage() {
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0">
             <h1 className="text-base font-bold text-gray-900 leading-tight">ZW-Management</h1>
             <p className="text-xs text-gray-400 leading-tight">
               {ausstehendCount} pendent · {erledigtCount} erledigt
             </p>
+          </div>
+          <div className="relative flex-1 min-w-0 max-w-xs ml-auto">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Patient, PID, Ziel, Grund…"
+              className="w-full pl-8 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} title="Suche leeren"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -292,9 +321,12 @@ export default function ZuweisungPage() {
                   {/* Patient info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900 text-sm">
+                      <button
+                        onClick={() => openRecallEdit(p)}
+                        title="Patient bearbeiten (im Recall öffnen)"
+                        className="font-semibold text-primary-700 text-sm hover:underline">
                         {p.vorname || '—'}
-                      </span>
+                      </button>
                       {p.pid && (
                         <span className="font-mono text-xs text-gray-400">#{p.pid}</span>
                       )}
@@ -442,11 +474,11 @@ export default function ZuweisungPage() {
                   )}
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
-                      onClick={() => navigate('/recall')}
+                      onClick={() => openRecallEdit(p)}
                       className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline transition-colors"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
-                      In Recall öffnen
+                      Patient bearbeiten
                     </button>
                     <button
                       onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '' }) }}
