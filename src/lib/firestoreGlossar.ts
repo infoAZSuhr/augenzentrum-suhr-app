@@ -91,6 +91,40 @@ export async function seedGlossarFromDefaults(defaults: Record<string, string>, 
 }
 
 /**
+ * Entfernt doppelte Glossar-Einträge (gleiche Abkürzung mehrfach vorhanden,
+ * z.B. durch mehrfaches Seeden). Pro Abkürzung bleibt EIN Eintrag erhalten:
+ * bevorzugt der zuletzt aktualisierte; bei Gleichstand der mit der längeren
+ * Erklärung. Gibt die Anzahl der gelöschten Duplikate zurück.
+ */
+export async function dedupeGlossar(): Promise<number> {
+  const snap = await getDocs(collection(db, COL))
+  const byAbbr = new Map<string, GlossarEntry[]>()
+  for (const d of snap.docs) {
+    const e = { id: d.id, ...(d.data() as Omit<GlossarEntry, 'id'>) }
+    const key = (e.abbreviation || '').trim()
+    if (!key) continue
+    const arr = byAbbr.get(key); if (arr) arr.push(e); else byAbbr.set(key, [e])
+  }
+  const toDelete: string[] = []
+  const ts = (e: GlossarEntry) => {
+    const u = e.updatedAt as { seconds?: number } | null | undefined
+    return u && typeof u.seconds === 'number' ? u.seconds : 0
+  }
+  for (const [, group] of byAbbr) {
+    if (group.length < 2) continue
+    // Behalten: neuester Stamp, dann längere Erklärung.
+    group.sort((a, b) => ts(b) - ts(a) || (b.explanation || '').length - (a.explanation || '').length)
+    for (let i = 1; i < group.length; i++) toDelete.push(group[i].id)
+  }
+  for (let i = 0; i < toDelete.length; i += 400) {
+    const batch = writeBatch(db)
+    for (const id of toDelete.slice(i, i + 400)) batch.delete(doc(db, COL, id))
+    await batch.commit()
+  }
+  return toDelete.length
+}
+
+/**
  * Schreibt alle Default-Einträge, die in Firestore noch fehlen, nach.
  * Bereits vorhandene Abkürzungen werden NICHT überschrieben (Admin-Edits
  * bleiben intakt). Gibt die Anzahl der hinzugefügten Einträge zurück.

@@ -8,6 +8,7 @@ import {
   updateGlossarEntry,
   deleteGlossarEntry,
   syncMissingDefaults,
+  dedupeGlossar,
   type GlossarEntry,
 } from '../../lib/firestoreGlossar'
 import { GLOSSAR as DEFAULT_GLOSSAR } from '../../lib/glossar'
@@ -51,6 +52,30 @@ export default function GlossarModal({ onClose }: Props) {
     const existing = new Set(entries.map(e => e.abbreviation))
     return Object.keys(DEFAULT_GLOSSAR).filter(k => !existing.has(k)).length
   }, [entries])
+
+  // Wieviele doppelte Einträge (gleiche Abkürzung mehrfach) gibt es?
+  const duplicateCount = useMemo(() => {
+    const seen = new Map<string, number>()
+    for (const e of entries) {
+      const k = (e.abbreviation || '').trim()
+      if (k) seen.set(k, (seen.get(k) || 0) + 1)
+    }
+    let dups = 0
+    for (const c of seen.values()) if (c > 1) dups += c - 1
+    return dups
+  }, [entries])
+
+  async function handleDedupe() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const removed = await dedupeGlossar()
+      toast.success(removed > 0 ? `${removed} Duplikat(e) entfernt` : 'Keine Duplikate gefunden')
+    } catch (err: any) {
+      console.error('[Glossar] Dedupe fehlgeschlagen:', err)
+      toast.error('Entfernen fehlgeschlagen: ' + (err?.message ?? String(err)))
+    } finally { setBusy(false) }
+  }
 
   const updatedBy = profile?.displayName || profile?.username || 'unknown'
 
@@ -166,6 +191,17 @@ export default function GlossarModal({ onClose }: Props) {
             >
               <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
               {missingDefaultsCount} sync
+            </button>
+          )}
+          {canEdit && !adding && !editingId && duplicateCount > 0 && (
+            <button
+              onClick={handleDedupe}
+              disabled={busy}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 transition-colors shrink-0 disabled:opacity-50"
+              title={`${duplicateCount} doppelte Glossar-Einträge (gleiche Abkürzung mehrfach) entfernen — pro Abkürzung bleibt einer erhalten`}
+            >
+              <Trash2 className={`w-3.5 h-3.5 ${busy ? 'animate-pulse' : ''}`} />
+              {duplicateCount} Duplikate
             </button>
           )}
           {canEdit && !adding && !editingId && (
