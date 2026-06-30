@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
   Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
-  Pencil, Save, Loader2,
 } from 'lucide-react'
-import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung, updateRecallPatient, assignRecallPatient } from '../lib/firestoreRecall'
+import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
 import { useBrowser } from '../contexts/BrowserContext'
 
@@ -91,54 +90,15 @@ type FilterTyp    = 'alle' | 'intern' | 'extern'
 export default function ZuweisungPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
+  const { open: openBrowser, openWithPid, lirisExtract, requestRecallByPid } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
   const [search, setSearch] = useState('')
 
-  // ── Kompaktes «Patient bearbeiten»-Fenster (direkt im ZW-Management) ─────────
-  const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
-  type EditDraft = { vorname: string; pid: string; gebDatum: string; letzteKons: string; naechsteKons: string; doctor: string }
-  const [editPatient, setEditPatient] = useState<RecallPatient | null>(null)
-  const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
-  const [editSaving, setEditSaving] = useState(false)
-
-  // Klick auf Patientennamen → kompaktes Bearbeiten-Fenster öffnen UND Liris-Akte laden.
+  // Klick auf Patientennamen → volles Recall-Bearbeiten-Fenster öffnen UND Liris-Akte laden.
   const openRecallEdit = (p: RecallPatient) => {
-    setEditPatient(p)
-    setEditDraft({
-      vorname: p.vorname ?? '',
-      pid: p.pid ?? '',
-      gebDatum: (p.gebDatum ?? '').slice(0, 10),
-      letzteKons: (p.letzteKons ?? '').slice(0, 10),
-      naechsteKons: p.naechsteKons && p.naechsteKons !== 'kein Termin' ? p.naechsteKons.slice(0, 10) : '',
-      doctor: p.doctor ?? '',
-    })
-    if (p.pid) openInLiris(p) // gleichzeitig die Liris-Patientenakte öffnen
-  }
-
-  const saveEdit = async () => {
-    if (!editPatient || !editDraft) return
-    setEditSaving(true)
-    try {
-      await updateRecallPatient(editPatient.id, {
-        vorname: editDraft.vorname.trim() || null,
-        pid: editDraft.pid.trim() || null,
-        gebDatum: editDraft.gebDatum || null,
-        letzteKons: editDraft.letzteKons || null,
-        naechsteKons: editDraft.naechsteKons || (editPatient.naechsteKons === 'kein Termin' ? 'kein Termin' : null),
-      }, displayLabel)
-      const newDoctor = editDraft.doctor.trim()
-      if (newDoctor && newDoctor !== editPatient.doctor) {
-        await assignRecallPatient(editPatient.id, newDoctor, displayLabel)
-      }
-      setEditPatient(null)
-      setEditDraft(null)
-    } catch (e) {
-      console.warn('[Zuweisung] Patient-Update fehlgeschlagen', e)
-      alert('Speichern fehlgeschlagen. Bitte erneut versuchen.')
-    } finally {
-      setEditSaving(false)
-    }
+    if (p.pid) openInLiris(p)
+    if (p.pid) requestRecallByPid(p.pid)
+    navigate('/recall')
   }
 
   // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
@@ -573,94 +533,6 @@ export default function ZuweisungPage() {
         })}
       </div>
 
-      {/* Kompaktes «Patient bearbeiten»-Fenster */}
-      {editPatient && editDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => { if (!editSaving) { setEditPatient(null); setEditDraft(null) } }}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-              <h3 className="flex items-center gap-2 font-semibold text-gray-900">
-                <Pencil className="w-4 h-4 text-primary-600" />
-                Patient bearbeiten
-              </h3>
-              <button onClick={() => { setEditPatient(null); setEditDraft(null) }}
-                disabled={editSaving}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-40">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="px-5 py-4 space-y-3">
-              <label className="block">
-                <span className="text-xs font-medium text-gray-500">Name</span>
-                <input type="text" value={editDraft.vorname}
-                  onChange={e => setEditDraft(d => d && { ...d, vorname: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-500">PID</span>
-                  <input type="text" value={editDraft.pid}
-                    onChange={e => setEditDraft(d => d && { ...d, pid: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-500">Geburtsdatum</span>
-                  <input type="date" value={editDraft.gebDatum}
-                    onChange={e => setEditDraft(d => d && { ...d, gebDatum: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </label>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-500">Letzte Konst.</span>
-                  <input type="date" value={editDraft.letzteKons}
-                    onChange={e => setEditDraft(d => d && { ...d, letzteKons: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-500">Nächste Konst.</span>
-                  <input type="date" value={editDraft.naechsteKons}
-                    onChange={e => setEditDraft(d => d && { ...d, naechsteKons: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </label>
-              </div>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-500">Arzt</span>
-                <select value={editDraft.doctor}
-                  onChange={e => setEditDraft(d => d && { ...d, doctor: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white">
-                  {editDraft.doctor && !DOCTORS_DEFAULT.includes(editDraft.doctor) && (
-                    <option value={editDraft.doctor}>{editDraft.doctor}</option>
-                  )}
-                  {DOCTORS_DEFAULT.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </label>
-
-              {editPatient.pid && (
-                <p className="flex items-center gap-1.5 text-xs text-gray-400">
-                  <ExternalLink className="w-3 h-3" />
-                  Liris-Akte wurde geöffnet.
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50">
-              <button onClick={() => { setEditPatient(null); setEditDraft(null) }}
-                disabled={editSaving}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40">
-                Abbrechen
-              </button>
-              <button onClick={saveEdit} disabled={editSaving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50">
-                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Speichern
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
