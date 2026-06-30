@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
-  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail,
+  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus,
 } from 'lucide-react'
-import { RecallPatient, Zuweisung, subscribeZuweisungPatients, updateRecallPatient } from '../lib/firestoreRecall'
+import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
 import { useBrowser } from '../contexts/BrowserContext'
 
@@ -54,8 +54,7 @@ function zielEmail(ziel: string | null | undefined): string {
  *  sonst leer gelassen. Patient: Nach-/Vorname + Geburtsdatum (keine interne PID). */
 interface MailOpts { name?: string; geb?: string | null; anrede?: string | null; mpaName?: string }
 
-function sendBerichtNachfrage(p: RecallPatient, opts: MailOpts = {}) {
-  const z = p.zuweisung!
+function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {}) {
   const name = (opts.name && opts.name.trim()) || vollName(p) || 'unbekannt'
   const gebSrc = (opts.geb && opts.geb.trim()) || p.gebDatum
   const geb = gebSrc ? formatDate(gebSrc) : ''
@@ -94,8 +93,8 @@ export default function ZuweisungPage() {
   const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
 
-  // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet
-  const [pendingMail, setPendingMail] = useState<{ p: RecallPatient } | null>(null)
+  // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
+  const [pendingMail, setPendingMail] = useState<{ p: RecallPatient; z: Zuweisung & { id: string } } | null>(null)
   const pendingMailTimer = useState<{ id: number | null }>(() => ({ id: null }))[0]
 
   const onlyDigits = (s: string | null | undefined) => (s || '').replace(/\D/g, '').replace(/^0+/, '')
@@ -106,41 +105,36 @@ export default function ZuweisungPage() {
     openWithPid(p.pid)
   }
 
-  // Klick «Bericht anfragen»: in der Desktop-App zuerst die Liris-Akte öffnen
-  // und den vollständigen Namen daraus lesen; sonst sofort mit lokalem Namen.
-  // Zuweisung als «Bericht angefragt» mit Datum markieren.
-  async function markBerichtAngefragt(p: RecallPatient) {
-    const z = p.zuweisung
-    if (!z) return
-    const updated: Zuweisung = { ...z, berichtAngefragt: true, berichtAngefragtAm: new Date().toISOString().slice(0, 10) }
-    try { await updateRecallPatient(p.id, { zuweisung: updated }, displayLabel) } catch (e) { console.warn('[Zuweisung] markBerichtAngefragt fehlgeschlagen', e) }
+  // Eine einzelne Zuweisung eines Patienten patchen (rebuilt die Liste, migriert Legacy).
+  async function patchZuweisung(p: RecallPatient, zid: string, patch: Partial<Zuweisung>) {
+    const list = patientZuweisungen(p).map(x => x.id === zid ? { ...x, ...patch } : x)
+    try { await saveZuweisungen(p.id, list, displayLabel) } catch (e) { console.warn('[Zuweisung] patch fehlgeschlagen', e) }
   }
 
-  const onBerichtAnfragen = (p: RecallPatient) => {
-    markBerichtAngefragt(p)
+  // Klick «Bericht anfragen»: Zuweisung als angefragt markieren; in der Desktop-
+  // App zuerst die Liris-Akte öffnen und den Namen daraus lesen.
+  const onBerichtAnfragen = (p: RecallPatient, z: Zuweisung & { id: string }) => {
+    patchZuweisung(p, z.id, { berichtAngefragt: true, berichtAngefragtAm: new Date().toISOString().slice(0, 10) })
     if (isElectron && p.pid) {
       openBrowser()
       openWithPid(p.pid)
-      setPendingMail({ p })
+      setPendingMail({ p, z })
       if (pendingMailTimer.id) window.clearTimeout(pendingMailTimer.id)
-      // Fallback: nach 12 s ohne Liris-Namen mit den lokalen Daten senden.
       pendingMailTimer.id = window.setTimeout(() => {
-        setPendingMail(cur => { if (cur && cur.p.id === p.id) { sendBerichtNachfrage(cur.p, { mpaName: displayLabel }); return null } return cur })
+        setPendingMail(cur => { if (cur && cur.p.id === p.id && cur.z.id === z.id) { sendBerichtNachfrage(cur.p, cur.z, { mpaName: displayLabel }); return null } return cur })
       }, 12000)
     } else {
-      sendBerichtNachfrage(p, { mpaName: displayLabel })
+      sendBerichtNachfrage(p, z, { mpaName: displayLabel })
     }
   }
 
-  // Sobald der Liris-Extract für den wartenden Patienten eintrifft → Mail mit
-  // dem Liris-Namen (Nachname + Vorname) öffnen.
   useEffect(() => {
     if (!pendingMail || !lirisExtract) return
     if (onlyDigits(lirisExtract.pid) !== onlyDigits(pendingMail.p.pid)) return
     const name = [lirisExtract.nachname, lirisExtract.vorname].filter(Boolean).join(' ').trim()
     if (!name) return
     if (pendingMailTimer.id) { window.clearTimeout(pendingMailTimer.id); pendingMailTimer.id = null }
-    sendBerichtNachfrage(pendingMail.p, { name, geb: lirisExtract.gebDatum, anrede: lirisExtract.anrede, mpaName: displayLabel })
+    sendBerichtNachfrage(pendingMail.p, pendingMail.z, { name, geb: lirisExtract.gebDatum, anrede: lirisExtract.anrede, mpaName: displayLabel })
     setPendingMail(null)
   }, [lirisExtract, pendingMail]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -149,48 +143,54 @@ export default function ZuweisungPage() {
   const [filterTyp, setFilterTyp] = useState<FilterTyp>('alle')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  // Inline-Formular «weitere Zuweisung» (pro Patient)
+  const [addFor, setAddFor] = useState<string | null>(null)   // patient.id
+  const [addForm, setAddForm] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string }>({ typ: 'extern', ziel: '', grund: '' })
 
   useEffect(() => subscribeZuweisungPatients(setPatients), [])
 
   // normalise legacy 'ausstehend' → 'pendent'
   function normStatus(s: string) { return s === 'ausstehend' ? 'pendent' : s }
 
-  const visible = patients.filter(p => {
-    const z = p.zuweisung!
-    if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
-    if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
-    return true
-  })
+  // Eine Zeile PRO Zuweisung (Patient kann mehrfach erscheinen).
+  type Row = { p: RecallPatient; z: Zuweisung & { id: string }; key: string }
+  const rows: Row[] = patients
+    .flatMap(p => patientZuweisungen(p).map(z => ({ p, z, key: `${p.id}:${z.id}` })))
+    .filter(({ z }) => {
+      if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
+      if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
+      return true
+    })
+    .sort((a, b) => {
+      const sa = normStatus(a.z.status), sb = normStatus(b.z.status)
+      if (sa !== sb) return sa === 'pendent' ? -1 : 1
+      return (b.z.datum ?? '').localeCompare(a.z.datum ?? '')
+    })
 
-  async function markErledigt(p: RecallPatient) {
+  async function markErledigt(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
-    setSavingId(p.id)
-    const updated: Zuweisung = {
-      ...p.zuweisung!,
-      status: 'erledigt',
-      erledigtAm: new Date().toISOString().slice(0, 10),
-      berichtErhalten: p.zuweisung!.berichtErhalten ?? false,
-    }
-    try {
-      await updateRecallPatient(p.id, { zuweisung: updated }, displayLabel)
-    } finally {
-      setSavingId(null)
-    }
+    setSavingId(`${p.id}:${z.id}`)
+    try { await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) }) }
+    finally { setSavingId(null) }
   }
 
-  async function reopen(p: RecallPatient) {
+  async function reopen(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
-    setSavingId(p.id)
-    const updated: Zuweisung = { ...p.zuweisung!, status: 'pendent', erledigtAm: '' }
-    try {
-      await updateRecallPatient(p.id, { zuweisung: updated }, displayLabel)
-    } finally {
-      setSavingId(null)
-    }
+    setSavingId(`${p.id}:${z.id}`)
+    try { await patchZuweisung(p, z.id, { status: 'pendent', erledigtAm: '' }) }
+    finally { setSavingId(null) }
   }
 
-  const ausstehendCount = patients.filter(p => normStatus(p.zuweisung?.status ?? '') === 'pendent').length
-  const erledigtCount   = patients.filter(p => p.zuweisung?.status === 'erledigt').length
+  // «Weitere Zuweisung» zu einem Patienten hinzufügen.
+  async function addWeitereZuweisung(p: RecallPatient, typ: 'intern' | 'extern', ziel: string, grund: string) {
+    if (!ziel.trim()) return
+    const list = [...patientZuweisungen(p), newZuweisung(typ, ziel.trim(), grund.trim(), displayLabel)]
+    try { await saveZuweisungen(p.id, list, displayLabel) } catch (e) { console.warn('[Zuweisung] hinzufügen fehlgeschlagen', e) }
+  }
+
+  const allZ = patients.flatMap(p => patientZuweisungen(p))
+  const ausstehendCount = allZ.filter(z => normStatus(z.status) === 'pendent').length
+  const erledigtCount   = allZ.filter(z => z.status === 'erledigt').length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -245,7 +245,7 @@ export default function ZuweisungPage() {
 
       {/* List */}
       <div className="max-w-4xl mx-auto px-4 py-4 space-y-2">
-        {visible.length === 0 && (
+        {rows.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <CheckCircle2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-medium">Keine Zuweisungen gefunden</p>
@@ -255,14 +255,13 @@ export default function ZuweisungPage() {
           </div>
         )}
 
-        {visible.map(p => {
-          const z = p.zuweisung!
-          const isExpanded = expandedId === p.id
+        {rows.map(({ p, z, key }) => {
+          const isExpanded = expandedId === key
           const isErledigt = normStatus(z.status) === 'erledigt'
-          const isSaving   = savingId === p.id
+          const isSaving   = savingId === key
 
           return (
-            <div key={p.id}
+            <div key={key}
               className={`bg-white rounded-xl border transition-all ${
                 isErledigt ? 'border-green-200 opacity-75' : 'border-gray-200 shadow-sm'
               }`}
@@ -373,11 +372,11 @@ export default function ZuweisungPage() {
                       </button>
                     )}
                     {!z.berichtErhalten && (() => {
-                      const wartet = pendingMail?.p.id === p.id
+                      const wartet = pendingMail?.p.id === p.id && pendingMail?.z.id === z.id
                       const angefragt = !!z.berichtAngefragt
                       return (
                         <button
-                          onClick={() => onBerichtAnfragen(p)}
+                          onClick={() => onBerichtAnfragen(p, z)}
                           disabled={wartet}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-60 ${angefragt ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'}`}
                           title={zielEmail(z.ziel) ? `Bericht per E-Mail nachfragen an ${zielEmail(z.ziel)}` : 'Bericht per E-Mail nachfragen (Empfänger ergänzen)'}
@@ -388,7 +387,7 @@ export default function ZuweisungPage() {
                       )
                     })()}
                     <button
-                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                      onClick={() => setExpandedId(isExpanded ? null : key)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                       title="Details"
                     >
@@ -397,7 +396,7 @@ export default function ZuweisungPage() {
 
                     {!isErledigt ? (
                       <button
-                        onClick={() => markErledigt(p)}
+                        onClick={() => markErledigt(p, z)}
                         disabled={isSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-40"
                         title="Als erledigt markieren"
@@ -407,7 +406,7 @@ export default function ZuweisungPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => reopen(p)}
+                        onClick={() => reopen(p, z)}
                         disabled={isSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40"
                         title="Wieder öffnen"
@@ -431,13 +430,46 @@ export default function ZuweisungPage() {
                   ) : (
                     <p className="text-xs text-gray-400 italic">Keine Notiz hinterlegt.</p>
                   )}
-                  <button
-                    onClick={() => navigate('/recall')}
-                    className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    In Recall öffnen
-                  </button>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      onClick={() => navigate('/recall')}
+                      className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      In Recall öffnen
+                    </button>
+                    <button
+                      onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '' }) }}
+                      className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Weitere Zuweisung
+                    </button>
+                  </div>
+                  {addFor === p.id && (
+                    <div className="mt-2 p-3 rounded-lg border border-violet-200 bg-violet-50/40 space-y-2">
+                      <div className="flex gap-2">
+                        {(['extern', 'intern'] as const).map(t => (
+                          <button key={t} onClick={() => setAddForm(f => ({ ...f, typ: t }))}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${addForm.typ === t ? 'bg-violet-100 text-violet-700 border-violet-300' : 'bg-white text-gray-500 border-gray-200'}`}>
+                            {t === 'extern' ? 'Extern' : 'Intern'}
+                          </button>
+                        ))}
+                      </div>
+                      <input type="text" value={addForm.ziel} onChange={e => setAddForm(f => ({ ...f, ziel: e.target.value }))}
+                        placeholder="Zielstelle (z. B. Augenklinik KSA, Dr. …)" autoFocus
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      <input type="text" value={addForm.grund} onChange={e => setAddForm(f => ({ ...f, grund: e.target.value }))}
+                        placeholder="Grund (z. B. YAG, OP, Abklärung)"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setAddFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">Abbrechen</button>
+                        <button onClick={() => { addWeitereZuweisung(p, addForm.typ, addForm.ziel, addForm.grund); setAddFor(null) }}
+                          disabled={!addForm.ziel.trim()}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Hinzufügen</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

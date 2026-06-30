@@ -50,6 +50,7 @@ export async function loadRecallActivity(sinceIsoDate?: string): Promise<RecallA
 }
 
 export interface Zuweisung {
+  id?: string           // stabile id innerhalb der Zuweisungs-Liste eines Patienten
   typ: 'intern' | 'extern'
   ziel: string          // arzt (intern) or provider/clinic (extern)
   grund: string
@@ -88,7 +89,8 @@ export interface RecallPatient {
   neupatient: boolean | null        // true = Neupatient, false/null = bestehender Patient
   erstellt: string | null
   aktualisiert: string | null
-  zuweisung?: Zuweisung | null
+  zuweisung?: Zuweisung | null      // Legacy: einzelne Zuweisung (wird migriert)
+  zuweisungen?: Zuweisung[] | null  // Mehrere Zuweisungen pro Patient (an verschiedene Orte)
 }
 
 export interface VerlaufEntry {
@@ -248,17 +250,40 @@ export function subscribeZuweisungPatients(
     snap => {
       const all = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as RecallPatient))
-        .filter(p => p.zuweisung != null)
-        .sort((a, b) => {
-          // ausstehend first, then by datum desc
-          if (a.zuweisung!.status !== b.zuweisung!.status) {
-            return a.zuweisung!.status === 'pendent' ? -1 : 1
-          }
-          return (b.zuweisung!.datum ?? '').localeCompare(a.zuweisung!.datum ?? '')
-        })
+        .filter(p => p.zuweisung != null || (p.zuweisungen != null && p.zuweisungen.length > 0))
       callback(all)
     }
   )
+}
+
+function genZwId(): string {
+  try { const u = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID?.(); if (u) return u } catch { /* */ }
+  return 'zw_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+}
+
+/** Alle Zuweisungen eines Patienten als normalisierte Liste (jede mit id).
+ *  Migriert die alte Einzel-Zuweisung (`zuweisung`) transparent mit. */
+export function patientZuweisungen(p: RecallPatient): (Zuweisung & { id: string })[] {
+  const arr = (p.zuweisungen ?? []).filter(Boolean).map(z => ({ ...z, id: z.id || genZwId() }))
+  if (arr.length > 0) return arr
+  if (p.zuweisung) return [{ ...p.zuweisung, id: p.zuweisung.id || 'legacy' }]
+  return []
+}
+
+/** Schreibt die komplette Zuweisungs-Liste eines Patienten und räumt die
+ *  Legacy-Einzel-Zuweisung auf (Migration). */
+export async function saveZuweisungen(patientId: string, list: Zuweisung[], by: string): Promise<void> {
+  await updateRecallPatient(patientId, { zuweisungen: list, zuweisung: null } as Partial<RecallPatient>, by)
+}
+
+/** Neue, leere Zuweisung mit Default-Werten (für «weitere Zuweisung hinzufügen»). */
+export function newZuweisung(typ: 'intern' | 'extern', ziel: string, grund: string, von: string): Zuweisung {
+  return {
+    id: genZwId(), typ, ziel, grund,
+    datum: new Date().toISOString().slice(0, 10),
+    status: 'pendent', erledigtAm: '', berichtErhalten: false,
+    notiz: '', von,
+  }
 }
 
 export interface PidMatch {
