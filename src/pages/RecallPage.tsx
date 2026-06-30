@@ -4015,6 +4015,7 @@ export default function RecallPage() {
         <div className="flex items-center gap-3 mb-3">
           <BackButton />
         </div>
+        <div className="flex items-end justify-between gap-2 flex-wrap">
         <nav className="flex gap-1 flex-wrap">
           {allTabs.map(tab => {
             const rawCount = allData.get(tab)?.length ?? 0
@@ -4064,6 +4065,15 @@ export default function RecallPage() {
             )
           })}
         </nav>
+        {/* ZW-Management — neben dem Register */}
+        <button
+          onClick={() => navigate('/zuweisungen')}
+          title="ZW-Management (Zuweisungen verwalten)"
+          className="mb-1 flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm font-medium border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
+        >
+          <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">ZW-Management</span>
+        </button>
+        </div>
       </div>
 
       {/* Status-Meldung (sync / import) */}
@@ -4107,15 +4117,6 @@ export default function RecallPage() {
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neu</span>
-          </button>
-
-          {/* Zuweisungen */}
-          <button
-            onClick={() => navigate('/zuweisungen')}
-            title="ZW-Management (Zuweisungen verwalten)"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
-          >
-            <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">ZW-Management</span>
           </button>
 
           {/* Kimenda Excel import – nur auf "Zu bearbeiten" tab UND nur für Admin/GL */}
