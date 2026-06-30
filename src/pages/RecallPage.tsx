@@ -11,6 +11,7 @@ import {
   RecallPatient,
   Zuweisung,
   patientZuweisungen,
+  newZuweisung,
   ZuweisungConfig,
   VerlaufEntry,
   zuBearbStableId,
@@ -403,6 +404,7 @@ type EditForm = {
   zuweisungErledigtAm: string
   zuweisungBerichtErhalten: boolean
   zuweisungNotiz: string
+  zuweisungExtra: Zuweisung[]   // weitere Zuweisungen (neben der primären)
 }
 
 function initForm(p?: RecallPatient): EditForm {
@@ -441,6 +443,7 @@ function initForm(p?: RecallPatient): EditForm {
         zuweisungErledigtAm: z0?.erledigtAm    ?? '',
         zuweisungBerichtErhalten: z0?.berichtErhalten ?? false,
         zuweisungNotiz:     z0?.notiz            ?? '',
+        zuweisungExtra:     p ? patientZuweisungen(p).slice(1) : [],
       }
     })(),
   }
@@ -677,6 +680,9 @@ export default function RecallPage() {
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
+  // Inline-Formular «weitere Zuweisung» im Patient-bearbeiten-Dialog
+  const [zwAddOpen, setZwAddOpen] = useState(false)
+  const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string }>({ typ: 'extern', ziel: '', grund: '' })
 
   // Aufgebot-Dialog: Liris ausblenden (würde sonst darüber malen).
   // «Patienten bearbeiten» blendet Liris NICHT aus — der Dialog wird stattdessen
@@ -686,6 +692,8 @@ export default function RecallPage() {
     setLirisSuppressed(!!aufgebotTarget)
   }, [aufgebotTarget, setLirisSuppressed])
   useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
+  // «weitere Zuweisung»-Inline-Form zurücksetzen, wenn ein anderer Patient geöffnet wird
+  useEffect(() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '' }) }, [editTarget])
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed]  = useState(true)   // Dialog bleibt schmal (Vorschau ist Popup)
   // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),
@@ -3755,7 +3763,7 @@ export default function RecallPage() {
         notiz:      form.zuweisungNotiz.trim(),
         von:        existingZw[0]?.von || displayLabel,
       } : null
-      const zuweisungenList = primaryZw ? [primaryZw, ...existingZw.slice(1)] : existingZw.slice(1)
+      const zuweisungenList = primaryZw ? [primaryZw, ...form.zuweisungExtra] : [...form.zuweisungExtra]
 
       const data = {
         pid:              normalizePid(form.pid) || null,
@@ -6953,6 +6961,56 @@ export default function RecallPage() {
                         className={`${inputCls} resize-none`} />
                     </div>
                   </div>
+                )}
+
+                {/* Weitere Zuweisungen (an verschiedene Orte) */}
+                {form.zuweisungExtra.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    {form.zuweisungExtra.map((zx, i) => (
+                      <div key={zx.id || i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50/40 text-xs">
+                        <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">{zx.typ === 'intern' ? 'Int.' : 'Ext.'}</span>
+                        <span className="font-medium text-gray-800 truncate">→ {zx.ziel}</span>
+                        {zx.grund && <span className="text-gray-500 truncate">· {zx.grund}</span>}
+                        <button type="button" onClick={() => setField('zuweisungExtra', form.zuweisungExtra.filter((_, j) => j !== i))}
+                          title="Entfernen" className="ml-auto p-0.5 rounded text-gray-400 hover:text-red-500 shrink-0">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* «+ weitere Zuweisung» */}
+                {zwAddOpen ? (
+                  <div className="mt-2 p-2.5 rounded-lg border border-violet-200 bg-violet-50/40 space-y-2">
+                    <div className="flex gap-2">
+                      {(['extern', 'intern'] as const).map(t => (
+                        <button key={t} type="button" onClick={() => setZwAddDraft(d => ({ ...d, typ: t }))}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${zwAddDraft.typ === t ? 'bg-violet-100 text-violet-700 border-violet-300' : 'bg-white text-gray-500 border-gray-200'}`}>
+                          {t === 'extern' ? 'Extern' : 'Intern'}
+                        </button>
+                      ))}
+                    </div>
+                    <input type="text" value={zwAddDraft.ziel} onChange={e => setZwAddDraft(d => ({ ...d, ziel: e.target.value }))}
+                      placeholder="Zielstelle (z. B. Augenklinik KSA, Dr. …)" autoFocus className={inputCls} />
+                    <input type="text" value={zwAddDraft.grund} onChange={e => setZwAddDraft(d => ({ ...d, grund: e.target.value }))}
+                      placeholder="Grund (z. B. YAG, OP, Abklärung)" className={inputCls} />
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '' }) }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">Abbrechen</button>
+                      <button type="button" disabled={!zwAddDraft.ziel.trim()}
+                        onClick={() => {
+                          setField('zuweisungExtra', [...form.zuweisungExtra, newZuweisung(zwAddDraft.typ, zwAddDraft.ziel.trim(), zwAddDraft.grund.trim(), displayLabel)])
+                          setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '' })
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Hinzufügen</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setZwAddOpen(true)}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline">
+                    <Plus className="w-3.5 h-3.5" /> Weitere Zuweisung
+                  </button>
                 )}
               </div>
 
