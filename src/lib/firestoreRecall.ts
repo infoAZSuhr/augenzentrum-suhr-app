@@ -57,6 +57,8 @@ export interface Zuweisung {
   status: 'pendent' | 'erledigt'
   erledigtAm: string    // YYYY-MM-DD or ''
   berichtErhalten: boolean
+  berichtAngefragt?: boolean    // true sobald eine Bericht-Nachfrage verschickt wurde
+  berichtAngefragtAm?: string   // YYYY-MM-DD – Datum der (letzten) Bericht-Nachfrage
   notiz: string
   von: string           // username who created it
 }

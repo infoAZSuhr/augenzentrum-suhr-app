@@ -108,7 +108,16 @@ export default function ZuweisungPage() {
 
   // Klick «Bericht anfragen»: in der Desktop-App zuerst die Liris-Akte öffnen
   // und den vollständigen Namen daraus lesen; sonst sofort mit lokalem Namen.
+  // Zuweisung als «Bericht angefragt» mit Datum markieren.
+  async function markBerichtAngefragt(p: RecallPatient) {
+    const z = p.zuweisung
+    if (!z) return
+    const updated: Zuweisung = { ...z, berichtAngefragt: true, berichtAngefragtAm: new Date().toISOString().slice(0, 10) }
+    try { await updateRecallPatient(p.id, { zuweisung: updated }, displayLabel) } catch (e) { console.warn('[Zuweisung] markBerichtAngefragt fehlgeschlagen', e) }
+  }
+
   const onBerichtAnfragen = (p: RecallPatient) => {
+    markBerichtAngefragt(p)
     if (isElectron && p.pid) {
       openBrowser()
       openWithPid(p.pid)
@@ -338,6 +347,13 @@ export default function ZuweisungPage() {
                           {z.berichtErhalten ? 'Bericht erhalten' : 'Kein Bericht'}
                         </span>
                       )}
+                      {z.berichtAngefragt && !z.berichtErhalten && (
+                        <span className="flex items-center gap-1 font-medium text-blue-600"
+                          title="Bericht-Nachfrage wurde verschickt">
+                          <Mail className="w-3 h-3" />
+                          Bericht angefragt{z.berichtAngefragtAm ? `: ${formatDate(z.berichtAngefragtAm)}` : ''}
+                        </span>
+                      )}
                       {z.von && (
                         <span>von {z.von}</span>
                       )}
@@ -358,15 +374,16 @@ export default function ZuweisungPage() {
                     )}
                     {!z.berichtErhalten && (() => {
                       const wartet = pendingMail?.p.id === p.id
+                      const angefragt = !!z.berichtAngefragt
                       return (
                         <button
                           onClick={() => onBerichtAnfragen(p)}
                           disabled={wartet}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-60 ${angefragt ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'}`}
                           title={zielEmail(z.ziel) ? `Bericht per E-Mail nachfragen an ${zielEmail(z.ziel)}` : 'Bericht per E-Mail nachfragen (Empfänger ergänzen)'}
                         >
                           <Mail className="w-3.5 h-3.5" />
-                          {wartet ? 'Lese Namen…' : 'Bericht anfragen'}
+                          {wartet ? 'Lese Namen…' : angefragt ? 'Erneut anfragen' : 'Bericht anfragen'}
                         </button>
                       )
                     })()}
