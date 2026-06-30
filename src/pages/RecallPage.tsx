@@ -3655,7 +3655,7 @@ export default function RecallPage() {
       'storniert', 'grundStornierung',
       'nachfassAdresse', 'nachfassTel', 'nachfassTelDatum',
       'aufgebotFuer', 'aufgebotErstellt', 'aufgebotArt',
-      'patientenStatus', 'neupatient', 'verlauf', 'zuweisung',
+      'patientenStatus', 'neupatient', 'verlauf', 'zuweisung', 'zuweisungen',
     ] as const
     for (const f of fields) {
       if (!eq((data as any)[f], (orig as any)[f])) return false
