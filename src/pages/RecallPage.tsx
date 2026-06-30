@@ -3742,8 +3742,10 @@ export default function RecallPage() {
 
       // Wenn letzteKons geändert wurde, reset aufgebotErstellt
       // (der alte Aufgeboten-Status ist dann obsolet)
-      const letzteKonsChanged = oldP && form.letzteKons !== (oldP.letzteKons ?? '')
-      const aufgebotErstellt = letzteKonsChanged ? null : (form.aufgebotErstellt || null)
+      // Neuer Zyklus nur, wenn die Letzte Konst. SPÄTER als die gespeicherte ist
+      // (eine echte neue Konsultation) — nicht bei Korrekturen auf ein älteres Datum.
+      const letzteKonsNeuer = oldP && form.letzteKons > (oldP.letzteKons ?? '')
+      const aufgebotErstellt = letzteKonsNeuer ? null : (form.aufgebotErstellt || null)
 
       // Zuweisungen: Form-Zuweisung als PRIMÄRE (erste) in die Liste schreiben,
       // weitere bestehende Zuweisungen (z.B. via ZW-Management) bewahren.
@@ -6546,7 +6548,17 @@ export default function RecallPage() {
                           setField('aufgebotArt', '')
                           return
                         }
-                        // Intervall: bestehendes Formular-Intervall oder aus Liris-Extract (aktuell oder gespeichert)
+                        // Nur wenn das neue Datum SPÄTER als die zuletzt gespeicherte
+                        // «Letzte Konst.» ist, gilt es als NEUE Konsultation → neuer
+                        // Recall-Zyklus. Korrektur (gleich/älter) löst nichts aus.
+                        const savedLK = (editTarget !== 'new' && editTarget) ? (editTarget.letzteKons ?? '') : ''
+                        if (newDate <= savedLK) return
+                        // Neuer Zyklus: altes Aufgebot/Termin ist obsolet.
+                        setField('aufgebotErstellt', '')   // «Aufgebot/Reminder erstellt am» leeren
+                        setField('aufgebotArt', '')
+                        setField('naechsteKons', '')       // «Nächste Konst.» leeren
+                        setField('keinTermin', false)
+                        // Intervall (Formular oder aus Liris) → neues «RC zu erstellen ab»
                         let effectiveInterval = form.konsInterval
                         const lxWeeks = lirisExtract?.intervalWeeks || lastLirisExtract.current?.intervalWeeks
                         if (!effectiveInterval && lxWeeks) {
@@ -6559,8 +6571,6 @@ export default function RecallPage() {
                         if (effectiveInterval) {
                           const computed = computeNextKons(newDate, effectiveInterval)
                           if (computed) {
-                            setField('naechsteKons', '')
-                            setField('keinTermin', false)
                             const lk2 = new Date(newDate + 'T00:00:00Z')
                             lk2.setUTCMonth(lk2.getUTCMonth() + 2)
                             if (computed <= lk2.toISOString().slice(0, 10)) {
