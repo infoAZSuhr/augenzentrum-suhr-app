@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
   Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
-  Pencil, Save, Loader2,
 } from 'lucide-react'
-import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung, updateRecallPatient, assignRecallPatient } from '../lib/firestoreRecall'
+import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
 import { useBrowser } from '../contexts/BrowserContext'
 
@@ -94,67 +93,6 @@ export default function ZuweisungPage() {
   const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
   const [search, setSearch] = useState('')
-
-  // ── Patienten-Bearbeiten-Modal (bleibt auf ZW-Management) ───────────────────
-  const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
-  const STORNO_GRUENDE  = ['Terminverschiebung', 'WV bei Bedarf', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit', 'Zweitmeinung - einmalige Konst.', 'Notfall - einmalige Konst.']
-  const INTERVALL_OPTS  = ['3 Monate', '4 Monate', '6 Monate', '9 Monate', '1 Jahr', '1.5 Jahre', '2 Jahre', '3 Jahre', '4 Jahre', '5 Jahre']
-  const PATIENTENSTATUS = ['', 'inaktiv', 'verstorben', 'Reminder', 'kein Aufgebot']
-
-  type EditDraft = {
-    vorname: string; pid: string; gebDatum: string
-    letzteKons: string; naechsteKons: string; keinTermin: boolean
-    konsInterval: string; doctor: string
-    patientenStatus: string; grundStornierung: string
-  }
-  const [editPatient, setEditPatient] = useState<RecallPatient | null>(null)
-  const [editDraft,   setEditDraft]   = useState<EditDraft | null>(null)
-  const [editSaving,  setEditSaving]  = useState(false)
-
-  const openRecallEdit = (p: RecallPatient) => {
-    if (p.pid) openInLiris(p)
-    setEditPatient(p)
-    setEditDraft({
-      vorname:          p.vorname          ?? '',
-      pid:              p.pid              ?? '',
-      gebDatum:         (p.gebDatum        ?? '').slice(0, 10),
-      letzteKons:       (p.letzteKons      ?? '').slice(0, 10),
-      naechsteKons:     p.naechsteKons && p.naechsteKons !== 'kein Termin' ? p.naechsteKons.slice(0, 10) : '',
-      keinTermin:       p.naechsteKons === 'kein Termin',
-      konsInterval:     '',
-      doctor:           p.doctor           ?? '',
-      patientenStatus:  p.patientenStatus  ?? '',
-      grundStornierung: p.grundStornierung ?? '',
-    })
-  }
-
-  const setED = <K extends keyof EditDraft>(k: K, v: EditDraft[K]) =>
-    setEditDraft(d => d ? { ...d, [k]: v } : d)
-
-  const saveEdit = async () => {
-    if (!editPatient || !editDraft) return
-    setEditSaving(true)
-    try {
-      const naechsteKons = editDraft.keinTermin ? 'kein Termin' : (editDraft.naechsteKons || null)
-      await updateRecallPatient(editPatient.id, {
-        vorname:          editDraft.vorname.trim()          || null,
-        pid:              editDraft.pid.trim()              || null,
-        gebDatum:         editDraft.gebDatum                || null,
-        letzteKons:       editDraft.letzteKons              || null,
-        naechsteKons,
-        patientenStatus:  editDraft.patientenStatus         || null,
-        grundStornierung: editDraft.grundStornierung        || null,
-        storniert:        editDraft.grundStornierung ? 'ja' : (editPatient.storniert ?? null),
-      }, displayLabel)
-      if (editDraft.doctor && editDraft.doctor !== editPatient.doctor) {
-        await assignRecallPatient(editPatient.id, editDraft.doctor, displayLabel)
-      }
-      setEditPatient(null); setEditDraft(null)
-    } catch (e) {
-      console.warn('[ZW] Patient-Update fehlgeschlagen', e)
-      alert('Speichern fehlgeschlagen.')
-    } finally { setEditSaving(false) }
-  }
 
   // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
   const [pendingMail, setPendingMail] = useState<{ p: RecallPatient; z: Zuweisung & { id: string } } | null>(null)
@@ -377,12 +315,9 @@ export default function ZuweisungPage() {
                   {/* Patient info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => openRecallEdit(p)}
-                        title="Patient bearbeiten (im Recall öffnen)"
-                        className="font-semibold text-primary-700 text-sm hover:underline">
+                      <span className="font-semibold text-gray-900 text-sm">
                         {p.vorname || '—'}
-                      </button>
+                      </span>
                       {p.pid && (
                         <span className="font-mono text-xs text-gray-400">#{p.pid}</span>
                       )}
@@ -530,13 +465,6 @@ export default function ZuweisungPage() {
                   )}
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
-                      onClick={() => openRecallEdit(p)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline transition-colors"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Patient bearbeiten
-                    </button>
-                    <button
                       onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }}
                       className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
                     >
@@ -588,142 +516,6 @@ export default function ZuweisungPage() {
         })}
       </div>
 
-      {/* ── Patienten-Bearbeiten-Modal ─────────────────────────────────────── */}
-      {editPatient && editDraft && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
-          onClick={() => { if (!editSaving) { setEditPatient(null); setEditDraft(null) } }}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-8 overflow-hidden"
-            onClick={e => e.stopPropagation()}>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-              <h3 className="flex items-center gap-2 font-semibold text-gray-900">
-                <Pencil className="w-4 h-4 text-primary-600" />
-                Patient bearbeiten
-              </h3>
-              <button onClick={() => { setEditPatient(null); setEditDraft(null) }} disabled={editSaving}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-40">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="px-5 py-4 space-y-4">
-              {/* Name + PID */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Name / Vorname</label>
-                <input type="text" value={editDraft.vorname} onChange={e => setED('vorname', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">PID</label>
-                  <input type="text" value={editDraft.pid} onChange={e => setED('pid', e.target.value)}
-                    className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Geburtsdatum</label>
-                  <input type="date" value={editDraft.gebDatum} onChange={e => setED('gebDatum', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </div>
-              </div>
-
-              {/* Letzte / Nächste Konst. */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Letzte Konst.</label>
-                  <input type="date" value={editDraft.letzteKons} onChange={e => setED('letzteKons', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Nächste Konst.</label>
-                  {editDraft.keinTermin ? (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-gray-500 italic">kein Termin</span>
-                      <button onClick={() => setED('keinTermin', false)}
-                        className="text-xs text-primary-600 hover:underline">ändern</button>
-                    </div>
-                  ) : (
-                    <input type="date" value={editDraft.naechsteKons} onChange={e => setED('naechsteKons', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300" />
-                  )}
-                  {!editDraft.keinTermin && (
-                    <button onClick={() => { setED('keinTermin', true); setED('naechsteKons', '') }}
-                      className="mt-1 text-xs text-gray-400 hover:text-gray-600 hover:underline">kein Termin setzen</button>
-                  )}
-                </div>
-              </div>
-
-              {/* Intervall */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Konsultationsintervall</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {INTERVALL_OPTS.map(opt => (
-                    <button key={opt} onClick={() => setED('konsInterval', editDraft.konsInterval === opt ? '' : opt)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${editDraft.konsInterval === opt ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-300 hover:border-primary-400'}`}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Arzt */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Arzt</label>
-                <select value={editDraft.doctor} onChange={e => setED('doctor', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white">
-                  {editDraft.doctor && !DOCTORS_DEFAULT.includes(editDraft.doctor) && (
-                    <option value={editDraft.doctor}>{editDraft.doctor}</option>
-                  )}
-                  {DOCTORS_DEFAULT.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              {/* Patientenstatus */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Patientenstatus</label>
-                <select value={editDraft.patientenStatus} onChange={e => setED('patientenStatus', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white">
-                  <option value="">aktiv</option>
-                  {PATIENTENSTATUS.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-
-              {/* Grund Stornierung */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Grund f. Stornierung / Terminverschiebung</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {STORNO_GRUENDE.map(g => (
-                    <button key={g} onClick={() => setED('grundStornierung', editDraft.grundStornierung === g ? '' : g)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${editDraft.grundStornierung === g ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-600 border-gray-300 hover:border-rose-400'}`}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {editPatient.pid && (
-                <p className="flex items-center gap-1.5 text-xs text-gray-400">
-                  <ExternalLink className="w-3 h-3" />
-                  Liris-Akte wurde geöffnet.
-                </p>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50">
-              <button onClick={() => { setEditPatient(null); setEditDraft(null) }} disabled={editSaving}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40">
-                Abbrechen
-              </button>
-              <button onClick={saveEdit} disabled={editSaving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50">
-                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Speichern
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
