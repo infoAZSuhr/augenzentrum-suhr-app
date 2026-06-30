@@ -1079,6 +1079,13 @@ export default function RecallPage() {
     }
 
     let filled = false
+    // Vorname auto-fill bei Neupatient (neupatient===true) wenn lokal leer.
+    // Liris liefert «Vorname» und «Nachname» getrennt — kombinieren zu «Nachname Vorname».
+    const isNeupatient = !!(editTarget as RecallPatient).neupatient
+    if (isNeupatient && !form.vorname.trim() && (lirisExtract.vorname || lirisExtract.nachname)) {
+      const combined = [lirisExtract.nachname, lirisExtract.vorname].filter(Boolean).join(' ')
+      if (combined) { setField('vorname', combined); filled = true }
+    }
     // Geburtsdatum auto-fill nur wenn LOKAL leer (sonst bleibt bestehender
     // Wert erhalten — er wurde oben schon gegen Liris validiert).
     if (!form.gebDatum && lirisExtract.gebDatum) {
