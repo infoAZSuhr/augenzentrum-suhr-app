@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
-  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus,
+  Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2,
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
@@ -186,6 +186,16 @@ export default function ZuweisungPage() {
     if (!ziel.trim()) return
     const list = [...patientZuweisungen(p), newZuweisung(typ, ziel.trim(), grund.trim(), displayLabel)]
     try { await saveZuweisungen(p.id, list, displayLabel) } catch (e) { console.warn('[Zuweisung] hinzufügen fehlgeschlagen', e) }
+  }
+
+  // Eine Zuweisung löschen (aus der Liste entfernen).
+  async function deleteZuweisung(p: RecallPatient, z: Zuweisung & { id: string }) {
+    if (!window.confirm(`Zuweisung an «${z.ziel || '—'}» wirklich löschen?`)) return
+    setSavingId(`${p.id}:${z.id}`)
+    try {
+      const list = patientZuweisungen(p).filter(x => x.id !== z.id)
+      await saveZuweisungen(p.id, list, displayLabel)
+    } finally { setSavingId(null) }
   }
 
   const allZ = patients.flatMap(p => patientZuweisungen(p))
@@ -444,6 +454,14 @@ export default function ZuweisungPage() {
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Weitere Zuweisung
+                    </button>
+                    <button
+                      onClick={() => deleteZuweisung(p, z)}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-700 hover:underline transition-colors ml-auto disabled:opacity-40"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Diese Zuweisung löschen
                     </button>
                   </div>
                   {addFor === p.id && (
