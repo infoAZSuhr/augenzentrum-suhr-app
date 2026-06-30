@@ -10,6 +10,7 @@ import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
   Zuweisung,
+  patientZuweisungen,
   ZuweisungConfig,
   VerlaufEntry,
   zuBearbStableId,
@@ -176,12 +177,8 @@ function isInPlanung(p: RecallPatient): boolean {
  *  noch aussteht — also wir auf die Empfehlung warten und das eigene
  *  Recall-Vorgehen erst danach bestimmt wird. */
 function isAwaitingZuweisungsBericht(p: RecallPatient): boolean {
-  const z = p.zuweisung
-  if (!z) return false
-  // Aktiv = noch nicht erledigt oder Bericht nicht erhalten
-  if (z.status === 'pendent') return true
-  if (z.status === 'erledigt' && !z.berichtErhalten) return true
-  return false
+  // Aktiv = mindestens eine Zuweisung noch offen (pendent) oder erledigt ohne Bericht.
+  return patientZuweisungen(p).some(z => z.status === 'pendent' || (z.status === 'erledigt' && !z.berichtErhalten))
 }
 
 /** True wenn ein Patient WIRKLICH offen ist (=> braucht Recall-Planung):
@@ -431,15 +428,21 @@ function initForm(p?: RecallPatient): EditForm {
     nachfassTel:      p?.nachfassTel      ?? '',
     nachfassTelDatum: p?.nachfassTelDatum ?? '',
     verlauf:          p?.verlauf          ?? [],
-    zuweisungAktiv:     !!p?.zuweisung,
-    zuweisungTyp:       p?.zuweisung?.typ       ?? 'extern',
-    zuweisungZiel:      p?.zuweisung?.ziel       ?? '',
-    zuweisungGrund:     p?.zuweisung?.grund      ?? '',
-    zuweisungDatum:     p?.zuweisung?.datum      || toInputDate(p?.letzteKons) || new Date().toISOString().slice(0, 10),
-    zuweisungStatus:    ((p?.zuweisung?.status as string) === 'ausstehend' ? 'pendent' : p?.zuweisung?.status) ?? 'pendent',
-    zuweisungErledigtAm: p?.zuweisung?.erledigtAm    ?? '',
-    zuweisungBerichtErhalten: p?.zuweisung?.berichtErhalten ?? false,
-    zuweisungNotiz:     p?.zuweisung?.notiz            ?? '',
+    // Primäre Zuweisung = erste der Liste (Legacy-Einzel wird mit-migriert).
+    ...(() => {
+      const z0 = p ? patientZuweisungen(p)[0] : undefined
+      return {
+        zuweisungAktiv:     !!z0,
+        zuweisungTyp:       z0?.typ       ?? 'extern',
+        zuweisungZiel:      z0?.ziel       ?? '',
+        zuweisungGrund:     z0?.grund      ?? '',
+        zuweisungDatum:     z0?.datum      || toInputDate(p?.letzteKons) || new Date().toISOString().slice(0, 10),
+        zuweisungStatus:    ((z0?.status as string) === 'ausstehend' ? 'pendent' : z0?.status) ?? 'pendent',
+        zuweisungErledigtAm: z0?.erledigtAm    ?? '',
+        zuweisungBerichtErhalten: z0?.berichtErhalten ?? false,
+        zuweisungNotiz:     z0?.notiz            ?? '',
+      }
+    })(),
   }
 }
 
@@ -2274,12 +2277,14 @@ export default function RecallPage() {
     const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'de')
 
     // 1) Zuweisung überfällig: Abschlussbericht seit > 8 Wochen ausstehend.
+    //    Pro offener, überfälliger Zuweisung ein Eintrag (Patient kann mehrfach).
     const riskZuweisung = activeAll
-      .filter(p => isAwaitingZuweisungsBericht(p) && (p.zuweisung?.datum || '') !== '' && (p.zuweisung?.datum || '') <= w8ago)
-      .map(p => {
-        const wochen = Math.floor((now.getTime() - new Date((p.zuweisung!.datum) + 'T00:00:00Z').getTime()) / (7 * 864e5))
-        return toRisk(p, `Bericht ausstehend seit ${wochen} Wochen`)
-      })
+      .flatMap(p => patientZuweisungen(p)
+        .filter(z => (z.status === 'pendent' || (z.status === 'erledigt' && !z.berichtErhalten)) && (z.datum || '') !== '' && (z.datum || '') <= w8ago)
+        .map(z => {
+          const wochen = Math.floor((now.getTime() - new Date(z.datum + 'T00:00:00Z').getTime()) / (7 * 864e5))
+          return toRisk(p, `${z.ziel || 'Zuweisung'}: Bericht ausstehend seit ${wochen} Wochen`)
+        }))
       .sort(byName)
 
     // 3) Reminder ohne Reaktion: Reminder im aktuellen Zyklus, kein Termin
@@ -3732,6 +3737,26 @@ export default function RecallPage() {
       const letzteKonsChanged = oldP && form.letzteKons !== (oldP.letzteKons ?? '')
       const aufgebotErstellt = letzteKonsChanged ? null : (form.aufgebotErstellt || null)
 
+      // Zuweisungen: Form-Zuweisung als PRIMÄRE (erste) in die Liste schreiben,
+      // weitere bestehende Zuweisungen (z.B. via ZW-Management) bewahren.
+      const existingZw = oldP ? patientZuweisungen(oldP) : []
+      const genZwId = () => { try { const u = (crypto as { randomUUID?: () => string }).randomUUID?.(); if (u) return u } catch { /* */ } return 'zw_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) }
+      const primaryZw: Zuweisung | null = form.zuweisungAktiv && form.zuweisungZiel.trim() ? {
+        id:         existingZw[0]?.id || genZwId(),
+        typ:        form.zuweisungTyp,
+        ziel:       form.zuweisungZiel.trim(),
+        grund:      form.zuweisungGrund.trim(),
+        datum:      form.zuweisungDatum,
+        status:     form.zuweisungStatus,
+        erledigtAm: form.zuweisungErledigtAm,
+        berichtErhalten: form.zuweisungBerichtErhalten,
+        ...(existingZw[0]?.berichtAngefragt !== undefined ? { berichtAngefragt: existingZw[0].berichtAngefragt } : {}),
+        ...(existingZw[0]?.berichtAngefragtAm ? { berichtAngefragtAm: existingZw[0].berichtAngefragtAm } : {}),
+        notiz:      form.zuweisungNotiz.trim(),
+        von:        existingZw[0]?.von || displayLabel,
+      } : null
+      const zuweisungenList = primaryZw ? [primaryZw, ...existingZw.slice(1)] : existingZw.slice(1)
+
       const data = {
         pid:              normalizePid(form.pid) || null,
         name:             null,
@@ -3754,17 +3779,8 @@ export default function RecallPage() {
         neupatient:       (editTarget !== 'new' && normalizePid(form.pid) && !editTarget?.pid) ? false : (form.neupatient || null),
         rcErstellt:       !!(form.aufgebotArt && form.aufgebotErstellt) || null,
         verlauf:          finalVerlauf.length > 0 ? finalVerlauf : null,
-        zuweisung:        form.zuweisungAktiv && form.zuweisungZiel.trim() ? ({
-          typ:        form.zuweisungTyp,
-          ziel:       form.zuweisungZiel.trim(),
-          grund:      form.zuweisungGrund.trim(),
-          datum:      form.zuweisungDatum,
-          status:     form.zuweisungStatus,
-          erledigtAm:      form.zuweisungErledigtAm,
-          berichtErhalten: form.zuweisungBerichtErhalten,
-          notiz:           form.zuweisungNotiz.trim(),
-          von:        displayLabel,
-        } as Zuweisung) : null,
+        zuweisung:        null,   // Legacy-Einzelfeld migriert in zuweisungen[]
+        zuweisungen:      zuweisungenList.length > 0 ? zuweisungenList : null,
       }
       // Nach dem Speichern bleibt der User IMMER auf der aktuellen Tab/Liste.
       // Auch bei Patient-Umhängung (assignDoctor) oder Neuanlage in einem
@@ -4419,9 +4435,14 @@ export default function RecallPage() {
                 {row.verlauf?.some(v => v.ergebnis === 'noch zu erledigen') && (
                   <span title="Kontakt noch zu erledigen" className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">⏳</span>
                 )}
-                {row.zuweisung && (row.zuweisung.status === 'pendent' || (row.zuweisung.status as string) === 'ausstehend') && (
-                  <span title={`Zuweisung pendent → ${row.zuweisung.ziel}`} className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">↪ {row.zuweisung.typ === 'intern' ? 'Int.' : 'Ext.'}</span>
-                )}
+                {(() => {
+                  const offen = patientZuweisungen(row).filter(z => z.status === 'pendent' || (z.status as string) === 'ausstehend')
+                  if (offen.length === 0) return null
+                  const z0 = offen[0]
+                  return (
+                    <span title={offen.map(z => `Zuweisung pendent → ${z.ziel}`).join('\n')} className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">↪ {z0.typ === 'intern' ? 'Int.' : 'Ext.'}{offen.length > 1 ? ` ×${offen.length}` : ''}</span>
+                  )
+                })()}
                 {storniert && (
                   <span className="ml-auto shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">storniert</span>
                 )}
