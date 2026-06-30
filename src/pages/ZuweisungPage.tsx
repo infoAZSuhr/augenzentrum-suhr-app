@@ -197,8 +197,8 @@ export default function ZuweisungPage() {
 
   useEffect(() => subscribeZuweisungPatients(setPatients), [])
 
-  // normalise legacy 'ausstehend' → 'pendent'
-  function normStatus(s: string) { return s === 'ausstehend' ? 'pendent' : s }
+  // normalise legacy 'ausstehend' / null / undefined → 'pendent'
+  function normStatus(s: string | null | undefined): string { return (!s || s === 'ausstehend') ? 'pendent' : s }
 
   // Eine Zeile PRO Zuweisung (Patient kann mehrfach erscheinen).
   type Row = { p: RecallPatient; z: Zuweisung & { id: string }; key: string }

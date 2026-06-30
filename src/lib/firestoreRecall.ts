@@ -273,7 +273,13 @@ export function patientZuweisungen(p: RecallPatient): (Zuweisung & { id: string 
 /** Schreibt die komplette Zuweisungs-Liste eines Patienten und räumt die
  *  Legacy-Einzel-Zuweisung auf (Migration). */
 export async function saveZuweisungen(patientId: string, list: Zuweisung[], by: string): Promise<void> {
-  await updateRecallPatient(patientId, { zuweisungen: list, zuweisung: null } as Partial<RecallPatient>, by)
+  // Sicherstellen dass jede Zuweisung einen Status und eine ID hat (Migration)
+  const normalized = list.map(z => ({
+    ...z,
+    id: z.id || genZwId(),
+    status: z.status || 'pendent',
+  }))
+  await updateRecallPatient(patientId, { zuweisungen: normalized, zuweisung: null } as Partial<RecallPatient>, by)
 }
 
 /** Neue, leere Zuweisung mit Default-Werten (für «weitere Zuweisung hinzufügen»). */
