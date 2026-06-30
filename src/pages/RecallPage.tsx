@@ -4031,8 +4031,7 @@ export default function RecallPage() {
         <div className="flex items-center gap-3 mb-3">
           <BackButton />
         </div>
-        <div className="flex items-end gap-2 flex-wrap">
-        <nav className="flex gap-1 flex-wrap">
+        <nav className="flex items-end gap-1 flex-wrap">
           {allTabs.map(tab => {
             const rawCount = allData.get(tab)?.length ?? 0
             const isActive = activeTab === tab
@@ -4080,16 +4079,15 @@ export default function RecallPage() {
               </button>
             )
           })}
+          {/* ZW-Management — direkt hinter dem letzten Register (RECALL) */}
+          <button
+            onClick={() => navigate('/zuweisungen')}
+            title="ZW-Management (Zuweisungen verwalten)"
+            className="mb-1 ml-1 flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm font-medium border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
+          >
+            <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">ZW-Management</span>
+          </button>
         </nav>
-        {/* ZW-Management — neben dem Register */}
-        <button
-          onClick={() => navigate('/zuweisungen')}
-          title="ZW-Management (Zuweisungen verwalten)"
-          className="mb-1 flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm font-medium border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0"
-        >
-          <ArrowRightLeft className="w-4 h-4" /> <span className="hidden sm:inline">ZW-Management</span>
-        </button>
-        </div>
       </div>
 
       {/* Status-Meldung (sync / import) */}
