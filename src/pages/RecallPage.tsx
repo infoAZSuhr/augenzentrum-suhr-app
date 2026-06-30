@@ -684,13 +684,6 @@ export default function RecallPage() {
   const [zwAddOpen, setZwAddOpen] = useState(false)
   const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
 
-  // Aufgebot-Dialog: Liris ausblenden (würde sonst darüber malen).
-  // «Patienten bearbeiten» blendet Liris NICHT aus — der Dialog wird stattdessen
-  // neben das Liris-Panel versetzt (siehe modal-Style), damit man den Termin in
-  // Liris gleichzeitig sieht/bearbeiten kann.
-  useEffect(() => {
-    setLirisSuppressed(!!aufgebotTarget)
-  }, [aufgebotTarget, setLirisSuppressed])
   useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
   // «weitere Zuweisung»-Inline-Form zurücksetzen, wenn ein anderer Patient geöffnet wird
   useEffect(() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }, [editTarget])
@@ -7273,7 +7266,7 @@ export default function RecallPage() {
                           else setField('grundStornierung', v)
                           setField('storniert', 'ja')
                           setField('aufgebotFuer', '')
-                          if (v === 'WV bei Bedarf') setField('patientenStatus', 'kein Aufgebot')
+                          if (v === 'WV bei Bedarf' || v === 'Notfall - einmalige Konst.' || v === 'Zweitmeinung - einmalige Konst.') setField('patientenStatus', 'kein Aufgebot')
                           if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
                           if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
                           if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
