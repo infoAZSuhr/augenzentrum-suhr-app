@@ -37,14 +37,27 @@ function vollName(p: RecallPatient): string {
   return v || n
 }
 
+/** Bekannte E-Mail-Empfänger je Zuweisungsziel (Bericht-Sekretariate).
+ *  Erweiterbar: neue Zielstelle → Treffer-Funktion + Adresse ergänzen. */
+function zielEmail(ziel: string | null | undefined): string {
+  const z = (ziel || '').toLowerCase()
+  if (!z) return ''
+  // KSA Augenklinik (Kantonsspital Aarau)
+  if ((z.includes('ksa') || z.includes('kantonsspital aarau') || z.includes('aarau')) && z.includes('augen')) {
+    return 'berichtesekretariat-augenklinik@ksa.ch'
+  }
+  return ''
+}
+
 /** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
- *  Empfänger bleibt leer — die Adresse der Zielstelle wird vom Nutzer ergänzt.
- *  Patient wird über Nach-/Vorname + Geburtsdatum identifiziert (keine interne PID). */
+ *  Empfänger wird – wenn bekannt – automatisch gesetzt (z. B. KSA Augenklinik),
+ *  sonst leer gelassen. Patient: Nach-/Vorname + Geburtsdatum (keine interne PID). */
 function sendBerichtNachfrage(p: RecallPatient) {
   const z = p.zuweisung!
   const name = vollName(p) || 'unbekannt'
   const geb = p.gebDatum ? formatDate(p.gebDatum) : ''
   const ident = `${name}${geb ? `, geb. ${geb}` : ''}`
+  const empfaenger = zielEmail(z.ziel)
   const subject = `Bericht-Nachfrage – ${ident}`
   const body = [
     'Sehr geehrte Damen und Herren',
@@ -59,7 +72,7 @@ function sendBerichtNachfrage(p: RecallPatient) {
     'Augenzentrum Suhr',
     'Tel. +41 62 842 18 46 · info@augenzentrum-suhr.ch',
   ].join('\n')
-  const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  const url = `mailto:${empfaenger}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   try { window.open(url) } catch { window.location.href = url }
 }
 
@@ -303,7 +316,7 @@ export default function ZuweisungPage() {
                       <button
                         onClick={() => sendBerichtNachfrage(p)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-                        title="Bericht per E-Mail nachfragen (Empfänger ergänzen)"
+                        title={zielEmail(z.ziel) ? `Bericht per E-Mail nachfragen an ${zielEmail(z.ziel)}` : 'Bericht per E-Mail nachfragen (Empfänger ergänzen)'}
                       >
                         <Mail className="w-3.5 h-3.5" />
                         Bericht anfragen
