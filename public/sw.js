@@ -1,4 +1,4 @@
-const CACHE = 'azs-v3'
+const CACHE = 'azs-v4'
 
 self.addEventListener('install', () => self.skipWaiting())
 
