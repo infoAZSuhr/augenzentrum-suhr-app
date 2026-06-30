@@ -2648,6 +2648,7 @@ export default function RecallPage() {
     setAufgebotForm(f => {
       const patch: Partial<typeof f> = {}
       if (!f.anrede && lirisExtract.anrede) patch.anrede = lirisExtract.anrede as any
+      if (!f.nachnameOverride && lirisExtract.nachname) patch.nachnameOverride = lirisExtract.nachname.trim()
       // Früherer Arzt = Autor der letzten Untersuchung (für Variante «Neuen Arzt
       // vorschlagen»). Nur vorbefüllen, MPA kann korrigieren.
       if (!f.frueherArzt && lirisExtract.autor) patch.frueherArzt = lirisExtract.autor.trim()
