@@ -82,8 +82,7 @@ function sendBerichtNachfrage(p: RecallPatient, opts: MailOpts = {}) {
     '',
     'Besten Dank und freundliche Grüsse',
     ...(opts.mpaName ? [opts.mpaName] : []),
-    'Augenzentrum Suhr',
-    'Tel. +41 62 842 18 46 · info@augenzentrum-suhr.ch',
+    '',
   ].join('\n')
   const url = `mailto:${empfaenger}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   try { window.open(url) } catch { window.location.href = url }
