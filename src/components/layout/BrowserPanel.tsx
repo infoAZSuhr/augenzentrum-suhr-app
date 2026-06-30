@@ -1401,6 +1401,17 @@ export default function BrowserPanel() {
                 if (info) {
                   // PID wurde ueber Dropdown ausgewaehlt — Patient existiert.
                   setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
+                  // Suchdropdown schliessen falls noch offen (z.B. wenn Akte bereits geladen war).
+                  try {
+                    wv.executeJavaScript(`(function(){
+                      var inp = document.querySelector('input[placeholder^="Allgemeine Suche"]');
+                      if (inp) {
+                        ['keydown','keyup'].forEach(function(t){
+                          inp.dispatchEvent(new KeyboardEvent(t,{key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true}));
+                        });
+                      }
+                    })()`)
+                  } catch { /* ignore */ }
                 }
                 const needMore = (!info || !info.postAdresse) && attempt < ADDR_MAX - 1
                 if (needMore) {
