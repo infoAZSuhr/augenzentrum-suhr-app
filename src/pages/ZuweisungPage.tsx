@@ -27,10 +27,9 @@ function wochenSeit(datum: string | null | undefined): number | null {
   return diff < 0 ? 0 : Math.floor(diff / (7 * 24 * 3600 * 1000))
 }
 
-/** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
- *  Empfänger bleibt leer — die Adresse der Zielstelle wird vom Nutzer ergänzt. */
-/** Vollständiger Name inkl. Nachname. `vorname` enthält bei Liris-Daten oft schon
- *  «Nachname Vorname»; das Legacy-Feld `name` wird ergänzt, falls noch nicht enthalten. */
+/** Vollständiger Name inkl. Nachname. `vorname` enthält bei Liris-Daten meist
+ *  schon «Nachname Vorname»; das Legacy-Feld `name` wird kombiniert, falls der
+ *  Nachname dort separat liegt. */
 function vollName(p: RecallPatient): string {
   const v = (p.vorname || '').trim()
   const n = ((p as { name?: string | null }).name || '').trim()
@@ -38,15 +37,22 @@ function vollName(p: RecallPatient): string {
   return v || n
 }
 
+/** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
+ *  Empfänger bleibt leer — die Adresse der Zielstelle wird vom Nutzer ergänzt.
+ *  Patient wird über Nach-/Vorname + Geburtsdatum identifiziert (keine interne PID). */
 function sendBerichtNachfrage(p: RecallPatient) {
   const z = p.zuweisung!
-  const name = vollName(p) || 'unserer Patientin / unserem Patienten'
-  const pid = p.pid ? ` (PID #${p.pid})` : ''
-  const subject = `Bericht-Nachfrage – Zuweisung ${name}${pid}`
+  const name = vollName(p) || 'unbekannt'
+  const geb = p.gebDatum ? formatDate(p.gebDatum) : ''
+  const ident = `${name}${geb ? `, geb. ${geb}` : ''}`
+  const subject = `Bericht-Nachfrage – ${ident}`
   const body = [
     'Sehr geehrte Damen und Herren',
     '',
-    `am ${formatDate(z.datum)} haben wir Ihnen ${name}${p.gebDatum ? ` (geb. ${formatDate(p.gebDatum)})` : ''} zugewiesen${z.grund ? ` – Grund: ${z.grund}` : ''}.`,
+    `am ${formatDate(z.datum)} haben wir Ihnen folgende Patientin / folgenden Patienten zugewiesen${z.grund ? ` (Grund: ${z.grund})` : ''}:`,
+    '',
+    `    ${ident}`,
+    '',
     'Bisher ist bei uns noch kein Abschlussbericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
     '',
     'Besten Dank und freundliche Grüsse',
