@@ -52,24 +52,36 @@ function zielEmail(ziel: string | null | undefined): string {
 /** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
  *  Empfänger wird – wenn bekannt – automatisch gesetzt (z. B. KSA Augenklinik),
  *  sonst leer gelassen. Patient: Nach-/Vorname + Geburtsdatum (keine interne PID). */
-function sendBerichtNachfrage(p: RecallPatient, nameOverride?: string, gebOverride?: string | null) {
+interface MailOpts { name?: string; geb?: string | null; anrede?: string | null; mpaName?: string }
+
+function sendBerichtNachfrage(p: RecallPatient, opts: MailOpts = {}) {
   const z = p.zuweisung!
-  const name = (nameOverride && nameOverride.trim()) || vollName(p) || 'unbekannt'
-  const gebSrc = (gebOverride && gebOverride.trim()) || p.gebDatum
+  const name = (opts.name && opts.name.trim()) || vollName(p) || 'unbekannt'
+  const gebSrc = (opts.geb && opts.geb.trim()) || p.gebDatum
   const geb = gebSrc ? formatDate(gebSrc) : ''
   const ident = `${name}${geb ? `, geb. ${geb}` : ''}`
   const empfaenger = zielEmail(z.ziel)
+
+  // Geschlecht aus der Liris-Anrede ableiten (Frau/Herr); sonst neutral.
+  const a = (opts.anrede || '').toLowerCase()
+  const zuweisungsSatz = a.startsWith('frau')
+    ? 'Folgende Patientin wurde Ihnen zugewiesen'
+    : a.startsWith('herr')
+      ? 'Folgender Patient wurde Ihnen zugewiesen'
+      : 'Folgende Patientin / folgender Patient wurde Ihnen zugewiesen'
+
   const subject = `Bericht-Nachfrage – ${ident}`
   const body = [
     'Sehr geehrte Damen und Herren',
     '',
-    `am ${formatDate(z.datum)} haben wir Ihnen folgende Patientin / folgenden Patienten zugewiesen${z.grund ? ` (Grund: ${z.grund})` : ''}:`,
+    `${zuweisungsSatz}${z.grund ? ` (Grund: ${z.grund})` : ''}:`,
     '',
     `    ${ident}`,
     '',
     'Bisher ist bei uns noch kein Abschlussbericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
     '',
     'Besten Dank und freundliche Grüsse',
+    ...(opts.mpaName ? [opts.mpaName] : []),
     'Augenzentrum Suhr',
     'Tel. +41 62 842 18 46 · info@augenzentrum-suhr.ch',
   ].join('\n')
@@ -108,10 +120,10 @@ export default function ZuweisungPage() {
       if (pendingMailTimer.id) window.clearTimeout(pendingMailTimer.id)
       // Fallback: nach 12 s ohne Liris-Namen mit den lokalen Daten senden.
       pendingMailTimer.id = window.setTimeout(() => {
-        setPendingMail(cur => { if (cur && cur.p.id === p.id) { sendBerichtNachfrage(cur.p); return null } return cur })
+        setPendingMail(cur => { if (cur && cur.p.id === p.id) { sendBerichtNachfrage(cur.p, { mpaName: displayLabel }); return null } return cur })
       }, 12000)
     } else {
-      sendBerichtNachfrage(p)
+      sendBerichtNachfrage(p, { mpaName: displayLabel })
     }
   }
 
@@ -123,7 +135,7 @@ export default function ZuweisungPage() {
     const name = [lirisExtract.nachname, lirisExtract.vorname].filter(Boolean).join(' ').trim()
     if (!name) return
     if (pendingMailTimer.id) { window.clearTimeout(pendingMailTimer.id); pendingMailTimer.id = null }
-    sendBerichtNachfrage(pendingMail.p, name, lirisExtract.gebDatum)
+    sendBerichtNachfrage(pendingMail.p, { name, geb: lirisExtract.gebDatum, anrede: lirisExtract.anrede, mpaName: displayLabel })
     setPendingMail(null)
   }, [lirisExtract, pendingMail]) // eslint-disable-line react-hooks/exhaustive-deps
 
