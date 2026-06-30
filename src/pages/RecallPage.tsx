@@ -682,7 +682,7 @@ export default function RecallPage() {
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
   // Inline-Formular «weitere Zuweisung» im Patient-bearbeiten-Dialog
   const [zwAddOpen, setZwAddOpen] = useState(false)
-  const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string }>({ typ: 'extern', ziel: '', grund: '' })
+  const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
 
   // Aufgebot-Dialog: Liris ausblenden (würde sonst darüber malen).
   // «Patienten bearbeiten» blendet Liris NICHT aus — der Dialog wird stattdessen
@@ -693,7 +693,7 @@ export default function RecallPage() {
   }, [aufgebotTarget, setLirisSuppressed])
   useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
   // «weitere Zuweisung»-Inline-Form zurücksetzen, wenn ein anderer Patient geöffnet wird
-  useEffect(() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '' }) }, [editTarget])
+  useEffect(() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }, [editTarget])
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed]  = useState(true)   // Dialog bleibt schmal (Vorschau ist Popup)
   // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),
@@ -6971,6 +6971,7 @@ export default function RecallPage() {
                         <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">{zx.typ === 'intern' ? 'Int.' : 'Ext.'}</span>
                         <span className="font-medium text-gray-800 truncate">→ {zx.ziel}</span>
                         {zx.grund && <span className="text-gray-500 truncate">· {zx.grund}</span>}
+                        {zx.datum && <span className="text-gray-400 shrink-0">· {formatDate(zx.datum)}</span>}
                         <button type="button" onClick={() => setField('zuweisungExtra', form.zuweisungExtra.filter((_, j) => j !== i))}
                           title="Entfernen" className="ml-auto p-0.5 rounded text-gray-400 hover:text-red-500 shrink-0">
                           <Trash2 className="w-3.5 h-3.5" />
@@ -6980,28 +6981,68 @@ export default function RecallPage() {
                   </div>
                 )}
 
-                {/* «+ weitere Zuweisung» */}
+                {/* «+ weitere Zuweisung» — gleiche Felder wie 1. Zuweisung */}
                 {zwAddOpen ? (
-                  <div className="mt-2 p-2.5 rounded-lg border border-violet-200 bg-violet-50/40 space-y-2">
+                  <div className="mt-2 p-3 rounded-xl border border-violet-200 bg-violet-50 space-y-2">
+                    {/* Typ */}
                     <div className="flex gap-2">
-                      {(['extern', 'intern'] as const).map(t => (
-                        <button key={t} type="button" onClick={() => setZwAddDraft(d => ({ ...d, typ: t }))}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${zwAddDraft.typ === t ? 'bg-violet-100 text-violet-700 border-violet-300' : 'bg-white text-gray-500 border-gray-200'}`}>
-                          {t === 'extern' ? 'Extern' : 'Intern'}
+                      {(['intern', 'extern'] as const).map(t => (
+                        <button key={t} type="button" onClick={() => setZwAddDraft(d => ({ ...d, typ: t, ziel: '' }))}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border-2 transition-colors ${zwAddDraft.typ === t ? 'border-violet-500 bg-violet-100 text-violet-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
+                          {t === 'intern' ? 'Intern (Praxis)' : 'Extern (andere Praxis)'}
                         </button>
                       ))}
                     </div>
-                    <input type="text" value={zwAddDraft.ziel} onChange={e => setZwAddDraft(d => ({ ...d, ziel: e.target.value }))}
-                      placeholder="Zielstelle (z. B. Augenklinik KSA, Dr. …)" autoFocus className={inputCls} />
-                    <input type="text" value={zwAddDraft.grund} onChange={e => setZwAddDraft(d => ({ ...d, grund: e.target.value }))}
-                      placeholder="Grund (z. B. YAG, OP, Abklärung)" className={inputCls} />
+                    {/* Ziel: Praxis / Arzt */}
+                    <div>
+                      <label className={labelCls}>{zwAddDraft.typ === 'intern' ? 'Arzt / Abteilung' : 'Praxis / Klinik'}<span className="text-red-500 ml-0.5">*</span></label>
+                      {(() => {
+                        const opts = zwAddDraft.typ === 'intern' ? doctors : zuweisungPraxen
+                        return (
+                          <div className="space-y-1.5">
+                            <select
+                              value={opts.includes(zwAddDraft.ziel) ? zwAddDraft.ziel : (zwAddDraft.ziel ? '__custom__' : '')}
+                              onChange={e => setZwAddDraft(d => ({ ...d, ziel: e.target.value === '__custom__' ? '' : e.target.value }))}
+                              className={inputCls}>
+                              <option value="">{zwAddDraft.typ === 'intern' ? '— Arzt wählen —' : '— Praxis wählen —'}</option>
+                              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                              <option value="__custom__">Sonstige…</option>
+                            </select>
+                            {!opts.includes(zwAddDraft.ziel) && (
+                              <input type="text" value={zwAddDraft.ziel} onChange={e => setZwAddDraft(d => ({ ...d, ziel: e.target.value }))}
+                                placeholder="Bezeichnung eingeben…" className={inputCls} />
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                    {/* Grund */}
+                    <div>
+                      <label className={labelCls}>Grund</label>
+                      <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {zuweisungGruende.map(g => (
+                          <button key={g} type="button" onClick={() => setZwAddDraft(d => ({ ...d, grund: d.grund === g ? '' : g }))}
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${zwAddDraft.grund === g ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-gray-600 border-gray-300 hover:border-violet-400 hover:text-violet-700'}`}>{g}</button>
+                        ))}
+                      </div>
+                      {!zuweisungGruende.includes(zwAddDraft.grund) && (
+                        <input type="text" value={zwAddDraft.grund} onChange={e => setZwAddDraft(d => ({ ...d, grund: e.target.value }))}
+                          placeholder="Grund (freitext)…" className={inputCls} />
+                      )}
+                    </div>
+                    {/* Zugewiesen am */}
+                    <div>
+                      <label className={labelCls}>Zugewiesen am</label>
+                      <input type="date" value={zwAddDraft.datum} onChange={e => setZwAddDraft(d => ({ ...d, datum: e.target.value }))} className={inputCls} />
+                    </div>
                     <div className="flex gap-2 justify-end">
-                      <button type="button" onClick={() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '' }) }}
+                      <button type="button" onClick={() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">Abbrechen</button>
                       <button type="button" disabled={!zwAddDraft.ziel.trim()}
                         onClick={() => {
-                          setField('zuweisungExtra', [...form.zuweisungExtra, newZuweisung(zwAddDraft.typ, zwAddDraft.ziel.trim(), zwAddDraft.grund.trim(), displayLabel)])
-                          setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '' })
+                          const zw = { ...newZuweisung(zwAddDraft.typ, zwAddDraft.ziel.trim(), zwAddDraft.grund.trim(), displayLabel), datum: zwAddDraft.datum || new Date().toISOString().slice(0, 10) }
+                          setField('zuweisungExtra', [...form.zuweisungExtra, zw])
+                          setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
                         }}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Hinzufügen</button>
                     </div>
