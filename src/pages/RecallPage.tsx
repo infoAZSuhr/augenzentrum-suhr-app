@@ -940,9 +940,12 @@ export default function RecallPage() {
       // recallNewRequest-Effect uebernimmt das eigentliche Modal-Oeffnen.
       const lx = (lirisExtract && normalizePid(lirisExtract.pid) === wantPid) ? lirisExtract : null
       requestRecallNew({
-        pid: wantPid,
-        name: lx?.vorname || '',
-        geb:  lx?.gebDatum || '',
+        pid:          wantPid,
+        name:         lx?.vorname     || '',
+        geb:          lx?.gebDatum    || '',
+        letzteKons:   lx?.letzteKons  || '',
+        intervalWeeks: lx?.intervalWeeks ?? null,
+        autor:        lx?.autor       || '',
       })
     }
   }, [recallPidRequest, allData]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -953,25 +956,21 @@ export default function RecallPage() {
   useEffect(() => {
     if (!recallNewRequest) return
     if (Date.now() - recallNewRequest.at > 5000) { clearRecallNewRequest(); return }
-    const { pid, name, geb } = recallNewRequest
+    const { pid, name, geb, letzteKons: reqLK, intervalWeeks: reqIW, autor: reqAutor } = recallNewRequest
     clearRecallNewRequest()
-    // lirisExtract als Quelle fuer letzteKons + Intervall — nur wenn die
-    // PID matched und der Extract frisch ist (<5s).
-    const lx = (lirisExtract
-      && normalizePid(lirisExtract.pid) === normalizePid(pid)
-      && Date.now() - lirisExtract.at <= 5000) ? lirisExtract : null
+    // Daten kommen direkt aus dem Request (wurden beim Aufruf aus lirisExtract
+    // übernommen) → kein erneuter Timeout-Check auf lirisExtract nötig.
     let intervalStr = ''
-    if (lx?.intervalWeeks) {
-      const w = lx.intervalWeeks
+    if (reqIW) {
+      const w = reqIW
       if      (w % 52 === 0 && w / 52 <= 120) intervalStr = `${w / 52}j`
       else if (w % 4  === 0 && w / 4  <= 120) intervalStr = `${w / 4}m`
       else if (w <= 120)                      intervalStr = `${w}w`
     }
-    // Arzt aus Liris-Autor extrahieren (gleiche Match-Logik wie beim Auto-Fill
-    // bestehender Patienten).
+    // Arzt aus Liris-Autor extrahieren
     let autoDoc = ''
-    if (lx?.autor) {
-      const cleaned = lx.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+    if (reqAutor) {
+      const cleaned = reqAutor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
       const words = cleaned.split(/\s+/)
       for (let n = 1; n <= words.length; n++) {
         const cand = words.slice(-n).join(' ').toLowerCase()
@@ -980,12 +979,11 @@ export default function RecallPage() {
       }
     }
     // 'RC zu erstellen ab' aus letzteKons + Intervall berechnen
-    // (gleiche Logik wie beim Auto-Fill und im manuellen onChange).
     let autoAufgebotFuer = ''
-    if (lx?.letzteKons && intervalStr) {
-      const computed = computeNextKons(lx.letzteKons, intervalStr)
+    if (reqLK && intervalStr) {
+      const computed = computeNextKons(reqLK, intervalStr)
       if (computed) {
-        const lk2 = new Date(lx.letzteKons + 'T00:00:00Z')
+        const lk2 = new Date(reqLK + 'T00:00:00Z')
         lk2.setUTCMonth(lk2.getUTCMonth() + 2)
         if (computed <= lk2.toISOString().slice(0, 10)) {
           autoAufgebotFuer = new Date().toISOString().slice(0, 10)
@@ -996,10 +994,11 @@ export default function RecallPage() {
         }
       }
     }
-    // name aus Kalender = "Nachname Vorname(n)" → erstes Wort abtrennen
+    // name = "Nachname Vorname(n)" → erstes Wort abtrennen; name enthält schon
+    // den Vornamen aus lirisExtract (übergeben via requestRecallNew).
     const nameParts = (name || '').trim().split(/\s+/).filter(Boolean)
-    const calendarVorname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
-    const resolvedVorname = lx?.vorname || calendarVorname
+    const calendarVorname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : (nameParts[0] || '')
+    const resolvedVorname = name || calendarVorname
     const vornameParts = resolvedVorname.trim().split(/\s+/).filter(Boolean)
     setModalBuffer(true)
     setEditTarget('new')
@@ -1007,8 +1006,8 @@ export default function RecallPage() {
       ...initForm(),
       pid: pid || '',
       vorname: resolvedVorname,
-      gebDatum: geb || lx?.gebDatum || '',
-      letzteKons: lx?.letzteKons || '',
+      gebDatum: geb || '',
+      letzteKons: reqLK || '',
       konsInterval: intervalStr,
       aufgebotFuer: autoAufgebotFuer,
       neupatient: true,

@@ -44,10 +44,13 @@ export interface TerminAnlegenRequest {
 /** Anfrage: Patient ist in Liris vorhanden aber nicht im Recall —
  *  RecallPage soll die Neu-Erfassung mit den vorhandenen Daten oeffnen. */
 export interface RecallNewRequest {
-  pid:  string
-  name: string
-  geb:  string   // ISO YYYY-MM-DD oder ''
-  at:   number
+  pid:        string
+  name:       string
+  geb:        string   // ISO YYYY-MM-DD oder ''
+  letzteKons: string   // ISO YYYY-MM-DD oder ''
+  intervalWeeks: number | null
+  autor:      string   // Liris-Autor (für Arzt-Auto-Fill)
+  at:         number
 }
 
 interface BrowserContextType {
@@ -79,7 +82,7 @@ interface BrowserContextType {
   lirisWebContentsId: number | null
   setLirisWebContentsId: (id: number | null) => void
   clearRecallPidRequest: () => void
-  requestRecallNew: (data: { pid: string; name?: string; geb?: string }) => void
+  requestRecallNew: (data: { pid: string; name?: string; geb?: string; letzteKons?: string; intervalWeeks?: number | null; autor?: string }) => void
   clearRecallNewRequest: () => void
   terminAnlegenRequest: TerminAnlegenRequest | null
   requestTerminAnlegen: (pid: string, grund: string) => void
@@ -190,7 +193,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       lirisWebContentsId,
       setLirisWebContentsId,
       clearRecallPidRequest: () => setRecallPidRequest(null),
-      requestRecallNew: (data) => setRecallNewRequest({ pid: data.pid, name: data.name || '', geb: data.geb || '', at: Date.now() }),
+      requestRecallNew: (data) => setRecallNewRequest({ pid: data.pid, name: data.name || '', geb: data.geb || '', letzteKons: data.letzteKons || '', intervalWeeks: data.intervalWeeks ?? null, autor: data.autor || '', at: Date.now() }),
       clearRecallNewRequest: () => setRecallNewRequest(null),
       terminAnlegenRequest,
       requestTerminAnlegen: (pid: string, grund: string) => setTerminAnlegenRequest({ pid, grund, at: Date.now() }),
