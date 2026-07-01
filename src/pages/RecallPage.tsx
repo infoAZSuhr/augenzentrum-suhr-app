@@ -2598,11 +2598,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         // Minderjährige: Adresse und Name des zusätzlichen Kontakts (Elternteil) verwenden.
         if (isMinor && lirisExtract.zusKontaktName && lirisExtract.zusKontaktAdresse) {
           patch.adressBlock = lirisExtract.zusKontaktName + '\n' + lirisExtract.zusKontaktAdresse
-          // nachnameOverride aus dem Elternnamen: letztes Wort = Nachname
-          if (!f.nachnameOverride) {
-            const words = lirisExtract.zusKontaktName.trim().split(/\s+/)
-            patch.nachnameOverride = words[words.length - 1] || ''
-          }
+          // nachnameOverride bleibt beim Patienten-Nachnamen (aus Liris-Header)
         } else if (lirisExtract.postAdresse) {
           // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
           // manuellen Einfügen. Alle Parser (Begrüßung, Adress-Anzeige, E-Mail)
