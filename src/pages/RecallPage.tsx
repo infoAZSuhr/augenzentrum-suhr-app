@@ -2456,6 +2456,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       overdue:    active.filter(isOverdue).length,
       inPlanung:  active.filter(isInPlanung).length,
       ohneTermin: active.filter(isOhneTermin).length,
+      ohneRC:     active.filter(isOhneRC).length,
       nachfass:   active.filter(p => isNachfassFaellig(p)).length,
       neupatient:        base.filter(p => p.neupatient === true).length,
       storniert:         base.filter(isStorniert).length,
