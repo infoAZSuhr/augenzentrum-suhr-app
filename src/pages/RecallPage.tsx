@@ -3165,33 +3165,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
              : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal
              : ''
-    // ── EML-Datei generieren → öffnet in Outlook als fertige Email (HTML-Body) ──
-    // Der Brief-HTML wird direkt als Email-Body verwendet. Outlook öffnet die
-    // .eml-Datei als Entwurf mit Empfänger, Betreff und formatiertem Inhalt.
-    {
-    const briefHtml = buildBriefHtml(patient, form)
-    const boundary  = '----=_NextPart_AZS_001'
-    const subjectB64 = btoa(unescape(encodeURIComponent(subject)))
-    const eml = [
-      'MIME-Version: 1.0',
-      'X-Unsent: 1',
-      ...(to ? [`To: ${to}`] : []),
-      `Subject: =?UTF-8?B?${subjectB64}?=`,
-      `Content-Type: text/html; charset=UTF-8`,
-      '',
-      briefHtml,
-    ].join('\r\n')
-
-    const blob = new Blob([eml], { type: 'message/rfc822' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `Email_${nachname || 'Patient'}.eml`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 5000)
-    }
+    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + signatur)}`
 
     setEmailCopied(true)
     setTimeout(() => setEmailCopied(false), 4000)
