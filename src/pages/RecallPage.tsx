@@ -3082,81 +3082,91 @@ const lirisExtractRef  = useRef(lirisExtract)
       : terminZeile ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
 
     // ── Formatierter Plaintext + direkt Outlook öffnen via mailto ────────────
-    const SEP = '─────────────────────────────────'
+    const LINE = '────────────────────────────────────────'
     let body: string
     if (isReminder) {
-      body = [
-        `${salut}`, '',
-        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.',
-        '',
-        ...(form.briefVariante === 'neuerArzt' ? [
-          form.frueherArzt.trim()
+      const arztHinweis = form.briefVariante === 'neuerArzt'
+        ? (form.frueherArzt.trim()
             ? `Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, wird Ihre augenärztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} übernommen. Gerne dürfen Sie sich für einen Termin bei uns melden.`
-            : 'Ihre augenärztliche Betreuung in unserer Praxis liegt neu in guten Händen – gerne dürfen Sie sich für einen Termin bei uns melden.',
+            : 'Ihre augenärztliche Betreuung in unserer Praxis liegt neu in guten Händen – gerne dürfen Sie sich für einen Termin bei uns melden.')
+        : ''
+      const terminVerpasstDatumTxt = (() => {
+        if (form.briefVariante !== 'terminVerpasst' || !form.terminDatum) return ''
+        const td = new Date(form.terminDatum + 'T00:00:00')
+        const DAYS = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
+        const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+        return `${DAYS[td.getDay()]}, ${td.getDate()}. ${MONTHS[td.getMonth()]} ${td.getFullYear()}`
+      })()
+      body = [
+        salut, '',
+        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
+        ...(form.briefVariante === 'terminVerpasst' ? [
+          `Sie konnten Ihren Termin am ${terminVerpasstDatumTxt || '[Datum]'} leider nicht wahrnehmen. Bitte melden Sie sich kurz bei uns, damit wir gemeinsam einen neuen Termin vereinbaren können.`,
           '',
-        ] : []),
-        'Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns unter:',
-        '  Tel.  +41 62 842 18 46',
-        '  Mail  info@augenzentrum-suhr.ch',
-        '  Web   www.augenzentrum-suhr.ch',
-        '',
-        'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular –, damit wir Ihre Angaben aktuell halten können.',
-        '',
-        'Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
-        '',
-        'Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
+          'Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminplätze stark ausgelastet. Gemäss unseren Praxisrichtlinien müssen wir versäumte Termine mit CHF 80.00 in Rechnung stellen, wenn keine Rückmeldung erfolgt.',
+          '',
+          'Falls Sie inzwischen den Arzt gewechselt haben, weggezogen sind oder keine weiteren Termine benötigen, bitten wir ebenfalls um eine kurze Rückmeldung.',
+          '',
+          'Wir freuen uns über Ihre Rückmeldung.',
+        ] : [
+          'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
+          '',
+          ...(arztHinweis ? [arztHinweis, ''] : []),
+          'Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns unter:',
+          '  Tel.  +41 62 842 18 46',
+          '  Mail  info@augenzentrum-suhr.ch',
+          '  Web   www.augenzentrum-suhr.ch',
+          '',
+          'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
+          '',
+          'Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
+          '',
+          'Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
+        ]),
       ].join('\n')
     } else {
       const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
       const terminSection = terminZeile ? [
-        '', SEP,
-        '  TERMINVORSCHLAG',
-        SEP,
-        `  ${terminZeile}`,
-        SEP, '',
-        'Bei Terminänderung bitten wir um Rückmeldung bis spätestens 24 Std. vorher:',
-        '  +41 62 842 18 46  |  info@augenzentrum-suhr.ch',
+        '',
+        LINE,
+        `  Ihr Termin:  ${terminZeile}`,
+        LINE,
+        '',
+        'Bei Terminänderung bitten wir um Rückmeldung bis spätestens 24 Std. vorher.',
       ].join('\n') : [
         '',
-        'Für einen Termin erreichen Sie uns unter +41 62 842 18 46 oder info@augenzentrum-suhr.ch.',
+        'Für einen Termin erreichen Sie uns gerne unter:',
+        '  Tel.  +41 62 842 18 46',
+        '  Mail  info@augenzentrum-suhr.ch',
       ].join('\n')
       const vuSection = vuItems.length > 0 ? [
-        '', 'ZUSÄTZLICH GEPLANTE VORUNTERSUCHUNGEN',
+        '',
+        'Zusätzlich geplante Voruntersuchungen:',
         ...vuItems.map(v => `  • ${v}`),
       ].join('\n') : ''
       const sehSection = hasZykloplegie
-        ? '\n⚠  HINWEIS: Die Sehleistung kann nach der Zykloplegie für 12–24 Std. beeinträchtigt sein.\n   Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
+        ? '\n⚠  Hinweis: Die Sehleistung kann nach der Zykloplegie für 12–24 Std. beeinträchtigt sein. Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
         : form.pupille
-          ? '\n⚠  HINWEIS: Die Pupillen werden erweitert. Sehleistung ca. 4–6 Std. eingeschränkt.\n   Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
+          ? '\n⚠  Hinweis: Die Pupillen werden erweitert. Sehleistung ca. 4–6 Std. eingeschränkt. Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
           : ''
       const mitbringen = [
-        '', 'BITTE MITBRINGEN',
-        '  • Brille oder Kontaktlinsen (Kontaktlinsen bitte vor dem Termin entfernen)',
+        '',
+        'Bitte mitbringen:',
+        '  • Brille / Kontaktlinsen (KL bitte vor dem Termin entfernen)',
         '  • Aktuelle Medikamentenliste',
         '  • Krankenkassenausweis',
         ...(form.pupille ? ['  • Sonnenbrille (empfohlen)'] : []),
       ].join('\n')
       const introLineEmail = form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}`
-        : `Wir freuen uns, Sie bald wieder in unserer Praxis begrüssen zu dürfen. Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? `, ${arztName},` : ''} an.`
+        : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
       body = [
-        `${salut}`, '',
+        salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
         introLineEmail,
         terminSection, vuSection, sehSection, mitbringen,
       ].join('\n')
     }
-
-    const signatur = [
-      '', SEP,
-      'Freundliche Grüsse',
-      'Augenzentrum Suhr Team', '',
-      '  Tel.  +41 62 842 18 46',
-      '  Mail  info@augenzentrum-suhr.ch',
-      '  HIN   augenzentrum-suhr@hin.ch',
-      '  Web   www.augenzentrum-suhr.ch',
-    ].join('\n')
 
     // Empfänger: bevorzugt die übergebene Patienten-E-Mail (aus Liris),
     // sonst der Adressblock falls er selbst eine E-Mail ist.
@@ -3165,7 +3175,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
              : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal
              : ''
-    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + signatur)}`
+    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 
     setEmailCopied(true)
     setTimeout(() => setEmailCopied(false), 4000)
