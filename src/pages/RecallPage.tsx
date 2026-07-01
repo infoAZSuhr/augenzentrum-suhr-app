@@ -3239,10 +3239,10 @@ const lirisExtractRef  = useRef(lirisExtract)
     if (!aufgebotTarget || !aufgebotForm.art) return
     setAufgebotConfirmPending(false)
     setAufgebotSaving(true)
-    // PDF erzeugen und in den Postausgang legen (→ Liris-Upload). Gilt für
-    // Post UND E-Mail. NUR wenn nicht schon per «Per Post (PDF)»-Button erzeugt —
-    // sonst landet der Brief doppelt im Postausgang.
-    const willGeneratePdf = !aufgebotPdfCreated && (
+    // PDF erzeugen und in den Postausgang legen NUR bei Post-Versand.
+    // Bei E-Mail-Versand wird kein PDF im Postausgang abgelegt (Brief liegt in Liris via Outlook).
+    // NUR wenn nicht schon per «Per Post (PDF)»-Button erzeugt — sonst doppelt im Postausgang.
+    const willGeneratePdf = !aufgebotPdfCreated && aufgebotForm.versand === 'Post' && (
       (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum) ||
       aufgebotForm.art === 'Reminder'
     )
