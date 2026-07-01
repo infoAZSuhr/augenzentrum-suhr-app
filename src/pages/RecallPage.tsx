@@ -2690,7 +2690,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     const nameDisplay = titleCaseName(nameWords.length >= 2
       ? `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`
       : nameLine)
-    const kindHinweis = isMinor ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(nameDisplay)}</strong>.</p>` : ''
+    // Kindname: immer aus Patientendaten, nicht aus adressBlock (der bei Minderjährigen die Eltern enthält)
+    const kindNameDisplay = titleCaseName(`${aufgebotTarget!.patient.vorname || ''} ${titleCaseName(form.nachnameOverride)}`.trim())
+    const kindHinweis = isMinor ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(kindNameDisplay)}</strong>.</p>` : ''
     // Build structured address: Anrede / Vorname Nachname / Strasse / PLZ Ort
     const adressHtml = [form.anrede, nameDisplay, adressLines[1] ?? '', adressLines[2] ?? '']
       .filter(Boolean)
@@ -3054,7 +3056,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       return a
     })()
     const eMinor   = eAge !== null && eAge >= 0 && eAge < 18
-    const childName = titleCaseName(nameWordsE.length >= 2 ? `${nameWordsE[nameWordsE.length - 1]} ${nameWordsE.slice(0, -1).join(' ')}` : nameLine)
+    // childName: Vorname + Nachname des Patienten (nicht aus adressBlock, der bei Minderjährigen die Eltern enthält)
+    const childName = titleCaseName(`${patient.vorname || ''} ${titleCaseName(form.nachnameOverride)}`.trim())
     const salut    = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
     const arztName     = form.arztName || doctorFullName(patient.doctor)
     const FEMALE_DOCTORS = new Set(['Malinina','Papazoglou'])
