@@ -668,7 +668,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
-    briefVariante: '' | 'neuerArzt'   // Brief-Textvariante ('' = Standard)
+    briefVariante: '' | 'neuerArzt' | 'terminVerpasst'   // Brief-Textvariante ('' = Standard)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
@@ -2793,7 +2793,8 @@ const lirisExtractRef  = useRef(lirisExtract)
         ? `<p>Die Pupillen werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>bitte kein Fahrzeug lenken</strong>. Sonnenbrille empfohlen.</p>`
         : ``
 
-    const title = isReminder ? 'Erinnerung &#8211; Augenkontrolle'
+    const title = form.briefVariante === 'terminVerpasst' ? 'Ihr verpasster Termin &#8211; Bitte um kurze R&#252;ckmeldung'
+      : isReminder ? 'Erinnerung &#8211; Augenkontrolle'
       : hasTermin ? 'Terminvorschlag f&#252;r die Routine Augenkontrolle'
       : 'Einladung zur Augenkontrolle'
 
@@ -2867,7 +2868,23 @@ const lirisExtractRef  = useRef(lirisExtract)
       <p>Herzlichen Dank f&#252;r Ihr Vertrauen. Wir sind gerne f&#252;r Sie da.</p>
     `
 
-    const bodyHtml = isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
+    // ── Body: Termin verpasst ────────────────────────────────────────────────
+    const isTerminVerpasst = form.briefVariante === 'terminVerpasst'
+    let terminVerpasstDatum = ''
+    if (form.terminDatum) {
+      const tvd = new Date(form.terminDatum + 'T00:00:00')
+      terminVerpasstDatum = `${GERMAN_DAYS[tvd.getDay()]}, ${tvd.getDate()}. ${GERMAN_MONTHS[tvd.getMonth()]} ${tvd.getFullYear()}`
+    }
+    const bodyTerminVerpasst = `
+      ${salut}
+      <p>Sie konnten Ihren Termin am <strong>${terminVerpasstDatum || '[Datum]'}</strong> leider nicht wahrnehmen. Bitte melden Sie sich kurz bei uns, damit wir gemeinsam einen neuen Termin vereinbaren k&#246;nnen.</p>
+      <p>Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminpl&#228;tze stark ausgelastet. Gem&#228;ss unseren Praxisrichtlinien m&#252;ssen wir vers&#228;umte Termine mit <strong>CHF 80.00</strong> in Rechnung stellen, wenn keine R&#252;ckmeldung erfolgt. Das machen wir selbstverst&#228;ndlich ungern, da jederzeit Unvorhergesehenes passieren kann &#8211; und weil wir das uns von Ihnen entgegengebrachte Vertrauen sehr sch&#228;tzen.</p>
+      <p>Falls Sie inzwischen den Arzt gewechselt haben, weggezogen sind oder keine weiteren Termine ben&#246;tigen, bitten wir ebenfalls um eine kurze R&#252;ckmeldung. So k&#246;nnen wir unn&#246;tigen administrativen Aufwand vermeiden und die Terminplanung f&#252;r andere Patientinnen und Patienten effizient gestalten.</p>
+      <p>Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
+      <p>Wir freuen uns &#252;ber Ihre R&#252;ckmeldung.</p>
+    `
+
+    const bodyHtml = isTerminVerpasst ? bodyTerminVerpasst : isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
 
     const html = `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Brief</title>
@@ -4803,6 +4820,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                         {([
                           ['', 'Normal', 'Übliche Einladung / Erinnerung zur Kontrolle'],
                           ['neuerArzt', 'Neuen Arzt vorschlagen', 'Bestehender Patient: neuen Arzt vorschlagen/erwähnen (früherer Arzt nicht mehr in der Praxis)'],
+                          ['terminVerpasst', 'Termin verpasst', 'Patient hat Termin nicht wahrgenommen – Bitte um Rückmeldung / CHF 80 Ausfallgebühr'],
                         ] as const).map(([v, label, hint]) => (
                           <button key={v || 'std'} type="button" title={hint}
                             onClick={() => setAf({ briefVariante: v })}
@@ -4822,8 +4840,18 @@ const lirisExtractRef  = useRef(lirisExtract)
                       )}
                     </div>
 
+                    {/* Verpasstes Datum bei «Termin verpasst»-Variante */}
+                    {af.briefVariante === 'terminVerpasst' && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Verpasster Termin (Datum)</p>
+                        <input type="date" value={af.terminDatum}
+                          onChange={e => setAf({ terminDatum: e.target.value })}
+                          className="input text-sm w-full" />
+                      </div>
+                    )}
+
                     {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
-                    {af.art === 'Brief' && (<>
+                    {af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && (<>
                     {/* Pupillenerweiterung */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Untersuchungsart</p>
