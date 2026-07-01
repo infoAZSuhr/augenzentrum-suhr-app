@@ -55,7 +55,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       if (bm) result.gebDatum = bm[3] + '-' + bm[2] + '-' + bm[1];
 
       // 2) Name: Liris zeigt "Anrede Nachname Vorname(n), DD.MM.YYYY (NN Jahre)"
-      var nameRe = /(?:Frau|Herr|Fr\\.|Hr\\.)\\s+([A-ZÄÖÜ][\\wäöüÄÖÜß-]+(?:\\s+[A-ZÄÖÜ][\\wäöüÄÖÜß-]+)*?)\\s*,?\\s*\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(/;
+      // Anrede kann auch "Kind(F)" oder "Kind(M)" sein
+      var nameRe = /(?:Frau|Herr|Fr\\.|Hr\\.|Kind\\([FM]\\))\\s+([A-ZÄÖÜ][\\wäöüÄÖÜß-]+(?:\\s+[A-ZÄÖÜ][\\wäöüÄÖÜß-]+)*?)\\s*,?\\s*\\d{2}\\.\\d{2}\\.\\d{4}\\s*\\(/;
       var nm = allText.match(nameRe);
       if (nm) {
         var parts = nm[1].trim().split(/\\s+/);
