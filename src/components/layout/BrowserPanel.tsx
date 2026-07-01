@@ -202,38 +202,37 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         }
         if (addrLines.length) result.postAdresse = addrLines.join('\\n');
 
-        // Zusätzlicher Kontakt (Eltern/Erziehungsberechtigte bei Minderjährigen)
-        var zkStart = allText.search(/Zus[aä]tzlicher\\s+Kontakt/i);
-        if (zkStart >= 0) {
-          var zkBlock = allText.slice(zkStart, zkStart + 400);
-          var zkLines = zkBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
-          // zkLines[0] = "Zusätzlicher Kontakt"
-          // zkLines[1] kann Sub-Label sein ("Gesetzlicher Vertreter & Rechnungskontakt :")
-          // → überspringen falls es wie ein Titel/Rolle aussieht (endet mit : oder enthält Schlüsselwörter)
-          var zkNameIdx = -1;
-          for (var zi = 1; zi < zkLines.length && zi < 4; zi++) {
-            var ztest = zkLines[zi];
-            if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben)/i.test(ztest)) break;
-            // Sub-Label erkennen: endet mit Doppelpunkt oder enthält Vertreter/Rechnungskontakt/gesetzlich
-            if (/:\\s*$/.test(ztest) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(ztest)) continue;
-            zkNameIdx = zi; break;
+        // Gesetzlicher Vertreter (Eltern bei Minderjährigen)
+        // Suche das Label "Gesetzlicher Vertreter" direkt — danach folgt Name + Adresse
+        var gvStart = allText.search(/Gesetzlicher\\s+Vertreter/i);
+        if (gvStart >= 0) {
+          var gvBlock = allText.slice(gvStart, gvStart + 500);
+          var gvLines = gvBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
+          // gvLines[0] = "Gesetzlicher Vertreter" oder "Gesetzlicher Vertreter & Rechnungskontakt :"
+          // Erste Zeile nach dem Label, die kein weiteres Sub-Label ist = Name
+          var gvNameIdx = -1;
+          for (var gi = 1; gi < gvLines.length && gi < 6; gi++) {
+            var gt = gvLines[gi];
+            if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Zus[aä]tzlicher|Rechnungsadresse)/i.test(gt)) break;
+            if (/:\\s*$/.test(gt) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(gt)) continue;
+            gvNameIdx = gi; break;
           }
-          if (zkNameIdx >= 0) {
-            // Name bereinigen: "(Vater), 078/..." oder ", 078/..." am Ende abschneiden
-            var zkRaw = zkLines[zkNameIdx];
-            var zkName = zkRaw.replace(/\\s*\\([^)]*\\)/, '').replace(/,\\s*0\\d[\\d\\/\\s]+$/, '').trim();
-            result.zusKontaktName = zkName;
-            var zkAddr = [];
-            for (var zj = zkNameIdx + 1; zj < zkLines.length && zj < zkNameIdx + 5; zj++) {
-              var zl = zkLines[zj];
-              if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Zus)/i.test(zl)) break;
-              if (/:\\s*$/.test(zl) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(zl)) break;
-              var zCombo = zl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
-              if (zCombo) { zkAddr.push(zCombo[1].trim(), zCombo[2].trim()); break; }
-              if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(zl)) { zkAddr.push(zl); continue; }
-              if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(zl)) { zkAddr.push(zl); break; }
+          if (gvNameIdx >= 0) {
+            var gvRaw = gvLines[gvNameIdx];
+            // Bereinigen: "(Vater)", "(Mutter)" und Telefonnummern entfernen
+            var gvName = gvRaw.replace(/\\s*\\([^)]*\\)/g, '').replace(/,\\s*0\\d[\\d\\/\\s]+$/, '').trim();
+            result.zusKontaktName = gvName;
+            var gvAddr = [];
+            for (var gj = gvNameIdx + 1; gj < gvLines.length && gj < gvNameIdx + 5; gj++) {
+              var gl = gvLines[gj];
+              if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Zus|Rechnungsadresse)/i.test(gl)) break;
+              if (/:\\s*$/.test(gl) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(gl)) break;
+              var gCombo = gl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
+              if (gCombo) { gvAddr.push(gCombo[1].trim(), gCombo[2].trim()); break; }
+              if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(gl)) { gvAddr.push(gl); continue; }
+              if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(gl)) { gvAddr.push(gl); break; }
             }
-            if (zkAddr.length) result.zusKontaktAdresse = zkAddr.join('\\n');
+            if (gvAddr.length) result.zusKontaktAdresse = gvAddr.join('\\n');
           }
         }
 
