@@ -3165,120 +3165,33 @@ const lirisExtractRef  = useRef(lirisExtract)
     const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
              : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal
              : ''
-    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + signatur)}`
-
-    // ── DEAD CODE BELOW (kept as reference for HTML approach) ─────────────────
-    if (false) {
-    const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    const BLUE = '#1a3a6e'
-
-    let bodyHtml: string
-    if (isReminder) {
-      bodyHtml = `
-        <p>${esc(salut)},</p>
-        <p>Wir möchten Sie daran erinnern, dass Ihre letzte augenärztliche Untersuchung bereits einige Zeit zurückliegt.</p>
-        <p>Um Ihre Augengesundheit weiterhin optimal zu betreuen, bitten wir Sie, sich für einen neuen Kontrolltermin mit unserer Praxis in Verbindung zu setzen.</p>
-        <p>Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch" style="color:${BLUE}">info@augenzentrum-suhr.ch</a> oder über unsere Website <a href="https://www.augenzentrum-suhr.ch" style="color:${BLUE}">www.augenzentrum-suhr.ch</a>.</p>
-        <p>Bitte melden Sie sich zeitnah, damit wir einen passenden Termin für Sie reservieren können.<br>Falls Sie inzwischen von einem anderen Augenarzt betreut werden, bitten wir Sie um eine kurze Abmeldung.</p>
-        <p>Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
-        <p>Wir danken Ihnen für Ihr Vertrauen und freuen uns auf Ihre Rückmeldung.</p>`
-    } else {
-      const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
-      const terminBoxHtml = terminZeile
-        ? `<div style="background:#f0f5ff;border-left:4px solid ${BLUE};border-radius:4px;padding:16px 20px;margin:20px 0">
-            <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em;color:${BLUE};margin-bottom:8px">Ihr Termin</div>
-            <div style="font-size:17px;font-weight:bold;color:${BLUE}">${esc(terminZeile)}</div>
-            <div style="font-size:13px;color:#555;margin-top:10px">Sollte der Termin nicht passen, bitten wir Sie um eine kurze Rückmeldung bis spätestens 24 Stunden vorher per <strong>+41 62 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch" style="color:${BLUE}">info@augenzentrum-suhr.ch</a>.</div>
-           </div>`
-        : `<p>Für einen Termin erreichen Sie uns unter <strong>+41 62 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch" style="color:${BLUE}">info@augenzentrum-suhr.ch</a>.</p>`
-      const vuHtml = vuItems.length > 0
-        ? `<div style="margin:20px 0">
-            <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em;color:${BLUE};margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px">Zusätzlich geplante Voruntersuchungen</div>
-            <ul style="margin:0;padding-left:20px;color:#333">${vuItems.map(v => `<li style="margin-bottom:4px">${esc(v)}</li>`).join('')}</ul>
-           </div>`
-        : ''
-      const sehHinweisHtml = hasZykloplegie
-        ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;padding:12px 16px;margin:16px 0;font-size:13px;color:#555">
-            ⚠️ Bitte beachten Sie: Die Sehleistung kann nach der Zykloplegie-Untersuchung für <strong>12–24 Stunden</strong> beeinträchtigt bleiben. <strong>Bitte kein Fahrzeug lenken.</strong> Sonnenbrille empfohlen.
-           </div>`
-        : form.pupille
-          ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;padding:12px 16px;margin:16px 0;font-size:13px;color:#555">
-              ⚠️ Die Pupillen werden mit Augentropfen erweitert. Die Sehleistung ist danach für <strong>4–6 Stunden</strong> eingeschränkt – <strong>bitte kein Fahrzeug lenken.</strong> Sonnenbrille empfohlen.
-             </div>`
-          : ''
-      const mitbringenItems = [
-        'Brille oder Kontaktlinsen (Kontaktlinsen bitte vor dem Termin entfernen)',
-        'Aktuelle Medikamentenliste',
-        'Krankenkassenausweis',
-        ...(form.pupille ? ['Sonnenbrille (empfohlen)'] : []),
-      ]
-      const mitbringenHtml = `<div style="margin:20px 0">
-        <div style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em;color:${BLUE};margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px">Bitte mitbringen</div>
-        <ul style="margin:0;padding-left:20px;color:#333">${mitbringenItems.map(v => `<li style="margin-bottom:4px">${esc(v)}</li>`).join('')}</ul>
-       </div>`
-      bodyHtml = `
-        <p>${esc(salut)},</p>
-        <p>Wir freuen uns, Sie bald wieder in unserer Praxis begrüssen zu dürfen. Gemäss unseren Unterlagen steht eine Augenkontrolle <strong>${esc(pupText)}</strong> bei ${esc(arztArtikel)}${arztName ? `, <strong>${esc(arztName)}</strong>,` : ''} an.</p>
-        ${terminBoxHtml}
-        ${vuHtml}
-        ${sehHinweisHtml}
-        ${mitbringenHtml}`
-    }
-
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;color:#222">
-<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-  <div style="background:${BLUE};padding:22px 28px">
-    <div style="color:#fff;font-size:17px;font-weight:bold">${esc(arztName || 'Augenzentrum Suhr')}</div>
-    <div style="color:#a8c4e8;font-size:12px;margin-top:3px">${esc(fachtitelDisplay)}</div>
-    <div style="color:#c5d8f0;font-size:12px;margin-top:2px">Augenzentrum Suhr &nbsp;·&nbsp; Tramstrasse 2, 5034 Suhr</div>
-  </div>
-  <div style="padding:28px 28px 8px;font-size:14px;line-height:1.65;color:#222">
-    ${bodyHtml}
-  </div>
-  <div style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 28px;font-size:13px;color:#555;line-height:1.8">
-    <div style="color:#333;margin-bottom:10px">Freundliche Grüsse<br><strong>Augenzentrum Suhr Team</strong></div>
-    <div>📞 <a href="tel:+41628421846" style="color:${BLUE};text-decoration:none">+41 62 842 18 46</a></div>
-    <div>✉️ <a href="mailto:info@augenzentrum-suhr.ch" style="color:${BLUE};text-decoration:none">info@augenzentrum-suhr.ch</a></div>
-    <div>🌐 <a href="https://www.augenzentrum-suhr.ch" style="color:${BLUE};text-decoration:none">www.augenzentrum-suhr.ch</a></div>
-  </div>
-</div>
-</body></html>`
-
-    // ── EML-Datei erstellen (Multipart: E-Mail-Body + Brief als Anhang) ──────
-    const briefHtml  = buildBriefHtml(patient, form)
-    const briefB64   = btoa(unescape(encodeURIComponent(briefHtml)))
-    const boundary   = '----=_NextPart_AZS_001'
+    // ── EML-Datei generieren → öffnet in Outlook als fertige Email (HTML-Body) ──
+    // Der Brief-HTML wird direkt als Email-Body verwendet. Outlook öffnet die
+    // .eml-Datei als Entwurf mit Empfänger, Betreff und formatiertem Inhalt.
+    {
+    const briefHtml = buildBriefHtml(patient, form)
+    const boundary  = '----=_NextPart_AZS_001'
+    const subjectB64 = btoa(unescape(encodeURIComponent(subject)))
     const eml = [
       'MIME-Version: 1.0',
       'X-Unsent: 1',
-      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      ...(to ? [`To: ${to}`] : []),
+      `Subject: =?UTF-8?B?${subjectB64}?=`,
+      `Content-Type: text/html; charset=UTF-8`,
       '',
-      `--${boundary}`,
-      'Content-Type: text/html; charset=UTF-8',
-      '',
-      html,
-      '',
-      `--${boundary}`,
-      `Content-Type: text/html; charset=UTF-8; name="Brief_${nachname || 'Patient'}.html"`,
-      `Content-Disposition: attachment; filename="Brief_${nachname || 'Patient'}.html"`,
-      'Content-Transfer-Encoding: base64',
-      '',
-      briefB64,
-      '',
-      `--${boundary}--`,
+      briefHtml,
     ].join('\r\n')
 
     const blob = new Blob([eml], { type: 'message/rfc822' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = `Aufgebot_${nachname || 'Patient'}.eml`
+    a.download = `Email_${nachname || 'Patient'}.eml`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     setTimeout(() => URL.revokeObjectURL(url), 5000)
-    } // end if (false)
+    }
 
     setEmailCopied(true)
     setTimeout(() => setEmailCopied(false), 4000)
