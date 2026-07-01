@@ -2858,12 +2858,15 @@ const lirisExtractRef  = useRef(lirisExtract)
     const bodyReminder = `
       ${salut}
       ${kindHinweis}
-      <p>Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und laden Sie herzlich zu einer erneuten Untersuchung ein.</p>
+      <p>Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.</p>
       ${docPhotoImg
         ? `<div class="arzt-vorstellung"><div class="av-text">${reminderArztHinweis}</div>${docPhotoImg}</div>`
         : reminderArztHinweis}
-      <p>Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder bequem &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
-      <p>Sollten Sie inzwischen anderweitig augen&#228;rztlich betreut werden, freuen wir uns &#252;ber eine kurze R&#252;ckmeldung &#8211; per E-Mail, Telefon oder Web-Formular &#8211;, damit wir Ihre Angaben aktuell halten k&#246;nnen.</p>
+      <p>Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns unter:<br>
+      Tel. <strong>+41 62 842 18 46</strong><br>
+      Mail <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a><br>
+      Web <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a></p>
+      <p>Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminpl&#228;tze stark ausgelastet. Umso mehr hilft uns eine kurze R&#252;ckmeldung, falls Sie inzwischen anderweitig augen&#228;rztlich betreut werden, umgezogen sind oder derzeit keine weiteren Kontrollen ben&#246;tigen. So k&#246;nnen wir Ihre Angaben aktuell halten und unn&#246;tigen administrativen Aufwand vermeiden.</p>
       <p>Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
       <p>Herzlichen Dank f&#252;r Ihr Vertrauen. Wir sind gerne f&#252;r Sie da.</p>
     `
