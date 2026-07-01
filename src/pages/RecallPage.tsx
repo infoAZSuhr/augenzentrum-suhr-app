@@ -99,7 +99,7 @@ const VU_MIN: Record<string, number> = {
 }
 const SONSTIGE_MIN = 5
 
-type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin' | 'nachfass'
+type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin' | 'nachfass' | 'ohneRC'
 type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot' | 'wartetBericht'
 const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   heute:      'Heute',
@@ -109,6 +109,7 @@ const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   inPlanung:  'Geplante Recalls',
   ohneTermin: 'Ohne Termin',
   nachfass:   'Nachfassen',
+  ohneRC:     'Ohne RC',
 }
 
 function formatDate(val: string | null): string {
@@ -192,6 +193,12 @@ function isAwaitingZuweisungsBericht(p: RecallPatient): boolean {
  *
  *  Patienten mit ausstehender Zuweisung sind auch nicht offen — das weitere
  *  Vorgehen kann ja erst nach Erhalt des Berichts bestimmt werden. */
+function isOhneRC(p: RecallPatient): boolean {
+  if (p.patientenStatus === 'kein Aufgebot') return false
+  if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
+  return !p.aufgebotErstellt
+}
+
 function isOhneTermin(p: RecallPatient): boolean {
   if (p.patientenStatus === 'kein Aufgebot') return false  // bewusste Entscheidung
   if (p.naechsteKons) return false                          // hat Termin (oder "kein Termin"-Flag)
@@ -2065,6 +2072,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       overdue:   activeAll.filter(isOverdue).length,
       inPlanung: activeAll.filter(isInPlanung).length,
       ohneTermin:activeAll.filter(isOhneTermin).length,
+      ohneRC:    activeAll.filter(isOhneRC).length,
       nachfass:  activeAll.filter(p => isNachfassFaellig(p)).length,
       // Status-basierte Unter-Kategorien (warum "ohne Termin"):
       statusReminder:     activeAll.filter(p => p.patientenStatus === 'Reminder').length,
@@ -2408,6 +2416,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           case 'overdue':    return isOverdue(p)
           case 'inPlanung':  return isInPlanung(p)
           case 'ohneTermin': return isOhneTermin(p)
+          case 'ohneRC':     return isOhneRC(p)
           case 'nachfass':   return isNachfassFaellig(p)
         }
       })
@@ -4154,6 +4163,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           { key: 'nachfass'   as FilterTermin, label: 'Nachfassen',  count: tabStats.nachfass,   cls: 'bg-orange-100 text-orange-700 border-orange-300' },
           { key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', count: tabStats.inPlanung, cls: 'bg-amber-100 text-amber-700 border-amber-300' },
           { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300' },
+          { key: 'ohneRC'     as FilterTermin, label: 'Ohne RC',     count: tabStats.ohneRC,     cls: 'bg-slate-200 text-slate-700 border-slate-300' },
         ]).map(chip => {
           const isActive = filterTermin === chip.key
           return (
