@@ -3154,9 +3154,9 @@ const lirisExtractRef  = useRef(lirisExtract)
         ...vuItems.map(v => `    →  ${v}`),
       ].join('\n') : ''
       const sehSection = hasZykloplegie
-        ? '\n⚠️  Hinweis: Die Sehleistung kann nach der Zykloplegie für 12–24 Std. beeinträchtigt sein.\n    Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
+        ? '\n⚠️  Wichtiger Hinweis: Für diesen Termin ist eine Zykloplegie (Pupillenerweiterung mit\n    Augentropfen) geplant. Die Sehleistung kann danach für 12–24 Std. beeinträchtigt sein.\n    Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
         : form.pupille
-          ? '\n⚠️  Hinweis: Die Pupillen werden erweitert. Sehleistung ca. 4–6 Std. eingeschränkt.\n    Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
+          ? '\n⚠️  Wichtiger Hinweis: Für diesen Termin ist eine Pupillenerweiterung mit Augentropfen\n    geplant. Die Sehleistung ist danach ca. 4–6 Std. eingeschränkt.\n    Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
           : ''
       const mitbringen = [
         '',
