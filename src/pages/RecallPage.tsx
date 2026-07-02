@@ -3106,32 +3106,30 @@ const lirisExtractRef  = useRef(lirisExtract)
         salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
         ...(form.briefVariante === 'terminVerpasst' ? [
-          `📅  Ihr Termin am ${terminVerpasstDatumTxt || '[Datum]'} konnte leider nicht wahrgenommen werden.`,
+          `Ihr Termin am ${terminVerpasstDatumTxt || '[Datum]'} konnte leider nicht wahrgenommen werden.`,
           '',
           'Bitte melden Sie sich kurz bei uns, damit wir gemeinsam einen neuen Termin vereinbaren können.',
           '',
-          '⚠️  Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminplätze stark ausgelastet. Gemäss unseren Praxisrichtlinien müssen wir versäumte Termine mit CHF 80.00 in Rechnung stellen, wenn keine Rückmeldung erfolgt.',
+          'Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminplätze stark ausgelastet. Gemäss unseren Praxisrichtlinien müssen wir versäumte Termine mit CHF 80.00 in Rechnung stellen, wenn keine Rückmeldung erfolgt.',
           '',
           'Falls Sie inzwischen den Arzt gewechselt haben, weggezogen sind oder keine weiteren Termine benötigen, bitten wir ebenfalls um eine kurze Rückmeldung.',
-          '',
-          '📞  Wir freuen uns über Ihre Rückmeldung:',
           '',
           kontakt,
         ] : [
           eMinor
-            ? '👁️  Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
-            : '👁️  Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
+            ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
+            : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
           '',
           ...(arztHinweis ? [arztHinweis, ''] : []),
-          '📅  Gerne vereinbaren wir mit Ihnen einen Termin:',
+          'Gerne vereinbaren wir mit Ihnen einen Termin:',
           '',
           kontakt,
           '',
-          '💬  Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
+          'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
           '',
           'Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
           '',
-          '🙏  Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
+          'Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
         ]),
       ].join('\n')
     } else {
@@ -3156,21 +3154,21 @@ const lirisExtractRef  = useRef(lirisExtract)
       ].join('\n')
       const vuSection = vuItems.length > 0 ? [
         '',
-        '🔬  Zusätzlich geplante Voruntersuchungen:',
-        ...vuItems.map(v => `    →  ${v}`),
+        'Zusätzlich geplante Voruntersuchungen:',
+        ...vuItems.map(v => `  →  ${v}`),
       ].join('\n') : ''
       const sehSection = hasZykloplegie
-        ? '\n⚠️  Wichtiger Hinweis: Für diesen Termin ist eine Zykloplegie (Pupillenerweiterung mit\n    Augentropfen) geplant. Die Sehleistung kann danach für 12–24 Std. beeinträchtigt sein.\n    Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
+        ? '\n⚠  Wichtiger Hinweis: Für diesen Termin ist eine Zykloplegie (Pupillenerweiterung mit\n   Augentropfen) geplant. Die Sehleistung kann danach für 12–24 Std. beeinträchtigt sein.\n   Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
         : form.pupille
-          ? '\n⚠️  Wichtiger Hinweis: Für diesen Termin ist eine Pupillenerweiterung mit Augentropfen\n    geplant. Die Sehleistung ist danach ca. 4–6 Std. eingeschränkt.\n    Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
+          ? '\n⚠  Wichtiger Hinweis: Für diesen Termin ist eine Pupillenerweiterung mit Augentropfen\n   geplant. Die Sehleistung ist danach ca. 4–6 Std. eingeschränkt.\n   Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
           : ''
       const mitbringen = [
         '',
-        '🎒  Bitte mitbringen:',
-        '    →  Brille / Kontaktlinsen (KL bitte vor dem Termin entfernen)',
-        '    →  Aktuelle Medikamentenliste',
-        '    →  Krankenkassenausweis',
-        ...(form.pupille ? ['    →  Sonnenbrille (empfohlen)'] : []),
+        'Bitte mitbringen:',
+        '  →  Brille / Kontaktlinsen (KL bitte vor dem Termin entfernen)',
+        '  →  Aktuelle Medikamentenliste',
+        '  →  Krankenkassenausweis',
+        ...(form.pupille ? ['  →  Sonnenbrille (empfohlen)'] : []),
       ].join('\n')
       const introLineEmail = form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\n👨‍⚕️  Lernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
