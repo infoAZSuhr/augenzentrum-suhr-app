@@ -3081,7 +3081,12 @@ const lirisExtractRef  = useRef(lirisExtract)
       : terminZeile ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
 
     // ── Formatierter Plaintext + direkt Outlook öffnen via mailto ────────────
-    const LINE = '────────────────────────────────────────'
+    const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    const kontakt = [
+      '  Tel.    +41 62 842 18 46',
+      '  E-Mail  info@augenzentrum-suhr.ch',
+      '  Web     www.augenzentrum-suhr.ch',
+    ].join('\n')
     let body: string
     if (isReminder) {
       const arztHinweis = form.briefVariante === 'neuerArzt'
@@ -3106,15 +3111,18 @@ const lirisExtractRef  = useRef(lirisExtract)
           '',
           'Falls Sie inzwischen den Arzt gewechselt haben, weggezogen sind oder keine weiteren Termine benötigen, bitten wir ebenfalls um eine kurze Rückmeldung.',
           '',
-          'Wir freuen uns über Ihre Rückmeldung.',
+          DIV,
+          kontakt,
+          DIV,
         ] : [
           'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
           '',
           ...(arztHinweis ? [arztHinweis, ''] : []),
-          'Gerne vereinbaren wir mit Ihnen einen Termin. Sie erreichen uns unter:',
-          '  Tel.  +41 62 842 18 46',
-          '  Mail  info@augenzentrum-suhr.ch',
-          '  Web   www.augenzentrum-suhr.ch',
+          'Gerne vereinbaren wir mit Ihnen einen Termin:',
+          '',
+          DIV,
+          kontakt,
+          DIV,
           '',
           'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
           '',
@@ -3127,34 +3135,39 @@ const lirisExtractRef  = useRef(lirisExtract)
       const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
       const terminSection = terminZeile ? [
         '',
-        LINE,
-        `  Ihr Termin:  ${terminZeile}`,
-        LINE,
+        DIV,
+        '  Ihr Termin',
+        `  ${terminZeile}`,
+        DIV,
         '',
-        'Bei Terminänderung bitten wir um Rückmeldung bis spätestens 24 Std. vorher.',
+        'Bei Terminänderung bitten wir um Rückmeldung bis spätestens 24 Std. vorher:',
+        '',
+        kontakt,
       ].join('\n') : [
         '',
-        'Für einen Termin erreichen Sie uns gerne unter:',
-        '  Tel.  +41 62 842 18 46',
-        '  Mail  info@augenzentrum-suhr.ch',
+        'Für einen Termin erreichen Sie uns gerne:',
+        '',
+        kontakt,
       ].join('\n')
       const vuSection = vuItems.length > 0 ? [
         '',
         'Zusätzlich geplante Voruntersuchungen:',
-        ...vuItems.map(v => `  • ${v}`),
+        ...vuItems.map(v => `  →  ${v}`),
       ].join('\n') : ''
       const sehSection = hasZykloplegie
-        ? '\n⚠  Hinweis: Die Sehleistung kann nach der Zykloplegie für 12–24 Std. beeinträchtigt sein. Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
+        ? '\n⚠  Hinweis: Die Sehleistung kann nach der Zykloplegie für 12–24 Std. beeinträchtigt sein.\n   Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
         : form.pupille
-          ? '\n⚠  Hinweis: Die Pupillen werden erweitert. Sehleistung ca. 4–6 Std. eingeschränkt. Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
+          ? '\n⚠  Hinweis: Die Pupillen werden erweitert. Sehleistung ca. 4–6 Std. eingeschränkt.\n   Bitte kein Fahrzeug lenken. Sonnenbrille empfohlen.'
           : ''
       const mitbringen = [
         '',
-        'Bitte mitbringen:',
-        '  • Brille / Kontaktlinsen (KL bitte vor dem Termin entfernen)',
-        '  • Aktuelle Medikamentenliste',
-        '  • Krankenkassenausweis',
-        ...(form.pupille ? ['  • Sonnenbrille (empfohlen)'] : []),
+        DIV,
+        '  Bitte mitbringen',
+        DIV,
+        '  →  Brille / Kontaktlinsen (KL bitte vor dem Termin entfernen)',
+        '  →  Aktuelle Medikamentenliste',
+        '  →  Krankenkassenausweis',
+        ...(form.pupille ? ['  →  Sonnenbrille (empfohlen)'] : []),
       ].join('\n')
       const introLineEmail = form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}`
