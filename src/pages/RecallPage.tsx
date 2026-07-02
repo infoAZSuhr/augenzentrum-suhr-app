@@ -3110,26 +3110,28 @@ const lirisExtractRef  = useRef(lirisExtract)
           '',
           'Bitte melden Sie sich kurz bei uns, damit wir gemeinsam einen neuen Termin vereinbaren können.',
           '',
-          'Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminplätze stark ausgelastet. Gemäss unseren Praxisrichtlinien müssen wir versäumte Termine mit CHF 80.00 in Rechnung stellen, wenn keine Rückmeldung erfolgt.',
+          '⚠️  Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminplätze stark ausgelastet. Gemäss unseren Praxisrichtlinien müssen wir versäumte Termine mit CHF 80.00 in Rechnung stellen, wenn keine Rückmeldung erfolgt.',
           '',
           'Falls Sie inzwischen den Arzt gewechselt haben, weggezogen sind oder keine weiteren Termine benötigen, bitten wir ebenfalls um eine kurze Rückmeldung.',
+          '',
+          '📞  Wir freuen uns über Ihre Rückmeldung:',
           '',
           kontakt,
         ] : [
           eMinor
-            ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
-            : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
+            ? '👁️  Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
+            : '👁️  Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
           '',
           ...(arztHinweis ? [arztHinweis, ''] : []),
-          'Gerne vereinbaren wir mit Ihnen einen Termin:',
+          '📅  Gerne vereinbaren wir mit Ihnen einen Termin:',
           '',
           kontakt,
           '',
-          'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
+          '💬  Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
           '',
           'Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
           '',
-          'Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
+          '🙏  Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
         ]),
       ].join('\n')
     } else {
