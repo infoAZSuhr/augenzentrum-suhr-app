@@ -597,20 +597,33 @@ export default function BrowserPanel() {
 
   // Webview-Blur-Workaround: Electron behaelt manchmal "Geist-Focus" im
   // webview, auch nachdem der User in der Host-App auf ein Input geklickt hat
-  // — Folge: Tastatureingaben gehen ins Leere. Wir lauschen global auf
-  // mousedown (Capture-Phase, damit BEVOR der Click target verarbeitet wird)
-  // und blurren das webview wenn der Klick NICHT im webview war.
+  // — Folge: Tastatureingaben gehen ins Leere.
+  // Fix 1: mousedown ausserhalb -> webview blurren.
+  // Fix 2: nach dom-ready/did-navigate nimmt der Webview automatisch Fokus —
+  //         auch wenn der User gerade im Host tippt. Deshalb nach Navigation
+  //         ebenfalls blurren, sofern der letzte Klick NICHT im Webview war.
+  const lastClickInWebview = useRef(false)
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       const wv = webviewRef.current
       if (!wv) return
-      if (wv.contains(e.target as Node)) return  // Klick IM webview -> nichts tun
-      // Klick ausserhalb -> webview-Focus loslassen (egal ob er noch dran ist
-      // oder nicht — schadet nicht, schuetzt aber gegen Geister-Focus).
+      lastClickInWebview.current = wv.contains(e.target as Node)
+      if (lastClickInWebview.current) return  // Klick IM webview -> nichts tun
       try { (wv as any).blur?.() } catch { /* ignore */ }
     }
     document.addEventListener('mousedown', onMouseDown, true)
     return () => document.removeEventListener('mousedown', onMouseDown, true)
+  }, [])
+
+  // Blur nach Navigation: wenn letzter Klick im Host war, Fokus zurückgeben.
+  const blurWebviewAfterNav = useCallback(() => {
+    if (lastClickInWebview.current) return  // User hat zuletzt im Webview geklickt -> Fokus dort lassen
+    const wv = webviewRef.current
+    if (!wv) return
+    // Kurze Verzögerung: Electron setzt Focus erst nach dom-ready async.
+    window.setTimeout(() => {
+      try { (wv as any).blur?.() } catch { /* ignore */ }
+    }, 100)
   }, [])
 
   // Webview-Events binden (Navigation, Loading). Die frueher hier inject-ierte
@@ -855,6 +868,7 @@ export default function BrowserPanel() {
     const onDomReady = () => {
       setLoading(false)
       webviewReady.current = true
+      blurWebviewAfterNav()
       // WebContents-ID des Webviews fuer CDP-Upload bereitstellen
       try { if (wv.getWebContentsId) setLirisWebContentsId(wv.getWebContentsId()) } catch { /* no-op */ }
       wv.executeJavaScript(PID_CLICK_INJECT).catch(() => {})
@@ -883,6 +897,7 @@ export default function BrowserPanel() {
     const onDidNavigate = (e: any) => {
       if (e.url) setInputUrl(e.url)
       setLoading(false)
+      blurWebviewAfterNav()
       // Nach echter Navigation Detail-PID-Merker zuruecksetzen, damit derselbe
       // Patient nach Wechsel und Rueckkehr wieder als "neu" zaehlt.
       lastDetailPid.current = null
