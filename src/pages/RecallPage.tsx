@@ -2856,7 +2856,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     const bodyReminder = `
       ${salut}
       ${kindHinweis}
-      <p>Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.</p>
+      <p>${isMinor
+        ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
+        : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'}</p>
       ${docPhotoImg
         ? `<div class="arzt-vorstellung"><div class="av-text">${reminderArztHinweis}</div>${docPhotoImg}</div>`
         : reminderArztHinweis}
@@ -2864,7 +2866,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       Tel. <strong>+41 62 842 18 46</strong><br>
       Mail <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a><br>
       Web <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a></p>
-      <p>Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminpl&#228;tze stark ausgelastet. Umso mehr hilft uns eine kurze R&#252;ckmeldung, falls Sie inzwischen anderweitig augen&#228;rztlich betreut werden, umgezogen sind oder derzeit keine weiteren Kontrollen ben&#246;tigen. So k&#246;nnen wir Ihre Angaben aktuell halten und unn&#246;tigen administrativen Aufwand vermeiden.</p>
+      <p>Sollten Sie inzwischen anderweitig augen&#228;rztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen ben&#246;tigen, freuen wir uns &#252;ber eine kurze R&#252;ckmeldung &#8211; per E-Mail, Telefon oder Web-Formular. So k&#246;nnen wir Ihre Angaben aktuell halten und unn&#246;tigen administrativen Aufwand vermeiden.</p>
       <p>Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
       <p>Herzlichen Dank f&#252;r Ihr Vertrauen. Wir sind gerne f&#252;r Sie da.</p>
     `
