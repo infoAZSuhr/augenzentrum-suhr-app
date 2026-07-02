@@ -3090,8 +3090,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     if (isReminder) {
       const arztHinweis = form.briefVariante === 'neuerArzt'
         ? (form.frueherArzt.trim()
-            ? `Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, wird Ihre augenärztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} übernommen. Gerne dürfen Sie sich für einen Termin bei uns melden.`
-            : 'Ihre augenärztliche Betreuung in unserer Praxis liegt neu in guten Händen – gerne dürfen Sie sich für einen Termin bei uns melden.')
+            ? `Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, wird Ihre augenärztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} übernommen. Gerne dürfen Sie sich für einen Termin bei uns melden.\n\n👨‍⚕️  Lernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
+            : 'Ihre augenärztliche Betreuung in unserer Praxis liegt neu in guten Händen – gerne dürfen Sie sich für einen Termin bei uns melden.\n\n👨‍⚕️  Lernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team')
         : ''
       const terminVerpasstDatumTxt = (() => {
         if (form.briefVariante !== 'terminVerpasst' || !form.terminDatum) return ''
@@ -3169,7 +3169,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         ...(form.pupille ? ['    →  Sonnenbrille (empfohlen)'] : []),
       ].join('\n')
       const introLineEmail = form.briefVariante === 'neuerArzt'
-        ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}`
+        ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\n👨‍⚕️  Lernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
         : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
       body = [
         salut, '',
