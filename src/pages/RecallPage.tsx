@@ -3114,7 +3114,9 @@ const lirisExtractRef  = useRef(lirisExtract)
           '',
           kontakt,
         ] : [
-          'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
+          eMinor
+            ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
+            : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
           '',
           ...(arztHinweis ? [arztHinweis, ''] : []),
           'Gerne vereinbaren wir mit Ihnen einen Termin:',
