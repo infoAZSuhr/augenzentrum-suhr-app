@@ -754,7 +754,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   }
 
   // ── Table sort (multi-column: Shift+Click adds secondary key) ───────────────
-  type SortCol = 'pid'|'vorname'|'gebDatum'|'letzteKons'|'naechsteKons'|'aufgebotFuer'|'aufgebotArt'|'storniert'|'patientenStatus'|'aktualisiert'
+  type SortCol = 'pid'|'vorname'|'gebDatum'|'letzteKons'|'naechsteKons'|'aufgebotFuer'|'aufgebotArt'|'storniert'|'patientenStatus'|'aktualisiert'|'doctor'
   type SortKey = { col: SortCol; dir: 'asc'|'desc' }
   const [sortKeys, setSortKeys] = useState<SortKey[]>([{ col: 'vorname', dir: 'asc' }])
   function handleSort(col: SortCol, shiftKey: boolean) {
@@ -811,6 +811,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       case 'storniert':      return s(p.storniert)
       case 'patientenStatus':return s(p.patientenStatus)
       case 'aktualisiert':   return parseStamp(p.aktualisiert || p.erstellt)?.isoDate ?? ''
+      case 'doctor':         return p.doctor === OFFEN_TAB ? 'zzz' : s(p.doctor)
     }
   }
 
@@ -2424,7 +2425,10 @@ const lirisExtractRef  = useRef(lirisExtract)
       })
     }
     const sorted = [...base].sort((a, b) => {
-      if (activeTab === OFFEN_TAB) {
+      // Arzt-Gruppierung: Standardmässig aufsteigend, ausser der User hat
+      // per Klick auf "Arzt" explizit eine eigene Sortierung gewählt (dann
+      // greift stattdessen deren Richtung weiter unten in der sortKeys-Schleife).
+      if (activeTab === OFFEN_TAB && !sortKeys.some(k => k.col === 'doctor')) {
         const da = a.doctor === OFFEN_TAB ? 'zzz' : a.doctor
         const db = b.doctor === OFFEN_TAB ? 'zzz' : b.doctor
         const dc = da.localeCompare(db, 'de')
@@ -4198,6 +4202,19 @@ const lirisExtractRef  = useRef(lirisExtract)
           <option value="Praxis">Praxis</option>
           <option value="kein">Kein RC</option>
         </select>
+
+        {activeTab === OFFEN_TAB && (
+          <button
+            type="button"
+            onClick={e => handleSort('doctor', e.shiftKey)}
+            title="Nach Arzt sortieren · Shift+Klick: Mehrfach-Sortierung"
+            className={`text-xs border rounded-lg px-2 py-1 focus:outline-none flex items-center ${
+              sortKeys.some(k => k.col === 'doctor') ? 'border-primary-300 bg-primary-50 text-primary-800 font-semibold' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            Arzt{sortIcon('doctor')}
+          </button>
+        )}
 
         {activeTab === OFFEN_TAB && inaktiveAerzte.length > 0 && (
           <select
