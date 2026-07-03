@@ -673,6 +673,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
     briefVariante: '' | 'neuerArzt' | 'terminVerpasst'   // Brief-Textvariante ('' = Standard)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
+    vertreterModus: boolean           // Erwachsener Patient mit gesetzlichem Vertreter — Brief geht an den Vertreter, nicht direkt an den Patienten (analog Minderjährige)
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
     art: null, pupille: false, anrede: '', adressBlock: '',
@@ -681,6 +682,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
     nachnameOverride: '', briefVariante: '', frueherArzt: '',
+    vertreterModus: false,
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
@@ -2606,9 +2608,17 @@ const lirisExtractRef  = useRef(lirisExtract)
           if (a >= 0 && a < 18) { patch.anrede = 'Familie'; isMinor = true }
         }
       }
+      // Erwachsene mit gesetzlichem Vertreter (Beistandschaft o.ä.): Liris hat
+      // im Kontaktangaben-Block trotzdem einen "Gesetzlicher Vertreter"-Eintrag
+      // (zusKontaktName/-Adresse) — dasselbe Datenfeld wie bei Minderjährigen,
+      // nur ohne Altersgrenze. Analog zu Minderjährigen wird der Brief an den
+      // Vertreter adressiert.
+      const hasVertreterData = !isMinor && !!lirisExtract.zusKontaktName && !!lirisExtract.zusKontaktAdresse
+      if (hasVertreterData && !f.vertreterModus) patch.vertreterModus = true
       if (!f.adressBlock.trim()) {
-        // Minderjährige: Adresse und Name des zusätzlichen Kontakts (Elternteil) verwenden.
-        if (isMinor && lirisExtract.zusKontaktName && lirisExtract.zusKontaktAdresse) {
+        // Minderjährige ODER Erwachsene mit Vertreter: Adresse und Name des
+        // zusätzlichen Kontakts (Eltern bzw. gesetzlicher Vertreter) verwenden.
+        if ((isMinor || hasVertreterData) && lirisExtract.zusKontaktName && lirisExtract.zusKontaktAdresse) {
           patch.adressBlock = lirisExtract.zusKontaktName + '\n' + lirisExtract.zusKontaktAdresse
           // nachnameOverride bleibt beim Patienten-Nachnamen (aus Liris-Header)
         } else if (lirisExtract.postAdresse) {
@@ -2678,7 +2688,13 @@ const lirisExtractRef  = useRef(lirisExtract)
     const adressLines = form.adressBlock.trim().split('\n').map(l => l.trim()).filter(Boolean)
     const nameLine    = adressLines[0] || ''
     const nameWords   = nameLine.split(/\s+/).filter(Boolean)
-    const nachname    = titleCaseName(form.nachnameOverride.trim() || (nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine)))
+    // Erwachsener mit gesetzlichem Vertreter: adressBlock enthält den NAMEN
+    // DES VERTRETERS (nicht des Patienten) — die Anrede muss daher IMMER aus
+    // der adressBlock-Namenszeile kommen, nicht aus nachnameOverride (das
+    // bewusst der Patienten-Nachname bleibt, siehe unten kindHinweis).
+    const nachname    = form.vertreterModus
+      ? titleCaseName(nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine))
+      : titleCaseName(form.nachnameOverride.trim() || (nameWords.length > 1 ? nameWords.slice(0, -1).join(' ') : (nameWords[0] || nameLine)))
 
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : form.anrede === 'Frau' ? 'geehrte Frau' : 'geehrte Damen und Herren'
 
@@ -2694,6 +2710,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       return a
     })()
     const isMinor = childAge !== null && childAge >= 0 && childAge < 18
+    // Erwachsener mit gesetzlichem Vertreter: gleiche Grundlogik wie bei
+    // Minderjährigen (Brief an Dritte, Patient wird nur genannt), aber ohne
+    // erzwungene "Familie"-Anrede — der Vertreter kann Herr/Frau/Familie sein.
     const effAnredeAnrede = isMinor ? 'geehrte Familie' : anredeAnrede
 
     // Reorder name: "Nachname Vorname" → "Vorname Nachname" for address window.
@@ -2704,7 +2723,11 @@ const lirisExtractRef  = useRef(lirisExtract)
       : nameLine)
     // Kindname: immer aus Patientendaten, nicht aus adressBlock (der bei Minderjährigen die Eltern enthält)
     const kindNameDisplay = titleCaseName(`${aufgebotTarget!.patient.vorname || ''} ${titleCaseName(form.nachnameOverride)}`.trim())
-    const kindHinweis = isMinor ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(kindNameDisplay)}</strong>.</p>` : ''
+    const kindHinweis = isMinor
+      ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(kindNameDisplay)}</strong>.</p>`
+      : form.vertreterModus
+        ? `<p>Dieses Schreiben betrifft <strong>${escLine(kindNameDisplay)}</strong>, f&#252;r die/den Sie als gesetzliche/r Vertreter/in handeln.</p>`
+        : ''
     // Build structured address: Anrede / Vorname Nachname / Strasse / PLZ Ort
     const adressHtml = [form.anrede, nameDisplay, adressLines[1] ?? '', adressLines[2] ?? '']
       .filter(Boolean)
@@ -2870,7 +2893,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       ${kindHinweis}
       <p>${isMinor
         ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
-        : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'}</p>
+        : form.vertreterModus
+          ? `Die Augengesundheit von ${escLine(kindNameDisplay)} liegt uns am Herzen. Da die letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und zu einer erneuten Untersuchung einladen.`
+          : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augen&#228;rztliche Kontrolle bereits einige Zeit zur&#252;ckliegt, m&#246;chten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'}</p>
       ${docPhotoImg
         ? `<div class="arzt-vorstellung"><div class="av-text">${reminderArztHinweis}</div>${docPhotoImg}</div>`
         : reminderArztHinweis}
@@ -3059,7 +3084,11 @@ const lirisExtractRef  = useRef(lirisExtract)
     const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim())
     const nameLine     = (form.adressBlock.trim().split('\n')[0] || '').trim()
     const nameWordsE   = nameLine.split(/\s+/).filter(Boolean)
-    const nachname     = titleCaseName(form.nachnameOverride.trim() || nameWordsE[0] || nameLine)
+    // Erwachsener mit gesetzlichem Vertreter: adressBlock enthält den Namen
+    // des Vertreters, nicht des Patienten — Anrede muss daher von dort kommen.
+    const nachname     = form.vertreterModus
+      ? titleCaseName(nameWordsE.length > 1 ? nameWordsE.slice(0, -1).join(' ') : (nameWordsE[0] || nameLine))
+      : titleCaseName(form.nachnameOverride.trim() || nameWordsE[0] || nameLine)
     const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : 'geehrte Frau'
     // Minderjährig (< 18): immer an die Familie, Kind namentlich nennen.
     const eAge = (() => {
@@ -3119,6 +3148,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       body = [
         salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
+        ...(!eMinor && form.vertreterModus ? [`Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
         ...(form.briefVariante === 'terminVerpasst' ? [
           `Ihr Termin am ${terminVerpasstDatumTxt || '[Datum]'} konnte leider nicht wahrgenommen werden.`,
           '',
@@ -3132,7 +3162,9 @@ const lirisExtractRef  = useRef(lirisExtract)
         ] : [
           eMinor
             ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
-            : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
+            : form.vertreterModus
+              ? `Die Augengesundheit von ${childName} liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und zu einer erneuten Untersuchung einladen.`
+              : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
           '',
           ...(arztHinweis ? [arztHinweis, ''] : []),
           'Gerne vereinbaren wir mit Ihnen einen Termin:',
@@ -3190,6 +3222,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       body = [
         salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
+        ...(!eMinor && form.vertreterModus ? [`Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
         introLineEmail,
         terminSection, vuSection, sehSection, mitbringen,
       ].join('\n')
@@ -4908,6 +4941,20 @@ const lirisExtractRef  = useRef(lirisExtract)
                       </div>
                     </div>
                     </>)}
+
+                    {/* Gesetzlicher Vertreter (Erwachsene): analog Minderjährige — Brief
+                        geht an den Vertreter, nicht direkt an den Patienten. Wird von Liris
+                        automatisch erkannt (Kontaktangaben → «Gesetzlicher Vertreter»),
+                        kann hier aber auch manuell umgeschaltet werden. */}
+                    <button type="button"
+                      onClick={() => setAf({ vertreterModus: !af.vertreterModus })}
+                      className={`w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors flex items-center justify-center gap-1.5 ${
+                        af.vertreterModus
+                          ? 'border-violet-400 bg-violet-50 text-violet-700'
+                          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                      }`}>
+                      {af.vertreterModus ? '✓ Adressiert an gesetzlichen Vertreter' : 'Erwachsener mit gesetzlichem Vertreter'}
+                    </button>
 
                     {/* Anrede */}
                     <div>
