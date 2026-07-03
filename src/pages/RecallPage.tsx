@@ -4952,9 +4952,19 @@ const lirisExtractRef  = useRef(lirisExtract)
 
                     {/* Postadresse + Versand-Buttons direkt darunter */}
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Adresse <span className="text-amber-600 font-normal normal-case">(nicht gespeichert · hineinziehen oder einfügen)</span>
-                      </p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Adresse <span className="text-amber-600 font-normal normal-case">(nicht gespeichert · hineinziehen oder einfügen)</span>
+                        </p>
+                        {!af.adressBlock.trim() && (
+                          <button type="button"
+                            onClick={() => { const pid = normalizePid(p.pid); if (pid) { toast.info('Liris wird erneut ausgelesen…'); openWithPid(pid) } }}
+                            className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 hover:underline shrink-0"
+                          >
+                            ⟳ Erneut aus Liris auslesen
+                          </button>
+                        )}
+                      </div>
                       <textarea
                         rows={4}
                         value={af.adressBlock}

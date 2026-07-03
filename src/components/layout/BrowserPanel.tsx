@@ -1515,8 +1515,8 @@ export default function BrowserPanel() {
           // Postadresse (Kontaktangaben-Block) noch fehlt, wird WEITER nachgeladen
           // — der Block erscheint in Liris oft verzoegert. Name/Geb. etc. werden
           // bei jedem Versuch sofort uebernommen, die Adresse sobald sie da ist.
-          const ADDR_MAX = 5
-          const delays = [1200, 2500, 4000, 6000, 8000]
+          const ADDR_MAX = 7
+          const delays = [1200, 2500, 4000, 6000, 8000, 10000, 10000]
           const tryExtract = (attempt: number) => {
             const delay = delays[Math.min(attempt, delays.length - 1)]
             window.setTimeout(() => {
