@@ -292,20 +292,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         }
       }
 
-      if (!result.naechsterTerminDatum) {
-        // Pattern c: DD.MM.YYYY HH:MM kombiniert im Text (Komma oder Leerzeichen)
-        var re2 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})[,\\s]+(\\d{2}):(\\d{2})/g;
-        var bestMs = Infinity, bestM = null, m2;
-        while ((m2 = re2.exec(allText)) !== null) {
-          if (!isFuture(+m2[3], +m2[2], +m2[1])) continue;
-          var ms = new Date(+m2[3], +m2[2]-1, +m2[1], +m2[4], +m2[5]).getTime();
-          if (ms < bestMs) { bestMs = ms; bestM = m2; }
-        }
-        if (bestM) {
-          result.naechsterTerminDatum = bestM[3] + '-' + bestM[2] + '-' + bestM[1];
-          result.naechsterTerminZeit  = bestM[4] + ':' + bestM[5];
-        }
-      }
+      // Pattern c (frueher: unspezifische Ganzseiten-Suche nach IRGENDEINEM
+      // DD.MM.YYYY HH:MM im Text) wurde ENTFERNT — sie hat faelschlicherweise
+      // administrative Zeitstempel (z.B. "Aktualisiert am ...", "heute")
+      // erwischt statt eines echten Termins. Lieber gar kein Datum uebernehmen
+      // als ein falsches.
 
       // Pattern d (Liris-Timeline): blaues Kalender-Icon mit zukuenftigem
       // Datum im Text; Uhrzeit steht im title-Attribut eines benachbarten
@@ -349,21 +340,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         } catch (e) { /* DOM-Zugriff fehlgeschlagen — fallback hat ggf. schon gegriffen */ }
       }
 
-      // Pattern e: nur Datum in der Zukunft (ohne Uhrzeit), bevor wir
-      // gar nichts liefern. Hilft fuer Termine deren Uhrzeit nur per
-      // hover sichtbar waere und kein title gesetzt ist.
-      if (!result.naechsterTerminDatum) {
-        var re4 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})/g;
-        var bestDayMs = Infinity, bestDayM = null, m4;
-        while ((m4 = re4.exec(allText)) !== null) {
-          if (!isFuture(+m4[3], +m4[2], +m4[1])) continue;
-          var ms4 = new Date(+m4[3], +m4[2]-1, +m4[1]).getTime();
-          if (ms4 < bestDayMs) { bestDayMs = ms4; bestDayM = m4; }
-        }
-        if (bestDayM) {
-          result.naechsterTerminDatum = bestDayM[3] + '-' + bestDayM[2] + '-' + bestDayM[1];
-        }
-      }
+      // Pattern e (nur-Datum-Fallback, ohne Uhrzeit) wurde ENTFERNT — sie war
+      // die groesste Fehlerquelle: sie griff das erste beliebige zukuenftige
+      // Datum IRGENDWO auf der Seite (z.B. "Aktualisiert am", "heute") statt
+      // eines echten Termins. Ohne Uhrzeit-Bezug war das nicht verlaesslich
+      // von echten Terminen zu unterscheiden.
 
       // 9) Beurteilung-und-Prozedere Keywords: 'Myd' -> Pupillenerweiterung,
       //    'OCT' -> OCT, etc. Wird vom Aufbieten-Formular konsumiert.
