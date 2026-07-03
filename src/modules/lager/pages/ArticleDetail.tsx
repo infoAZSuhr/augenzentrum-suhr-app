@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { BookOpen, Pencil, Trash2, X, Save, RotateCcw, RotateCw, Loader2, AlertTriangle } from 'lucide-react'
-import BackButton from '../../../components/ui/BackButton'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../../../lib/firebase'
 import { getArticle, addLot, addMovement, updateMovement, updateArticle, updateLot, deleteArticle, deleteLot } from '../../../lib/firestoreLager'
@@ -293,7 +292,6 @@ const addLotMut = useMutation({
         subtitle={`${article.category} · ${article.currentStock ?? 0} ${article.unit} auf Lager`}
         actions={
           <>
-            <BackButton fallback="/lager" />
             <button className="btn-secondary" onClick={() => setShowEdit(true)} title="Bearbeiten">
               <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
             </button>

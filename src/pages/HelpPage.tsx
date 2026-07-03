@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import BackButton from '../components/ui/BackButton'
 import {
   BookOpen, Syringe, Package, CalendarDays, Users, Bell,
   User, LogIn, ArrowLeftRight, ChevronRight, Info, ArrowUp, LayoutList, Phone, GraduationCap, ClipboardList,
@@ -253,11 +252,6 @@ export default function HelpPage() {
 
   return (
     <div ref={containerRef} className="p-4 sm:p-8 max-w-3xl mx-auto space-y-12 pb-24">
-
-      {/* Back */}
-      <div className="flex items-center">
-        <BackButton />
-      </div>
 
       {/* Header */}
       <div className="text-center space-y-2 pt-2">

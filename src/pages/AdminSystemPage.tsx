@@ -3,7 +3,6 @@ import { collection, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../lib/AuthContext'
 import { Navigate } from 'react-router-dom'
-import BackButton from '../components/ui/BackButton'
 import {
   Download, Database, Github, Terminal, Key, Globe, BookOpen,
   ChevronDown, ChevronRight, Loader2, CheckCircle2, AlertTriangle,
@@ -514,7 +513,6 @@ export default function AdminSystemPage() {
 
       {/* Header */}
       <div className="flex items-start gap-3">
-        <BackButton />
         <div>
           <h1 className="text-xl font-bold text-gray-900">System & Administration</h1>
           <p className="text-sm text-gray-500 mt-0.5">Datensicherung, Systemzugang und Wartungsanleitung — nur sichtbar für Admin und Geschäftsleitung</p>

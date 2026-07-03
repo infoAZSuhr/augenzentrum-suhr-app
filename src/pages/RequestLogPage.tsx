@@ -1,6 +1,5 @@
 import { useAuth } from '../lib/AuthContext'
 import RequestLogContent from '../components/RequestLogContent'
-import BackButton from '../components/ui/BackButton'
 
 export default function RequestLogPage() {
   const { isAdmin, isGeschaeftsleitung } = useAuth()
@@ -16,7 +15,6 @@ export default function RequestLogPage() {
           <h1 className="text-xl font-bold text-gray-900">Antragsprotokoll</h1>
           <p className="text-sm text-gray-500 mt-0.5">Alle Anträge — vollständige Aufzeichnung</p>
         </div>
-        <BackButton />
       </div>
       <RequestLogContent isAdmin={isAdmin} />
     </div>

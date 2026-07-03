@@ -16,7 +16,6 @@ import {
   Circle, MessageSquare, Settings, GripVertical, Paperclip, Square, CheckSquare, Users, User,
   Search, SortAsc, UserCheck, ArrowRightLeft,
 } from 'lucide-react'
-import BackButton from '../components/ui/BackButton'
 
 const LABEL_COLOR_MAP: Record<string, string> = Object.fromEntries(LABEL_PRESETS.map(l => [l.id, l.color]))
 
@@ -1263,11 +1262,6 @@ export default function TaskBoardPage() {
     <div className="flex flex-col h-full">
       {/* Board header */}
       <div className={`${col.bg} px-4 py-3 flex items-center gap-3`}>
-        <BackButton
-          fallback="/aufgaben"
-          label=""
-          className="text-white/80 hover:text-white transition-colors flex items-center"
-        />
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-white text-base truncate">{board.name}</h1>
           {board.description && <p className="text-white/70 text-xs truncate">{board.description}</p>}

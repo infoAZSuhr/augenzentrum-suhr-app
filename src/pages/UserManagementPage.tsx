@@ -9,7 +9,6 @@ import { db } from '../lib/firebase'
 import { useAuth, UserProfile, UserRole, UserStatus, UserPermissions, Arbeitszeit } from '../lib/AuthContext'
 import { loadPlanung, savePlanung, loadYearListFirestore } from '../lib/firestorePlanung'
 import { Check, X, Users, Shield, ShieldCheck, Clock, UserCheck, UserPlus, Eye, EyeOff, Trash2, Crown, Unlock, Mail, Pencil, Save, Lock, MessageSquare, ClipboardList, Search, ChevronUp, ChevronDown, ChevronsUpDown, Package, CalendarDays, BookOpen, Phone, type LucideIcon } from 'lucide-react'
-import BackButton from '../components/ui/BackButton'
 
 const firebaseConfig = {
   apiKey: "AIzaSyAYRnIZJ46oEPUIZ9uRiLDbTWW0dB93vgQ",
@@ -456,7 +455,6 @@ export default function UserManagementPage() {
     <div className="p-3 sm:p-6 w-full">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <BackButton />
         <div className="p-2 bg-primary-50 rounded-xl">
           <Users className="w-5 h-5 text-primary-600" />
         </div>

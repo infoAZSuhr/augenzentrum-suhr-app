@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check, Bell } from 'lucide-react'
-import BackButton from '../../../components/ui/BackButton'
 import IVTIntervallblatt from '../components/IVTIntervallblatt'
 import {
   getPatient, getPatientTreatments, createTreatment,
@@ -161,7 +160,6 @@ export default function PatientDetail() {
         }
         actions={
           <>
-            <BackButton fallback="/ivom/patienten" />
             <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
               <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
             </button>

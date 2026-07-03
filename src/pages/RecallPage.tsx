@@ -6,7 +6,6 @@ import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
 import { doctorPhoto } from '../lib/doctorPhotos'
 import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ArrowLeft } from 'lucide-react'
-import BackButton from '../components/ui/BackButton'
 import {
   RecallPatient,
   Zuweisung,
@@ -3923,9 +3922,6 @@ const lirisExtractRef  = useRef(lirisExtract)
 
       {/* Back + Tab bar */}
       <div className="px-6 pt-4 border-b border-gray-200 bg-white shrink-0">
-        <div className="flex items-center gap-3 mb-3">
-          <BackButton />
-        </div>
         <nav className="flex items-end gap-1 flex-wrap">
           {allTabs.map(tab => {
             const rawCount = allData.get(tab)?.length ?? 0

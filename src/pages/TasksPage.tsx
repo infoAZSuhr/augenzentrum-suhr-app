@@ -9,7 +9,6 @@ import {
   subscribePolls, createStandalonePoll, updateStandalonePoll, deleteStandalonePoll,
 } from '../lib/firestoreTasks'
 import { Plus, LayoutList, Trash2, Settings, X, Loader2, BarChart2, Clock, Check, Search, UserCheck } from 'lucide-react'
-import BackButton from '../components/ui/BackButton'
 
 interface UserEntry { uid: string; displayName: string; username: string }
 
@@ -598,7 +597,6 @@ export default function TasksPage() {
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="mb-2"><BackButton /></div>
             <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <LayoutList className="w-5 h-5 text-primary-600" />
               Aufgaben

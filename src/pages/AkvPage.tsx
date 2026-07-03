@@ -13,7 +13,6 @@ import {
   seedAkvDocument, getAkvConfirmations, confirmAkvDocument, clearAkvConfirmations,
   type AkvDocument, type AkvConfirmation, type AkvRow, type AkvPerson,
 } from '../lib/firestoreAkv'
-import BackButton from '../components/ui/BackButton'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -426,7 +425,6 @@ export default function AkvPage() {
         <div className="flex items-start gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <BackButton />
               <ClipboardList className="w-4 h-4 text-violet-600" />
               <p className="text-xs font-bold uppercase tracking-widest text-violet-600">Gelenkte Liste</p>
               {akvDoc.status === 'final'

@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, X, Check, ChevronDown, ChevronRight, ChevronLeft, FileText, FolderOpen, Search, GripVertical, Users, CheckCircle2, Clock, Loader2, Download, Eye, EyeOff, History, GitCompare, ArrowRightLeft } from 'lucide-react'
-import BackButton from '../../../components/ui/BackButton'
 import {
   getSections, getAllSubsections, getAllPages,
   addSection, updateSection, deleteSection,
@@ -863,7 +862,6 @@ const subsOf      = (sId: string)    => subsections.filter(ss => ss.sectionId ==
         <div className="flex items-center justify-between px-2 py-2.5 border-b border-gray-200 shrink-0 gap-1">
           {sidebarOpen && (
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <BackButton label="" fallback="/" className="inline-flex items-center text-gray-400 hover:text-gray-700 transition-colors" />
               <span className="text-xs font-bold uppercase tracking-widest text-gray-400 truncate">SOP</span>
             </div>
           )}

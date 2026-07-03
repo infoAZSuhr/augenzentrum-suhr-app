@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, UserProfile } from '../../lib/AuthContext'
-import BackButton from '../../components/ui/BackButton'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, Check, X, Printer, Calendar, CalendarDays, User, ArrowLeftRight, UserX, GripVertical } from 'lucide-react'
 import { SCHEDULE as SCHEDULE_2026, SECTIONS as SECTIONS_2026, type Code } from './data/schedule2026'
 import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestore, saveYearListFirestore, type PlanungData } from '../../lib/firestorePlanung'
@@ -3181,7 +3180,6 @@ export default function EinsatzplanungPage(){
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <div className="mb-2"><BackButton /></div>
           <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Einsatzplanung Suhr</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             {isReadOnly?'👁 Nur-Lese-Ansicht':isLoading?'Wird geladen…':isSaving?'☁️ Speichern…':'Zelle antippen zum Bearbeiten'}

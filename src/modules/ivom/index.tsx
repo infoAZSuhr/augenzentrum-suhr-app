@@ -1,5 +1,4 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import BackButton from '../../components/ui/BackButton'
 import PatientList from './pages/PatientList'
 import PatientDetail from './pages/PatientDetail'
 import IVOMCalendar from './pages/IVOMCalendar'
@@ -28,7 +27,6 @@ export default function IVOMModule() {
       {!isDetail && (
         <div className="px-2 sm:px-6 pt-2 sm:pt-4 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-2 sm:gap-3">
-            <BackButton fallback="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors shrink-0 pb-2 sm:pb-4" />
             <div className="w-px h-6 bg-gray-200 shrink-0 mb-2 sm:mb-4" />
             <nav className="flex gap-1 flex-1 overflow-x-auto">
               {NAV_TABS.map(tab => (
