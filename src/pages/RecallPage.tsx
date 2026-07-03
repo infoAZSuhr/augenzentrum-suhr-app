@@ -2991,7 +2991,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     return html
   }
 
-  function generateBriefPDF(patient: RecallPatient, form: AufgebotForm) {
+  function generateBriefPDF(patient: RecallPatient, form: AufgebotForm, skipPrint = false) {
     const html = buildBriefHtml(patient, form)
     const ea = (window as unknown as { electronApp?: {
       renderBriefPdf?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
@@ -3019,6 +3019,8 @@ const lirisExtractRef  = useRef(lirisExtract)
             // autoUpload → Postausgang lädt den Brief automatisch ins Liris hoch
             // (gilt für «Per Post» und «Per E-Mail», beide laufen hierüber).
             autoUpload: true,
+            // Bei E-Mail-Versand nicht ausdrucken — nur ins Liris hochladen.
+            skipPrint,
             // Payload fuer automatisches 'aufgeboten markieren' nach
             // Verarbeitung (Liris-Upload oder Mail an Praxis).
             aufgebot: { patient, form },
@@ -4985,9 +4987,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                               onClick={() => {
                                 setAf({ versand: 'Email' })
                                 openEmailInOutlook(p, af, patientEmail)
-                                // Bei E-Mail-Versand KEIN PDF/Postausgang — der Brief geht per
-                                // Outlook-Mail raus, keine Liris-Auto-Upload-Ablage nötig
-                                // (gilt für Brief genauso wie für Reminder).
+                                // Bei E-Mail-Versand wird NICHT gedruckt, aber der Brief muss
+                                // trotzdem ins Liris abgelegt werden (skipPrint: true).
+                                generateBriefPDF(p, { ...af, versand: 'Email' }, true)
                               }}
                               title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${

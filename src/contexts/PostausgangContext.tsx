@@ -14,6 +14,7 @@ export interface PostausgangItem {
   uploaded?:   boolean        // true sobald erfolgreich ins Liris hochgeladen
   printed?:    boolean        // true sobald gedruckt (Druckdialog gestartet)
   autoUpload?: boolean        // true → Postausgang-Panel importiert automatisch ins Liris
+  skipPrint?: boolean         // true → Brief wurde per E-Mail versendet, muss NICHT gedruckt werden (nur Liris-Upload)
   versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
   recallSaved?: boolean       // true sobald der Recall-Patient als 'aufgeboten' markiert wurde
   aufgebot?:   unknown        // Payload (patient + form) fuer das automatische 'aufgeboten markieren'

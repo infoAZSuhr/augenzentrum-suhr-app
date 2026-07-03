@@ -56,7 +56,7 @@ export default function PostausgangPanel() {
   // entfernt, NACHDEM der Patient als aufgeboten/Reminder markiert wurde
   // (recallSaved) — sonst ginge die Markierung beim Entfernen verloren.
   useEffect(() => {
-    const done = items.filter(it => it.uploaded && it.printed && (!it.aufgebot || it.recallSaved))
+    const done = items.filter(it => it.uploaded && (it.printed || it.skipPrint) && (!it.aufgebot || it.recallSaved))
     if (done.length === 0) return
     done.forEach(it => remove(it.id))
   }, [items, remove])
@@ -192,14 +192,17 @@ export default function PostausgangPanel() {
   // Alle Briefe zu EINEM PDF buendeln (pdf-lib) und als Vorschau anzeigen —
   // von dort kann gesammelt gedruckt werden.
   const printAll = async () => {
-    if (items.length === 0 || merging) return
+    // Per E-Mail versendete Briefe (skipPrint) muessen nicht gedruckt werden
+    // — nur ins Liris hochgeladen. Aus dem Sammeldruck ausschliessen.
+    const printable = items.filter(i => !i.skipPrint)
+    if (printable.length === 0 || merging) return
     setMerging(true)
     setStatusMsg(null)
-    setPrintingIds(items.map(i => i.id))
+    setPrintingIds(printable.map(i => i.id))
     try {
       const { PDFDocument } = await import('pdf-lib')
       const merged = await PDFDocument.create()
-      for (const it of items) {
+      for (const it of printable) {
         const bytes = await it.blob.arrayBuffer()
         const src = await PDFDocument.load(bytes)
         const pages = await merged.copyPages(src, src.getPageIndices())
@@ -207,7 +210,7 @@ export default function PostausgangPanel() {
       }
       const out = await merged.save()
       const url = URL.createObjectURL(new Blob([out.buffer as ArrayBuffer], { type: 'application/pdf' }))
-      openPrint(url, `Sammeldruck — ${items.length} Brief${items.length === 1 ? '' : 'e'}`)
+      openPrint(url, `Sammeldruck — ${printable.length} Brief${printable.length === 1 ? '' : 'e'}`)
     } catch (e) {
       setStatusMsg({ kind: 'err', text: 'Buendeln fehlgeschlagen: ' + String(e) })
     } finally {
