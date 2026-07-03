@@ -276,13 +276,13 @@ export default function ZuweisungPage() {
   }, [patients, reportYear, reportQuarter])
 
   function exportReportCsv() {
-    const header = ['Name', 'PID', 'Arzt', 'Zielort', 'Grund', 'Zuweisungsdatum', 'Status', 'Zurückgekehrt', 'Bericht erhalten']
+    const header = ['Status', 'PID', 'Name', 'Zuweisender Arzt', 'Zielort', 'Grund', 'Zurückgekehrt', 'Bericht']
     const csvEscape = (v: string) => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
     const lines = [
       header.join(';'),
       ...report.detailRows.map(r => [
-        r.name, r.pid, r.doctor, r.ziel, r.grund, formatDate(r.datum),
         r.status === 'erledigt' ? 'Erledigt' : 'Pendent',
+        r.pid, r.name, r.doctor, r.ziel, r.grund,
         r.zurueckgekehrt ? 'Ja' : 'Nein',
         r.berichtErhalten ? 'Ja' : 'Nein',
       ].map(v => csvEscape(String(v))).join(';')),
@@ -298,40 +298,50 @@ export default function ZuweisungPage() {
 
   const reportPrintRef = { current: null as HTMLIFrameElement | null }
   function exportReportPdf() {
-    const rowsHtml = report.detailRows.map(r => `
+    const rowsHtml = report.detailRows.map(r => {
+      const isErledigt = r.status === 'erledigt'
+      return `
       <tr>
-        <td>${r.name}</td><td>${r.pid}</td><td>${r.doctor}</td><td>${r.ziel}</td><td>${r.grund}</td>
-        <td>${formatDate(r.datum)}</td><td>${r.status === 'erledigt' ? 'Erledigt' : 'Pendent'}</td>
-        <td>${r.zurueckgekehrt ? 'Ja' : 'Nein'}</td><td>${r.berichtErhalten ? 'Ja' : 'Nein'}</td>
-      </tr>`).join('')
+        <td><span class="badge ${isErledigt ? 'badge-green' : 'badge-amber'}">${isErledigt ? 'Erledigt' : 'Pendent'}</span></td>
+        <td>${r.pid}</td><td>${r.name}</td><td>${r.doctor}</td><td>${r.ziel}</td><td>${r.grund}</td>
+        <td><span class="badge ${r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${r.zurueckgekehrt ? 'Ja' : 'Nein'}</span></td>
+        <td><span class="badge ${r.berichtErhalten ? 'badge-blue' : 'badge-gray'}">${r.berichtErhalten ? 'Ja' : 'Nein'}</span></td>
+      </tr>`
+    }).join('')
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quartalsbericht Q${reportQuarter}/${reportYear}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:24px;}
-        h1{font-size:18px;margin-bottom:2px;}
+        h1{font-size:18px;margin-bottom:2px;color:#5b21b6;}
         .sub{color:#666;font-size:12px;margin-bottom:16px;}
         .kpis{display:flex;gap:12px;margin-bottom:20px;}
-        .kpi{border:1px solid #ddd;border-radius:8px;padding:8px 14px;}
+        .kpi{border-radius:8px;padding:8px 14px;color:#fff;}
+        .kpi.k1{background:#7c3aed;} .kpi.k2{background:#059669;} .kpi.k3{background:#2563eb;} .kpi.k4{background:#ea580c;}
         .kpi .n{font-size:20px;font-weight:bold;}
-        .kpi .l{font-size:10px;color:#666;}
-        h2{font-size:13px;margin:18px 0 6px;}
+        .kpi .l{font-size:10px;opacity:.9;}
+        h2{font-size:13px;margin:18px 0 6px;color:#5b21b6;}
         table{width:100%;border-collapse:collapse;margin-bottom:14px;}
         th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:11px;}
-        th{background:#f5f5f5;}
+        th{background:#5b21b6;color:#fff;}
+        tr:nth-child(even) td{background:#f8f7ff;}
+        .badge{display:inline-block;padding:1px 7px;border-radius:9999px;font-size:10px;font-weight:bold;}
+        .badge-green{background:#d1fae5;color:#065f46;} .badge-amber{background:#fef3c7;color:#92400e;}
+        .badge-red{background:#fee2e2;color:#991b1b;} .badge-blue{background:#dbeafe;color:#1e40af;}
+        .badge-gray{background:#f3f4f6;color:#4b5563;}
       </style></head><body>
       <h1>Quartalsbericht — externe Zuweisungen</h1>
       <p class="sub">Q${reportQuarter} ${reportYear} &nbsp;(${formatDate(report.start)} – ${formatDate(report.end)})</p>
       <div class="kpis">
-        <div class="kpi"><div class="n">${report.total}</div><div class="l">Externe Zuweisungen</div></div>
-        <div class="kpi"><div class="n">${report.rueckkehrQuote}%</div><div class="l">Rückkehrquote</div></div>
-        <div class="kpi"><div class="n">${report.berichtQuote}%</div><div class="l">Bericht erhalten</div></div>
-        <div class="kpi"><div class="n">${report.ueberfaelligCount}</div><div class="l">Überfällig (&gt;8 Wo.)</div></div>
+        <div class="kpi k1"><div class="n">${report.total}</div><div class="l">Externe Zuweisungen</div></div>
+        <div class="kpi k2"><div class="n">${report.rueckkehrQuote}%</div><div class="l">Rückkehrquote</div></div>
+        <div class="kpi k3"><div class="n">${report.berichtQuote}%</div><div class="l">Bericht erhalten</div></div>
+        <div class="kpi k4"><div class="n">${report.ueberfaelligCount}</div><div class="l">Überfällig (&gt;8 Wo.)</div></div>
       </div>
       <h2>Nach Grund</h2>
       <table><tr><th>Grund</th><th>Anzahl</th></tr>${report.byGrund.map(([g, n]) => `<tr><td>${g}</td><td>${n}</td></tr>`).join('')}</table>
       <h2>Nach Zielort</h2>
       <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${z}</td><td>${n}</td></tr>`).join('')}</table>
       <h2>Details</h2>
-      <table><tr><th>Name</th><th>PID</th><th>Arzt</th><th>Zielort</th><th>Grund</th><th>Datum</th><th>Status</th><th>Zurückgekehrt</th><th>Bericht</th></tr>${rowsHtml}</table>
+      <table><tr><th>Status</th><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Zurückgekehrt</th><th>Bericht</th></tr>${rowsHtml}</table>
       </body></html>`
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
@@ -740,7 +750,7 @@ export default function ZuweisungPage() {
       {/* Quartalsbericht-Modal */}
       {showReport && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowReport(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-violet-600" />
@@ -826,6 +836,59 @@ export default function ZuweisungPage() {
                           <span className="font-semibold text-gray-900">{n}</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Details */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1.5">Details</p>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-violet-600 text-white">
+                            <th className="px-2 py-1.5 text-left font-semibold">Status</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">PID</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">Name</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">Zuw. Arzt</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">Zielort</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">Grund</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">Zurückgekehrt</th>
+                            <th className="px-2 py-1.5 text-left font-semibold">Bericht</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.detailRows.map((r, i) => (
+                            <tr key={i} className={i % 2 === 1 ? 'bg-violet-50/50' : 'bg-white'}>
+                              <td className="px-2 py-1.5 whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  r.status === 'erledigt' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {r.status === 'erledigt' ? 'Erledigt' : 'Pendent'}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 font-mono text-gray-500 whitespace-nowrap">{r.pid || '—'}</td>
+                              <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
+                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.doctor || '—'}</td>
+                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.ziel}</td>
+                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grund}</td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  r.zurueckgekehrt ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {r.zurueckgekehrt ? 'Ja' : 'Nein'}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  r.berichtErhalten ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {r.berichtErhalten ? 'Ja' : 'Nein'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </>
