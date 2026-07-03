@@ -641,6 +641,54 @@ export default function ZuweisungPage() {
                         <span>von {z.von}</span>
                       )}
                     </div>
+
+                    {/* Kompakt: Geplanter Termin + Bericht erfassen — direkt sichtbar,
+                        ohne die Details ausklappen zu müssen. */}
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-teal-200 bg-teal-50/60"
+                        title="Geplanter Termin (von externer Stelle mitgeteilt)">
+                        <CalendarDays className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                        <input type="date" value={z.geplanterTermin || ''}
+                          onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value })}
+                          onClick={e => e.stopPropagation()}
+                          className="bg-transparent text-xs text-teal-700 font-medium focus:outline-none w-[102px]" />
+                      </div>
+                      <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50/60 flex-wrap">
+                        <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        {([
+                          { v: 'zwischen',   l: 'Zwischen' },
+                          { v: 'entlassung', l: 'Entlassung' },
+                          { v: 'abschluss',  l: 'Abschluss' },
+                        ] as const).map(opt => (
+                          <button key={opt.v} type="button"
+                            onClick={() => {
+                              const isSame = z.berichtTyp === opt.v
+                              const nextTyp = isSame ? undefined : opt.v
+                              const berichtDatum = nextTyp ? (z.berichtDatum || new Date().toISOString().slice(0, 10)) : ''
+                              const patch: Partial<Zuweisung> = { berichtTyp: nextTyp, berichtErhalten: !!nextTyp, berichtDatum }
+                              if (nextTyp === 'abschluss') {
+                                patch.status = 'erledigt'
+                                patch.erledigtAm = berichtDatum
+                              } else if (isSame && z.berichtTyp === 'abschluss' && normStatus(z.status) === 'erledigt') {
+                                patch.status = 'pendent'
+                                patch.erledigtAm = ''
+                              }
+                              patchZuweisung(p, z.id, patch)
+                            }}
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
+                              z.berichtTyp === opt.v
+                                ? opt.v === 'abschluss' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-blue-100 text-blue-700 border-blue-300'
+                                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                            }`}
+                          >{opt.l}</button>
+                        ))}
+                        {z.berichtTyp && (
+                          <input type="date" value={z.berichtDatum || ''}
+                            onChange={e => patchZuweisung(p, z.id, { berichtDatum: e.target.value })}
+                            className="bg-transparent text-[11px] text-blue-700 font-medium focus:outline-none w-[92px]" />
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Actions */}
@@ -720,78 +768,6 @@ export default function ZuweisungPage() {
               {/* Expanded: notiz + link to recall */}
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50 rounded-b-xl">
-                  {/* Geplanter Termin: interner Merker, sobald die externe Stelle
-                      auf die Berichtsanfrage antwortet und den Behandlungstermin
-                      mitteilt — damit wir wissen, wann eine Rückkehr zu erwarten ist. */}
-                  <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-2.5">
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-teal-700 mb-1">
-                      <CalendarDays className="w-3.5 h-3.5" />
-                      Geplanter Termin (von externer Stelle mitgeteilt)
-                    </label>
-                    <p className="text-[11px] text-teal-600/80 mb-1.5">
-                      Für uns: Trägt hier den Termin ein, sobald die externe Praxis/Klinik ihn uns mitteilt (z. B. als Antwort auf die Berichtsanfrage) — sichtbar direkt in der Übersicht.
-                    </p>
-                    <input type="date" value={z.geplanterTermin || ''}
-                      onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value })}
-                      className="px-3 py-1.5 text-sm border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300" />
-                  </div>
-
-                  {/* Bericht erfassen: Art + Datum. Erst der Abschlussbericht
-                      gilt als endgueltiger Abschluss der Zuweisung — bei
-                      Zwischen-/Entlassungsbericht bleibt sie bewusst pendent,
-                      damit die Rückkehr des Patienten weiter im Blick bleibt. */}
-                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 mb-1">
-                      <FileText className="w-3.5 h-3.5" />
-                      Bericht erfassen
-                    </label>
-                    <p className="text-[11px] text-blue-600/80 mb-1.5">
-                      Erst mit einem Abschlussbericht gilt die Zuweisung als abgeschlossen — danach behalten wir im Blick, ob der Patient wieder zu uns zurückkommt.
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {([
-                        { v: 'zwischen',    l: 'Zwischenbericht' },
-                        { v: 'entlassung',  l: 'Entlassungsbericht' },
-                        { v: 'abschluss',   l: 'Abschlussbericht' },
-                      ] as const).map(opt => (
-                        <button key={opt.v} type="button"
-                          onClick={() => {
-                            const isSame = z.berichtTyp === opt.v
-                            const nextTyp = isSame ? undefined : opt.v
-                            const berichtDatum = nextTyp ? (z.berichtDatum || new Date().toISOString().slice(0, 10)) : ''
-                            const patch: Partial<Zuweisung> = {
-                              berichtTyp: nextTyp,
-                              berichtErhalten: !!nextTyp,
-                              berichtDatum,
-                            }
-                            // Abschlussbericht schliesst die Zuweisung automatisch ab;
-                            // wird er wieder abgewählt, den Abschluss zurücknehmen.
-                            if (nextTyp === 'abschluss') {
-                              patch.status = 'erledigt'
-                              patch.erledigtAm = berichtDatum
-                            } else if (isSame && z.berichtTyp === 'abschluss' && normStatus(z.status) === 'erledigt') {
-                              patch.status = 'pendent'
-                              patch.erledigtAm = ''
-                            }
-                            patchZuweisung(p, z.id, patch)
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-                            z.berichtTyp === opt.v
-                              ? opt.v === 'abschluss' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-blue-100 text-blue-700 border-blue-300'
-                              : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                          }`}
-                        >{opt.l}</button>
-                      ))}
-                    </div>
-                    {z.berichtTyp && (
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-gray-500 shrink-0">Berichtsdatum</label>
-                        <input type="date" value={z.berichtDatum || ''}
-                          onChange={e => patchZuweisung(p, z.id, { berichtDatum: e.target.value })}
-                          className="px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                      </div>
-                    )}
-                  </div>
                   {z.notiz ? (
                     <div className="flex items-start gap-2 text-sm text-gray-600">
                       <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" />
