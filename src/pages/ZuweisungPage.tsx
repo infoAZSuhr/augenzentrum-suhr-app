@@ -132,35 +132,52 @@ export default function ZuweisungPage() {
   const BERICHT_LABELS: Record<BerichtTyp, string> = { zwischen: 'Zwischen', entlassung: 'Entlassung', op: 'OP-Bericht', befund: 'Befund', abschluss: 'Abschluss' }
   const BERICHT_LABELS_FULL: Record<BerichtTyp, string> = { zwischen: 'Zwischenbericht', entlassung: 'Entlassungsbericht', op: 'OP-Bericht', befund: 'Befundbericht', abschluss: 'Abschlussbericht' }
 
+  function genBerichtId(): string {
+    try { const u = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID?.(); if (u) return u } catch { /* */ }
+    return 'b_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  }
+
   // Verschiedene Berichte (Zwischen-/Entlassungs-/OP-/Abschlussbericht) koennen
   // zu unterschiedlichen Zeitpunkten eintreffen — jeder braucht sein eigenes
-  // Datum. Legacy-Einzelfeld (berichtTyp/berichtDatum) wird beim ersten Zugriff
+  // Datum. Derselbe Typ kann mehrfach vorkommen (z.B. 2x OP-Bericht bei
+  // beidseitiger Katarakt-OP), daher eindeutige id statt typ als Schluessel.
+  // Legacy-Einzelfeld (berichtTyp/berichtDatum) wird beim ersten Zugriff
   // transparent migriert.
-  function berichtListe(z: Zuweisung): { typ: BerichtTyp; datum: string }[] {
-    if (z.berichte && z.berichte.length > 0) return z.berichte
-    if (z.berichtTyp) return [{ typ: z.berichtTyp, datum: z.berichtDatum || '' }]
+  function berichtListe(z: Zuweisung): { id: string; typ: BerichtTyp; datum: string }[] {
+    if (z.berichte && z.berichte.length > 0) return z.berichte.map(b => ({ ...b, id: b.id || genBerichtId() }))
+    if (z.berichtTyp) return [{ id: 'legacy', typ: z.berichtTyp, datum: z.berichtDatum || '' }]
     return []
   }
 
-  function toggleBericht(p: RecallPatient, z: Zuweisung & { id: string }, typ: BerichtTyp) {
+  function addBericht(p: RecallPatient, z: Zuweisung & { id: string }, typ: BerichtTyp) {
     const cur = berichtListe(z)
-    const exists = cur.some(b => b.typ === typ)
-    const next = exists ? cur.filter(b => b.typ !== typ) : [...cur, { typ, datum: new Date().toISOString().slice(0, 10) }]
+    const next = [...cur, { id: genBerichtId(), typ, datum: new Date().toISOString().slice(0, 10) }]
     const hasAbschluss = next.some(b => b.typ === 'abschluss')
     // Firestore erlaubt kein `undefined` in Array-Elementen (Zuweisung liegt
     // in einem Array) — Legacy-Einzelfelder daher mit `null` statt `undefined`
     // aufraeumen, sonst schlaegt das Speichern still fehl.
     const patch: Partial<Zuweisung> = {
-      berichte: next, berichtErhalten: next.length > 0,
+      berichte: next, berichtErhalten: true,
       berichtTyp: null as unknown as undefined, berichtDatum: null as unknown as undefined,
     }
-    let logMsg = exists ? `${BERICHT_LABELS_FULL[typ]} entfernt` : `${BERICHT_LABELS_FULL[typ]} erfasst`
+    let logMsg = `${BERICHT_LABELS_FULL[typ]} erfasst`
     if (hasAbschluss) {
       const d = next.find(b => b.typ === 'abschluss')!.datum
       patch.status = 'erledigt'
       patch.erledigtAm = d
-      if (!exists) logMsg += ' — Zuweisung als erledigt markiert'
-    } else if (normStatus(z.status) === 'erledigt') {
+      logMsg += ' — Zuweisung als erledigt markiert'
+    }
+    patchZuweisung(p, z.id, patch, logMsg)
+  }
+
+  function removeBericht(p: RecallPatient, z: Zuweisung & { id: string }, id: string) {
+    const cur = berichtListe(z)
+    const entry = cur.find(b => b.id === id)
+    const next = cur.filter(b => b.id !== id)
+    const hasAbschluss = next.some(b => b.typ === 'abschluss')
+    const patch: Partial<Zuweisung> = { berichte: next, berichtErhalten: next.length > 0 }
+    let logMsg = entry ? `${BERICHT_LABELS_FULL[entry.typ]} entfernt` : 'Bericht entfernt'
+    if (!hasAbschluss && normStatus(z.status) === 'erledigt') {
       patch.status = 'pendent'
       patch.erledigtAm = ''
       logMsg += ' — Abschluss zurückgenommen, wieder pendent'
@@ -168,11 +185,13 @@ export default function ZuweisungPage() {
     patchZuweisung(p, z.id, patch, logMsg)
   }
 
-  function updateBerichtDatum(p: RecallPatient, z: Zuweisung & { id: string }, typ: BerichtTyp, datum: string) {
-    const next = berichtListe(z).map(b => b.typ === typ ? { ...b, datum } : b)
+  function updateBerichtDatum(p: RecallPatient, z: Zuweisung & { id: string }, id: string, datum: string) {
+    const cur = berichtListe(z)
+    const entry = cur.find(b => b.id === id)
+    const next = cur.map(b => b.id === id ? { ...b, datum } : b)
     const patch: Partial<Zuweisung> = { berichte: next }
-    if (typ === 'abschluss') patch.erledigtAm = datum
-    patchZuweisung(p, z.id, patch, `Datum von ${BERICHT_LABELS_FULL[typ]} geändert auf ${formatDate(datum)}`)
+    if (entry?.typ === 'abschluss') patch.erledigtAm = datum
+    patchZuweisung(p, z.id, patch, `Datum von ${entry ? BERICHT_LABELS_FULL[entry.typ] : 'Bericht'} geändert auf ${formatDate(datum)}`)
   }
 
   // Klick «Bericht anfragen»: Zuweisung als angefragt markieren; in der Desktop-
@@ -800,29 +819,28 @@ export default function ZuweisungPage() {
                   <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50/60 flex-wrap justify-end">
                     <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     {berichtListe(z).map(b => (
-                      <div key={b.typ} className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border ${
+                      <div key={b.id} className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border ${
                         b.typ === 'abschluss' ? 'bg-green-100 border-green-300' : 'bg-blue-100 border-blue-300'
                       }`}>
                         <span className={`text-[10px] font-semibold ${b.typ === 'abschluss' ? 'text-green-700' : 'text-blue-700'}`}>
                           {BERICHT_LABELS[b.typ]}
                         </span>
                         <input type="date" value={b.datum}
-                          onChange={e => updateBerichtDatum(p, z, b.typ, e.target.value)}
+                          onChange={e => updateBerichtDatum(p, z, b.id, e.target.value)}
                           onClick={e => e.stopPropagation()}
                           className="bg-transparent text-[10px] w-[86px] focus:outline-none text-inherit" />
-                        <button type="button" onClick={() => toggleBericht(p, z, b.typ)}
+                        <button type="button" onClick={() => removeBericht(p, z, b.id)}
                           className="text-gray-400 hover:text-red-500" title={`${BERICHT_LABELS[b.typ]} entfernen`}>
                           <X className="w-3 h-3" />
                         </button>
                       </div>
                     ))}
                     <select value=""
-                      onChange={e => { if (e.target.value) toggleBericht(p, z, e.target.value as BerichtTyp) }}
+                      onChange={e => { if (e.target.value) addBericht(p, z, e.target.value as BerichtTyp) }}
                       className="text-[10px] border border-blue-200 rounded-full px-1.5 py-0.5 bg-white text-blue-600 focus:outline-none"
                     >
                       <option value="">+ Bericht</option>
                       {(['zwischen', 'entlassung', 'op', 'befund', 'abschluss'] as const)
-                        .filter(t => !berichtListe(z).some(b => b.typ === t))
                         .map(t => <option key={t} value={t}>{BERICHT_LABELS[t]}</option>)}
                     </select>
                   </div>
