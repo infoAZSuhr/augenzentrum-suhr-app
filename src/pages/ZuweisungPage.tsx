@@ -80,6 +80,8 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
     '',
     'Bisher ist bei uns noch kein Abschlussbericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
     '',
+    'Sollte die Behandlung noch nicht stattgefunden haben, bitten wir um Mitteilung des geplanten Termins.',
+    '',
   ].join('\n')
   const url = `mailto:${empfaenger}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   try { window.open(url) } catch { window.location.href = url }
