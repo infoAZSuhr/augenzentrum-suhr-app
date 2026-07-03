@@ -412,6 +412,7 @@ type EditForm = {
   zuweisungBerichtErhalten: boolean
   zuweisungNotiz: string
   zuweisungExtra: Zuweisung[]   // weitere Zuweisungen (neben der primären)
+  zuweisungNoetig: boolean      // Merker: Zuweisung steht noch aus (Erinnerung fuer ZW-Management)
 }
 
 function initForm(p?: RecallPatient): EditForm {
@@ -453,6 +454,7 @@ function initForm(p?: RecallPatient): EditForm {
         zuweisungExtra:     p ? patientZuweisungen(p).slice(1) : [],
       }
     })(),
+    zuweisungNoetig:  p?.zuweisungNoetig === true,
   }
 }
 
@@ -3443,7 +3445,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       'storniert', 'grundStornierung',
       'nachfassAdresse', 'nachfassTel', 'nachfassTelDatum',
       'aufgebotFuer', 'aufgebotErstellt', 'aufgebotArt',
-      'patientenStatus', 'neupatient', 'keinTermin',
+      'patientenStatus', 'neupatient', 'keinTermin', 'zuweisungNoetig',
     ]
     for (const f of fields) {
       if (!eq((form as any)[f], (editTarget as any)[f])) s.add(f as string)
@@ -3526,7 +3528,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       'storniert', 'grundStornierung',
       'nachfassAdresse', 'nachfassTel', 'nachfassTelDatum',
       'aufgebotFuer', 'aufgebotErstellt', 'aufgebotArt',
-      'patientenStatus', 'neupatient', 'verlauf', 'zuweisung', 'zuweisungen',
+      'patientenStatus', 'neupatient', 'verlauf', 'zuweisung', 'zuweisungen', 'zuweisungNoetig',
     ] as const
     for (const f of fields) {
       if (!eq((data as any)[f], (orig as any)[f])) return false
@@ -3662,6 +3664,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         verlauf:          finalVerlauf.length > 0 ? finalVerlauf : null,
         zuweisung:        null,   // Legacy-Einzelfeld migriert in zuweisungen[]
         zuweisungen:      zuweisungenList.length > 0 ? zuweisungenList : null,
+        zuweisungNoetig:  form.zuweisungNoetig || null,
       }
       // Nach dem Speichern bleibt der User IMMER auf der aktuellen Tab/Liste.
       // Auch bei Patient-Umhängung (assignDoctor) oder Neuanlage in einem
@@ -6561,6 +6564,20 @@ const lirisExtractRef  = useRef(lirisExtract)
                     <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${form.zuweisungAktiv ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
+
+                {/* Schnell-Merker: Details noch offen, aber die Zuweisung darf
+                    nicht vergessen gehen. Erscheint als eigene Erinnerung im
+                    ZW-Management ("Noch zuzuweisen"), unabhaengig vom Toggle
+                    oben (der eine bereits konkrete Zuweisung anlegt). */}
+                <button type="button"
+                  onClick={() => setField('zuweisungNoetig', !form.zuweisungNoetig)}
+                  className={`mb-2 w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors flex items-center justify-center gap-1.5 ${
+                    form.zuweisungNoetig
+                      ? 'border-orange-400 bg-orange-100 text-orange-700'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-orange-300 hover:bg-orange-50'
+                  }`}>
+                  {form.zuweisungNoetig ? '✓ Zuweisung noch ausstehend' : 'Muss noch zugewiesen werden'}
+                </button>
 
                 {form.zuweisungAktiv && (
                   <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">

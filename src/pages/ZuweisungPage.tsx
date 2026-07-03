@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
   Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
+  AlertTriangle, BarChart3,
 } from 'lucide-react'
-import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung } from '../lib/firestoreRecall'
+import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung, updateRecallPatient } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
 import { useBrowser } from '../contexts/BrowserContext'
 
@@ -209,6 +210,63 @@ export default function ZuweisungPage() {
   const ausstehendCount = allZ.filter(z => normStatus(z.status) === 'pendent').length
   const erledigtCount   = allZ.filter(z => z.status === 'erledigt').length
 
+  // Patienten, bei denen «Muss noch zugewiesen werden» im Patient-bearbeiten-
+  // Formular markiert wurde — noch OHNE konkrete Zuweisung erfasst. Damit sie
+  // beim Zuweisen nicht vergessen gehen.
+  const noetigList = patients.filter(p => p.zuweisungNoetig === true)
+  const [clearingId, setClearingId] = useState<string | null>(null)
+  async function clearZuweisungNoetig(p: RecallPatient) {
+    setClearingId(p.id)
+    try { await updateRecallPatient(p.id, { zuweisungNoetig: null } as Partial<RecallPatient>, displayLabel) }
+    finally { setClearingId(null) }
+  }
+
+  // ── Quartalsbericht ────────────────────────────────────────────────────
+  const [showReport, setShowReport] = useState(false)
+  const now = new Date()
+  const [reportYear, setReportYear] = useState(now.getFullYear())
+  const [reportQuarter, setReportQuarter] = useState<1 | 2 | 3 | 4>((Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4)
+
+  const report = useMemo(() => {
+    const qStartMonth = (reportQuarter - 1) * 3
+    const start = `${reportYear}-${String(qStartMonth + 1).padStart(2, '0')}-01`
+    const endDate = new Date(reportYear, qStartMonth + 3, 1)
+    const end = endDate.toISOString().slice(0, 10) // exklusiv
+
+    const rows = patients
+      .flatMap(p => patientZuweisungen(p).map(z => ({ p, z })))
+      .filter(({ z }) => z.typ === 'extern' && z.datum >= start && z.datum < end)
+
+    const zurueckgekehrt = (p: RecallPatient, z: Zuweisung) => {
+      const nk = p.naechsteKons && p.naechsteKons !== 'kein Termin' ? p.naechsteKons : ''
+      return !!(p.letzteKons && p.letzteKons > z.datum) || !!(nk && nk > z.datum)
+    }
+
+    const byGrund = new Map<string, number>()
+    const byZiel  = new Map<string, number>()
+    let rueckkehrCount = 0
+    let berichtCount = 0
+    let ueberfaelligCount = 0
+    for (const { p, z } of rows) {
+      const g = z.grund.trim() || 'ohne Angabe'
+      const zi = z.ziel.trim() || 'ohne Angabe'
+      byGrund.set(g, (byGrund.get(g) ?? 0) + 1)
+      byZiel.set(zi, (byZiel.get(zi) ?? 0) + 1)
+      if (zurueckgekehrt(p, z)) rueckkehrCount++
+      if (z.berichtErhalten) berichtCount++
+      if (normStatus(z.status) === 'pendent' && (wochenSeit(z.datum) ?? 0) >= 8) ueberfaelligCount++
+    }
+    const total = rows.length
+    return {
+      start, end, total,
+      rueckkehrQuote: total > 0 ? Math.round((rueckkehrCount / total) * 100) : 0,
+      berichtQuote:   total > 0 ? Math.round((berichtCount   / total) * 100) : 0,
+      ueberfaelligCount,
+      byGrund: [...byGrund.entries()].sort((a, b) => b[1] - a[1]),
+      byZiel:  [...byZiel.entries()].sort((a, b) => b[1] - a[1]),
+    }
+  }, [patients, reportYear, reportQuarter])
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -240,6 +298,12 @@ export default function ZuweisungPage() {
               </button>
             )}
           </div>
+          <button onClick={() => setShowReport(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors shrink-0"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Quartalsbericht
+          </button>
         </div>
 
         {/* Filters */}
@@ -275,6 +339,80 @@ export default function ZuweisungPage() {
           </div>
         </div>
       </div>
+
+      {/* Noch zuzuweisen — Merker aus "Patient bearbeiten", noch ohne konkrete Zuweisung */}
+      {noetigList.length > 0 && (
+        <div className="max-w-4xl mx-auto px-4 pt-4">
+          <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-orange-600" />
+              <p className="text-xs font-bold text-orange-800">
+                {noetigList.length} {noetigList.length === 1 ? 'Patient muss' : 'Patienten müssen'} noch zugewiesen werden
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              {noetigList.map(p => (
+                <div key={p.id} className="flex items-center gap-2 flex-wrap bg-white rounded-lg border border-orange-200 px-3 py-2">
+                  <span className="font-semibold text-gray-900 text-sm">{p.vorname || '—'}</span>
+                  {p.pid && <span className="font-mono text-xs text-gray-400">#{p.pid}</span>}
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{p.doctor}</span>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {isElectron && p.pid && (
+                      <button onClick={() => openInLiris(p)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Liris
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors">
+                      <Plus className="w-3.5 h-3.5" />
+                      Zuweisen
+                    </button>
+                    <button
+                      onClick={() => clearZuweisungNoetig(p)}
+                      disabled={clearingId === p.id}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors disabled:opacity-40"
+                      title="Merker entfernen (ohne Zuweisung anzulegen)">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {addFor === p.id && (
+                    <div className="w-full mt-2 p-3 rounded-lg border border-violet-200 bg-violet-50/40 space-y-2">
+                      <div className="flex gap-2">
+                        {(['extern', 'intern'] as const).map(t => (
+                          <button key={t} onClick={() => setAddForm(f => ({ ...f, typ: t }))}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${addForm.typ === t ? 'bg-violet-100 text-violet-700 border-violet-300' : 'bg-white text-gray-500 border-gray-200'}`}>
+                            {t === 'extern' ? 'Extern' : 'Intern'}
+                          </button>
+                        ))}
+                      </div>
+                      <input type="text" value={addForm.ziel} onChange={e => setAddForm(f => ({ ...f, ziel: e.target.value }))}
+                        placeholder="Klinik / Praxis / Arzt (z. B. Augenklinik KSA)" autoFocus
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      <input type="text" value={addForm.grund} onChange={e => setAddForm(f => ({ ...f, grund: e.target.value }))}
+                        placeholder="Grund (z. B. YAG, OP, Abklärung)"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 shrink-0">ZW-Datum</label>
+                        <input type="date" value={addForm.datum} onChange={e => setAddForm(f => ({ ...f, datum: e.target.value }))}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setAddFor(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">Abbrechen</button>
+                        <button onClick={async () => { await addWeitereZuweisung(p, addForm.typ, addForm.ziel, addForm.grund, addForm.datum); await clearZuweisungNoetig(p); setAddFor(null) }}
+                          disabled={!addForm.ziel.trim()}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">Zuweisen &amp; Merker entfernen</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* List */}
       <div className="max-w-4xl mx-auto px-4 py-4 space-y-2">
@@ -515,6 +653,90 @@ export default function ZuweisungPage() {
           )
         })}
       </div>
+
+      {/* Quartalsbericht-Modal */}
+      {showReport && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowReport(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-violet-600" />
+                Quartalsbericht — externe Zuweisungen
+              </h2>
+              <button onClick={() => setShowReport(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              {/* Quartal-Auswahl */}
+              <div className="flex items-center gap-2">
+                <select value={reportQuarter} onChange={e => setReportQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
+                  {[1, 2, 3, 4].map(q => <option key={q} value={q}>Q{q}</option>)}
+                </select>
+                <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
+                  {Array.from({ length: 4 }, (_, i) => now.getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <span className="text-xs text-gray-400 ml-1">{formatDate(report.start)} – {formatDate(report.end)}</span>
+              </div>
+
+              {report.total === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Keine externen Zuweisungen in diesem Quartal.</p>
+              ) : (
+                <>
+                  {/* Kernzahlen */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-2xl font-bold text-gray-900">{report.total}</p>
+                      <p className="text-xs text-gray-500">Externe Zuweisungen</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-2xl font-bold text-gray-900">{report.rueckkehrQuote}%</p>
+                      <p className="text-xs text-gray-500">Rückkehrquote</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-2xl font-bold text-gray-900">{report.berichtQuote}%</p>
+                      <p className="text-xs text-gray-500">Bericht erhalten</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className={`text-2xl font-bold ${report.ueberfaelligCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{report.ueberfaelligCount}</p>
+                      <p className="text-xs text-gray-500">Überfällig (&gt;8 Wo. pendent)</p>
+                    </div>
+                  </div>
+
+                  {/* Nach Grund */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1.5">Nach Grund</p>
+                    <div className="space-y-1">
+                      {report.byGrund.map(([g, n]) => (
+                        <div key={g} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-700">{g}</span>
+                          <span className="font-semibold text-gray-900">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Nach Zielort */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1.5">Nach Zielort</p>
+                    <div className="space-y-1">
+                      {report.byZiel.map(([zi, n]) => (
+                        <div key={zi} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-700">{zi}</span>
+                          <span className="font-semibold text-gray-900">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

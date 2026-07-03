@@ -91,6 +91,7 @@ export interface RecallPatient {
   aktualisiert: string | null
   zuweisung?: Zuweisung | null      // Legacy: einzelne Zuweisung (wird migriert)
   zuweisungen?: Zuweisung[] | null  // Mehrere Zuweisungen pro Patient (an verschiedene Orte)
+  zuweisungNoetig?: boolean | null  // true = MPA hat markiert, dass eine Zuweisung noch aussteht (Erinnerung fuer ZW-Management)
 }
 
 export interface VerlaufEntry {
@@ -250,7 +251,7 @@ export function subscribeZuweisungPatients(
     snap => {
       const all = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as RecallPatient))
-        .filter(p => p.zuweisung != null || (p.zuweisungen != null && p.zuweisungen.length > 0))
+        .filter(p => p.zuweisung != null || (p.zuweisungen != null && p.zuweisungen.length > 0) || p.zuweisungNoetig === true)
       callback(all)
     }
   )
