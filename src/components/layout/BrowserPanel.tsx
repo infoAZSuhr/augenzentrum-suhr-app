@@ -298,6 +298,18 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       // erwischt statt eines echten Termins. Lieber gar kein Datum uebernehmen
       // als ein falsches.
 
+      // Pattern c2 (Liris-Zeitleiste, oberster Eintrag): "5W [Kalender-Icon]
+      // 07.08.2026" — der oberste Zeitleisten-Eintrag mit einem "<Zahl>W"-Badge
+      // (Wochen bis zum Termin) markiert eindeutig den naechsten kuenftigen
+      // Termin. Keine Uhrzeit in diesem Element sichtbar — wird bewusst leer
+      // gelassen statt geraten (MPA traegt sie manuell im Liris-Kalender ein).
+      if (!result.naechsterTerminDatum) {
+        var wBadge = allText.match(/(\\d{1,2})\\s*W\\D{0,20}?(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+        if (wBadge && isFuture(+wBadge[4], +wBadge[3], +wBadge[2])) {
+          result.naechsterTerminDatum = wBadge[4] + '-' + wBadge[3] + '-' + wBadge[2];
+        }
+      }
+
       // Pattern d (Liris-Timeline): blaues Kalender-Icon mit zukuenftigem
       // Datum im Text; Uhrzeit steht im title-Attribut eines benachbarten
       // Elements ("HH:MM" oder "DD.MM.YYYY HH:MM"). Wir scannen alle
