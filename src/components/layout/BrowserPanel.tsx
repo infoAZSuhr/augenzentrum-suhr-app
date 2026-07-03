@@ -257,14 +257,44 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var d = new Date(yyyy, mm-1, dd);
         return d.getTime() >= today.getTime();
       }
-      var futA = allText.match(/N(?:ä|ae)chster\\s+Termin\\s*:?\\s*(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})/i);
+      // Pattern a: "Naechster Termin (von Dr. X): DD.MM.YYYY, HH:MM" —
+      // Liris zeigt oft den Arzt in Klammern vor dem Doppelpunkt UND trennt
+      // Datum/Zeit per Komma statt Leerzeichen; beides muss toleriert werden.
+      var futA = allText.match(/N(?:ä|ae)chster\\s+Termin\\s*(?:\\([^)]*\\))?\\s*:?\\s*(\\d{2})\\.(\\d{2})\\.(\\d{4})[,\\s]+(\\d{2}):(\\d{2})/i);
       if (futA && isFuture(+futA[3], +futA[2], +futA[1])) {
         result.naechsterTerminDatum = futA[3] + '-' + futA[2] + '-' + futA[1];
         result.naechsterTerminZeit  = futA[4] + ':' + futA[5];
       }
+
+      // Pattern b (frueher c2): Liris-Such-Suggestion-Format
+      // "Fr. 12 Juni 2026, 07:15 (MPA)" - Wochentag + DD + deutscher
+      // Monatsname + YYYY + HH:MM. Sehr eindeutiges, sauberes Format —
+      // wird VOR der stoeranfaelligen ganzseitigen DD.MM.YYYY-Suche geprueft,
+      // da diese leicht falsche/unzusammenhaengende Datum+Zeit-Paare findet.
       if (!result.naechsterTerminDatum) {
-        // Pattern b: DD.MM.YYYY HH:MM kombiniert im Text
-        var re2 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})/g;
+        var monthsDe = { Januar:1, Februar:2, 'März':3, Maerz:3, April:4, Mai:5, Juni:6,
+                         Juli:7, August:8, September:9, Oktober:10, November:11, Dezember:12 };
+        var reSugg = /(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})\\.?\\s+(Januar|Februar|M(?:\\u00e4|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\s*,?\\s+(\\d{2}):(\\d{2})/gi;
+        var bestSuggMs = Infinity, bestSugg = null, m5;
+        while ((m5 = reSugg.exec(allText)) !== null) {
+          var key = m5[2].charAt(0).toUpperCase() + m5[2].slice(1).toLowerCase().replace('ae','ä');
+          var monIdx = monthsDe[key] || monthsDe[m5[2]];
+          if (!monIdx) continue;
+          if (!isFuture(+m5[3], monIdx, +m5[1])) continue;
+          var msSugg = new Date(+m5[3], monIdx-1, +m5[1], +m5[4], +m5[5]).getTime();
+          if (msSugg < bestSuggMs) { bestSuggMs = msSugg; bestSugg = { d: m5[1], mo: monIdx, y: m5[3], h: m5[4], min: m5[5] }; }
+        }
+        if (bestSugg) {
+          var ddPad = (+bestSugg.d < 10 ? '0' : '') + bestSugg.d;
+          var moPad = (bestSugg.mo < 10 ? '0' : '') + bestSugg.mo;
+          result.naechsterTerminDatum = bestSugg.y + '-' + moPad + '-' + ddPad;
+          result.naechsterTerminZeit  = bestSugg.h + ':' + bestSugg.min;
+        }
+      }
+
+      if (!result.naechsterTerminDatum) {
+        // Pattern c: DD.MM.YYYY HH:MM kombiniert im Text (Komma oder Leerzeichen)
+        var re2 = /(\\d{2})\\.(\\d{2})\\.(\\d{4})[,\\s]+(\\d{2}):(\\d{2})/g;
         var bestMs = Infinity, bestM = null, m2;
         while ((m2 = re2.exec(allText)) !== null) {
           if (!isFuture(+m2[3], +m2[2], +m2[1])) continue;
@@ -277,7 +307,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         }
       }
 
-      // Pattern c (Liris-Timeline): blaues Kalender-Icon mit zukuenftigem
+      // Pattern d (Liris-Timeline): blaues Kalender-Icon mit zukuenftigem
       // Datum im Text; Uhrzeit steht im title-Attribut eines benachbarten
       // Elements ("HH:MM" oder "DD.MM.YYYY HH:MM"). Wir scannen alle
       // Elemente mit title-Attribut, filtern auf zukuenftige Termine und
@@ -319,32 +349,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         } catch (e) { /* DOM-Zugriff fehlgeschlagen — fallback hat ggf. schon gegriffen */ }
       }
 
-      // Pattern c2: Liris-Such-Suggestion-Format
-      // "Fr. 12 Juni 2026, 07:15 (MPA)" - Wochentag + DD + deutscher
-      // Monatsname + YYYY + HH:MM. Scan alle Vorkommen, nimm das
-      // naechste zukuenftige.
-      if (!result.naechsterTerminDatum) {
-        var monthsDe = { Januar:1, Februar:2, 'März':3, Maerz:3, April:4, Mai:5, Juni:6,
-                         Juli:7, August:8, September:9, Oktober:10, November:11, Dezember:12 };
-        var reSugg = /(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})\\.?\\s+(Januar|Februar|M(?:\\u00e4|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\s*,?\\s+(\\d{2}):(\\d{2})/gi;
-        var bestSuggMs = Infinity, bestSugg = null, m5;
-        while ((m5 = reSugg.exec(allText)) !== null) {
-          var key = m5[2].charAt(0).toUpperCase() + m5[2].slice(1).toLowerCase().replace('ae','ä');
-          var monIdx = monthsDe[key] || monthsDe[m5[2]];
-          if (!monIdx) continue;
-          if (!isFuture(+m5[3], monIdx, +m5[1])) continue;
-          var msSugg = new Date(+m5[3], monIdx-1, +m5[1], +m5[4], +m5[5]).getTime();
-          if (msSugg < bestSuggMs) { bestSuggMs = msSugg; bestSugg = { d: m5[1], mo: monIdx, y: m5[3], h: m5[4], min: m5[5] }; }
-        }
-        if (bestSugg) {
-          var ddPad = (+bestSugg.d < 10 ? '0' : '') + bestSugg.d;
-          var moPad = (bestSugg.mo < 10 ? '0' : '') + bestSugg.mo;
-          result.naechsterTerminDatum = bestSugg.y + '-' + moPad + '-' + ddPad;
-          result.naechsterTerminZeit  = bestSugg.h + ':' + bestSugg.min;
-        }
-      }
-
-      // Pattern d: nur Datum in der Zukunft (ohne Uhrzeit), bevor wir
+      // Pattern e: nur Datum in der Zukunft (ohne Uhrzeit), bevor wir
       // gar nichts liefern. Hilft fuer Termine deren Uhrzeit nur per
       // hover sichtbar waere und kein title gesetzt ist.
       if (!result.naechsterTerminDatum) {
