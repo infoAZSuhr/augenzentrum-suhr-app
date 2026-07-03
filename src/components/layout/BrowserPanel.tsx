@@ -1345,6 +1345,29 @@ export default function BrowserPanel() {
           // reagiert auf das input-Event auch ohne Fokus; die Treffer-Auswahl unten
           // findet den Eintrag per PID-Text.
 
+          // Termin-Vorschau aus dem Such-Dropdown lesen: Liris zeigt dort unter
+          // "Termin" den naechsten Termin im klaren Format "Fr. 07 August 2026,
+          // 10:30 (Arzt)" — VERSCHWINDET sobald der Patient ausgewaehlt wird.
+          // Muss daher HIER (waehrend das Dropdown offen ist) gelesen werden,
+          // nicht erst auf der Akte-Seite danach.
+          function readTerminPreview() {
+            var monthsDe = { Januar:1, Februar:2, 'M\\u00e4rz':3, April:4, Mai:5, Juni:6,
+                             Juli:7, August:8, September:9, Oktober:10, November:11, Dezember:12 };
+            var re = /(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})\\.?\\s+(Januar|Februar|M\\u00e4rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\s*,?\\s+(\\d{2}):(\\d{2})/;
+            var txt = document.body ? document.body.innerText : '';
+            var m = txt.match(re);
+            if (!m) return null;
+            var monIdx = monthsDe[m[2]];
+            if (!monIdx) return null;
+            var today = new Date(); today.setHours(0,0,0,0);
+            var d = new Date(+m[3], monIdx - 1, +m[1]);
+            if (d.getTime() < today.getTime()) return null; // nur zukuenftige Termine
+            var dd = (+m[1] < 10 ? '0' : '') + m[1];
+            var mo = (monIdx < 10 ? '0' : '') + monIdx;
+            return { datum: m[3] + '-' + mo + '-' + dd, zeit: m[4] + ':' + m[5] };
+          }
+          var terminPreview = readTerminPreview();
+
           // Autocomplete-Dropdown abwarten und ersten Treffer auswaehlen.
           // Liris laedt die Vorschlaege per AJAX -> kurz warten.
           var pidStr = ${JSON.stringify(pid)};
@@ -1432,13 +1455,14 @@ export default function BrowserPanel() {
             var sawItems = false;
             var iv = setInterval(function() {
               tries++;
+              if (!terminPreview) terminPreview = readTerminPreview();
               if (hasDropdownItems()) sawItems = true;
               var res = selectFirst();
-              if (res && res.indexOf('clicked') === 0) { clearInterval(iv); resolve('selected'); return; }
+              if (res && res.indexOf('clicked') === 0) { clearInterval(iv); resolve({ status: 'selected', terminPreview: terminPreview }); return; }
               if (tries >= 6) {
                 clearInterval(iv);
                 // Wenn nie ein Dropdown-Item erschien -> Patient nicht gefunden.
-                resolve(sawItems ? 'selected' : 'no-result');
+                resolve({ status: sawItems ? 'selected' : 'no-result', terminPreview: terminPreview });
               }
             }, 350);
           });
@@ -1460,11 +1484,16 @@ export default function BrowserPanel() {
             console.log('[Liris] Termin bearbeiten geöffnet (Einfachklick auf Kalender-Event)')
             return
           }
+          // Neues Ergebnis-Format: { status, terminPreview } statt reinem String.
+          const status = typeof res === 'string' ? res : res?.status
+          const terminPreview: { datum: string; zeit: string } | null =
+            (res && typeof res === 'object' && res.terminPreview) ? res.terminPreview : null
+          if (terminPreview) console.log('[Liris] Termin aus Such-Dropdown gelesen:', terminPreview)
           // Kein Suchfeld oder kein Dropdown-Treffer: Retry nach kurzer
           // Wartezeit statt sofort notFound — Liris braucht manchmal
           // laenger bis das Suchfeld sichtbar ist.
-          if (res === 'no-result' || res === 'no-input-found') {
-            console.log('[Liris] inject got', res, '— will retry extract')
+          if (status === 'no-result' || status === 'no-input-found') {
+            console.log('[Liris] inject got', status, '— will retry extract')
           }
           // Extract-Timer NICHT ueber setT (=in timers-Array) anlegen —
           // clearPendingPid loest gleich einen useEffect-Re-Run aus, dessen
@@ -1485,7 +1514,13 @@ export default function BrowserPanel() {
               extractLirisInfo(wv, pid).then(info => {
                 if (info) {
                   // PID wurde ueber Dropdown ausgewaehlt — Patient existiert.
-                  setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
+                  // Termin-Vorschau aus dem Such-Dropdown ist zuverlaessiger als
+                  // alles was sich aus der Akte-Seite selbst herausparsen laesst
+                  // — hat daher Vorrang, falls vorhanden.
+                  const merged = terminPreview
+                    ? { ...info, naechsterTerminDatum: terminPreview.datum, naechsterTerminZeit: terminPreview.zeit }
+                    : info
+                  setLirisExtract({ ...merged, pidMatchesLiris: true, notFound: false, at: Date.now() })
                   // Suchdropdown schliessen falls noch offen (z.B. wenn Akte bereits geladen war).
                   try {
                     wv.executeJavaScript(`(function(){
