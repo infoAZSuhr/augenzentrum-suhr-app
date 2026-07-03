@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, ArrowRight, RotateCcw, X, GripVertical, FileEdit } from 'lucide-react'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { useAuth } from '../../lib/AuthContext'
+import { useToast } from '../../lib/ToastContext'
 
 /** Extrahiert Geburtsdatum + Autor aus der aktuell in Liris geoeffneten
  *  Patient-Untersuchung. Heuristisch — versucht mehrere DOM-Patterns weil
@@ -432,6 +433,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 
 export default function BrowserPanel() {
   const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest, lirisSuppressed, setLirisPanelWidth } = useBrowser()
+  const toast = useToast()
 
   // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
   // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
@@ -457,16 +459,28 @@ export default function BrowserPanel() {
     ;(async () => {
       try {
         console.log('[TerminAnlegen] start, pid=', pid, 'grund=', grund)
-        // 1) Nicht navigieren — user ist bereits im Terminkalender.
-        // Formular-Panel mit Patient-Suchfeld sollte bereits offen sein.
-        // 2) Auf das Patient-Suchfeld im 'Termin anlegen'-Panel warten
+        // 1) Auf das Patient-Suchfeld im 'Termin anlegen'-Panel warten. War der
+        //    User z.B. in einer Akte statt im Terminkalender, existiert das
+        //    Feld nicht — nach kurzer Wartezeit zur Liris-Startseite
+        //    (=Terminkalender/Agenda) navigieren und danach weiter pollen.
         let fieldDa = false
+        let navigatedHome = false
         for (let i = 0; i < 16 && !fieldDa; i++) {
           await sleep(450)
           fieldDa = await wv.executeJavaScript(`!!document.querySelector('input[placeholder*="atientensuche"]')`).catch(() => false)
+          if (!fieldDa && !navigatedHome && i === 3 && defaultUrl) {
+            console.log('[TerminAnlegen] Suchfeld nicht gefunden — navigiere zur Liris-Startseite (Terminkalender)')
+            navigatedHome = true
+            navigate(defaultUrl)
+            await sleep(1200) // Navigation + Nachladen abwarten, bevor weiter gepollt wird
+          }
         }
         console.log('[TerminAnlegen] Patient-Feld da:', fieldDa)
-        if (!fieldDa) { clearTerminAnlegenRequest(); return }
+        if (!fieldDa) {
+          clearTerminAnlegenRequest()
+          toast.warning('Liris-Terminkalender nicht gefunden — bitte manuell zum Terminkalender wechseln und «Termin anlegen» öffnen.')
+          return
+        }
         await sleep(600)
         // 3) PID ins Patient-Feld setzen (nur Wert, keine Events)
         // Events könnten Liris veranlassen, das Formular zu schließen
