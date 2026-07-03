@@ -5245,15 +5245,22 @@ const lirisExtractRef  = useRef(lirisExtract)
                     const iso = d.toISOString().slice(0, 10)
                     return (
                       <span className="text-xs text-violet-700 font-semibold cursor-help"
-                            title="Ungefähres KU-Datum (Konsultationstermin) = RC-Datum + 2 Monate. Richtwert zum Setzen des Termins.">
-                        KU ca.: {formatDate(iso)}
+                            title="Ungefähres KO-Datum (Konsultationstermin) = RC-Datum + 2 Monate. Richtwert zum Setzen des Termins.">
+                        KO ca.: {formatDate(iso)}
                       </span>
                     )
                   })()}
                   {p.naechsteKons && p.naechsteKons !== 'kein Termin' && (
                     <span className="text-xs text-blue-700 font-semibold cursor-help"
-                          title="Nächste KU = bereits vereinbarter nächster Termin (Nächste Konsultation).">
-                      Nächste KU: {formatDate(p.naechsteKons)}
+                          title="Nächste KO = bereits vereinbarter nächster Termin (Nächste Konsultation).">
+                      Nächste KO: {formatDate(p.naechsteKons)}
+                    </span>
+                  )}
+                  {patientZuweisungen(p).some(z => (z.status || 'pendent') === 'pendent') && (
+                    <span className="text-xs text-orange-700 font-semibold cursor-help flex items-center gap-1"
+                          title="Es liegt eine offene (pendente) Zuweisung vor — siehe ZW-Management.">
+                      <ExternalLink className="w-3 h-3" />
+                      Offene Zuweisung
                     </span>
                   )}
                 </div>
