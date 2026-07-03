@@ -642,6 +642,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [wochenplanOpen, setWochenplanOpen] = useState(false)
   const [wochenplanWeekOffset, setWochenplanWeekOffset] = useState(0)
   const [wochenplanSort, setWochenplanSort] = useState<'arzt' | 'name'>('arzt')
+  const [wochenplanFilterArzt, setWochenplanFilterArzt] = useState<string>('')
 
   // ── Aufgebot-Dialog ───────────────────────────────────────────────────────────
   type AufgebotArt = 'Brief' | 'Tel' | 'Reminder'
@@ -2513,6 +2514,9 @@ const lirisExtractRef  = useRef(lirisExtract)
         else if (d < start && wochenplanWeekOffset === 0) overdue.push({ patient: p })
       }
     }
+    const filterArzt = (entries: WPEntry[]) => wochenplanFilterArzt ? entries.filter(e => e.patient.doctor === wochenplanFilterArzt) : entries
+    const thisWeekF = filterArzt(thisWeek)
+    const overdueF  = filterArzt(overdue)
     const sortFn = (a: WPEntry, b: WPEntry) => {
       if (wochenplanSort === 'arzt') {
         const dc = s(a.patient.doctor).localeCompare(s(b.patient.doctor), 'de')
@@ -2532,13 +2536,13 @@ const lirisExtractRef  = useRef(lirisExtract)
       return g
     }
     return {
-      grouped: groupByArt(thisWeek),
-      overdue: overdue.sort(sortFn),
-      total: thisWeek.length,
-      overdueCount: overdue.length,
+      grouped: groupByArt(thisWeekF),
+      overdue: overdueF.sort(sortFn),
+      total: thisWeekF.length,
+      overdueCount: overdueF.length,
       weekLabel: fmtWeekLabel(start, end),
     }
-  }, [allData, wochenplanWeekOffset, wochenplanSort]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, wochenplanWeekOffset, wochenplanSort, wochenplanFilterArzt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Termin-anlegen-Flow (Liris) ───────────────────────────────────────────
   // Klick auf 'Termin' im Aufgebot-Plan: NUR das Liris-Panel oeffnen und im
@@ -5303,18 +5307,33 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <CalendarDays className="w-5 h-5 text-primary-600" />
                   <h2 className="font-bold text-gray-900 text-lg">RECALL</h2>
                 </div>
-                <div className="ml-auto flex items-center gap-1 text-xs">
-                  <span className="text-gray-400 mr-1">Sortieren:</span>
-                  {(['arzt', 'name'] as const).map(mode => (
-                    <button key={mode} type="button"
-                      onClick={() => setWochenplanSort(mode)}
-                      className={`px-2.5 py-1 rounded-full font-semibold border transition-colors ${
-                        wochenplanSort === mode
-                          ? 'bg-primary-100 text-primary-700 border-primary-300'
-                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                <div className="ml-auto flex items-center gap-3 text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 mr-1">Arzt:</span>
+                    <select
+                      value={wochenplanFilterArzt}
+                      onChange={e => setWochenplanFilterArzt(e.target.value)}
+                      className={`text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-300 cursor-pointer ${
+                        wochenplanFilterArzt ? 'border-primary-300 bg-primary-50 text-primary-800 font-semibold' : 'border-gray-200 bg-white text-gray-500'
                       }`}
-                    >{mode === 'arzt' ? 'Arzt' : 'Name'}</button>
-                  ))}
+                    >
+                      <option value="">Alle Ärzte</option>
+                      {doctors.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 mr-1">Sortieren:</span>
+                    {(['arzt', 'name'] as const).map(mode => (
+                      <button key={mode} type="button"
+                        onClick={() => setWochenplanSort(mode)}
+                        className={`px-2.5 py-1 rounded-full font-semibold border transition-colors ${
+                          wochenplanSort === mode
+                            ? 'bg-primary-100 text-primary-700 border-primary-300'
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >{mode === 'arzt' ? 'Arzt' : 'Name'}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
