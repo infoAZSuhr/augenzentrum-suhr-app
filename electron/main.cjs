@@ -427,11 +427,19 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
     if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?')
     await sleep(800)
-    const mailOk = await evalJs(`(function(){
+    // Klick mit Wiederholung: Liris kann die Seite zwischen Sichtbarkeits-
+    // Check und Klick neu rendern (Link dann kurzzeitig nicht mehr im DOM) —
+    // daher mehrere Versuche statt nur einem einzelnen Klick.
+    const clickMail = () => evalJs(`(function(){
       var as=[].slice.call(document.querySelectorAll('a'));
       for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
       return false;
     })()`)
+    let mailOk = false
+    for (let i = 0; i < 6 && !mailOk; i++) {
+      mailOk = await clickMail()
+      if (!mailOk) await sleep(400)
+    }
     step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
     if (!mailOk) return fail('"Mail gesendet"-Klick fehlgeschlagen.')
     await sleep(1200)

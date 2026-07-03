@@ -43,12 +43,12 @@ export default function PostausgangPanel() {
     openPrint(URL.createObjectURL(it.blob), `Brief — ${it.vorname || it.filename}`)
   }
 
-  // Druck auslösen (Auto beim Laden ODER manueller Button) → Items als
-  // gedruckt markieren. Hochgeladene + gedruckte Briefe werden anschliessend
-  // automatisch aus dem Postausgang entfernt (siehe Effekt unten).
+  // Druck auslösen (Auto beim Laden ODER manueller Button). Öffnet nur den
+  // Druckdialog — ob wirklich gedruckt wurde, kann man daraus nicht sicher
+  // wissen (Dialog kann abgebrochen werden). Als "gedruckt" markiert wird
+  // erst beim Schliessen der Vorschau, nach Rückfrage (siehe closePrintPreview).
   const triggerPrint = (win: Window | null | undefined) => {
     try { win?.focus(); win?.print() } catch { /* Fallback: manueller Button */ }
-    if (printingIds.length) markPrinted(printingIds)
   }
 
   // Hochgeladene UND gedruckte Briefe automatisch entfernen — gilt für
@@ -219,6 +219,14 @@ export default function PostausgangPanel() {
   }
 
   const closePrintPreview = () => {
+    // Vor dem Schliessen nachfragen ob wirklich gedruckt wurde — nur dann
+    // gelten die Briefe als "gedruckt" und werden (nach Liris-Upload)
+    // automatisch aus dem Postausgang entfernt. Bei "Nein"/Abbruch bleiben
+    // sie unangetastet liegen, damit nichts verloren geht.
+    if (printingIds.length > 0) {
+      const wurdeGedruckt = window.confirm('Wurde erfolgreich gedruckt?\n\nBei "Abbrechen"/"Nein" bleiben die Briefe im Postausgang erhalten.')
+      if (wurdeGedruckt) markPrinted(printingIds)
+    }
     if (printPreviewUrl) URL.revokeObjectURL(printPreviewUrl)
     setPrintPreviewUrl(null)
     setPrintAuto(false)
