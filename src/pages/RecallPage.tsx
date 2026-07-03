@@ -641,6 +641,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   // ── Aufgebot-Wochenplan ───────────────────────────────────────────────────────
   const [wochenplanOpen, setWochenplanOpen] = useState(false)
   const [wochenplanWeekOffset, setWochenplanWeekOffset] = useState(0)
+  const [wochenplanSort, setWochenplanSort] = useState<'arzt' | 'name'>('arzt')
 
   // ── Aufgebot-Dialog ───────────────────────────────────────────────────────────
   type AufgebotArt = 'Brief' | 'Tel' | 'Reminder'
@@ -2513,8 +2514,10 @@ const lirisExtractRef  = useRef(lirisExtract)
       }
     }
     const sortFn = (a: WPEntry, b: WPEntry) => {
-      const dc = s(a.patient.doctor).localeCompare(s(b.patient.doctor), 'de')
-      if (dc !== 0) return dc
+      if (wochenplanSort === 'arzt') {
+        const dc = s(a.patient.doctor).localeCompare(s(b.patient.doctor), 'de')
+        if (dc !== 0) return dc
+      }
       return s(a.patient.vorname).localeCompare(s(b.patient.vorname), 'de')
     }
     type Groups = Record<string, WPEntry[]>
@@ -2535,7 +2538,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       overdueCount: overdue.length,
       weekLabel: fmtWeekLabel(start, end),
     }
-  }, [allData, wochenplanWeekOffset]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, wochenplanWeekOffset, wochenplanSort]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Termin-anlegen-Flow (Liris) ───────────────────────────────────────────
   // Klick auf 'Termin' im Aufgebot-Plan: NUR das Liris-Panel oeffnen und im
@@ -5299,6 +5302,19 @@ const lirisExtractRef  = useRef(lirisExtract)
                 <div className="flex items-center gap-3">
                   <CalendarDays className="w-5 h-5 text-primary-600" />
                   <h2 className="font-bold text-gray-900 text-lg">RECALL</h2>
+                </div>
+                <div className="ml-auto flex items-center gap-1 text-xs">
+                  <span className="text-gray-400 mr-1">Sortieren:</span>
+                  {(['arzt', 'name'] as const).map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => setWochenplanSort(mode)}
+                      className={`px-2.5 py-1 rounded-full font-semibold border transition-colors ${
+                        wochenplanSort === mode
+                          ? 'bg-primary-100 text-primary-700 border-primary-300'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >{mode === 'arzt' ? 'Arzt' : 'Name'}</button>
+                  ))}
                 </div>
               </div>
 
