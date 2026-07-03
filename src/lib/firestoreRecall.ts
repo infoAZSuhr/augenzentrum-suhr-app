@@ -60,10 +60,11 @@ export interface Zuweisung {
   berichtErhalten: boolean
   berichtAngefragt?: boolean    // true sobald eine Bericht-Nachfrage verschickt wurde
   berichtAngefragtAm?: string   // YYYY-MM-DD – Datum der (letzten) Bericht-Nachfrage
-  berichtTyp?: 'zwischen' | 'entlassung' | 'op' | 'abschluss'  // Legacy: einzelner Bericht (durch berichte[] ersetzt)
+  berichtTyp?: 'zwischen' | 'entlassung' | 'op' | 'befund' | 'abschluss'  // Legacy: einzelner Bericht (durch berichte[] ersetzt)
   berichtDatum?: string         // Legacy: Datum des einzelnen Berichts
-  berichte?: { typ: 'zwischen' | 'entlassung' | 'op' | 'abschluss'; datum: string }[]  // mehrere Berichte moeglich, je mit eigenem Datum
+  berichte?: { typ: 'zwischen' | 'entlassung' | 'op' | 'befund' | 'abschluss'; datum: string }[]  // mehrere Berichte moeglich, je mit eigenem Datum
   geplanterTermin?: string      // YYYY-MM-DD – von der externen Stelle mitgeteilter Behandlungstermin (interner Merker)
+  log?: string[]                // Aenderungsverlauf: "DD.MM.YYYY HH:MM – username: was geaendert wurde" (auch nach Erledigt-Markierung nachbearbeitbar)
   notiz: string
   von: string           // username who created it
 }

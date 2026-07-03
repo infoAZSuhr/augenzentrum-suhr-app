@@ -109,14 +109,28 @@ export default function ZuweisungPage() {
     openWithPid(p.pid)
   }
 
-  // Eine einzelne Zuweisung eines Patienten patchen (rebuilt die Liste, migriert Legacy).
-  async function patchZuweisung(p: RecallPatient, zid: string, patch: Partial<Zuweisung>) {
-    const list = patientZuweisungen(p).map(x => x.id === zid ? { ...x, ...patch } : x)
+  function logStamp(): string {
+    const now = new Date()
+    const p2 = (n: number) => String(n).padStart(2, '0')
+    return `${p2(now.getDate())}.${p2(now.getMonth() + 1)}.${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`
+  }
+
+  // Eine einzelne Zuweisung eines Patienten patchen (rebuilt die Liste, migriert
+  // Legacy). Mit `logMsg` wird ein Eintrag "wer, was, wann" protokolliert —
+  // Zuweisungen bleiben auch nach «Erledigt» weiter nachbearbeitbar, der
+  // Verlauf zeigt dann nachvollziehbar, was sich danach noch geändert hat.
+  async function patchZuweisung(p: RecallPatient, zid: string, patch: Partial<Zuweisung>, logMsg?: string) {
+    const list = patientZuweisungen(p).map(x => {
+      if (x.id !== zid) return x
+      const nextLog = logMsg ? [...(x.log ?? []), `${logStamp()} – ${displayLabel}: ${logMsg}`] : x.log
+      return { ...x, ...patch, ...(nextLog ? { log: nextLog } : {}) }
+    })
     try { await saveZuweisungen(p.id, list, displayLabel) } catch (e) { console.warn('[Zuweisung] patch fehlgeschlagen', e) }
   }
 
-  type BerichtTyp = 'zwischen' | 'entlassung' | 'op' | 'abschluss'
-  const BERICHT_LABELS: Record<BerichtTyp, string> = { zwischen: 'Zwischen', entlassung: 'Entlassung', op: 'OP-Bericht', abschluss: 'Abschluss' }
+  type BerichtTyp = 'zwischen' | 'entlassung' | 'op' | 'befund' | 'abschluss'
+  const BERICHT_LABELS: Record<BerichtTyp, string> = { zwischen: 'Zwischen', entlassung: 'Entlassung', op: 'OP-Bericht', befund: 'Befund', abschluss: 'Abschluss' }
+  const BERICHT_LABELS_FULL: Record<BerichtTyp, string> = { zwischen: 'Zwischenbericht', entlassung: 'Entlassungsbericht', op: 'OP-Bericht', befund: 'Befundbericht', abschluss: 'Abschlussbericht' }
 
   // Verschiedene Berichte (Zwischen-/Entlassungs-/OP-/Abschlussbericht) koennen
   // zu unterschiedlichen Zeitpunkten eintreffen — jeder braucht sein eigenes
@@ -137,28 +151,31 @@ export default function ZuweisungPage() {
       berichte: next, berichtErhalten: next.length > 0,
       berichtTyp: undefined, berichtDatum: undefined,  // Legacy-Einzelfelder aufraeumen
     }
+    let logMsg = exists ? `${BERICHT_LABELS_FULL[typ]} entfernt` : `${BERICHT_LABELS_FULL[typ]} erfasst`
     if (hasAbschluss) {
       const d = next.find(b => b.typ === 'abschluss')!.datum
       patch.status = 'erledigt'
       patch.erledigtAm = d
+      if (!exists) logMsg += ' — Zuweisung als erledigt markiert'
     } else if (normStatus(z.status) === 'erledigt') {
       patch.status = 'pendent'
       patch.erledigtAm = ''
+      logMsg += ' — Abschluss zurückgenommen, wieder pendent'
     }
-    patchZuweisung(p, z.id, patch)
+    patchZuweisung(p, z.id, patch, logMsg)
   }
 
   function updateBerichtDatum(p: RecallPatient, z: Zuweisung & { id: string }, typ: BerichtTyp, datum: string) {
     const next = berichtListe(z).map(b => b.typ === typ ? { ...b, datum } : b)
     const patch: Partial<Zuweisung> = { berichte: next }
     if (typ === 'abschluss') patch.erledigtAm = datum
-    patchZuweisung(p, z.id, patch)
+    patchZuweisung(p, z.id, patch, `Datum von ${BERICHT_LABELS_FULL[typ]} geändert auf ${formatDate(datum)}`)
   }
 
   // Klick «Bericht anfragen»: Zuweisung als angefragt markieren; in der Desktop-
   // App zuerst die Liris-Akte öffnen und den Namen daraus lesen.
   const onBerichtAnfragen = (p: RecallPatient, z: Zuweisung & { id: string }) => {
-    patchZuweisung(p, z.id, { berichtAngefragt: true, berichtAngefragtAm: new Date().toISOString().slice(0, 10) })
+    patchZuweisung(p, z.id, { berichtAngefragt: true, berichtAngefragtAm: new Date().toISOString().slice(0, 10) }, 'Bericht angefragt')
     if (isElectron && p.pid) {
       openBrowser()
       openWithPid(p.pid)
@@ -219,14 +236,14 @@ export default function ZuweisungPage() {
   async function markErledigt(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
     setSavingId(`${p.id}:${z.id}`)
-    try { await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) }) }
+    try { await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) }, 'Als erledigt markiert') }
     finally { setSavingId(null) }
   }
 
   async function reopen(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
     setSavingId(`${p.id}:${z.id}`)
-    try { await patchZuweisung(p, z.id, { status: 'pendent', erledigtAm: '' }) }
+    try { await patchZuweisung(p, z.id, { status: 'pendent', erledigtAm: '' }, 'Wieder geöffnet (Nachbearbeitung)') }
     finally { setSavingId(null) }
   }
 
@@ -714,7 +731,7 @@ export default function ZuweisungPage() {
                             <button
                               onClick={() => {
                                 if (!window.confirm('Bericht-Nachfrage wirklich zurücknehmen (als nicht angefragt markieren)?')) return
-                                patchZuweisung(p, z.id, { berichtAngefragt: false, berichtAngefragtAm: '' })
+                                patchZuweisung(p, z.id, { berichtAngefragt: false, berichtAngefragtAm: '' }, 'Bericht-Nachfrage zurückgenommen')
                               }}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                               title="Bericht-Nachfrage zurücknehmen"
@@ -765,7 +782,8 @@ export default function ZuweisungPage() {
                     title="Geplanter Termin (von externer Stelle mitgeteilt)">
                     <CalendarDays className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                     <input type="date" value={z.geplanterTermin || ''}
-                      onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value })}
+                      onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value },
+                        e.target.value ? `Geplanter Termin gesetzt auf ${formatDate(e.target.value)}` : 'Geplanter Termin entfernt')}
                       onClick={e => e.stopPropagation()}
                       className="bg-transparent text-xs text-teal-700 font-medium focus:outline-none w-[102px]" />
                   </div>
@@ -793,7 +811,7 @@ export default function ZuweisungPage() {
                       className="text-[10px] border border-blue-200 rounded-full px-1.5 py-0.5 bg-white text-blue-600 focus:outline-none"
                     >
                       <option value="">+ Bericht</option>
-                      {(['zwischen', 'entlassung', 'op', 'abschluss'] as const)
+                      {(['zwischen', 'entlassung', 'op', 'befund', 'abschluss'] as const)
                         .filter(t => !berichtListe(z).some(b => b.typ === t))
                         .map(t => <option key={t} value={t}>{BERICHT_LABELS[t]}</option>)}
                     </select>
@@ -813,6 +831,19 @@ export default function ZuweisungPage() {
                   ) : (
                     <p className="text-xs text-gray-400 italic">Keine Notiz hinterlegt.</p>
                   )}
+
+                  {/* Änderungsverlauf: wer, was, wann — auch nach «Erledigt» */}
+                  {z.log && z.log.length > 0 && (
+                    <div className="rounded-lg border border-gray-200 bg-white p-2.5">
+                      <p className="text-[11px] font-semibold text-gray-500 mb-1">Verlauf</p>
+                      <ul className="space-y-0.5 max-h-32 overflow-y-auto">
+                        {[...z.log].reverse().map((entry, i) => (
+                          <li key={i} className="text-[11px] text-gray-500">{entry}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
                       onClick={() => { setAddFor(addFor === p.id ? null : p.id); setAddForm({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }}
