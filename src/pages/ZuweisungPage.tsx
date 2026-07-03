@@ -258,13 +258,10 @@ export default function ZuweisungPage() {
   async function markErledigt(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
     const hasAbschluss = berichtListe(z).some(b => b.typ === 'abschluss')
-    if (!hasAbschluss) {
-      if (!window.confirm('Es liegt noch kein Abschlussbericht vor. Ist die Behandlung am externen Ort tatsächlich abgeschlossen?')) return
-    }
     setSavingId(`${p.id}:${z.id}`)
     try {
       await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) },
-        hasAbschluss ? 'Als erledigt markiert' : 'Als erledigt markiert (ohne Abschlussbericht, manuell bestätigt)')
+        hasAbschluss ? 'Als erledigt markiert' : 'Als erledigt markiert (ohne Abschlussbericht)')
     }
     finally { setSavingId(null) }
   }
@@ -816,10 +813,20 @@ export default function ZuweisungPage() {
                       onClick={e => e.stopPropagation()}
                       className="bg-transparent text-xs text-teal-700 font-medium focus:outline-none w-[102px]" />
                   </div>
-                  <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50/60 flex-wrap justify-end">
-                    <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <div className="flex flex-col items-end gap-1 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50/60">
+                    <div className="flex items-center gap-1 self-stretch">
+                      <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <select value=""
+                        onChange={e => { if (e.target.value) addBericht(p, z, e.target.value as BerichtTyp) }}
+                        className="ml-auto text-[10px] border border-blue-200 rounded-full px-1.5 py-0.5 bg-white text-blue-600 focus:outline-none"
+                      >
+                        <option value="">+ Bericht</option>
+                        {(['zwischen', 'entlassung', 'op', 'befund', 'abschluss'] as const)
+                          .map(t => <option key={t} value={t}>{BERICHT_LABELS[t]}</option>)}
+                      </select>
+                    </div>
                     {berichtListe(z).map(b => (
-                      <div key={b.id} className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border ${
+                      <div key={b.id} className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border self-stretch ${
                         b.typ === 'abschluss' ? 'bg-green-100 border-green-300' : 'bg-blue-100 border-blue-300'
                       }`}>
                         <span className={`text-[10px] font-semibold ${b.typ === 'abschluss' ? 'text-green-700' : 'text-blue-700'}`}>
@@ -828,21 +835,13 @@ export default function ZuweisungPage() {
                         <input type="date" value={b.datum}
                           onChange={e => updateBerichtDatum(p, z, b.id, e.target.value)}
                           onClick={e => e.stopPropagation()}
-                          className="bg-transparent text-[10px] w-[86px] focus:outline-none text-inherit" />
+                          className="ml-auto bg-transparent text-[10px] w-[86px] focus:outline-none text-inherit" />
                         <button type="button" onClick={() => removeBericht(p, z, b.id)}
                           className="text-gray-400 hover:text-red-500" title={`${BERICHT_LABELS[b.typ]} entfernen`}>
                           <X className="w-3 h-3" />
                         </button>
                       </div>
                     ))}
-                    <select value=""
-                      onChange={e => { if (e.target.value) addBericht(p, z, e.target.value as BerichtTyp) }}
-                      className="text-[10px] border border-blue-200 rounded-full px-1.5 py-0.5 bg-white text-blue-600 focus:outline-none"
-                    >
-                      <option value="">+ Bericht</option>
-                      {(['zwischen', 'entlassung', 'op', 'befund', 'abschluss'] as const)
-                        .map(t => <option key={t} value={t}>{BERICHT_LABELS[t]}</option>)}
-                    </select>
                   </div>
                   </div>
                 </div>
