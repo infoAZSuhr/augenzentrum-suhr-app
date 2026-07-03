@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
   Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
-  AlertTriangle, BarChart3,
+  AlertTriangle, BarChart3, Download, Printer,
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung, updateRecallPatient } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
@@ -247,14 +247,21 @@ export default function ZuweisungPage() {
     let rueckkehrCount = 0
     let berichtCount = 0
     let ueberfaelligCount = 0
+    const detailRows: { name: string; pid: string; doctor: string; ziel: string; grund: string; datum: string; status: string; zurueckgekehrt: boolean; berichtErhalten: boolean }[] = []
     for (const { p, z } of rows) {
       const g = z.grund.trim() || 'ohne Angabe'
       const zi = z.ziel.trim() || 'ohne Angabe'
       byGrund.set(g, (byGrund.get(g) ?? 0) + 1)
       byZiel.set(zi, (byZiel.get(zi) ?? 0) + 1)
-      if (zurueckgekehrt(p, z)) rueckkehrCount++
+      const zk = zurueckgekehrt(p, z)
+      if (zk) rueckkehrCount++
       if (z.berichtErhalten) berichtCount++
       if (normStatus(z.status) === 'pendent' && (wochenSeit(z.datum) ?? 0) >= 8) ueberfaelligCount++
+      detailRows.push({
+        name: vollName(p) || '—', pid: p.pid || '', doctor: p.doctor || '',
+        ziel: zi, grund: g, datum: z.datum, status: normStatus(z.status),
+        zurueckgekehrt: zk, berichtErhalten: !!z.berichtErhalten,
+      })
     }
     const total = rows.length
     return {
@@ -264,8 +271,84 @@ export default function ZuweisungPage() {
       ueberfaelligCount,
       byGrund: [...byGrund.entries()].sort((a, b) => b[1] - a[1]),
       byZiel:  [...byZiel.entries()].sort((a, b) => b[1] - a[1]),
+      detailRows,
     }
   }, [patients, reportYear, reportQuarter])
+
+  function exportReportCsv() {
+    const header = ['Name', 'PID', 'Arzt', 'Zielort', 'Grund', 'Zuweisungsdatum', 'Status', 'Zurückgekehrt', 'Bericht erhalten']
+    const csvEscape = (v: string) => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+    const lines = [
+      header.join(';'),
+      ...report.detailRows.map(r => [
+        r.name, r.pid, r.doctor, r.ziel, r.grund, formatDate(r.datum),
+        r.status === 'erledigt' ? 'Erledigt' : 'Pendent',
+        r.zurueckgekehrt ? 'Ja' : 'Nein',
+        r.berichtErhalten ? 'Ja' : 'Nein',
+      ].map(v => csvEscape(String(v))).join(';')),
+    ]
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Quartalsbericht_Zuweisungen_Q${reportQuarter}_${reportYear}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const reportPrintRef = { current: null as HTMLIFrameElement | null }
+  function exportReportPdf() {
+    const rowsHtml = report.detailRows.map(r => `
+      <tr>
+        <td>${r.name}</td><td>${r.pid}</td><td>${r.doctor}</td><td>${r.ziel}</td><td>${r.grund}</td>
+        <td>${formatDate(r.datum)}</td><td>${r.status === 'erledigt' ? 'Erledigt' : 'Pendent'}</td>
+        <td>${r.zurueckgekehrt ? 'Ja' : 'Nein'}</td><td>${r.berichtErhalten ? 'Ja' : 'Nein'}</td>
+      </tr>`).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quartalsbericht Q${reportQuarter}/${reportYear}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:24px;}
+        h1{font-size:18px;margin-bottom:2px;}
+        .sub{color:#666;font-size:12px;margin-bottom:16px;}
+        .kpis{display:flex;gap:12px;margin-bottom:20px;}
+        .kpi{border:1px solid #ddd;border-radius:8px;padding:8px 14px;}
+        .kpi .n{font-size:20px;font-weight:bold;}
+        .kpi .l{font-size:10px;color:#666;}
+        h2{font-size:13px;margin:18px 0 6px;}
+        table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+        th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:11px;}
+        th{background:#f5f5f5;}
+      </style></head><body>
+      <h1>Quartalsbericht — externe Zuweisungen</h1>
+      <p class="sub">Q${reportQuarter} ${reportYear} &nbsp;(${formatDate(report.start)} – ${formatDate(report.end)})</p>
+      <div class="kpis">
+        <div class="kpi"><div class="n">${report.total}</div><div class="l">Externe Zuweisungen</div></div>
+        <div class="kpi"><div class="n">${report.rueckkehrQuote}%</div><div class="l">Rückkehrquote</div></div>
+        <div class="kpi"><div class="n">${report.berichtQuote}%</div><div class="l">Bericht erhalten</div></div>
+        <div class="kpi"><div class="n">${report.ueberfaelligCount}</div><div class="l">Überfällig (&gt;8 Wo.)</div></div>
+      </div>
+      <h2>Nach Grund</h2>
+      <table><tr><th>Grund</th><th>Anzahl</th></tr>${report.byGrund.map(([g, n]) => `<tr><td>${g}</td><td>${n}</td></tr>`).join('')}</table>
+      <h2>Nach Zielort</h2>
+      <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${z}</td><td>${n}</td></tr>`).join('')}</table>
+      <h2>Details</h2>
+      <table><tr><th>Name</th><th>PID</th><th>Arzt</th><th>Zielort</th><th>Grund</th><th>Datum</th><th>Status</th><th>Zurückgekehrt</th><th>Bericht</th></tr>${rowsHtml}</table>
+      </body></html>`
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
+    reportPrintRef.current = iframe
+    iframe.onload = () => {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+      window.setTimeout(() => { document.body.removeChild(iframe) }, 1000)
+    }
+    iframe.srcdoc = html
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -680,6 +763,20 @@ export default function ZuweisungPage() {
                   {Array.from({ length: 4 }, (_, i) => now.getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
                 <span className="text-xs text-gray-400 ml-1">{formatDate(report.start)} – {formatDate(report.end)}</span>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <button onClick={exportReportCsv} disabled={report.total === 0}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-40"
+                    title="Als CSV exportieren">
+                    <Download className="w-3.5 h-3.5" />
+                    CSV
+                  </button>
+                  <button onClick={exportReportPdf} disabled={report.total === 0}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-40"
+                    title="Als PDF exportieren / drucken">
+                    <Printer className="w-3.5 h-3.5" />
+                    PDF
+                  </button>
+                </div>
               </div>
 
               {report.total === 0 ? (

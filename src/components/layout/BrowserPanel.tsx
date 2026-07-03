@@ -1647,6 +1647,12 @@ export default function BrowserPanel() {
     .sort(([a], [b]) => b.localeCompare(a))  // Neueste zuerst
     .slice(0, 2)  // Nur die letzten 2 Tage gleichzeitig — weitere rücken nach
   const hasAnyPastData = dayEntries.length > 0
+  // Fuer den eingeklappten Streifen: zeigt farbig an, dass dahinter noch
+  // offene Punkte warten (nicht aktualisiert / nicht im Recall erfasst),
+  // damit das beim Zuklappen nicht vergessen geht.
+  const collapsedTotalStale   = dayEntries.reduce((sum, [, c]) => sum + c.stale, 0)
+  const collapsedTotalMissing = dayEntries.reduce((sum, [, c]) => sum + c.missing, 0)
+  const collapsedHasAlerts = collapsedTotalStale > 0 || collapsedTotalMissing > 0
 
   return (
     <div
@@ -1659,9 +1665,20 @@ export default function BrowserPanel() {
       {collapsed && (
         <button
           onClick={() => setCollapsed(false)}
-          title="Liris aufklappen · Strg+L"
-          className="absolute inset-0 z-30 w-10 bg-gray-50 hover:bg-primary-50 border-l border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-primary-600 transition-colors"
+          title={collapsedHasAlerts
+            ? `Liris aufklappen · Strg+L — ${collapsedTotalStale + collapsedTotalMissing} offene Punkte (nicht aktualisiert / nicht im Recall)`
+            : 'Liris aufklappen · Strg+L'}
+          className={`absolute inset-0 z-30 w-10 border-l flex flex-col items-center justify-center gap-2 transition-colors ${
+            collapsedHasAlerts
+              ? 'bg-orange-100 hover:bg-orange-200 border-orange-300 text-orange-700'
+              : 'bg-gray-50 hover:bg-primary-50 border-gray-200 text-gray-500 hover:text-primary-600'
+          }`}
         >
+          {collapsedHasAlerts && (
+            <span className="absolute top-1.5 w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-bold flex items-center justify-center">
+              {collapsedTotalStale + collapsedTotalMissing}
+            </span>
+          )}
           <ArrowLeft className="w-4 h-4" />
           <span className="text-[10px] font-semibold tracking-wider [writing-mode:vertical-rl] rotate-180">Liris</span>
         </button>
