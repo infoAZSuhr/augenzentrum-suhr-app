@@ -147,9 +147,12 @@ export default function ZuweisungPage() {
     const exists = cur.some(b => b.typ === typ)
     const next = exists ? cur.filter(b => b.typ !== typ) : [...cur, { typ, datum: new Date().toISOString().slice(0, 10) }]
     const hasAbschluss = next.some(b => b.typ === 'abschluss')
+    // Firestore erlaubt kein `undefined` in Array-Elementen (Zuweisung liegt
+    // in einem Array) — Legacy-Einzelfelder daher mit `null` statt `undefined`
+    // aufraeumen, sonst schlaegt das Speichern still fehl.
     const patch: Partial<Zuweisung> = {
       berichte: next, berichtErhalten: next.length > 0,
-      berichtTyp: undefined, berichtDatum: undefined,  // Legacy-Einzelfelder aufraeumen
+      berichtTyp: null as unknown as undefined, berichtDatum: null as unknown as undefined,
     }
     let logMsg = exists ? `${BERICHT_LABELS_FULL[typ]} entfernt` : `${BERICHT_LABELS_FULL[typ]} erfasst`
     if (hasAbschluss) {
@@ -235,8 +238,15 @@ export default function ZuweisungPage() {
 
   async function markErledigt(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
+    const hasAbschluss = berichtListe(z).some(b => b.typ === 'abschluss')
+    if (!hasAbschluss) {
+      if (!window.confirm('Es liegt noch kein Abschlussbericht vor. Ist die Behandlung am externen Ort tatsächlich abgeschlossen?')) return
+    }
     setSavingId(`${p.id}:${z.id}`)
-    try { await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) }, 'Als erledigt markiert') }
+    try {
+      await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) },
+        hasAbschluss ? 'Als erledigt markiert' : 'Als erledigt markiert (ohne Abschlussbericht, manuell bestätigt)')
+    }
     finally { setSavingId(null) }
   }
 
@@ -755,9 +765,9 @@ export default function ZuweisungPage() {
                       return (
                       <button
                         onClick={() => markErledigt(p, z)}
-                        disabled={isSaving || !hasAbschluss}
+                        disabled={isSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-40"
-                        title={!hasAbschluss ? 'Gilt erst als abgeschlossen, sobald ein Abschlussbericht erfasst wurde' : 'Als erledigt markieren'}
+                        title={!hasAbschluss ? 'Kein Abschlussbericht erfasst — beim Klick wird nachgefragt, ob die Behandlung extern tatsächlich abgeschlossen ist' : 'Als erledigt markieren'}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Erledigt
