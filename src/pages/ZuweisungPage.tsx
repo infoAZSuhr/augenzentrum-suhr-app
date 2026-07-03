@@ -70,7 +70,7 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
       ? 'Folgender Patient wurde Ihnen zugewiesen'
       : 'Folgende Patientin / folgender Patient wurde Ihnen zugewiesen'
 
-  const subject = `Bericht-Nachfrage – ${ident}`
+  const subject = `Berichtsanfrage – ${ident}`
   const body = [
     'Sehr geehrte Damen und Herren',
     '',
@@ -580,6 +580,15 @@ export default function ZuweisungPage() {
                       <p className="mt-1 text-xs text-gray-500 italic">{z.grund}</p>
                     )}
 
+                    {/* Geplanter Termin — sofort sichtbar sobald hinterlegt (nicht erst beim Ausklappen) */}
+                    {z.geplanterTermin && (
+                      <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-700"
+                        title="Von der externen Stelle mitgeteilter geplanter Behandlungstermin">
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        Geplanter Termin: {formatDate(z.geplanterTermin)}
+                      </div>
+                    )}
+
                     {/* Datum + erledigt */}
                     <div className="mt-1.5 flex items-center gap-3 text-xs text-gray-400 flex-wrap">
                       <span className="flex items-center gap-1">
@@ -688,6 +697,21 @@ export default function ZuweisungPage() {
               {/* Expanded: notiz + link to recall */}
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50 rounded-b-xl">
+                  {/* Geplanter Termin: interner Merker, sobald die externe Stelle
+                      auf die Berichtsanfrage antwortet und den Behandlungstermin
+                      mitteilt — damit wir wissen, wann eine Rückkehr zu erwarten ist. */}
+                  <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-2.5">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-teal-700 mb-1">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      Geplanter Termin (von externer Stelle mitgeteilt)
+                    </label>
+                    <p className="text-[11px] text-teal-600/80 mb-1.5">
+                      Für uns: Trägt hier den Termin ein, sobald die externe Praxis/Klinik ihn uns mitteilt (z. B. als Antwort auf die Berichtsanfrage) — sichtbar direkt in der Übersicht.
+                    </p>
+                    <input type="date" value={z.geplanterTermin || ''}
+                      onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value })}
+                      className="px-3 py-1.5 text-sm border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300" />
+                  </div>
                   {z.notiz ? (
                     <div className="flex items-start gap-2 text-sm text-gray-600">
                       <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" />

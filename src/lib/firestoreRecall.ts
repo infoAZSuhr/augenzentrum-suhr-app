@@ -60,6 +60,7 @@ export interface Zuweisung {
   berichtErhalten: boolean
   berichtAngefragt?: boolean    // true sobald eine Bericht-Nachfrage verschickt wurde
   berichtAngefragtAm?: string   // YYYY-MM-DD – Datum der (letzten) Bericht-Nachfrage
+  geplanterTermin?: string      // YYYY-MM-DD – von der externen Stelle mitgeteilter Behandlungstermin (interner Merker)
   notiz: string
   von: string           // username who created it
 }
