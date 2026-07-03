@@ -285,7 +285,8 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           if (msSugg < bestSuggMs) { bestSuggMs = msSugg; bestSugg = { d: m5[1], mo: monIdx, y: m5[3], h: m5[4], min: m5[5] }; }
         }
         if (bestSugg) {
-          var ddPad = (+bestSugg.d < 10 ? '0' : '') + bestSugg.d;
+          var bestSuggDayNum = +bestSugg.d;
+          var ddPad = (bestSuggDayNum < 10 ? '0' : '') + bestSuggDayNum;
           var moPad = (bestSugg.mo < 10 ? '0' : '') + bestSugg.mo;
           result.naechsterTerminDatum = bestSugg.y + '-' + moPad + '-' + ddPad;
           result.naechsterTerminZeit  = bestSugg.h + ':' + bestSugg.min;
@@ -1362,7 +1363,8 @@ export default function BrowserPanel() {
             var today = new Date(); today.setHours(0,0,0,0);
             var d = new Date(+m[3], monIdx - 1, +m[1]);
             if (d.getTime() < today.getTime()) return null; // nur zukuenftige Termine
-            var dd = (+m[1] < 10 ? '0' : '') + m[1];
+            var dayNum = +m[1];
+            var dd = (dayNum < 10 ? '0' : '') + dayNum;
             var mo = (monIdx < 10 ? '0' : '') + monIdx;
             return { datum: m[3] + '-' + mo + '-' + dd, zeit: m[4] + ':' + m[5] };
           }
