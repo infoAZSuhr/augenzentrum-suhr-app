@@ -472,7 +472,10 @@ export default function ZuweisungPage() {
                       Zuweisen
                     </button>
                     <button
-                      onClick={() => clearZuweisungNoetig(p)}
+                      onClick={() => {
+                        if (!window.confirm(`Merker «Muss noch zugewiesen werden» für ${p.vorname || 'diesen Patienten'} wirklich entfernen — ohne eine Zuweisung anzulegen?`)) return
+                        clearZuweisungNoetig(p)
+                      }}
                       disabled={clearingId === p.id}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors disabled:opacity-40"
                       title="Merker entfernen (ohne Zuweisung anzulegen)">
