@@ -482,16 +482,8 @@ export default function BrowserPanel() {
           return
         }
         await sleep(600)
-        // 3) PID ins Patient-Feld setzen (nur Wert, keine Events)
-        // Events könnten Liris veranlassen, das Formular zu schließen
-        await wv.executeJavaScript(`(function(){
-          var el=document.querySelector('input[placeholder*="atientensuche"]');
-          if(!el) return false;
-          var set=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
-          set.call(el, ${JSON.stringify('#' + pid)});
-          return true;
-        })()`)
-        // 4) Formular-Observer: Falls Liris das Formular versteckt, sofort wieder anzeigen
+        // 3) Formular-Observer ZUERST: Falls Liris das Formular waehrend der
+        //    Patientenauswahl versteckt, sofort wieder anzeigen.
         await wv.executeJavaScript(`(function(){
           // Finde den Formular-Container (mehrere Selektoren versuchen)
           var form = document.querySelector('[placeholder*="atientensuche"]')?.closest('form, .panel, [role="dialog"], .modal, .drawer, div[style*="display"]');
@@ -519,8 +511,69 @@ export default function BrowserPanel() {
           window._terminFormObserver = observer; // speichern für cleanup
           return true;
         })()`)
-        console.log('[TerminAnlegen] PID eingegeben, Form-Observer aktiv')
-        await sleep(600)
+        // 4) PID ins Patient-Feld setzen UND die Autocomplete-Auswahl
+        //    tatsaechlich anklicken — ohne Klick auf den Dropdown-Treffer
+        //    bindet Liris keinen Patienten an das Formular, auch wenn der
+        //    Text im Feld steht (nur getippter Text != ausgewaehlter Patient).
+        const pickResult = await wv.executeJavaScript(`(function(){
+          var el = document.querySelector('input[placeholder*="atientensuche"]');
+          if (!el) return 'no-input';
+          var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(el, ${JSON.stringify('#' + pid)});
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+
+          var pidStr = ${JSON.stringify(pid)};
+          function isVisible(node) {
+            if (!node || node.offsetParent === null) return false;
+            var r = node.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          }
+          function selectFirst() {
+            var clickables = document.querySelectorAll('a, button, li, [role="option"], [role="button"], div[onclick], tr[onclick]');
+            for (var k = 0; k < clickables.length; k++) {
+              var c = clickables[k];
+              if (!isVisible(c)) continue;
+              var ownText = c.textContent || '';
+              if (ownText.indexOf(pidStr) === -1) continue;
+              if (c.tagName === 'INPUT' || c.contains(el)) continue;
+              c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              c.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true }));
+              c.click();
+              return true;
+            }
+            var itemSelectors = [
+              '.ui-autocomplete li:first-child a', '.ui-autocomplete li:first-child',
+              '.autocomplete-suggestion', '.dropdown-menu li:first-child a',
+              '.dropdown-menu li:first-child', '[role="option"]', '.tt-suggestion',
+              'ul.typeahead li:first-child'
+            ];
+            for (var i = 0; i < itemSelectors.length; i++) {
+              var item = document.querySelector(itemSelectors[i]);
+              if (item && isVisible(item)) {
+                item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                item.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true }));
+                item.click();
+                return true;
+              }
+            }
+            return false;
+          }
+
+          return new Promise(function(resolve) {
+            var tries = 0;
+            var iv = setInterval(function() {
+              tries++;
+              if (selectFirst()) { clearInterval(iv); resolve('selected'); return; }
+              if (tries >= 8) { clearInterval(iv); resolve('no-match'); }
+            }, 350);
+          });
+        })()`).catch(() => 'error')
+        console.log('[TerminAnlegen] Patient-Auswahl:', pickResult)
+        if (pickResult !== 'selected') {
+          toast.warning('Patient konnte im Terminkalender nicht automatisch ausgewählt werden — bitte manuell aus der Vorschlagsliste wählen.')
+        }
+        await sleep(300)
         // 5) Grund-Feld nur fuellen wenn Liris NICHT selbst die gelbe
         //    Termin-Info-Box zeigt ('Naechster Termin (von ...): ...').
         const hasYellow = await wv.executeJavaScript(`/N(?:ä|ae)chster\\s+Termin\\s*\\(\\s*von/i.test(document.body?document.body.innerText:'')`).catch(() => false)
