@@ -246,9 +246,13 @@ export default function ZuweisungPage() {
 
     const byGrund = new Map<string, number>()
     const byZiel  = new Map<string, number>()
-    let rueckkehrCount = 0
     let berichtCount = 0
     let ueberfaelligCount = 0
+    // Rückkehr wird PRO PATIENT gezählt (nicht pro Zuweisung): letzteKons/
+    // naechsteKons sind patientenweit gespeichert, nicht pro Zuweisung — bei
+    // mehreren Zuweisungen im Quartal würde derselbe Folgetermin sonst bei
+    // jeder einzeln als Rückkehr mitgezählt und die Quote verzerren.
+    const patientZurueckgekehrt = new Map<string, boolean>()
     const detailRows: { name: string; pid: string; doctor: string; ziel: string; grund: string; datum: string; status: string; zurueckgekehrt: boolean; berichtErhalten: boolean }[] = []
     for (const { p, z } of rows) {
       const g = z.grund.trim() || 'ohne Angabe'
@@ -256,7 +260,7 @@ export default function ZuweisungPage() {
       byGrund.set(g, (byGrund.get(g) ?? 0) + 1)
       byZiel.set(zi, (byZiel.get(zi) ?? 0) + 1)
       const zk = zurueckgekehrt(p, z)
-      if (zk) rueckkehrCount++
+      patientZurueckgekehrt.set(p.id, (patientZurueckgekehrt.get(p.id) ?? false) || zk)
       if (z.berichtErhalten) berichtCount++
       if (normStatus(z.status) === 'pendent' && (wochenSeit(z.datum) ?? 0) >= 8) ueberfaelligCount++
       detailRows.push({
@@ -266,9 +270,11 @@ export default function ZuweisungPage() {
       })
     }
     const total = rows.length
+    const patientCount = patientZurueckgekehrt.size
+    const patientRueckkehrCount = [...patientZurueckgekehrt.values()].filter(Boolean).length
     return {
       start, end, total,
-      rueckkehrQuote: total > 0 ? Math.round((rueckkehrCount / total) * 100) : 0,
+      rueckkehrQuote: patientCount > 0 ? Math.round((patientRueckkehrCount / patientCount) * 100) : 0,
       berichtQuote:   total > 0 ? Math.round((berichtCount   / total) * 100) : 0,
       ueberfaelligCount,
       byGrund: [...byGrund.entries()].sort((a, b) => b[1] - a[1]),
