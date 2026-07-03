@@ -456,7 +456,7 @@ export async function importRecallData(
 // ── Zuweisung-Konfiguration (Praxen & Gründe) ────────────────────────────────
 
 export const ZUWEISUNG_DEFAULT_PRAXEN  = ['Augenklinik KSA']
-export const ZUWEISUNG_DEFAULT_GRUENDE = ['YAG', 'KAT', 'Neuro']
+export const ZUWEISUNG_DEFAULT_GRUENDE = ['YAG', 'KAT', 'Neuro', 'OP', 'Netzhaut', 'Glaukom', 'Kinderophthalmologie', 'Notfall', 'Abklärung']
 
 export interface ZuweisungConfig {
   praxen:  string[]
@@ -469,9 +469,14 @@ export async function getZuweisungConfig(): Promise<ZuweisungConfig> {
   const snap = await getDoc(ZUWEISUNG_CONFIG_REF())
   if (!snap.exists()) return { praxen: ZUWEISUNG_DEFAULT_PRAXEN, gruende: ZUWEISUNG_DEFAULT_GRUENDE }
   const d = snap.data()
+  const storedGruende = Array.isArray(d.gruende) ? d.gruende : ZUWEISUNG_DEFAULT_GRUENDE
+  // Neu hinzugekommene Standard-Gruende in bestehende (bereits gespeicherte)
+  // Konfiguration einmischen, ohne Duplikate oder von Nutzern entfernte
+  // Eintraege wieder herzustellen — nur fehlende Defaults ergaenzen.
+  const gruende = [...storedGruende, ...ZUWEISUNG_DEFAULT_GRUENDE.filter(g => !storedGruende.includes(g))]
   return {
     praxen:  Array.isArray(d.praxen)  ? d.praxen  : ZUWEISUNG_DEFAULT_PRAXEN,
-    gruende: Array.isArray(d.gruende) ? d.gruende : ZUWEISUNG_DEFAULT_GRUENDE,
+    gruende,
   }
 }
 
