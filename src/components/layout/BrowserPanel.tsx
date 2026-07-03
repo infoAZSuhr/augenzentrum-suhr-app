@@ -923,6 +923,14 @@ export default function BrowserPanel() {
     const checkCalendarDay = () => {
       wv.executeJavaScript(CALENDAR_DAY_SCRIPT).then((iso: string | null) => {
         if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+          // Blaettert der User im Liris-Kalender in die Zukunft, soll das NICHT
+          // als Referenzdatum uebernommen werden — sonst wuerden kuenftige
+          // Termine als "nicht aktualisiert" markiert, obwohl das irrelevant
+          // ist (der Patient ist ja noch gar nicht faellig). Zukuenftige Tage
+          // einfach ignorieren; das zuletzt bekannte (heutige/vergangene)
+          // Referenzdatum bleibt bestehen.
+          const todayIsoNow = new Date().toISOString().slice(0, 10)
+          if (iso > todayIsoNow) return
           setStaleReferenceDate(iso)
         }
       }).catch(() => {})
