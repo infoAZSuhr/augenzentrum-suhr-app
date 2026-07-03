@@ -1033,8 +1033,13 @@ export default function BrowserPanel() {
               // innerhalb der Zeile gezeichnet und kann daher NICHT von
               // benachbarten markierten Zeilen ueberlappt/uebermalt werden →
               // jede markierte Zeile hat denselben sauberen Rahmen + Tint.
-              '.az-recall-row-stale{box-shadow:inset 0 0 0 3px #ff6600 !important;position:relative !important;z-index:9999 !important;}'+
-              '.az-recall-row-missing{box-shadow:inset 0 0 0 3px #0055ff !important;position:relative !important;z-index:9999 !important;}'+
+              // KEIN position:relative hier — FullCalendar positioniert Termine
+              // per position:absolute innerhalb des Zeitraster; ein erzwungenes
+              // position:relative reisst sie aus dem Grid und verzerrt die
+              // gesamte Tagesansicht. box-shadow/z-index brauchen keine eigene
+              // Positionierung, wirken auch auf bereits absolut positionierte Elemente.
+              '.az-recall-row-stale{box-shadow:inset 0 0 0 3px #ff6600 !important;z-index:9999 !important;}'+
+              '.az-recall-row-missing{box-shadow:inset 0 0 0 3px #0055ff !important;z-index:9999 !important;}'+
               '[data-az-recall-pid] [data-az-recall-pid]{box-shadow:none !important;background-color:transparent !important;}';
             document.documentElement.appendChild(st);
           }
