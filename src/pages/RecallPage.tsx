@@ -4985,9 +4985,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                               onClick={() => {
                                 setAf({ versand: 'Email' })
                                 openEmailInOutlook(p, af, patientEmail)
-                                // Brief zusätzlich in den Postausgang legen → Liris-Auto-Upload
-                                // startet sofort (wie bei «Per Post»), nicht erst beim Speichern.
-                                generateBriefPDF(p, { ...af, versand: 'Email' })
+                                // Bei E-Mail-Versand KEIN PDF/Postausgang — der Brief geht per
+                                // Outlook-Mail raus, keine Liris-Auto-Upload-Ablage nötig
+                                // (gilt für Brief genauso wie für Reminder).
                               }}
                               title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
