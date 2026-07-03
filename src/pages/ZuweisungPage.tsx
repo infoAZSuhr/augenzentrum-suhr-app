@@ -115,6 +115,46 @@ export default function ZuweisungPage() {
     try { await saveZuweisungen(p.id, list, displayLabel) } catch (e) { console.warn('[Zuweisung] patch fehlgeschlagen', e) }
   }
 
+  type BerichtTyp = 'zwischen' | 'entlassung' | 'op' | 'abschluss'
+  const BERICHT_LABELS: Record<BerichtTyp, string> = { zwischen: 'Zwischen', entlassung: 'Entlassung', op: 'OP-Bericht', abschluss: 'Abschluss' }
+
+  // Verschiedene Berichte (Zwischen-/Entlassungs-/OP-/Abschlussbericht) koennen
+  // zu unterschiedlichen Zeitpunkten eintreffen — jeder braucht sein eigenes
+  // Datum. Legacy-Einzelfeld (berichtTyp/berichtDatum) wird beim ersten Zugriff
+  // transparent migriert.
+  function berichtListe(z: Zuweisung): { typ: BerichtTyp; datum: string }[] {
+    if (z.berichte && z.berichte.length > 0) return z.berichte
+    if (z.berichtTyp) return [{ typ: z.berichtTyp, datum: z.berichtDatum || '' }]
+    return []
+  }
+
+  function toggleBericht(p: RecallPatient, z: Zuweisung & { id: string }, typ: BerichtTyp) {
+    const cur = berichtListe(z)
+    const exists = cur.some(b => b.typ === typ)
+    const next = exists ? cur.filter(b => b.typ !== typ) : [...cur, { typ, datum: new Date().toISOString().slice(0, 10) }]
+    const hasAbschluss = next.some(b => b.typ === 'abschluss')
+    const patch: Partial<Zuweisung> = {
+      berichte: next, berichtErhalten: next.length > 0,
+      berichtTyp: undefined, berichtDatum: undefined,  // Legacy-Einzelfelder aufraeumen
+    }
+    if (hasAbschluss) {
+      const d = next.find(b => b.typ === 'abschluss')!.datum
+      patch.status = 'erledigt'
+      patch.erledigtAm = d
+    } else if (normStatus(z.status) === 'erledigt') {
+      patch.status = 'pendent'
+      patch.erledigtAm = ''
+    }
+    patchZuweisung(p, z.id, patch)
+  }
+
+  function updateBerichtDatum(p: RecallPatient, z: Zuweisung & { id: string }, typ: BerichtTyp, datum: string) {
+    const next = berichtListe(z).map(b => b.typ === typ ? { ...b, datum } : b)
+    const patch: Partial<Zuweisung> = { berichte: next }
+    if (typ === 'abschluss') patch.erledigtAm = datum
+    patchZuweisung(p, z.id, patch)
+  }
+
   // Klick «Bericht anfragen»: Zuweisung als angefragt markieren; in der Desktop-
   // App zuerst die Liris-Akte öffnen und den Namen daraus lesen.
   const onBerichtAnfragen = (p: RecallPatient, z: Zuweisung & { id: string }) => {
@@ -641,58 +681,11 @@ export default function ZuweisungPage() {
                         <span>von {z.von}</span>
                       )}
                     </div>
-
-                    {/* Kompakt: Geplanter Termin + Bericht erfassen — direkt sichtbar,
-                        ohne die Details ausklappen zu müssen. */}
-                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                      <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-teal-200 bg-teal-50/60"
-                        title="Geplanter Termin (von externer Stelle mitgeteilt)">
-                        <CalendarDays className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                        <input type="date" value={z.geplanterTermin || ''}
-                          onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value })}
-                          onClick={e => e.stopPropagation()}
-                          className="bg-transparent text-xs text-teal-700 font-medium focus:outline-none w-[102px]" />
-                      </div>
-                      <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50/60 flex-wrap">
-                        <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        {([
-                          { v: 'zwischen',   l: 'Zwischen' },
-                          { v: 'entlassung', l: 'Entlassung' },
-                          { v: 'abschluss',  l: 'Abschluss' },
-                        ] as const).map(opt => (
-                          <button key={opt.v} type="button"
-                            onClick={() => {
-                              const isSame = z.berichtTyp === opt.v
-                              const nextTyp = isSame ? undefined : opt.v
-                              const berichtDatum = nextTyp ? (z.berichtDatum || new Date().toISOString().slice(0, 10)) : ''
-                              const patch: Partial<Zuweisung> = { berichtTyp: nextTyp, berichtErhalten: !!nextTyp, berichtDatum }
-                              if (nextTyp === 'abschluss') {
-                                patch.status = 'erledigt'
-                                patch.erledigtAm = berichtDatum
-                              } else if (isSame && z.berichtTyp === 'abschluss' && normStatus(z.status) === 'erledigt') {
-                                patch.status = 'pendent'
-                                patch.erledigtAm = ''
-                              }
-                              patchZuweisung(p, z.id, patch)
-                            }}
-                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
-                              z.berichtTyp === opt.v
-                                ? opt.v === 'abschluss' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-blue-100 text-blue-700 border-blue-300'
-                                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                            }`}
-                          >{opt.l}</button>
-                        ))}
-                        {z.berichtTyp && (
-                          <input type="date" value={z.berichtDatum || ''}
-                            onChange={e => patchZuweisung(p, z.id, { berichtDatum: e.target.value })}
-                            className="bg-transparent text-[11px] text-blue-700 font-medium focus:outline-none w-[92px]" />
-                        )}
-                      </div>
-                    </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="shrink-0 flex items-center gap-1.5">
+                  {/* Actions: Buttons oben, Geplanter Termin + Bericht darunter (untereinander) */}
+                  <div className="shrink-0 flex flex-col items-end gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     {isElectron && p.pid && (
                       <button
                         onClick={() => openInLiris(p)}
@@ -740,17 +733,20 @@ export default function ZuweisungPage() {
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
 
-                    {!isErledigt ? (
+                    {!isErledigt ? (() => {
+                      const hasAbschluss = berichtListe(z).some(b => b.typ === 'abschluss')
+                      return (
                       <button
                         onClick={() => markErledigt(p, z)}
-                        disabled={isSaving || z.berichtTyp !== 'abschluss'}
+                        disabled={isSaving || !hasAbschluss}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-40"
-                        title={z.berichtTyp !== 'abschluss' ? 'Gilt erst als abgeschlossen, sobald ein Abschlussbericht erfasst wurde (siehe Details)' : 'Als erledigt markieren'}
+                        title={!hasAbschluss ? 'Gilt erst als abgeschlossen, sobald ein Abschlussbericht erfasst wurde' : 'Als erledigt markieren'}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Erledigt
                       </button>
-                    ) : (
+                      )
+                    })() : (
                       <button
                         onClick={() => reopen(p, z)}
                         disabled={isSaving}
@@ -761,6 +757,47 @@ export default function ZuweisungPage() {
                         Öffnen
                       </button>
                     )}
+                  </div>
+
+                  {/* Untereinander: Geplanter Termin + Bericht erfassen — direkt
+                      sichtbar, ohne die Details ausklappen zu müssen. */}
+                  <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-teal-200 bg-teal-50/60"
+                    title="Geplanter Termin (von externer Stelle mitgeteilt)">
+                    <CalendarDays className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <input type="date" value={z.geplanterTermin || ''}
+                      onChange={e => patchZuweisung(p, z.id, { geplanterTermin: e.target.value })}
+                      onClick={e => e.stopPropagation()}
+                      className="bg-transparent text-xs text-teal-700 font-medium focus:outline-none w-[102px]" />
+                  </div>
+                  <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50/60 flex-wrap justify-end">
+                    <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    {berichtListe(z).map(b => (
+                      <div key={b.typ} className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border ${
+                        b.typ === 'abschluss' ? 'bg-green-100 border-green-300' : 'bg-blue-100 border-blue-300'
+                      }`}>
+                        <span className={`text-[10px] font-semibold ${b.typ === 'abschluss' ? 'text-green-700' : 'text-blue-700'}`}>
+                          {BERICHT_LABELS[b.typ]}
+                        </span>
+                        <input type="date" value={b.datum}
+                          onChange={e => updateBerichtDatum(p, z, b.typ, e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          className="bg-transparent text-[10px] w-[86px] focus:outline-none text-inherit" />
+                        <button type="button" onClick={() => toggleBericht(p, z, b.typ)}
+                          className="text-gray-400 hover:text-red-500" title={`${BERICHT_LABELS[b.typ]} entfernen`}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <select value=""
+                      onChange={e => { if (e.target.value) toggleBericht(p, z, e.target.value as BerichtTyp) }}
+                      className="text-[10px] border border-blue-200 rounded-full px-1.5 py-0.5 bg-white text-blue-600 focus:outline-none"
+                    >
+                      <option value="">+ Bericht</option>
+                      {(['zwischen', 'entlassung', 'op', 'abschluss'] as const)
+                        .filter(t => !berichtListe(z).some(b => b.typ === t))
+                        .map(t => <option key={t} value={t}>{BERICHT_LABELS[t]}</option>)}
+                    </select>
+                  </div>
                   </div>
                 </div>
               </div>
