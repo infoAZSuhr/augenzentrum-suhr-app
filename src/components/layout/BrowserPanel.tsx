@@ -195,11 +195,13 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var rawLines = kBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
         for (var li = 0; li < rawLines.length; li++) {
           var l = rawLines[li];
-          // Format A: "Strasse Nr, PLZ Ort" -> in 2 Zeilen aufsplitten
-          var combo = l.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
+          // Format A: "Strasse Nr, PLZ Ort" -> in 2 Zeilen aufsplitten. Hausnummer-
+          // Zusatz (z.B. "15 b") kann MIT oder OHNE Leerzeichen vor dem Buchstaben
+          // stehen — \\s? deckt beides ab.
+          var combo = l.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+\\s?[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
           if (combo) { addrLines.push(combo[1].trim(), combo[2].trim()); continue; }
           // Format B: getrennte Zeilen
-          if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(l)) { addrLines.push(l); continue; }
+          if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+\\s?[a-zA-Z]?$/.test(l)) { addrLines.push(l); continue; }
           if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(l)) { addrLines.push(l); continue; }
         }
         if (addrLines.length) result.postAdresse = addrLines.join('\\n');
@@ -229,9 +231,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
               var gl = gvLines[gj];
               if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Zus|Rechnungsadresse)/i.test(gl)) break;
               if (/:\\s*$/.test(gl) || /Vertreter|Rechnungskontakt|gesetzlich/i.test(gl)) break;
-              var gCombo = gl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
+              var gCombo = gl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+\\s?[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
               if (gCombo) { gvAddr.push(gCombo[1].trim(), gCombo[2].trim()); break; }
-              if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+[a-zA-Z]?$/.test(gl)) { gvAddr.push(gl); continue; }
+              if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+\\s?[a-zA-Z]?$/.test(gl)) { gvAddr.push(gl); continue; }
               if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(gl)) { gvAddr.push(gl); break; }
             }
             if (gvAddr.length) result.zusKontaktAdresse = gvAddr.join('\\n');
