@@ -671,6 +671,9 @@ export default function BrowserPanel() {
   //         auch wenn der User gerade im Host tippt. Deshalb nach Navigation
   //         ebenfalls blurren, sofern der letzte Klick NICHT im Webview war.
   const lastClickInWebview = useRef(false)
+  // Zuletzt aktives Eingabefeld in der Host-App — dorthin geben wir den Fokus
+  // zurueck, wenn der Webview ihn spontan klaut (Fix 3 unten).
+  const lastHostInput = useRef<HTMLElement | null>(null)
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       const wv = webviewRef.current
@@ -679,9 +682,49 @@ export default function BrowserPanel() {
       if (lastClickInWebview.current) return  // Klick IM webview -> nichts tun
       try { (wv as any).blur?.() } catch { /* ignore */ }
     }
+    // Aktives Host-Eingabefeld merken (fuer Fokus-Rueckgabe).
+    function onFocusIn(e: FocusEvent) {
+      const t = e.target as HTMLElement | null
+      if (!t) return
+      const wv = webviewRef.current
+      if (wv && wv.contains(t)) return  // Fokus im Webview interessiert hier nicht
+      const tag = t.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) {
+        lastHostInput.current = t
+      }
+    }
     document.addEventListener('mousedown', onMouseDown, true)
-    return () => document.removeEventListener('mousedown', onMouseDown, true)
+    document.addEventListener('focusin', onFocusIn, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown, true)
+      document.removeEventListener('focusin', onFocusIn, true)
+    }
   }, [])
+
+  // Fix 3: Liris kann per eigenem JS JEDERZEIT (auch ohne Navigation, z.B.
+  // bei AJAX-Nachladen mit Autofokus auf ein Suchfeld) den Fokus in den
+  // Webview ziehen — mitten beim Tippen in einem App-Feld. Wache: Sobald der
+  // Webview den Fokus bekommt, obwohl der letzte Klick im Host war UND dort
+  // gerade ein Eingabefeld aktiv war, sofort blurren und den Fokus ins
+  // vorherige Feld zurueckgeben.
+  useEffect(() => {
+    if (!isOpen) return
+    const wv = webviewRef.current as any
+    if (!wv) return
+    const onWvFocus = () => {
+      if (lastClickInWebview.current) return   // bewusster Klick in Liris -> Fokus dort lassen
+      const prev = lastHostInput.current
+      if (!prev || !document.contains(prev)) return  // kein Host-Feld aktiv -> nichts erzwingen
+      try { wv.blur?.() } catch { /* ignore */ }
+      // Fokus-Rueckgabe leicht verzoegert, da Electron den Webview-Fokus
+      // asynchron setzt und ein sofortiges focus() sonst wieder ueberschrieben wird.
+      window.setTimeout(() => {
+        try { if (document.contains(prev)) prev.focus() } catch { /* ignore */ }
+      }, 50)
+    }
+    wv.addEventListener('focus', onWvFocus)
+    return () => wv.removeEventListener('focus', onWvFocus)
+  }, [isOpen])
 
   // Blur nach Navigation: wenn letzter Klick im Host war, Fokus zurückgeben.
   const blurWebviewAfterNav = useCallback(() => {
