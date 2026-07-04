@@ -144,7 +144,11 @@ export default function ZuweisungPage() {
   // Legacy-Einzelfeld (berichtTyp/berichtDatum) wird beim ersten Zugriff
   // transparent migriert.
   function berichtListe(z: Zuweisung): { id: string; typ: BerichtTyp; datum: string }[] {
-    if (z.berichte && z.berichte.length > 0) return z.berichte.map(b => ({ ...b, id: b.id || genBerichtId() }))
+    // Fehlende ids (Eintraege aus aelterer Version) DETERMINISTISCH per Index
+    // ergaenzen — eine Zufalls-id waere bei jedem Aufruf anders, wodurch
+    // remove/update den Eintrag nie wiederfinden wuerden. Beim naechsten
+    // Schreiben (add/remove/update) werden die ids mitpersistiert.
+    if (z.berichte && z.berichte.length > 0) return z.berichte.map((b, i) => ({ ...b, id: b.id || 'bx' + i }))
     if (z.berichtTyp) return [{ id: 'legacy', typ: z.berichtTyp, datum: z.berichtDatum || '' }]
     return []
   }
@@ -389,12 +393,15 @@ export default function ZuweisungPage() {
 
   const reportPrintRef = { current: null as HTMLIFrameElement | null }
   function exportReportPdf() {
+    // Freitext (Namen, Ziele, Gruende) HTML-escapen — Sonderzeichen wie & oder <
+    // wuerden das gedruckte Markup sonst zerbrechen.
+    const esc = (v: string) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     const rowsHtml = report.detailRows.map(r => {
       const isErledigt = r.status === 'erledigt'
       return `
       <tr>
         <td><span class="badge ${isErledigt ? 'badge-green' : 'badge-amber'}">${isErledigt ? 'Erledigt' : 'Pendent'}</span></td>
-        <td>${r.pid}</td><td>${r.name}</td><td>${r.doctor}</td><td>${r.ziel}</td><td>${r.grund}</td>
+        <td>${esc(r.pid)}</td><td>${esc(r.name)}</td><td>${esc(r.doctor)}</td><td>${esc(r.ziel)}</td><td>${esc(r.grund)}</td>
         <td><span class="badge ${r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${r.zurueckgekehrt ? 'Ja' : 'Nein'}</span></td>
         <td><span class="badge ${r.berichtErhalten ? 'badge-blue' : 'badge-gray'}">${r.berichtErhalten ? 'Ja' : 'Nein'}</span></td>
       </tr>`
@@ -428,9 +435,9 @@ export default function ZuweisungPage() {
         <div class="kpi k4"><div class="n">${report.ueberfaelligCount}</div><div class="l">Überfällig (&gt;8 Wo.)</div></div>
       </div>
       <h2>Nach Grund</h2>
-      <table><tr><th>Grund</th><th>Anzahl</th></tr>${report.byGrund.map(([g, n]) => `<tr><td>${g}</td><td>${n}</td></tr>`).join('')}</table>
+      <table><tr><th>Grund</th><th>Anzahl</th></tr>${report.byGrund.map(([g, n]) => `<tr><td>${esc(g)}</td><td>${n}</td></tr>`).join('')}</table>
       <h2>Nach Zielort</h2>
-      <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${z}</td><td>${n}</td></tr>`).join('')}</table>
+      <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${esc(z)}</td><td>${n}</td></tr>`).join('')}</table>
       <h2>Details</h2>
       <table><tr><th>Status</th><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Zurückgekehrt</th><th>Bericht</th></tr>${rowsHtml}</table>
       </body></html>`

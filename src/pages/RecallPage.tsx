@@ -2624,12 +2624,15 @@ const lirisExtractRef  = useRef(lirisExtract)
       // nur ohne Altersgrenze. Analog zu Minderjährigen wird der Brief an den
       // Vertreter adressiert.
       const hasVertreterData = !isMinor && !!lirisExtract.zusKontaktName && !!lirisExtract.zusKontaktAdresse
-      if (hasVertreterData && !f.vertreterModus) patch.vertreterModus = true
       if (!f.adressBlock.trim()) {
         // Minderjährige ODER Erwachsene mit Vertreter: Adresse und Name des
         // zusätzlichen Kontakts (Eltern bzw. gesetzlicher Vertreter) verwenden.
         if ((isMinor || hasVertreterData) && lirisExtract.zusKontaktName && lirisExtract.zusKontaktAdresse) {
           patch.adressBlock = lirisExtract.zusKontaktName + '\n' + lirisExtract.zusKontaktAdresse
+          // Vertreter-Modus nur zusammen mit der Erst-Befuellung aktivieren —
+          // NICHT bei jedem Extraktions-Retry, sonst laesst er sich waehrend
+          // der Nachlade-Phase nicht manuell abschalten.
+          if (hasVertreterData && !f.vertreterModus) patch.vertreterModus = true
           // nachnameOverride bleibt beim Patienten-Nachnamen (aus Liris-Header)
         } else if (lirisExtract.postAdresse) {
           // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
