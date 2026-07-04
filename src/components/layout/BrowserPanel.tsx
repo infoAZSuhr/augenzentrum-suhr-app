@@ -578,27 +578,22 @@ export default function BrowserPanel() {
         await sleep(300)
         // 4b) Vorschlagsliste wieder zuklappen: Nach der Auswahl bleibt das
         //     Autocomplete-Dropdown in Liris teils offen und verdeckt das
-        //     Formular. Escape + Blur auf dem Suchfeld schliesst es.
+        //     Formular. WICHTIG: KEIN Escape/Blur — das wuerde die getroffene
+        //     Patientenauswahl in Liris wieder loeschen. Stattdessen nur die
+        //     sichtbaren Dropdown-Container ausblenden; die Auswahl bleibt.
         if (pickResult === 'selected') {
           await wv.executeJavaScript(`(function(){
-            var el = document.querySelector('input[placeholder*="atientensuche"]');
-            if (!el) return false;
-            ['keydown','keyup'].forEach(function(t){
-              el.dispatchEvent(new KeyboardEvent(t,{key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true}));
-            });
-            el.blur();
-            // Sichtbare Dropdown-Container zusaetzlich hart ausblenden (falls
-            // Liris auf Escape nicht reagiert).
             var sels = ['.ui-autocomplete', '.dropdown-menu', '.tt-menu', 'ul.typeahead'];
+            var hidden = 0;
             for (var i = 0; i < sels.length; i++) {
               var m = document.querySelectorAll(sels[i]);
               for (var j = 0; j < m.length; j++) {
-                if (m[j].offsetParent !== null) m[j].style.display = 'none';
+                if (m[j].offsetParent !== null) { m[j].style.display = 'none'; hidden++; }
               }
             }
-            return true;
-          })()`).catch(() => false)
-          console.log('[TerminAnlegen] Vorschlagsliste geschlossen')
+            return hidden;
+          })()`).catch(() => 0)
+          console.log('[TerminAnlegen] Vorschlagsliste ausgeblendet (Auswahl bleibt bestehen)')
         }
         // 5) Grund-Feld nur fuellen wenn Liris NICHT selbst die gelbe
         //    Termin-Info-Box zeigt ('Naechster Termin (von ...): ...').
