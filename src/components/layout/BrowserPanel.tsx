@@ -10,14 +10,14 @@ import { useToast } from '../../lib/ToastContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null; zusKontaktName: string | null; zusKontaktAdresse: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; emailVerdaechtig: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null; zusKontaktName: string | null; zusKontaktAdresse: string | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, zusKontaktName: null, zusKontaktAdresse: null, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, emailVerdaechtig: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, zusKontaktName: null, zusKontaktAdresse: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -246,6 +246,14 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var emailBlock = allText.slice(kStart, kStart + 600);
         var emailMatch = emailBlock.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/);
         if (emailMatch) result.email = emailMatch[0];
+        // Verdaechtige (fast-)E-Mail erkennen: enthaelt ein @, aber keine
+        // gueltige Domain-Endung — typisch ein Tippfehler in Liris wie
+        // "name@bluewin-ch" statt "name@bluewin.ch". Wird der MPA als
+        // Hinweis angezeigt, damit der Eintrag in Liris korrigiert wird.
+        if (!result.email) {
+          var relaxed = emailBlock.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9._-]+/);
+          if (relaxed) result.emailVerdaechtig = relaxed[0];
+        }
       }
 
       // 8) Zukuenftiger Termin mit Datum + Uhrzeit. Heuristik:
@@ -415,6 +423,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           anrede:        res.anrede        ?? null,
           postAdresse:   res.postAdresse   ?? null,
           email:         res.email         ?? null,
+          emailVerdaechtig: res.emailVerdaechtig ?? null,
           bpKeywords:    Array.isArray(res.bpKeywords) ? res.bpKeywords : [],
           naechsterTerminDatum: res.naechsterTerminDatum ?? null,
           naechsterTerminZeit:  res.naechsterTerminZeit  ?? null,

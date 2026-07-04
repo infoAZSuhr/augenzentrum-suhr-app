@@ -17,6 +17,7 @@ export interface LirisExtract {
   anrede?:          string | null       // "Herr" / "Frau" / "Familie" aus Patient-Header
   postAdresse?:     string | null       // Multi-line: Strasse / PLZ Ort aus Kontaktangaben-Block
   email?:           string | null       // E-Mail-Adresse aus Kontaktangaben (falls vorhanden)
+  emailVerdaechtig?: string | null      // Fast-E-Mail mit Tippfehler (z.B. "name@bluewin-ch") — Hinweis zur Korrektur in Liris
   bpKeywords?:      string[]            // Schlagwoerter aus Beurteilung+Prozedere (z.B. Myd, OCT)
   naechsterTerminDatum?: string | null  // ISO YYYY-MM-DD eines zukuenftigen Liris-Termins
   naechsterTerminZeit?:  string | null  // HH:MM eines zukuenftigen Liris-Termins

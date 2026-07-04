@@ -5041,7 +5041,17 @@ const lirisExtractRef  = useRef(lirisExtract)
                       {(() => {
                         const patientEmail = (lirisExtract && normalizePid(lirisExtract.pid) === normalizePid(aufgebotTarget!.patient.pid) ? lirisExtract.email : '') || ''
                         const hasEmail = !!patientEmail
+                        const emailVerdaechtig = (!hasEmail && lirisExtract && normalizePid(lirisExtract.pid) === normalizePid(aufgebotTarget!.patient.pid) ? lirisExtract.emailVerdaechtig : '') || ''
                         return (
+                          <>
+                          {emailVerdaechtig && (
+                            <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                              ⚠️ In Liris ist eine <strong>fehlerhafte E-Mail-Adresse</strong> hinterlegt:
+                              {' '}<span className="font-mono">{emailVerdaechtig}</span> — vermutlich ein Tippfehler
+                              (z.&nbsp;B. Bindestrich statt Punkt). Bitte in der Liris-Akte korrigieren,
+                              danach ist «Per E-Mail» verfügbar.
+                            </div>
+                          )}
                           <div className="mt-2 flex gap-2">
                             <button
                               onClick={() => {
@@ -5073,6 +5083,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                               {!hasEmail ? 'Keine E-Mail' : emailCopied ? '✓ E-Mail wird geöffnet' : 'Per E-Mail'}
                             </button>
                           </div>
+                          </>
                         )
                       })()}
                     </div>
