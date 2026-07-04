@@ -670,6 +670,47 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* Aufgebotsplan (RECALL-Wochenplan) */}
+        {!isGuest && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm font-semibold text-gray-800">Aufgebotsplan</span>
+                {recallSummary && (recallSummary.aufgebotUeberfaellig ?? 0) > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                    {recallSummary.aufgebotUeberfaellig} überfällig
+                  </span>
+                )}
+              </div>
+              <Link to="/recall?tab=aufgebot" className="text-xs text-primary-600 hover:text-primary-700 font-medium">RECALL →</Link>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {!recallSummary ? (
+                <p className="px-4 py-3 text-sm text-gray-400 italic">Wird geladen…</p>
+              ) : (
+                <>
+                  {(recallSummary.aufgebotWoche ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Diese Woche fällig</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{recallSummary.aufgebotWoche}</span>
+                    </div>
+                  )}
+                  {(recallSummary.aufgebotUeberfaellig ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Überfällig (frühere Wochen)</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{recallSummary.aufgebotUeberfaellig}</span>
+                    </div>
+                  )}
+                  {(recallSummary.aufgebotWoche ?? 0) === 0 && (recallSummary.aufgebotUeberfaellig ?? 0) === 0 && (
+                    <p className="px-4 py-3 text-sm text-gray-400 italic">Keine fälligen Aufgebote</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Scrollable weekly schedule */}

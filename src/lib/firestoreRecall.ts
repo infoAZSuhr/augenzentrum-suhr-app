@@ -389,6 +389,8 @@ export interface RecallSummary {
   keinTermin: number      // active patients with naechsteKons === 'kein Termin'
   reminderFaellig: number // active patients with a past-due Reminder entry
   telefonOffen: number    // active patients with an open phone call ("noch zu erledigen")
+  aufgebotWoche: number        // Aufgebote mit aufgebotFuer in der aktuellen Woche (Mo–So), noch nicht erstellt
+  aufgebotUeberfaellig: number // Aufgebote mit aufgebotFuer VOR der aktuellen Woche, noch nicht erstellt
   // ── Zuweisungen (ZW-Management) ─────────────────────────────────────────
   zwPendent: number         // pendente Zuweisungen total
   zwUeberfaellig: number    // pendent seit >8 Wochen
@@ -408,6 +410,18 @@ export async function getRecallSummary(): Promise<RecallSummary> {
   })()
   let total = 0, zuBearbeiten = 0, overdueRC = 0, keinTermin = 0, reminderFaellig = 0
   let telefonOffen = 0, zwPendent = 0, zwUeberfaellig = 0, zwAnfrageFaellig = 0, zwNochZuzuweisen = 0
+  let aufgebotWoche = 0, aufgebotUeberfaellig = 0
+  // Aktuelle Woche (Mo–So) — gleiche Grenzen wie der Aufgebotsplan (Wochenplan).
+  const { weekStart, weekEnd } = (() => {
+    const now = new Date()
+    const day = now.getDay()
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + (day === 0 ? -6 : 1 - day))
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return { weekStart: iso(monday), weekEnd: iso(sunday) }
+  })()
   for (const d of snap.docs) {
     const p = d.data()
     if (p.doctor === 'Zu bearbeiten') { zuBearbeiten++; continue }
@@ -416,6 +430,10 @@ export async function getRecallSummary(): Promise<RecallSummary> {
     if (!p.aufgebotErstellt && p.aufgebotFuer && p.aufgebotFuer !== 'kein Termin') {
       const dt = new Date(String(p.aufgebotFuer) + 'T00:00:00Z')
       if (!isNaN(dt.getTime()) && dt <= oneMonthAgo) overdueRC++
+      // Aufgebotsplan-Zahlen (gleiche Logik wie der Wochenplan)
+      const af = String(p.aufgebotFuer)
+      if (af >= weekStart && af <= weekEnd) aufgebotWoche++
+      else if (af < weekStart) aufgebotUeberfaellig++
     }
     if (p.naechsteKons === 'kein Termin') keinTermin++
     if (p.zuweisungNoetig === true) zwNochZuzuweisen++
@@ -445,7 +463,7 @@ export async function getRecallSummary(): Promise<RecallSummary> {
       if (hatOffenenAnruf) telefonOffen++
     }
   }
-  return { total, zuBearbeiten, overdueRC, keinTermin, reminderFaellig, telefonOffen, zwPendent, zwUeberfaellig, zwAnfrageFaellig, zwNochZuzuweisen }
+  return { total, zuBearbeiten, overdueRC, keinTermin, reminderFaellig, telefonOffen, zwPendent, zwUeberfaellig, zwAnfrageFaellig, zwNochZuzuweisen, aufgebotWoche, aufgebotUeberfaellig }
 }
 
 export async function importRecallData(
