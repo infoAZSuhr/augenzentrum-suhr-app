@@ -195,7 +195,11 @@ export default function PostausgangPanel() {
     // Per E-Mail versendete Briefe (skipPrint) muessen nicht gedruckt werden
     // — nur ins Liris hochgeladen. Aus dem Sammeldruck ausschliessen.
     const printable = items.filter(i => !i.skipPrint)
-    if (printable.length === 0 || merging) return
+    if (printable.length === 0) {
+      setStatusMsg({ kind: 'ok', text: 'Nichts zu drucken — alle Briefe wurden per E-Mail versendet.' })
+      return
+    }
+    if (merging) return
     setMerging(true)
     setStatusMsg(null)
     setPrintingIds(printable.map(i => i.id))
