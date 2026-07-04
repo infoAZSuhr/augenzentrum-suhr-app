@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, Ban, RefreshCw, Loader2 } from 'lucide-react'
+import { CalendarDays, Package, AlertTriangle, ChevronRight, Stethoscope, UserCheck, Syringe, Scissors, Phone, Printer, Ban, RefreshCw, Loader2, ArrowRightLeft } from 'lucide-react'
 import Pinnwand from '../components/ui/Pinnwand'
 import IviKatOverviewModal from '../components/ui/IviKatOverviewModal'
 import { Link } from 'react-router-dom'
@@ -603,7 +603,66 @@ export default function Dashboard() {
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{recallSummary.reminderFaellig}</span>
                     </div>
                   )}
-                  {recallSummary.overdueRC === 0 && recallSummary.zuBearbeiten === 0 && recallSummary.keinTermin === 0 && recallSummary.reminderFaellig === 0 && (
+                  {(recallSummary.telefonOffen ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Offene Telefonanrufe</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{recallSummary.telefonOffen}</span>
+                    </div>
+                  )}
+                  {recallSummary.overdueRC === 0 && recallSummary.zuBearbeiten === 0 && recallSummary.keinTermin === 0 && recallSummary.reminderFaellig === 0 && (recallSummary.telefonOffen ?? 0) === 0 && (
+                    <p className="px-4 py-3 text-sm text-gray-400 italic">Kein Handlungsbedarf</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ZW-Management Übersicht */}
+        {!isGuest && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-violet-600" />
+                <span className="text-sm font-semibold text-gray-800">Zuweisungen</span>
+                {recallSummary && (recallSummary.zwUeberfaellig ?? 0) > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                    {recallSummary.zwUeberfaellig} überfällig
+                  </span>
+                )}
+              </div>
+              <Link to="/zuweisungen" className="text-xs text-primary-600 hover:text-primary-700 font-medium">ZW →</Link>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {!recallSummary ? (
+                <p className="px-4 py-3 text-sm text-gray-400 italic">Wird geladen…</p>
+              ) : (
+                <>
+                  {(recallSummary.zwPendent ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Pendente Zuweisungen</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{recallSummary.zwPendent}</span>
+                    </div>
+                  )}
+                  {(recallSummary.zwUeberfaellig ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Überfällig (&gt;8 Wochen)</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{recallSummary.zwUeberfaellig}</span>
+                    </div>
+                  )}
+                  {(recallSummary.zwAnfrageFaellig ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Berichtsanfrage fällig</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{recallSummary.zwAnfrageFaellig}</span>
+                    </div>
+                  )}
+                  {(recallSummary.zwNochZuzuweisen ?? 0) > 0 && (
+                    <div className="px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Noch zuzuweisen</span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{recallSummary.zwNochZuzuweisen}</span>
+                    </div>
+                  )}
+                  {(recallSummary.zwPendent ?? 0) === 0 && (recallSummary.zwNochZuzuweisen ?? 0) === 0 && (
                     <p className="px-4 py-3 text-sm text-gray-400 italic">Kein Handlungsbedarf</p>
                   )}
                 </>

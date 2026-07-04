@@ -388,6 +388,12 @@ export interface RecallSummary {
   overdueRC: number       // active patients with aufgebotFuer in the past and no aufgebotErstellt
   keinTermin: number      // active patients with naechsteKons === 'kein Termin'
   reminderFaellig: number // active patients with a past-due Reminder entry
+  telefonOffen: number    // active patients with an open phone call ("noch zu erledigen")
+  // ── Zuweisungen (ZW-Management) ─────────────────────────────────────────
+  zwPendent: number         // pendente Zuweisungen total
+  zwUeberfaellig: number    // pendent seit >8 Wochen
+  zwAnfrageFaellig: number  // pendent >8 Wochen und noch KEINE Berichtsanfrage verschickt
+  zwNochZuzuweisen: number  // Patienten mit «Muss noch zugewiesen werden»-Merker
 }
 
 export async function getRecallSummary(): Promise<RecallSummary> {
@@ -396,7 +402,12 @@ export async function getRecallSummary(): Promise<RecallSummary> {
   const oneMonthAgo = new Date()
   oneMonthAgo.setUTCMonth(oneMonthAgo.getUTCMonth() - 1)
   const today = new Date().toISOString().slice(0, 10)
+  const eightWeeksAgo = (() => {
+    const d = new Date(); d.setUTCDate(d.getUTCDate() - 56)
+    return d.toISOString().slice(0, 10)
+  })()
   let total = 0, zuBearbeiten = 0, overdueRC = 0, keinTermin = 0, reminderFaellig = 0
+  let telefonOffen = 0, zwPendent = 0, zwUeberfaellig = 0, zwAnfrageFaellig = 0, zwNochZuzuweisen = 0
   for (const d of snap.docs) {
     const p = d.data()
     if (p.doctor === 'Zu bearbeiten') { zuBearbeiten++; continue }
@@ -407,19 +418,34 @@ export async function getRecallSummary(): Promise<RecallSummary> {
       if (!isNaN(dt.getTime()) && dt <= oneMonthAgo) overdueRC++
     }
     if (p.naechsteKons === 'kein Termin') keinTermin++
-    // Check for past-due Reminder entries
+    if (p.zuweisungNoetig === true) zwNochZuzuweisen++
+    // Zuweisungen (inkl. Legacy-Einzelfeld) — pendente + Ueberfaellige zaehlen
+    const zws: any[] = Array.isArray(p.zuweisungen) ? p.zuweisungen : (p.zuweisung ? [p.zuweisung] : [])
+    for (const z of zws) {
+      const st = (!z?.status || z.status === 'ausstehend') ? 'pendent' : z.status
+      if (st !== 'pendent') continue
+      zwPendent++
+      if (z.datum && z.datum <= eightWeeksAgo) {
+        zwUeberfaellig++
+        if (!z.berichtAngefragt) zwAnfrageFaellig++
+      }
+    }
+    // Check for past-due Reminder entries + open phone calls
     if (Array.isArray(p.verlauf)) {
       let latestReminder: string | null = null
+      let hatOffenenAnruf = false
       for (const v of p.verlauf) {
+        if (v.aktion === 'Telefonanruf' && v.ergebnis === 'noch zu erledigen') hatOffenenAnruf = true
         if (v.aktion !== 'Reminder') continue
         const m = String(v.ergebnis ?? '').match(/^Geplant:\s*(\d{4}-\d{2}-\d{2})/)
         if (!m) continue
         if (!latestReminder || m[1] > latestReminder) latestReminder = m[1]
       }
       if (latestReminder && latestReminder <= today) reminderFaellig++
+      if (hatOffenenAnruf) telefonOffen++
     }
   }
-  return { total, zuBearbeiten, overdueRC, keinTermin, reminderFaellig }
+  return { total, zuBearbeiten, overdueRC, keinTermin, reminderFaellig, telefonOffen, zwPendent, zwUeberfaellig, zwAnfrageFaellig, zwNochZuzuweisen }
 }
 
 export async function importRecallData(
