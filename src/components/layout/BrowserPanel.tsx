@@ -302,12 +302,13 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       // als ein falsches.
 
       // Pattern c2 (Liris-Zeitleiste, oberster Eintrag): "5W [Kalender-Icon]
-      // 07.08.2026" — der oberste Zeitleisten-Eintrag mit einem "<Zahl>W"-Badge
-      // (Wochen bis zum Termin) markiert eindeutig den naechsten kuenftigen
-      // Termin. Keine Uhrzeit in diesem Element sichtbar — wird bewusst leer
-      // gelassen statt geraten (MPA traegt sie manuell im Liris-Kalender ein).
+      // 07.08.2026" bzw. "10T … 14.07.2026" — der oberste Zeitleisten-Eintrag
+      // mit einem "<Zahl><Einheit>"-Badge (T=Tage, W=Wochen, M=Monate, J=Jahre
+      // bis zum Termin) markiert eindeutig den naechsten kuenftigen Termin.
+      // Keine Uhrzeit in diesem Element sichtbar — wird bewusst leer gelassen
+      // statt geraten (MPA traegt sie manuell im Liris-Kalender ein).
       if (!result.naechsterTerminDatum) {
-        var wBadge = allText.match(/(\\d{1,2})\\s*W\\D{0,20}?(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+        var wBadge = allText.match(/(\\d{1,3})\\s*[TWMJ]\\b\\D{0,20}?(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
         if (wBadge && isFuture(+wBadge[4], +wBadge[3], +wBadge[2])) {
           result.naechsterTerminDatum = wBadge[4] + '-' + wBadge[3] + '-' + wBadge[2];
         }
