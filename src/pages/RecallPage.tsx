@@ -3955,7 +3955,11 @@ const lirisExtractRef  = useRef(lirisExtract)
   return (
     <div className="flex flex-col h-full">
 
-      {/* Back + Tab bar */}
+      {/* Back + Tab bar — im Aufgebotsplan (RECALL) ausgeblendet, der zeigt
+          sich stattdessen wie ZW-Management als eigenständige Ansicht ohne
+          Ärzte-Register. Zurück zur Ärzte-Ansicht über den Button im
+          Wochenplan-Header. */}
+      {activeTab !== AUFGEBOT_TAB && (
       <div className="px-6 pt-4 border-b border-gray-200 bg-white shrink-0">
         <nav className="flex items-end gap-1 flex-wrap">
           {allTabs.map(tab => {
@@ -4015,6 +4019,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           </button>
         </nav>
       </div>
+      )}
 
       {/* Status-Meldung (sync / import) */}
       {syncMsg && (
@@ -5363,8 +5368,16 @@ const lirisExtractRef  = useRef(lirisExtract)
                 aufbieten. */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mx-4 my-4">
 
-              {/* Header (Schliessen via Tab-Wechsel oben) */}
+              {/* Header — Ärzte-Register ist hier ausgeblendet (eigenständige
+                  Ansicht wie ZW-Management); Rückkehr über diesen Button. */}
               <div className="flex items-center px-6 py-4 border-b border-gray-200 shrink-0">
+                <button
+                  onClick={() => switchTab(DOCTORS_DEFAULT[0])}
+                  title="Zur Ärzte-Ansicht wechseln"
+                  className="mr-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
                 <div className="flex items-center gap-3">
                   <CalendarDays className="w-5 h-5 text-primary-600" />
                   <h2 className="font-bold text-gray-900 text-lg">RECALL</h2>
