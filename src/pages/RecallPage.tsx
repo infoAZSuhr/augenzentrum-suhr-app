@@ -3096,9 +3096,11 @@ const lirisExtractRef  = useRef(lirisExtract)
             aufgebot: { patient, form },
           })
           toast.success(
-            (window as any).electronApp?.autoImportToLiris
-              ? 'In Postausgang abgelegt — wird ins Liris hochgeladen…'
-              : 'In Postausgang abgelegt'
+            skipPrint
+              ? 'Brief wird im Hintergrund ins Liris hochgeladen…'
+              : (window as any).electronApp?.autoImportToLiris
+                ? 'In Postausgang abgelegt — wird ins Liris hochgeladen…'
+                : 'In Postausgang abgelegt'
           )
         } catch (e) {
           console.error('[Brief] Postausgang-Add fehlgeschlagen', e)
@@ -5104,9 +5106,14 @@ const lirisExtractRef  = useRef(lirisExtract)
                               onClick={() => {
                                 setAf({ versand: 'Email' })
                                 openEmailInOutlook(p, af, patientEmail)
-                                // Bei E-Mail-Versand wird NICHT gedruckt, aber der Brief muss
-                                // trotzdem ins Liris abgelegt werden (skipPrint: true).
-                                generateBriefPDF(p, { ...af, versand: 'Email' }, true)
+                                // Bei E-Mail-Versand wird NICHT gedruckt und nichts im
+                                // Postausgang angezeigt — der Brief wird aber (nur Desktop-App)
+                                // als unsichtbarer Hintergrund-Job ins Liris hochgeladen
+                                // (skipPrint: true). Im Browser gibt es keinen Liris-Upload,
+                                // dort entfaellt die Ablage komplett.
+                                if ((window as any).electronApp?.autoImportToLiris) {
+                                  generateBriefPDF(p, { ...af, versand: 'Email' }, true)
+                                }
                               }}
                               title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${

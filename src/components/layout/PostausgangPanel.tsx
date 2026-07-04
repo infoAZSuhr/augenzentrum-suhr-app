@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
+// pdf-lib STATISCH importieren — der fruehere dynamische import() brach nach
+// jedem Deploy ("Failed to fetch dynamically imported module"), weil der alte
+// Chunk-Hash auf dem Server nicht mehr existiert, solange eine aeltere
+// App-Sitzung noch offen ist.
+import { PDFDocument } from 'pdf-lib'
 import { Mail, Trash2, X, FileText, Inbox, Upload, Printer, CheckCircle2, Loader2 } from 'lucide-react'
 import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
 import { useBrowser } from '../../contexts/BrowserContext'
@@ -18,6 +23,10 @@ const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
   const { items, remove, markUploaded, markPrinted, markVersendet } = usePostausgang()
+  // Per E-Mail versendete Briefe (skipPrint) laufen nur als unsichtbarer
+  // Liris-Upload-Job im Hintergrund mit — sie erscheinen NICHT in der Liste
+  // und zaehlen nicht im Badge (Postausgang = nur zu druckende Briefe).
+  const visibleItems = items.filter(i => !i.skipPrint)
   const { lirisWebContentsId, openWithPid } = useBrowser()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -153,7 +162,7 @@ export default function PostausgangPanel() {
   // Versand gelten die Patienten als aufgeboten (markVersendet -> RecallPage
   // loest 'aufgeboten markieren' aus).
   const mailAllToPraxis = async () => {
-    const offen = items.filter(i => !i.versendet && !i.uploaded)
+    const offen = visibleItems.filter(i => !i.versendet && !i.uploaded)
     if (offen.length === 0) { setStatusMsg({ kind: 'ok', text: 'Keine offenen Briefe zum Senden.' }); return }
     if (!electronApi?.openMailWithAttachments || !electronApi?.writePdfTmp) {
       setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar (App-Update nötig).' }); return
@@ -162,7 +171,6 @@ export default function PostausgangPanel() {
     setStatusMsg({ kind: 'ok', text: 'E-Mail wird vorbereitet…' })
     try {
       // Alle offenen Briefe zu EINER PDF buendeln (wie beim Drucken).
-      const { PDFDocument } = await import('pdf-lib')
       const merged = await PDFDocument.create()
       for (const it of offen) {
         const bytes = await it.blob.arrayBuffer()
@@ -194,7 +202,7 @@ export default function PostausgangPanel() {
   const printAll = async () => {
     // Per E-Mail versendete Briefe (skipPrint) muessen nicht gedruckt werden
     // — nur ins Liris hochgeladen. Aus dem Sammeldruck ausschliessen.
-    const printable = items.filter(i => !i.skipPrint)
+    const printable = visibleItems
     if (printable.length === 0) {
       setStatusMsg({ kind: 'ok', text: 'Nichts zu drucken — alle Briefe wurden per E-Mail versendet.' })
       return
@@ -204,7 +212,6 @@ export default function PostausgangPanel() {
     setStatusMsg(null)
     setPrintingIds(printable.map(i => i.id))
     try {
-      const { PDFDocument } = await import('pdf-lib')
       const merged = await PDFDocument.create()
       for (const it of printable) {
         const bytes = await it.blob.arrayBuffer()
@@ -245,15 +252,15 @@ export default function PostausgangPanel() {
             <div className="flex items-center gap-2">
               <Inbox className="w-4 h-4 text-primary-600" />
               <span className="text-sm font-bold text-gray-800">Postausgang</span>
-              <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-semibold">{items.length}</span>
+              <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-semibold">{visibleItems.length}</span>
             </div>
             <div className="flex gap-1">
-              {items.length > 0 && (
+              {visibleItems.length > 0 && (
                 <button onClick={printAll} disabled={merging} title="Alle Briefe gebuendelt drucken (mit Vorschau)" className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600 disabled:opacity-50">
                   {merging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
                 </button>
               )}
-              {items.some(i => !i.versendet && !i.uploaded) && (
+              {visibleItems.some(i => !i.versendet && !i.uploaded) && (
                 <button onClick={mailAllToPraxis} title={`Alle offenen Briefe gebündelt an ${PRAXIS_EMAIL} senden`} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600">
                   <Mail className="w-3.5 h-3.5" />
                 </button>
@@ -263,14 +270,14 @@ export default function PostausgangPanel() {
               </button>
             </div>
           </div>
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-xs py-8 px-4 text-center gap-2">
               <Inbox className="w-8 h-8 opacity-50" />
               <span>Keine vorbereiteten Briefe</span>
             </div>
           ) : (
             <div className="flex-1 overflow-auto">
-              {items.map(it => (
+              {visibleItems.map(it => (
                 <div
                   key={it.id}
                   draggable={canUploadLiris}
@@ -341,14 +348,14 @@ export default function PostausgangPanel() {
         <button
           onClick={() => setOpen(true)}
           className={`flex items-center gap-2 px-3 py-2 rounded-full shadow-lg transition-colors ${
-            items.length > 0
+            visibleItems.length > 0
               ? 'bg-primary-600 text-white hover:bg-primary-700'
               : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-50'
           }`}
-          title={items.length > 0 ? `${items.length} Brief${items.length === 1 ? '' : 'e'} im Postausgang` : 'Postausgang (leer)'}
+          title={visibleItems.length > 0 ? `${visibleItems.length} Brief${visibleItems.length === 1 ? '' : 'e'} im Postausgang` : 'Postausgang (leer)'}
         >
           <Inbox className="w-4 h-4" />
-          {items.length > 0 && <span className="text-xs font-bold">{items.length}</span>}
+          {visibleItems.length > 0 && <span className="text-xs font-bold">{visibleItems.length}</span>}
         </button>
       )}
 
