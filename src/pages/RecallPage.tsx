@@ -2500,6 +2500,14 @@ const lirisExtractRef  = useRef(lirisExtract)
     const overdue:  WPEntry[] = []
 
     const anrufenSet = new Set<string>()
+    // Rückkehr-Überwachung: externe Zuweisung abgeschlossen (Abschlussbericht),
+    // aber der Patient war seither nicht mehr bei uns und hat auch keinen
+    // kuenftigen Termin/kein Aufgebot — nach 3 Monaten pruefen ob er zurueckkommt.
+    const rueckkehr: WPEntry[] = []
+    const dreiMonateHer = (() => {
+      const d = new Date(); d.setMonth(d.getMonth() - 3)
+      return d.toISOString().slice(0, 10)
+    })()
     for (const patients of allData.values()) {
       for (const p of patients) {
         if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') continue
@@ -2507,6 +2515,21 @@ const lirisExtractRef  = useRef(lirisExtract)
         if (p.verlauf?.some(v => v.aktion === 'Telefonanruf' && v.ergebnis === 'noch zu erledigen')) {
           thisWeek.push({ patient: p })
           anrufenSet.add(p.id)
+        }
+        // Rückkehr-Überwachung (nur wenn kein anderes Aufgebot/kein Anruf offen)
+        if (!p.aufgebotFuer && !anrufenSet.has(p.id) && p.patientenStatus !== 'kein Aufgebot') {
+          const zws = patientZuweisungen(p).filter(z => z.typ === 'extern')
+          const abgeschlossen = zws.filter(z => z.status === 'erledigt' && z.erledigtAm)
+          const nochPendent = zws.some(z => (z.status || 'pendent') === 'pendent')
+          if (abgeschlossen.length > 0 && !nochPendent) {
+            const letzterAbschluss = abgeschlossen.map(z => z.erledigtAm).sort().pop()!
+            if (letzterAbschluss <= dreiMonateHer) {
+              const nk = p.naechsteKons && p.naechsteKons !== 'kein Termin' ? String(p.naechsteKons) : ''
+              const zurueck = (p.letzteKons && String(p.letzteKons) > letzterAbschluss) || (nk && nk > letzterAbschluss)
+              const aufgebotenSeither = p.aufgebotErstellt && String(p.aufgebotErstellt) > letzterAbschluss
+              if (!zurueck && !aufgebotenSeither) rueckkehr.push({ patient: p })
+            }
+          }
         }
         if (!p.aufgebotFuer || p.aufgebotErstellt) continue
         if (anrufenSet.has(p.id)) continue
@@ -2546,9 +2569,11 @@ const lirisExtractRef  = useRef(lirisExtract)
       for (const k of Object.keys(g)) g[k].sort(sortFn)
       return g
     }
+    const rueckkehrF = filterArzt(rueckkehr)
     return {
       grouped: groupByArt(thisWeekF),
       overdue: overdueF.sort(sortFn),
+      rueckkehr: rueckkehrF.sort(sortFn),
       total: thisWeekF.length,
       overdueCount: overdueF.length,
       weekLabel: fmtWeekLabel(start, end),
@@ -5477,6 +5502,24 @@ const lirisExtractRef  = useRef(lirisExtract)
                     </div>
                     <div className="divide-y divide-gray-100">
                       {wochenplanData.overdue.map(e => <WPRow key={e.patient.id} entry={e} />)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rückkehr-Überwachung: externe Behandlung abgeschlossen
+                    (Abschlussbericht vor >3 Monaten), aber Patient hat seither
+                    weder einen Termin bei uns gehabt noch einen kuenftigen —
+                    pruefen ob er zurueckkommt / aufbieten. */}
+                {wochenplanWeekOffset === 0 && wochenplanData.rueckkehr.length > 0 && (
+                  <div className="border-b border-orange-100">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-orange-50"
+                      title="Externe Zuweisung ist seit über 3 Monaten abgeschlossen, aber der Patient war seither nicht mehr bei uns und hat keinen künftigen Termin.">
+                      <ExternalLink className="w-4 h-4 text-orange-500 shrink-0" />
+                      <span className="text-sm font-semibold text-orange-700">Rückkehr prüfen (nach externer Behandlung)</span>
+                      <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{wochenplanData.rueckkehr.length}</span>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {wochenplanData.rueckkehr.map(e => <WPRow key={e.patient.id} entry={e} />)}
                     </div>
                   </div>
                 )}
