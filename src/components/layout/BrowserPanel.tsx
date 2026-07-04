@@ -576,6 +576,30 @@ export default function BrowserPanel() {
           toast.warning('Patient konnte im Terminkalender nicht automatisch ausgewählt werden — bitte manuell aus der Vorschlagsliste wählen.')
         }
         await sleep(300)
+        // 4b) Vorschlagsliste wieder zuklappen: Nach der Auswahl bleibt das
+        //     Autocomplete-Dropdown in Liris teils offen und verdeckt das
+        //     Formular. Escape + Blur auf dem Suchfeld schliesst es.
+        if (pickResult === 'selected') {
+          await wv.executeJavaScript(`(function(){
+            var el = document.querySelector('input[placeholder*="atientensuche"]');
+            if (!el) return false;
+            ['keydown','keyup'].forEach(function(t){
+              el.dispatchEvent(new KeyboardEvent(t,{key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true}));
+            });
+            el.blur();
+            // Sichtbare Dropdown-Container zusaetzlich hart ausblenden (falls
+            // Liris auf Escape nicht reagiert).
+            var sels = ['.ui-autocomplete', '.dropdown-menu', '.tt-menu', 'ul.typeahead'];
+            for (var i = 0; i < sels.length; i++) {
+              var m = document.querySelectorAll(sels[i]);
+              for (var j = 0; j < m.length; j++) {
+                if (m[j].offsetParent !== null) m[j].style.display = 'none';
+              }
+            }
+            return true;
+          })()`).catch(() => false)
+          console.log('[TerminAnlegen] Vorschlagsliste geschlossen')
+        }
         // 5) Grund-Feld nur fuellen wenn Liris NICHT selbst die gelbe
         //    Termin-Info-Box zeigt ('Naechster Termin (von ...): ...').
         const hasYellow = await wv.executeJavaScript(`/N(?:ä|ae)chster\\s+Termin\\s*\\(\\s*von/i.test(document.body?document.body.innerText:'')`).catch(() => false)
