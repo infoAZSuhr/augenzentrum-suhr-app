@@ -239,11 +239,18 @@ export default function ZuweisungPage() {
   // normalise legacy 'ausstehend' / null / undefined → 'pendent'
   function normStatus(s: string | null | undefined): string { return (!s || s === 'ausstehend') ? 'pendent' : s }
 
+  // Automatische Berichtsanfrage-Erinnerung: Zuweisung ist >8 Wochen pendent,
+  // kein Bericht da und noch KEINE Anfrage verschickt — sollte angefragt werden.
+  const istAnfrageFaellig = (z: Zuweisung) =>
+    normStatus(z.status) === 'pendent' && !z.berichtErhalten && !z.berichtAngefragt && (wochenSeit(z.datum) ?? 0) >= 8
+  const [filterAnfrageFaellig, setFilterAnfrageFaellig] = useState(false)
+
   // Eine Zeile PRO Zuweisung (Patient kann mehrfach erscheinen).
   type Row = { p: RecallPatient; z: Zuweisung & { id: string }; key: string }
   const rows: Row[] = patients
     .flatMap(p => patientZuweisungen(p).map(z => ({ p, z, key: `${p.id}:${z.id}` })))
     .filter(({ p, z }) => {
+      if (filterAnfrageFaellig && !istAnfrageFaellig(z)) return false
       if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
       if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
       const q = search.trim().toLowerCase()
@@ -298,6 +305,7 @@ export default function ZuweisungPage() {
   const allZ = patients.flatMap(p => patientZuweisungen(p))
   const ausstehendCount = allZ.filter(z => normStatus(z.status) === 'pendent').length
   const erledigtCount   = allZ.filter(z => z.status === 'erledigt').length
+  const anfrageFaelligCount = allZ.filter(istAnfrageFaellig).length
 
   // Patienten, bei denen «Muss noch zugewiesen werden» im Patient-bearbeiten-
   // Formular markiert wurde — noch OHNE konkrete Zuweisung erfasst. Damit sie
@@ -530,6 +538,29 @@ export default function ZuweisungPage() {
           </div>
         </div>
       </div>
+
+      {/* Automatische Berichtsanfrage-Erinnerung: pendent >8 Wochen, kein
+          Bericht, noch keine Anfrage — sollte jetzt angefragt werden. */}
+      {anfrageFaelligCount > 0 && (
+        <div className="max-w-4xl mx-auto px-4 pt-4">
+          <div className="rounded-xl border-2 border-blue-300 bg-blue-50 p-3 flex items-center gap-2 flex-wrap">
+            <Mail className="w-4 h-4 text-blue-600 shrink-0" />
+            <p className="text-xs font-bold text-blue-800 flex-1">
+              {anfrageFaelligCount} {anfrageFaelligCount === 1 ? 'Zuweisung ist' : 'Zuweisungen sind'} seit über 8 Wochen pendent ohne Berichtsanfrage — jetzt Bericht anfragen.
+            </p>
+            <button
+              onClick={() => setFilterAnfrageFaellig(f => !f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors shrink-0 ${
+                filterAnfrageFaellig
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-100'
+              }`}
+            >
+              {filterAnfrageFaellig ? '✓ Gefiltert — alle anzeigen' : 'Nur diese anzeigen'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Noch zuzuweisen — Merker aus "Patient bearbeiten", noch ohne konkrete Zuweisung */}
       {noetigList.length > 0 && (
