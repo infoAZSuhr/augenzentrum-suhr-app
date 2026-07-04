@@ -319,6 +319,24 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         var wBadge = allText.match(/(\\d{1,3})\\s*[TWMJ]\\b\\D{0,20}?(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
         if (wBadge && isFuture(+wBadge[4], +wBadge[3], +wBadge[2])) {
           result.naechsterTerminDatum = wBadge[4] + '-' + wBadge[3] + '-' + wBadge[2];
+          // Uhrzeit steht in der Zeitleiste nur im Hover-Tooltip (title-Attribut):
+          // Element suchen, dessen Text ODER title das gefundene Datum enthaelt
+          // und dessen title eine Uhrzeit HH:MM traegt.
+          try {
+            var deDate = wBadge[2] + '.' + wBadge[3] + '.' + wBadge[4];
+            var tippedC2 = document.querySelectorAll('[title]');
+            for (var tc = 0; tc < tippedC2.length; tc++) {
+              var elC2 = tippedC2[tc];
+              var tipC2 = (elC2.getAttribute('title') || '').trim();
+              var tmC2 = tipC2.match(/(\\d{2}):(\\d{2})/);
+              if (!tmC2) continue;
+              var txtC2 = (elC2.textContent || '');
+              if (txtC2.indexOf(deDate) !== -1 || tipC2.indexOf(deDate) !== -1) {
+                result.naechsterTerminZeit = tmC2[1] + ':' + tmC2[2];
+                break;
+              }
+            }
+          } catch (e) { /* Tooltip-Zeit optional — Datum reicht als Minimum */ }
         }
       }
 

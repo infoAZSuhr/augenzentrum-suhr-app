@@ -31,7 +31,7 @@ import {
   ZUWEISUNG_DEFAULT_PRAXEN,
   ZUWEISUNG_DEFAULT_GRUENDE,
 } from '../lib/firestoreRecall'
-import { loadPlanungDoctorNames } from '../lib/firestorePlanung'
+import { loadPlanungDoctorNames, loadPlanung, type PlanungData } from '../lib/firestorePlanung'
 import { useAuth } from '../lib/AuthContext'
 import { useToast } from '../lib/ToastContext'
 import { collection, getDocs } from 'firebase/firestore'
@@ -642,6 +642,13 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [wochenplanWeekOffset, setWochenplanWeekOffset] = useState(0)
   const [wochenplanSort, setWochenplanSort] = useState<'arzt' | 'name' | 'datumAsc' | 'datumDesc'>('arzt')
   const [wochenplanFilterArzt, setWochenplanFilterArzt] = useState<string>('')
+  // Klick auf Arzt-Badge im Wochenplan: Einsatztage des Arztes anzeigen.
+  const [arztTageFor, setArztTageFor] = useState<string | null>(null)
+  const [planungData, setPlanungData] = useState<PlanungData | null>(null)
+  const openArztTage = (doctor: string) => {
+    setArztTageFor(doctor)
+    if (!planungData) loadPlanung(new Date().getFullYear()).then(setPlanungData).catch(() => {})
+  }
 
   // ── Aufgebot-Dialog ───────────────────────────────────────────────────────────
   type AufgebotArt = 'Brief' | 'Tel' | 'Reminder'
@@ -5342,7 +5349,10 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <span className="font-medium text-gray-800 text-sm">{p.vorname || '—'}</span>
                   {p.pid && <span className="text-xs text-gray-400 font-mono">#{normalizePid(p.pid)}</span>}
                   {p.gebDatum && <span className="text-xs text-gray-400">{formatDate(p.gebDatum)}</span>}
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700">{p.doctor}</span>
+                  <span
+                    onClick={e => { e.stopPropagation(); e.preventDefault(); openArztTage(p.doctor) }}
+                    title={`Einsatztage von ${p.doctor} anzeigen`}
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 hover:bg-primary-200 cursor-pointer transition-colors">{p.doctor}</span>
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   {p.aufgebotFuer && (
@@ -5562,6 +5572,71 @@ const lirisExtractRef  = useRef(lirisExtract)
                 )}
               </div>
             </div>
+
+            {/* Einsatztage-Popup: Klick auf Arzt-Badge zeigt die kommenden
+                Einsatztage des Arztes aus der Einsatzplanung. */}
+            {arztTageFor && (() => {
+              const WORKING: Record<string, string> = { GT: 'Ganztag', VM: 'Vormittag', NM: 'Nachmittag', OP: 'OP KSA', W: 'Weiterbildung', NFD: 'Notfalldienst' }
+              const CODE_CLS: Record<string, string> = {
+                GT: 'bg-green-100 text-green-700', VM: 'bg-blue-100 text-blue-700', NM: 'bg-indigo-100 text-indigo-700',
+                OP: 'bg-purple-100 text-purple-700', W: 'bg-amber-100 text-amber-700', NFD: 'bg-red-100 text-red-700',
+              }
+              const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+              // Person in der Planung finden: Nachname des Recall-Arztes muss im
+              // Planungs-Namen vorkommen (Planung kann Vor+Nachname enthalten).
+              const person = planungData?.sections.flatMap(sec => sec.persons)
+                .find(pn => pn.toLowerCase() === arztTageFor.toLowerCase()
+                  || pn.toLowerCase().split(/\s+/).includes(arztTageFor.toLowerCase()))
+              const tage: { date: string; code: string }[] = []
+              if (planungData && person) {
+                const now = new Date()
+                for (let i = 0; i < 90 && tage.length < 15; i++) {
+                  const d = new Date(now); d.setDate(now.getDate() + i)
+                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                  const code = planungData.schedule[person]?.[key]
+                  if (code && WORKING[code]) tage.push({ date: key, code })
+                }
+              }
+              return (
+                <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center p-4" onClick={() => setArztTageFor(null)}>
+                  <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                    <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4 text-primary-600" />
+                        Einsatztage — {arztTageFor}
+                      </h3>
+                      <button onClick={() => setArztTageFor(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {!planungData ? (
+                        <p className="px-5 py-4 text-sm text-gray-400 italic">Einsatzplanung wird geladen…</p>
+                      ) : !person ? (
+                        <p className="px-5 py-4 text-sm text-gray-400 italic">«{arztTageFor}» wurde in der Einsatzplanung nicht gefunden.</p>
+                      ) : tage.length === 0 ? (
+                        <p className="px-5 py-4 text-sm text-gray-400 italic">Keine Einsatztage in den nächsten 90 Tagen eingetragen.</p>
+                      ) : (
+                        tage.map(({ date, code }) => {
+                          const d = new Date(date + 'T12:00:00')
+                          return (
+                            <div key={date} className="px-5 py-2 flex items-center justify-between">
+                              <span className="text-sm text-gray-800">
+                                <span className="text-xs font-semibold text-gray-500 mr-2">{WD[d.getDay()]}</span>
+                                {formatDate(date)}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CODE_CLS[code] ?? 'bg-gray-100 text-gray-600'}`}>
+                                {WORKING[code] ?? code}
+                              </span>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </>
         )
       })()}
