@@ -53,6 +53,19 @@ interface ElectronPostausgangApi {
 export function PostausgangProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<PostausgangItem[]>([])
 
+  // Warnung beim Seiten-Reload/Schliessen solange noch Briefe im Postausgang
+  // liegen — die PDFs leben nur im Arbeitsspeicher und waeren sonst weg.
+  useEffect(() => {
+    if (items.length === 0) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      // Chrome/Edge zeigen einen generischen Dialog; returnValue muss gesetzt sein.
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [items.length])
+
   const electronApi = (typeof window !== 'undefined'
     ? (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
     : undefined)
