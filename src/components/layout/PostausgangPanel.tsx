@@ -114,7 +114,7 @@ export default function PostausgangPanel() {
     if (!next) return
     if (!electronApi?.autoImportToLiris || !lirisWebContentsId || !next.tmpPath) return
     autoTried.current.add(next.id)
-    setOpen(true)            // Panel öffnen, damit der Fortschritt sichtbar ist
+    // Panel bleibt bewusst minimiert — läuft im Hintergrund, Badge zeigt Anzahl/Status.
     uploadToLiris(next)
   }, [items, uploadingId, lirisWebContentsId])  // eslint-disable-line react-hooks/exhaustive-deps
 
