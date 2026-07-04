@@ -640,7 +640,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   // ── Aufgebot-Wochenplan ───────────────────────────────────────────────────────
   const [wochenplanOpen, setWochenplanOpen] = useState(false)
   const [wochenplanWeekOffset, setWochenplanWeekOffset] = useState(0)
-  const [wochenplanSort, setWochenplanSort] = useState<'arzt' | 'name'>('arzt')
+  const [wochenplanSort, setWochenplanSort] = useState<'arzt' | 'name' | 'datumAsc' | 'datumDesc'>('arzt')
   const [wochenplanFilterArzt, setWochenplanFilterArzt] = useState<string>('')
 
   // ── Aufgebot-Dialog ───────────────────────────────────────────────────────────
@@ -2519,7 +2519,17 @@ const lirisExtractRef  = useRef(lirisExtract)
     const thisWeekF = filterArzt(thisWeek)
     const overdueF  = filterArzt(overdue)
     const sortFn = (a: WPEntry, b: WPEntry) => {
-      if (wochenplanSort === 'arzt') {
+      // Kontrolldatum = «RC ab» (aufgebotFuer). Eintraege ohne Datum ans Ende.
+      if (wochenplanSort === 'datumAsc' || wochenplanSort === 'datumDesc') {
+        const da = s(a.patient.aufgebotFuer)
+        const db = s(b.patient.aufgebotFuer)
+        if (da !== db) {
+          if (!da) return 1
+          if (!db) return -1
+          const cmp = da.localeCompare(db)
+          return wochenplanSort === 'datumAsc' ? cmp : -cmp
+        }
+      } else if (wochenplanSort === 'arzt') {
         const dc = s(a.patient.doctor).localeCompare(s(b.patient.doctor), 'de')
         if (dc !== 0) return dc
       }
@@ -5408,6 +5418,19 @@ const lirisExtractRef  = useRef(lirisExtract)
                         }`}
                       >{mode === 'arzt' ? 'Arzt' : 'Name'}</button>
                     ))}
+                    <button type="button"
+                      onClick={() => setWochenplanSort(s => s === 'datumAsc' ? 'datumDesc' : 'datumAsc')}
+                      title="Nach Kontrolldatum (RC ab) sortieren — Klick wechselt auf-/absteigend"
+                      className={`px-2.5 py-1 rounded-full font-semibold border transition-colors flex items-center gap-0.5 ${
+                        wochenplanSort === 'datumAsc' || wochenplanSort === 'datumDesc'
+                          ? 'bg-primary-100 text-primary-700 border-primary-300'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      Datum
+                      {wochenplanSort === 'datumAsc' && <ArrowUp className="w-3 h-3" />}
+                      {wochenplanSort === 'datumDesc' && <ArrowDown className="w-3 h-3" />}
+                    </button>
                   </div>
                 </div>
               </div>
