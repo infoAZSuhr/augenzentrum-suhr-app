@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { getAlerts, getZurRoseMeta, subscribeAlertSources } from '../lib/firestoreLager'
 import { getPlannedIviDays, getUpcomingAppointments } from '../lib/firestorePatients'
 import { loadPlanung, type PlanungData } from '../lib/firestorePlanung'
-import { getRecallSummary, type RecallSummary } from '../lib/firestoreRecall'
+import { subscribeRecallSummary, type RecallSummary } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
 import { useToast } from '../lib/ToastContext'
 import { syncZurRoseFromWorker, getNotaListeMetaFromFirestore } from '../lib/zurroseUpdate'
@@ -265,12 +265,13 @@ export default function Dashboard() {
     enabled: canAccessIvom,
   })
 
-  const { data: recallSummary } = useQuery<RecallSummary>({
-    queryKey: ['recall-summary'],
-    queryFn: getRecallSummary,
-    enabled: !isGuest,
-    staleTime: 1000 * 60 * 5,   // 5 min
-  })
+  // Live statt einmalig: Summary aktualisiert sich sofort, sobald irgendwo
+  // ein Recall-Patient bearbeitet wird (Firestore onSnapshot).
+  const [recallSummary, setRecallSummary] = useState<RecallSummary | null>(null)
+  useEffect(() => {
+    if (isGuest) return
+    return subscribeRecallSummary(setRecallSummary)
+  }, [isGuest])
 
   // Next 21 days for week schedule IVI badges
   const { data: upcoming = [] } = useQuery({

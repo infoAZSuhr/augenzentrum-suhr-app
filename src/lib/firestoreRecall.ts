@@ -401,6 +401,18 @@ export interface RecallSummary {
 export async function getRecallSummary(): Promise<RecallSummary> {
   const col  = collection(db, 'recall_patients')
   const snap = await getDocs(col)   // uses SDK cache after first RecallPage visit
+  return computeRecallSummary(snap.docs.map(d => d.data()))
+}
+
+/** Live-Version: Summary bei jeder Aenderung an recall_patients neu berechnen
+ *  (Dashboard aktualisiert sich sofort, wenn irgendwo Recall bearbeitet wird). */
+export function subscribeRecallSummary(callback: (s: RecallSummary) => void): () => void {
+  return onSnapshot(collection(db, 'recall_patients'), snap => {
+    callback(computeRecallSummary(snap.docs.map(d => d.data())))
+  })
+}
+
+function computeRecallSummary(patients: Record<string, any>[]): RecallSummary {
   const oneMonthAgo = new Date()
   oneMonthAgo.setUTCMonth(oneMonthAgo.getUTCMonth() - 1)
   const today = new Date().toISOString().slice(0, 10)
@@ -422,8 +434,7 @@ export async function getRecallSummary(): Promise<RecallSummary> {
     const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     return { weekStart: iso(monday), weekEnd: iso(sunday) }
   })()
-  for (const d of snap.docs) {
-    const p = d.data()
+  for (const p of patients) {
     if (p.doctor === 'Zu bearbeiten') { zuBearbeiten++; continue }
     total++
     if (p.storniert === 'ja' || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') continue
