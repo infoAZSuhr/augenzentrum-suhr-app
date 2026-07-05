@@ -968,7 +968,10 @@ export default function BrowserPanel() {
               setLirisExtract({ ...info, pidMatchesLiris: true, notFound: false, at: Date.now() })
             }
           }).catch(() => {})
-          requestRecallByPid(pid)
+          // auto=true: Beim blossen Navigieren auf eine Akte oeffnet RecallPage
+          // das Bearbeiten-Popup nur noch, wenn es dort etwas Neues gibt
+          // (neue Konsultation, †-Markierung, Patient fehlt im Recall).
+          requestRecallByPid(pid, true)
         }
       }).catch(() => {})
     }

@@ -926,7 +926,11 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Patient ist dort bereits offen).
   useEffect(() => {
     if (!recallPidRequest) return
-    if (Date.now() - recallPidRequest.at > 5000) { clearRecallPidRequest(); return }
+    // Auto-Requests (Akte-Navigation) brauchen ein laengeres Fenster: Sie
+    // warten auf den Liris-Extract (letzteKons etc.), der einige Sekunden
+    // braucht. Bewusste Klicks oeffnen sofort (5s Fenster wie bisher).
+    const maxAge = recallPidRequest.auto ? 15000 : 5000
+    if (Date.now() - recallPidRequest.at > maxAge) { clearRecallPidRequest(); return }
     // Solange das Aufbieten-Modal offen ist, kein Auto-Open des Patient-
     // bearbeiten-Modals — der User hat bewusst Brief/Reminder gewaehlt und
     // bekommt die Liris-Daten via lirisExtract direkt ins Aufbieten-Formular.
@@ -942,6 +946,20 @@ const lirisExtractRef  = useRef(lirisExtract)
     for (const list of allData.values()) {
       const hit = list.find(p => normalizePid(p.pid) === wantPid)
       if (hit) { found = hit; break }
+    }
+    if (found && recallPidRequest.auto) {
+      // Automatisch (blosse Akte-Navigation): NUR oeffnen wenn es in der Akte
+      // etwas Neues gibt — neue Konsultation (Liris-Datum neuer als gespeichert)
+      // oder †-Markierung, die im Recall noch fehlt. Sonst kein Popup.
+      const lx = (lirisExtract && normalizePid(lirisExtract.pid) === wantPid && Date.now() - lirisExtract.at < 20000) ? lirisExtract : null
+      if (!lx) return   // Extract noch nicht da -> warten (Effect re-runt bei lirisExtract-Update; maxAge raeumt auf)
+      const neueKons = !!(lx.letzteKons && String(lx.letzteKons) > String(found.letzteKons ?? ''))
+      const verstorbenNeu = !!lx.verstorben && found.patientenStatus !== 'verstorben'
+      if (!neueKons && !verstorbenNeu) {
+        console.log('[Recall] Auto-Open unterdrueckt — keine Aenderung in der Akte (PID', wantPid + ')')
+        clearRecallPidRequest()
+        return
+      }
     }
     clearRecallPidRequest()
     if (found) {
@@ -960,7 +978,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         autor:        lx?.autor       || '',
       })
     }
-  }, [recallPidRequest, allData]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [recallPidRequest, allData, lirisExtract]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Neu-Erfassung aus Liris: PID nicht im Recall vorhanden -> Edit-Modal
   // im NEU-Modus mit PID + Name + Geb.datum + Untersuchungsdatum + Intervall

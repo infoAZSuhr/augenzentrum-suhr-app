@@ -33,6 +33,7 @@ export interface LirisExtract {
 export interface RecallPidRequest {
   pid: string
   at:  number
+  auto?: boolean   // true = automatisch beim Oeffnen einer Akte ausgeloest (RecallPage oeffnet dann nur bei Aenderungen), false/undefined = bewusste User-Aktion (immer oeffnen)
 }
 
 /** Anfrage: im Liris-Terminkalender das 'Termin anlegen'-Panel mit
@@ -75,7 +76,7 @@ interface BrowserContextType {
   openWithPid: (pid: string) => void
   clearPendingPid: () => void
   setLirisExtract: (e: LirisExtract | null) => void
-  requestRecallByPid: (pid: string) => void
+  requestRecallByPid: (pid: string, auto?: boolean) => void
   /** Loest ein Reload der Liris-Webview aus (z.B. nach Anlegen eines
    *  Termins in Liris, damit der frische Termin sichtbar wird). */
   reloadLiris: () => void
@@ -190,7 +191,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       },
       clearPendingPid: () => setPendingPid(null),
       setLirisExtract,
-      requestRecallByPid: (pid: string) => setRecallPidRequest({ pid, at: Date.now() }),
+      requestRecallByPid: (pid: string, auto?: boolean) => setRecallPidRequest({ pid, at: Date.now(), auto }),
       reloadLiris: () => setReloadLirisAt(n => n + 1),
       reloadLirisAt,
       lirisWebContentsId,
