@@ -5009,6 +5009,12 @@ const lirisExtractRef  = useRef(lirisExtract)
                         const patientEmail = (lirisExtract && normalizePid(lirisExtract.pid) === normalizePid(aufgebotTarget!.patient.pid) ? lirisExtract.email : '') || ''
                         const hasEmail = !!patientEmail
                         const emailVerdaechtig = (!hasEmail && lirisExtract && normalizePid(lirisExtract.pid) === normalizePid(aufgebotTarget!.patient.pid) ? lirisExtract.emailVerdaechtig : '') || ''
+                        // Briefaufgebot & Terminverschiebung nennen einen konkreten
+                        // Termin im Brief — ohne Datum UND Zeit darf nicht versendet
+                        // werden (der Brief enthielte einen leeren Termin). Reminder
+                        // und «Termin verpasst» haben keinen festen Termin.
+                        const terminFehlt = af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && (!af.terminDatum || !af.terminZeit)
+                        const terminHinweis = 'Bitte zuerst Termin-Datum und -Zeit erfassen'
                         return (
                           <>
                           {emailVerdaechtig && (
@@ -5021,6 +5027,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           )}
                           <div className="mt-2 flex gap-2">
                             <button
+                              disabled={terminFehlt}
                               onClick={() => {
                                 console.log('[Brief] Per Post PDF Button geklickt — art:', af.art, 'terminDatum:', af.terminDatum)
                                 const nextForm = { ...af, versand: 'Post' as const }
@@ -5031,13 +5038,15 @@ const lirisExtractRef  = useRef(lirisExtract)
                                 // läuft eigenständig im Postausgang weiter.
                                 handleAufgebotSave(nextForm, true)
                               }}
+                              title={terminFehlt ? terminHinweis : undefined}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                                terminFehlt ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
                                 af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                               }`}>
                               <Printer className="w-4 h-4" /> Per Post (PDF)
                             </button>
                             <button
-                              disabled={!hasEmail}
+                              disabled={!hasEmail || terminFehlt}
                               onClick={() => {
                                 const nextForm = { ...af, versand: 'Email' as const }
                                 setAf({ versand: 'Email' })
@@ -5054,9 +5063,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                                 // mehr, ob die E-Mail versendet wurde.
                                 handleAufgebotSave(nextForm, true)
                               }}
-                              title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
+                              title={terminFehlt ? terminHinweis : hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                                !hasEmail ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
+                                (!hasEmail || terminFehlt) ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
                                 emailCopied ? 'border-green-400 bg-green-50 text-green-700' :
                                 af.versand === 'Email' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                               }`}>
