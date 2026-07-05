@@ -5,8 +5,11 @@ import { useState, useEffect, useRef } from 'react'
 // App-Sitzung noch offen ist.
 import { PDFDocument } from 'pdf-lib'
 import { Mail, Trash2, X, FileText, Inbox, Upload, Printer, CheckCircle2, Loader2 } from 'lucide-react'
+import { addDoc, collection } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
 import { useBrowser } from '../../contexts/BrowserContext'
+import { useToast } from '../../lib/ToastContext'
 
 interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
@@ -28,6 +31,7 @@ export default function PostausgangPanel() {
   // und zaehlen nicht im Badge (Postausgang = nur zu druckende Briefe).
   const visibleItems = items.filter(i => !i.skipPrint)
   const { lirisWebContentsId, openWithPid } = useBrowser()
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
@@ -78,16 +82,36 @@ export default function PostausgangPanel() {
   // nicht möglich, Buttons dort ausblenden.
   const canMailPraxis = !!electronApi?.openMailWithAttachments
 
+  // Upload-Fehler duerfen NICHT nur im (meist minimierten) Panel landen:
+  // E-Mail-Briefe (skipPrint) sind dort sogar unsichtbar — Fehler waeren
+  // komplett stumm. Daher zusaetzlich Toast + Eintrag ins error_log.
+  const reportUploadFehler = (it: PostausgangItem, text: string, log?: string[]) => {
+    toast.error(`Liris-Upload fehlgeschlagen (${it.vorname || it.filename}): ${text}`)
+    addDoc(collection(db, 'error_log'), {
+      kind: 'liris-upload',
+      message: `${it.filename}: ${text}`.slice(0, 500),
+      stack: (log || []).join('\n').slice(0, 1500),
+      url: window.location.hash || window.location.pathname,
+      user: it.arzt || '—',
+      ua: navigator.userAgent.slice(0, 150),
+      at: new Date().toISOString(),
+    }).catch(() => {})
+  }
+
   // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei. Vorbedingung:
   // Patient ist in Liris geoeffnet.
   const uploadToLiris = async (it: PostausgangItem) => {
     setStatusMsg(null)
     if (!it.tmpPath || !electronApi?.autoImportToLiris) {
-      setStatusMsg({ kind: 'err', text: `Auto-Import nicht verfügbar — App-Update nötig (aktuell v${appVersion}, mind. v1.1.22).` })
+      const text = `Auto-Import nicht verfügbar — App-Update nötig (aktuell v${appVersion}, mind. v1.1.22).`
+      setStatusMsg({ kind: 'err', text })
+      reportUploadFehler(it, text)
       return
     }
     if (!lirisWebContentsId) {
-      setStatusMsg({ kind: 'err', text: 'Liris-Browser ist nicht offen. Bitte auf der Recall-Seite Liris öffnen.' })
+      const text = 'Liris-Browser ist nicht offen. Bitte auf der Recall-Seite Liris öffnen.'
+      setStatusMsg({ kind: 'err', text })
+      reportUploadFehler(it, text)
       return
     }
     setUploadingId(it.id)
@@ -104,12 +128,15 @@ export default function PostausgangPanel() {
       if (res.log) { console.log('%c[Auto-Import] Ablauf:', 'color:#16a34a;font-weight:bold'); res.log.forEach(l => console.log('  ' + l)) }
       if (res.ok) {
         setStatusMsg({ kind: 'ok', text: '✓ Ins Liris hochgeladen' })
+        toast.success(`Brief ins Liris hochgeladen (${it.vorname || it.filename})`)
         markUploaded(it.id)
       } else {
         setStatusMsg({ kind: 'err', text: res.error || 'Unbekannter Fehler', log: res.log })
+        reportUploadFehler(it, res.error || 'Unbekannter Fehler', res.log)
       }
     } catch (e) {
       setStatusMsg({ kind: 'err', text: String(e) })
+      reportUploadFehler(it, String(e))
     } finally {
       setUploadingId(null)
     }
