@@ -3,6 +3,7 @@ import {
   writeBatch, query, where, limit, onSnapshot, Timestamp,
 } from 'firebase/firestore'
 import { db } from './firebase'
+import { stripUndefined } from './firestoreSanitize'
 
 // ── Activity-Log (immutable historisches Audit fuer die Auswertung) ──────────
 // Jede User-Aktion (created, updated, aufgebot) schreibt einen Eintrag, der
@@ -155,10 +156,10 @@ export async function updateRecallPatient(
   data: Partial<Omit<RecallPatient, 'id' | 'doctor' | 'aktualisiert'>>,
   username: string
 ): Promise<void> {
-  await updateDoc(doc(db, 'recall_patients', id), {
+  await updateDoc(doc(db, 'recall_patients', id), stripUndefined({
     ...data,
     aktualisiert: recallTimestamp(username),
-  })
+  }))
   // Immutables Activity-Log-Entry — bleibt erhalten auch wenn der Patient
   // spaeter durch andere User editiert / geloescht / reassigned wird.
   const todayIso = new Date().toISOString().slice(0, 10)
@@ -175,7 +176,7 @@ export async function createRecallPatient(
 ): Promise<string> {
   const stamp = recallTimestamp(username)
   const ref = doc(collection(db, 'recall_patients'))
-  await setDoc(ref, { ...data, doctor, erstellt: stamp, aktualisiert: null })
+  await setDoc(ref, stripUndefined({ ...data, doctor, erstellt: stamp, aktualisiert: null }))
   const todayIso = new Date().toISOString().slice(0, 10)
   await logRecallActivity({
     date: todayIso, user: username, type: 'created',
@@ -280,7 +281,7 @@ export function patientZuweisungen(p: RecallPatient): (Zuweisung & { id: string 
  *  Legacy-Einzel-Zuweisung auf (Migration). */
 export async function saveZuweisungen(patientId: string, list: Zuweisung[], by: string): Promise<void> {
   // Sicherstellen dass jede Zuweisung einen Status und eine ID hat (Migration)
-  const normalized = list.map(z => ({
+  const normalized = list.map(z => stripUndefined({
     ...z,
     id: z.id || genZwId(),
     status: z.status || 'pendent',

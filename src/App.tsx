@@ -8,6 +8,7 @@ import { PostausgangProvider } from './contexts/PostausgangContext'
 import { GlossarProvider } from './lib/GlossarContext'
 import { ToastProvider } from './lib/ToastContext'
 import AppShell from './components/layout/AppShell'
+import GlobalErrorHandler from './components/GlobalErrorHandler'
 import Dashboard from './pages/Dashboard'
 import LoginPage from './pages/LoginPage'
 import PendingApprovalPage from './pages/PendingApprovalPage'
@@ -209,6 +210,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
+          <GlobalErrorHandler />
           <GlossarProvider>
             <BrowserProvider>
               <PostausgangProvider>
