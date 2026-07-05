@@ -3259,10 +3259,12 @@ const lirisExtractRef  = useRef(lirisExtract)
       ].join('\n')
     } else {
       const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
+      // KEIN Box-Drawing (┌─┐ etc.) mehr: die ~90 Unicode-Linienzeichen blaehten
+      // die mailto-URL um ~800 kodierte Zeichen auf und rissen das Windows-
+      // Limit (~2000) — Outlook oeffnete dann stillschweigend NICHT.
       const terminBox = terminZeile ? [
-        '    ┌─ 📅 IHR TERMIN ' + '─'.repeat(Math.max(0, 34 - terminZeile.length)) + '┐',
-        `    │  ${terminZeile}`,
-        '    └' + '─'.repeat(52) + '┘',
+        '📅 IHR TERMIN',
+        `    ${terminZeile}`,
       ].join('\n') : ''
       const terminSection = terminZeile ? [
         '',
@@ -3318,7 +3320,14 @@ const lirisExtractRef  = useRef(lirisExtract)
     const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
              : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal
              : ''
-    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    // Windows/ShellExecute begrenzt URLs auf ~2000 Zeichen — laengere mailto-
+    // Links werden STILL verworfen (Outlook oeffnet nicht). Warnen statt raten.
+    console.log('[E-Mail] mailto-Laenge:', mailtoUrl.length)
+    if (mailtoUrl.length > 1950) {
+      toast.warning('E-Mail-Text ist sehr lang — falls sich Outlook nicht öffnet, bitte Text kürzen (z.B. weniger Voruntersuchungen).')
+    }
+    window.location.href = mailtoUrl
 
     setEmailCopied(true)
     setTimeout(() => setEmailCopied(false), 4000)
