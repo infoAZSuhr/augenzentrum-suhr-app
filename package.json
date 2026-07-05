@@ -20,6 +20,8 @@
     "update-all": "node scripts/update-refdata.js && node scripts/update-zurrose.js",
     "update-all:deploy": "node scripts/update-refdata.js && node scripts/update-zurrose.js && npm run build && firebase deploy --only hosting --project azsdb-999d6",
     "task:register": "powershell -ExecutionPolicy Bypass -File scripts/register-task.ps1",
+    "backup": "node scripts/backup-firestore.mjs",
+    "backup:register": "powershell -ExecutionPolicy Bypass -File scripts/register-backup-task.ps1",
     "test": "vitest run",
     "test:watch": "vitest"
   },
