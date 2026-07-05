@@ -744,11 +744,16 @@ const lirisExtractRef  = useRef(lirisExtract)
     const params = new URLSearchParams(location.search)
     const tab = params.get('tab')
     if (tab === 'aufgebot') {
-      setActiveTab(AUFGEBOT_TAB)
+      // switchTab statt setActiveTab: oeffnet auch den Wochenplan und setzt
+      // Filter/Seite zurueck (setActiveTab allein liess den Plan geschlossen).
+      switchTab(AUFGEBOT_TAB)
       // URL bereinigen
       navigate('/recall', { replace: true })
+    } else if (tab === 'zubearbeiten') {
+      switchTab(ZU_BEARB)
+      navigate('/recall', { replace: true })
     }
-  }, [location.search, navigate])
+  }, [location.search, navigate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [aufgebotSaving,        setAufgebotSaving]        = useState(false)
   const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)

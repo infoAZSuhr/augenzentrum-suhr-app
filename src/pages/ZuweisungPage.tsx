@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
   Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
@@ -244,6 +244,15 @@ export default function ZuweisungPage() {
   const istAnfrageFaellig = (z: Zuweisung) =>
     normStatus(z.status) === 'pendent' && !z.berichtErhalten && !z.berichtAngefragt && (wochenSeit(z.datum) ?? 0) >= 8
   const [filterAnfrageFaellig, setFilterAnfrageFaellig] = useState(false)
+  // Deep-Link vom Dashboard: /zuweisungen?filter=anfrage aktiviert den Filter.
+  const location = useLocation()
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('filter') === 'anfrage') {
+      setFilterAnfrageFaellig(true)
+      navigate('/zuweisungen', { replace: true })
+    }
+  }, [location.search, navigate])
 
   // Eine Zeile PRO Zuweisung (Patient kann mehrfach erscheinen).
   type Row = { p: RecallPatient; z: Zuweisung & { id: string }; key: string }

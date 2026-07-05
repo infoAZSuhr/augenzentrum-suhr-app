@@ -13,12 +13,13 @@ import { useToast } from '../lib/ToastContext'
 import { syncZurRoseFromWorker, getNotaListeMetaFromFirestore } from '../lib/zurroseUpdate'
 import type { Appointment } from '../types/ivom.types'
 
-const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'OP', 'W', 'NFD'])
+const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'OP', 'W', 'NFD', 'T'])
 const IN_HOUSE_CODES = new Set(['GT', 'VM', 'NM', 'NFD'])
 
 const CODE_LABEL: Record<string, string> = {
   GT: 'Ganztag', VM: 'Vormittag', NM: 'Nachmittag',
   OP: 'OP KSA', W: 'Weiterbildung', NFD: 'Notfalldienst',
+  T: 'Telefon',
 }
 const CODE_COLOR: Record<string, string> = {
   GT:  'bg-green-100 text-green-700',
@@ -27,6 +28,7 @@ const CODE_COLOR: Record<string, string> = {
   OP:  'bg-purple-100 text-purple-700',
   W:   'bg-amber-100 text-amber-700',
   NFD: 'bg-red-100 text-red-700',
+  T:   'bg-teal-100 text-teal-700',
 }
 
 function getWeekDays(offsetWeeks: number) {
@@ -341,7 +343,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
         {/* IVI geplante Tage */}
-        {canAccessIvom && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessIvom && <div className="order-4 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Syringe className="w-4 h-4 text-primary-600" />
@@ -404,7 +406,7 @@ export default function Dashboard() {
         </div>}
 
         {/* KAT / OP-Tage */}
-        {canAccessPlanung && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessPlanung && <div className="order-5 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Scissors className="w-4 h-4 text-purple-600" />
@@ -456,7 +458,7 @@ export default function Dashboard() {
         </div>}
 
         {/* Lager Warnungen */}
-        {canAccessLager && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessLager && <div className="order-6 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Package className={`w-4 h-4 ${criticalAlerts.length > 0 ? 'text-red-600' : stockAlerts.length > 0 ? 'text-amber-500' : 'text-green-600'}`} />
@@ -490,7 +492,7 @@ export default function Dashboard() {
         </div>}
 
         {/* Nicht lieferbar */}
-        {canAccessLager && <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {canAccessLager && <div className="order-7 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Ban className={`w-4 h-4 ${notDeliverableAlerts.length > 0 ? 'text-blue-500' : 'text-green-600'}`} />
@@ -552,7 +554,7 @@ export default function Dashboard() {
 
         {/* Recall Übersicht */}
         {!isGuest && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="order-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-primary-600" />
@@ -575,39 +577,39 @@ export default function Dashboard() {
                 <p className="px-4 py-3 text-sm text-gray-400 italic">Wird geladen…</p>
               ) : (
                 <>
-                  <div className="px-4 py-2.5 flex items-center justify-between">
+                  <Link to="/recall" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                     <span className="text-sm text-gray-600">Patienten (zugeordnet)</span>
                     <span className="text-sm font-semibold text-gray-800">{recallSummary.total}</span>
-                  </div>
+                  </Link>
                   {recallSummary.zuBearbeiten > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall?tab=zubearbeiten" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Zu bearbeiten</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{recallSummary.zuBearbeiten}</span>
-                    </div>
+                    </Link>
                   )}
                   {recallSummary.overdueRC > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall?tab=aufgebot" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">RC überfällig</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{recallSummary.overdueRC}</span>
-                    </div>
+                    </Link>
                   )}
                   {recallSummary.keinTermin > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">In Recall erstellt</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{recallSummary.keinTermin}</span>
-                    </div>
+                    </Link>
                   )}
                   {recallSummary.reminderFaellig > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Reminder fällig</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{recallSummary.reminderFaellig}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.telefonOffen ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall?tab=aufgebot" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Offene Telefonanrufe</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{recallSummary.telefonOffen}</span>
-                    </div>
+                    </Link>
                   )}
                   {recallSummary.overdueRC === 0 && recallSummary.zuBearbeiten === 0 && recallSummary.keinTermin === 0 && recallSummary.reminderFaellig === 0 && (recallSummary.telefonOffen ?? 0) === 0 && (
                     <p className="px-4 py-3 text-sm text-gray-400 italic">Kein Handlungsbedarf</p>
@@ -620,7 +622,7 @@ export default function Dashboard() {
 
         {/* ZW-Management Übersicht */}
         {!isGuest && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="order-3 bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <ArrowRightLeft className="w-4 h-4 text-violet-600" />
@@ -639,28 +641,28 @@ export default function Dashboard() {
               ) : (
                 <>
                   {(recallSummary.zwPendent ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/zuweisungen" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Pendente Zuweisungen</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{recallSummary.zwPendent}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.zwUeberfaellig ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/zuweisungen" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Überfällig (&gt;8 Wochen)</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{recallSummary.zwUeberfaellig}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.zwAnfrageFaellig ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/zuweisungen?filter=anfrage" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Berichtsanfrage fällig</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{recallSummary.zwAnfrageFaellig}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.zwNochZuzuweisen ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/zuweisungen" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Noch zuzuweisen</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{recallSummary.zwNochZuzuweisen}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.zwPendent ?? 0) === 0 && (recallSummary.zwNochZuzuweisen ?? 0) === 0 && (
                     <p className="px-4 py-3 text-sm text-gray-400 italic">Kein Handlungsbedarf</p>
@@ -673,7 +675,7 @@ export default function Dashboard() {
 
         {/* Aufgebotsplan (RECALL-Wochenplan) */}
         {!isGuest && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="order-1 bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-indigo-600" />
@@ -692,16 +694,16 @@ export default function Dashboard() {
               ) : (
                 <>
                   {(recallSummary.aufgebotWoche ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall?tab=aufgebot" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Diese Woche fällig</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{recallSummary.aufgebotWoche}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.aufgebotUeberfaellig ?? 0) > 0 && (
-                    <div className="px-4 py-2.5 flex items-center justify-between">
+                    <Link to="/recall?tab=aufgebot" className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                       <span className="text-sm text-gray-600">Überfällig (frühere Wochen)</span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{recallSummary.aufgebotUeberfaellig}</span>
-                    </div>
+                    </Link>
                   )}
                   {(recallSummary.aufgebotWoche ?? 0) === 0 && (recallSummary.aufgebotUeberfaellig ?? 0) === 0 && (
                     <p className="px-4 py-3 text-sm text-gray-400 italic">Keine fälligen Aufgebote</p>
