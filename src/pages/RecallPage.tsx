@@ -5342,39 +5342,6 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <button onClick={() => { setAufgebotTarget(null); setAufgebotConfirmPending(false) }} className="btn btn-secondary text-sm">
                     Abbrechen
                   </button>
-                  {/* Nur Datum eintragen — Brief wurde bereits anderweitig
-                      erstellt/versendet. Setzt Art + Erstellt-Datum, ohne
-                      PDF/E-Mail zu generieren. */}
-                  {(af.art === 'Brief' || af.art === 'Reminder') && (
-                    <button
-                      onClick={async () => {
-                        if (!aufgebotTarget || aufgebotSaving) return
-                        setAufgebotSaving(true)
-                        try {
-                          const effArt = af.art === 'Brief' && !af.terminDatum ? 'Reminder' : af.art
-                          await updateRecallPatient(aufgebotTarget.patient.id, {
-                            aufgebotArt: effArt,
-                            aufgebotErstellt: new Date().toISOString().slice(0, 10),
-                            aufgebotFuer: null,
-                            rcErstellt: true,
-                            excelAbgeglichen: true,
-                          } as any, displayLabel)
-                          await reloadAllTabs()
-                          toast.success('Datum eingetragen (ohne Brief).')
-                          setAufgebotTarget(null)
-                        } catch {
-                          toast.error('Speichern fehlgeschlagen. Bitte erneut versuchen.')
-                        } finally {
-                          setAufgebotSaving(false)
-                        }
-                      }}
-                      disabled={aufgebotSaving}
-                      title="Kein Brief/keine E-Mail erstellen — nur Aufgebotsart und Datum beim Patienten eintragen"
-                      className="btn btn-secondary text-sm disabled:opacity-40"
-                    >
-                      Nur Datum eintragen
-                    </button>
-                  )}
                   <button
                     onClick={() => {
                       if (af.versand === 'Email' || af.versand === 'Post') {
@@ -7400,6 +7367,39 @@ const lirisExtractRef  = useRef(lirisExtract)
                       className={`${inputCls} pr-6${chCls('aufgebotErstellt')}`} />
                     <ClearBtn show={!!form.aufgebotErstellt} onClear={() => setField('aufgebotErstellt', '')} />
                   </div>
+                  {/* Datum manuell eingetragen, aber Art noch unklar → nachfragen,
+                      worum es sich handelt (Brief bereits anderweitig erstellt). */}
+                  {form.aufgebotErstellt && !form.aufgebotArt && (
+                    <div className="mt-1.5 p-2 rounded-lg border border-amber-300 bg-amber-50">
+                      <p className="text-[11px] font-semibold text-amber-800 mb-1.5">Worum handelt es sich?</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        <button type="button"
+                          onClick={() => setField('aufgebotArt', 'Brief')}
+                          className="px-2 py-1 rounded-lg text-[11px] font-semibold border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
+                          Briefaufgebot
+                        </button>
+                        <button type="button"
+                          onClick={() => setField('aufgebotArt', 'Reminder')}
+                          className="px-2 py-1 rounded-lg text-[11px] font-semibold border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors">
+                          Reminder
+                        </button>
+                        <button type="button"
+                          onClick={() => {
+                            // Terminverschiebung = Briefaufgebot + Verlaufs-Vermerk
+                            setField('aufgebotArt', 'Brief')
+                            setField('verlauf', [...form.verlauf, {
+                              datum: new Date().toISOString().slice(0, 10),
+                              aktion: 'Notiz',
+                              ergebnis: 'Terminverschiebung',
+                              von: displayLabel,
+                            }])
+                          }}
+                          className="px-2 py-1 rounded-lg text-[11px] font-semibold border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors">
+                          Terminverschiebung
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {form.aufgebotArt === 'Praxis' && (
                     <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
                       <span>⚠️</span> Das Terminsdatum bitte unter <strong>«Nächste Konst.»</strong> eintragen.
