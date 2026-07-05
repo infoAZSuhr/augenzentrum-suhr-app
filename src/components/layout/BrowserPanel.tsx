@@ -741,9 +741,11 @@ export default function BrowserPanel() {
   //         auch wenn der User gerade im Host tippt. Deshalb nach Navigation
   //         ebenfalls blurren, sofern der letzte Klick NICHT im Webview war.
   const lastClickInWebview = useRef(false)
-  // Zuletzt aktives Eingabefeld in der Host-App — dorthin geben wir den Fokus
-  // zurueck, wenn der Webview ihn spontan klaut (Fix 3 unten).
+  // Zuletzt aktives Eingabefeld in der Host-App + Zeitpunkt des letzten
+  // Tastendrucks darin — nur wenn der User GERADE aktiv tippt, gilt ein
+  // Webview-Fokuswechsel als "Fokus-Klau" (Fix 3 unten).
   const lastHostInput = useRef<HTMLElement | null>(null)
+  const lastHostTypingAt = useRef(0)
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       const wv = webviewRef.current
@@ -763,26 +765,41 @@ export default function BrowserPanel() {
         lastHostInput.current = t
       }
     }
+    // Aktives Tippen in einem Host-Feld erfassen (Zeitstempel).
+    function onKeyDown(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null
+      if (!t) return
+      const wv = webviewRef.current
+      if (wv && wv.contains(t)) return
+      const tag = t.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) {
+        lastHostTypingAt.current = Date.now()
+      }
+    }
     document.addEventListener('mousedown', onMouseDown, true)
     document.addEventListener('focusin', onFocusIn, true)
+    document.addEventListener('keydown', onKeyDown, true)
     return () => {
       document.removeEventListener('mousedown', onMouseDown, true)
       document.removeEventListener('focusin', onFocusIn, true)
+      document.removeEventListener('keydown', onKeyDown, true)
     }
   }, [])
 
-  // Fix 3: Liris kann per eigenem JS JEDERZEIT (auch ohne Navigation, z.B.
-  // bei AJAX-Nachladen mit Autofokus auf ein Suchfeld) den Fokus in den
-  // Webview ziehen — mitten beim Tippen in einem App-Feld. Wache: Sobald der
-  // Webview den Fokus bekommt, obwohl der letzte Klick im Host war UND dort
-  // gerade ein Eingabefeld aktiv war, sofort blurren und den Fokus ins
-  // vorherige Feld zurueckgeben.
+  // Fix 3: Liris kann per eigenem JS den Fokus in den Webview ziehen — mitten
+  // beim Tippen in einem App-Feld. WICHTIG: Klicks INS Liris-Panel sind fuer
+  // die Host-App unsichtbar (Webview-Events bleiben im Gast) — deshalb darf
+  // die Wache NUR greifen, wenn der User in den letzten ~1s aktiv in einem
+  // App-Feld GETIPPT hat. Sonst wuerde jeder bewusste Klick nach Liris als
+  // Fokus-Klau gewertet und Liris waere nicht mehr bedienbar (z.B. waehrend
+  // das Aufbieten-Modal offen ist).
   useEffect(() => {
     if (!isOpen) return
     const wv = webviewRef.current as any
     if (!wv) return
     const onWvFocus = () => {
       if (lastClickInWebview.current) return   // bewusster Klick in Liris -> Fokus dort lassen
+      if (Date.now() - lastHostTypingAt.current > 1200) return  // User tippte nicht gerade -> Klick nach Liris zulassen
       const prev = lastHostInput.current
       if (!prev || !document.contains(prev)) return  // kein Host-Feld aktiv -> nichts erzwingen
       try { wv.blur?.() } catch { /* ignore */ }
