@@ -680,6 +680,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
     briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben'   // Brief-Textvariante ('' = Standard)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
+    verschiebungDurch: 'praxis' | 'patient'   // Terminverschiebung: wer hat verschoben? (bestimmt den Brieftext)
     vertreterModus: boolean           // Erwachsener Patient mit gesetzlichem Vertreter — Brief geht an den Vertreter, nicht direkt an den Patienten (analog Minderjährige)
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
@@ -689,6 +690,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
     nachnameOverride: '', briefVariante: '', frueherArzt: '',
+    verschiebungDurch: 'patient',
     vertreterModus: false,
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
@@ -2922,7 +2924,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     const introStandard = `<p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>${pupTxt}</strong> bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''} an.</p>`
     const frueherArztTxt = escLine(form.frueherArzt.trim())
     const introNeuerArzt = `<p>Gem&#228;ss unseren Unterlagen w&#228;re bei Ihnen wieder eine Kontrolle f&#228;llig.${frueherArztTxt ? ` Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ` Gerne schlagen wir Ihnen folgenden Termin vor:`}</p>`
-    const introVerschoben = `<p>Gerne best&#228;tigen wir Ihnen die <strong>Verschiebung Ihres Termins</strong>. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
+    const introVerschoben = form.verschiebungDurch === 'praxis'
+      ? `<p>Leider m&#252;ssen wir Ihren geplanten Termin <strong>aus organisatorischen Gr&#252;nden verschieben</strong> &#8211; wir bitten um Ihr Verst&#228;ndnis. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
+      : `<p>Gerne best&#228;tigen wir Ihnen die <strong>Verschiebung Ihres Termins</strong>. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
     const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt
       : form.briefVariante === 'terminVerschoben' ? introVerschoben
       : introStandard
@@ -3294,7 +3298,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       const introLineEmail = form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
         : form.briefVariante === 'terminVerschoben'
-          ? `Gerne bestätigen wir Ihnen die Verschiebung Ihres Termins. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
+          ? form.verschiebungDurch === 'praxis'
+            ? `Leider müssen wir Ihren geplanten Termin aus organisatorischen Gründen verschieben – wir bitten um Ihr Verständnis. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
+            : `Gerne bestätigen wir Ihnen die Verschiebung Ihres Termins. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
           : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
       body = [
         salut, '',
@@ -4903,6 +4909,26 @@ const lirisExtractRef  = useRef(lirisExtract)
                         </div>
                       )}
                     </div>
+                    )}
+
+                    {/* Terminverschiebung: wer hat verschoben? Bestimmt den
+                        Brieftext (Bestätigung vs. Entschuldigung). */}
+                    {af.briefVariante === 'terminVerschoben' && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Verschoben durch</p>
+                        <div className="flex gap-2">
+                          {([
+                            ['patient', 'Patient', 'Patient hat den Termin verschoben – Brief bestätigt den neuen Termin'],
+                            ['praxis', 'Praxis (uns)', 'Wir mussten den Termin verschieben – Brief entschuldigt sich und nennt den neuen Termin'],
+                          ] as const).map(([v, label, hint]) => (
+                            <button key={v} type="button" title={hint}
+                              onClick={() => setAf({ verschiebungDurch: v })}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                                af.verschiebungDurch === v ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                              }`}>{label}</button>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     {/* Verpasstes Datum bei «Termin verpasst»-Variante */}
