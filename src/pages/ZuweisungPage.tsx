@@ -170,6 +170,7 @@ export default function ZuweisungPage() {
       patch.status = 'erledigt'
       patch.erledigtAm = d
       logMsg += ' — Zuweisung als erledigt markiert'
+      clearZuweisungNoetigIfSet(p)
     }
     patchZuweisung(p, z.id, patch, logMsg)
   }
@@ -275,6 +276,17 @@ export default function ZuweisungPage() {
       return (b.z.datum ?? '').localeCompare(a.z.datum ?? '')
     })
 
+  // Die «Muss noch zugewiesen werden»-Markierung (zuweisungNoetig, gesetzt
+  // unter Patient-bearbeiten) ist unabhängig von einer konkreten Zuweisung —
+  // wird eine Zuweisung erledigt, ist der Verweis erfolgt und die Markierung
+  // damit hinfällig. Ohne dieses Aufräumen bliebe der Patient trotz
+  // abgeschlossener Zuweisung faelschlich in "Noch zuzuweisen" stehen.
+  async function clearZuweisungNoetigIfSet(p: RecallPatient) {
+    if (p.zuweisungNoetig !== true) return
+    try { await updateRecallPatient(p.id, { zuweisungNoetig: null } as Partial<RecallPatient>, displayLabel) }
+    catch (e) { console.warn('[Zuweisung] zuweisungNoetig-Aufräumen fehlgeschlagen', e) }
+  }
+
   async function markErledigt(p: RecallPatient, z: Zuweisung & { id: string }) {
     if (savingId) return
     const hasAbschluss = berichtListe(z).some(b => b.typ === 'abschluss')
@@ -282,6 +294,7 @@ export default function ZuweisungPage() {
     try {
       await patchZuweisung(p, z.id, { status: 'erledigt', erledigtAm: new Date().toISOString().slice(0, 10) },
         hasAbschluss ? 'Als erledigt markiert' : 'Als erledigt markiert (ohne Abschlussbericht)')
+      await clearZuweisungNoetigIfSet(p)
     }
     finally { setSavingId(null) }
   }
