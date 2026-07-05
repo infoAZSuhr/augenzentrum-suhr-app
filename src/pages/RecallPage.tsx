@@ -123,6 +123,31 @@ function formatDate(val: string | null): string {
   return val
 }
 
+/** Alter in Jahren aus Geburtsdatum (ISO) — null wenn kein gueltiges Datum. */
+function ageFromGeb(gebDatum: string | null | undefined): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(gebDatum || ''))
+  if (!m) return null
+  const t = new Date()
+  let a = t.getFullYear() - parseInt(m[1], 10)
+  const mo = t.getMonth() + 1, d = t.getDate()
+  if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
+  return a
+}
+
+/** Deutliche Kennzeichnung fuer Minderjaehrige (unter 18) — rosa Badge mit Alter. */
+function MinorBadge({ gebDatum }: { gebDatum: string | null | undefined }) {
+  const age = ageFromGeb(gebDatum)
+  if (age === null || age < 0 || age >= 18) return null
+  return (
+    <span
+      title={`Minderjährig — Briefe/E-Mails gehen an die Eltern (gesetzliche Vertreter). Alter: ${age} Jahre`}
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700 border border-pink-300 text-[10px] font-bold shrink-0"
+    >
+      👶 {age} J.
+    </span>
+  )
+}
+
 function isKeinTermin(val: string | null): boolean { return val === 'kein Termin' }
 
 /** Parst hineingezogenen Text in ein ISO-Datum (YYYY-MM-DD).
@@ -4436,6 +4461,7 @@ const lirisExtractRef  = useRef(lirisExtract)
               <div className="flex items-center gap-3 text-xs text-gray-400 pl-6">
                 {row.pid && <span className="font-mono">#{normalizePid(row.pid)}</span>}
                 {row.gebDatum && row.gebDatum !== 'kein Termin' && <span>{formatDate(row.gebDatum)}</span>}
+                <MinorBadge gebDatum={row.gebDatum} />
               </div>
               {/* Nächste Konst. + RC + Aufgebots Art */}
               <div className="flex items-center gap-3 text-xs pl-6 flex-wrap">
@@ -4598,6 +4624,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                       {row.gebDatum && row.gebDatum !== 'kein Termin' ? (
                         <span className="flex items-center gap-1">
                           <span>{formatDate(row.gebDatum)}</span>
+                          <MinorBadge gebDatum={row.gebDatum} />
                           <button onClick={e => { e.stopPropagation(); copyToClipboard(formatDate(row.gebDatum), `geb-${row.id}`) }} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-primary-500" title="Kopieren">
                             {copiedCell === `geb-${row.id}` ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
                           </button>
@@ -4821,7 +4848,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                 className={`flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
               >
                 <div className="pointer-events-none">
-                  <h2 className="font-bold text-gray-900">Patient aufbieten</h2>
+                  <h2 className="font-bold text-gray-900 flex items-center gap-2">Patient aufbieten <MinorBadge gebDatum={p.gebDatum} /></h2>
                   <p className="text-xs text-gray-500 mt-0.5">{p.vorname} {p.pid && `· #${normalizePid(p.pid)}`} · {p.doctor}</p>
                 </div>
                 <button onClick={() => setAufgebotTarget(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
@@ -5431,6 +5458,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <span className="font-medium text-gray-800 text-sm">{p.vorname || '—'}</span>
                   {p.pid && <span className="text-xs text-gray-400 font-mono">#{normalizePid(p.pid)}</span>}
                   {p.gebDatum && <span className="text-xs text-gray-400">{formatDate(p.gebDatum)}</span>}
+                  <MinorBadge gebDatum={p.gebDatum} />
                   <span
                     onClick={e => { e.stopPropagation(); e.preventDefault(); openArztTage(p.doctor) }}
                     title={`Einsatztage von ${p.doctor} anzeigen`}
@@ -6525,8 +6553,9 @@ const lirisExtractRef  = useRef(lirisExtract)
               className={`flex flex-col gap-0 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
             >
               <div className="flex items-center justify-between px-6 py-4">
-                <h2 className="font-bold text-gray-900 pointer-events-none">
+                <h2 className="font-bold text-gray-900 pointer-events-none flex items-center gap-2">
                   {editTarget === 'new' ? 'Neuer Patient' : 'Patient bearbeiten'}
+                  <MinorBadge gebDatum={form.gebDatum} />
                 </h2>
                 {editTarget !== 'new' && (
                   <>
