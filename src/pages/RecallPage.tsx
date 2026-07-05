@@ -2879,7 +2879,8 @@ const lirisExtractRef  = useRef(lirisExtract)
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;background:#fff}
-  .page{width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
+  .page{position:relative;width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
+  .footer-id{position:absolute;left:2.5cm;right:2.2cm;bottom:.7cm;font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:.15cm;white-space:nowrap}
   .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.1cm}
   .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;max-width:7.5cm}
   .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm}
@@ -2957,6 +2958,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     <p class="gruss">Freundliche Gr&#252;sse</p>
     <p>Augenzentrum Suhr Team</p>
   </div></div>
+
+  <div class="footer-id">Pat.-Nr.: ${escLine(normalizePid(patient.pid) || '—')} &middot; Geb.: ${escLine(formatDate(patient.gebDatum))}</div>
 
 </div>
 </body></html>`
@@ -3177,6 +3180,12 @@ const lirisExtractRef  = useRef(lirisExtract)
         terminSection, vuSection, sehSection, mitbringen,
       ].join('\n')
     }
+
+    // Identifikations-Fussnote: bei E-Mails gibt es keinen Briefkopf mit
+    // Adressfenster — ohne PID/Geburtsdatum lässt sich der Patient bei
+    // Rückfragen (z.B. gleicher Nachname, mehrere Familienmitglieder) nicht
+    // eindeutig zuordnen.
+    body += `\n\n---\nPat.-Nr.: ${normalizePid(patient.pid) || '—'} · Geb.: ${formatDate(patient.gebDatum)}`
 
     // Empfänger: bevorzugt die übergebene Patienten-E-Mail (aus Liris),
     // sonst der Adressblock falls er selbst eine E-Mail ist.
