@@ -4665,7 +4665,6 @@ const lirisExtractRef  = useRef(lirisExtract)
         const ART_BUTTONS: { art: AufgebotArt; variante?: 'terminVerschoben'; Icon: React.ComponentType<{className?:string}>; label: string; sub: string; color: string }[] = [
           { art: 'Brief',    Icon: Mail,  label: 'Briefaufgebot', sub: 'Einladung zu festem Termin',        color: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' },
           { art: 'Reminder', Icon: Bell,  label: 'Reminder',      sub: 'ohne Termin · meldet sich selbst',   color: 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100' },
-          { art: 'Tel',      Icon: Phone, label: 'Telefon',       sub: 'Anruf mit Grundvermerk',             color: 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' },
           { art: 'Brief', variante: 'terminVerschoben', Icon: CalendarClock, label: 'Terminverschiebung', sub: 'Bestätigung des neuen Termins', color: 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' },
         ]
 
@@ -4730,7 +4729,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                             if (pid) openWithPid(pid)
                           }
                         }}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors ${
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors ${variante ? 'col-span-2' : ''} ${
                           isActive ? color + ' border-current' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                         }`}
                       >
