@@ -1,0 +1,44 @@
+# Automatischer Web-Deploy: bei jedem Push auf main wird gebaut und auf
+# Firebase Hosting deployed — niemand kann mehr vergessen zu deployen.
+#
+# Voraussetzung: Repository-Secret FIREBASE_TOKEN (einmalig erzeugen mit
+# `firebase login:ci` auf einem Rechner mit Browser). Fehlt das Secret,
+# wird der Deploy-Schritt sauber uebersprungen (Build laeuft trotzdem als
+# Kompilier-Check).
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build (Kompilier-Check auch ohne Deploy)
+        run: npm run build
+
+      - name: Deploy zu Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::notice::FIREBASE_TOKEN-Secret fehlt — Deploy uebersprungen. Einmalig 'firebase login:ci' ausfuehren und das Token als Repository-Secret FIREBASE_TOKEN hinterlegen."
+            exit 0
+          fi
+          npx firebase-tools deploy --only hosting --project azsdb-999d6 --token "$FIREBASE_TOKEN"

@@ -1,0 +1,54 @@
+# Electron-Desktop-Release per Knopfdruck (GitHub → Actions → Electron
+# Release → "Run workflow"). Ersetzt den lokalen electron:release-Lauf
+# (kein GH_TOKEN-Gefummel, keine Adminrechte, keine manuelle Versionsnummer).
+#
+# - bump=patch/minor: erhoeht die Version in package.json, committet + taggt
+# - baut die Windows-App und veroeffentlicht das GitHub-Release
+# - installierte Desktop-Apps aktualisieren sich danach automatisch (electron-updater)
+name: Electron Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Versions-Bump'
+        type: choice
+        options: [patch, minor, none]
+        default: patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: electron-release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Version bump + Tag
+        if: ${{ inputs.bump != 'none' }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm version ${{ inputs.bump }} -m "Release v%s"
+          git push --follow-tags
+
+      - name: Build Web-Bundle
+        run: npm run build
+
+      - name: Electron bauen & Release veroeffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --publish always
