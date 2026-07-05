@@ -7201,10 +7201,20 @@ const lirisExtractRef  = useRef(lirisExtract)
                             ? form.letzteKons
                             : new Date().toISOString().slice(0, 10)
                           setField('aufgebotErstellt', defaultDate)
+                          // Telefonaufgebot: Telefon-Panel (Grundvermerk,
+                          // Erreicht/Nicht erreicht, Wieder-anrufen-Reminder)
+                          // gleich mitöffnen — spart einen Klick.
+                          if (next === 'Tel') {
+                            setVorgehenTelOpen(true)
+                            setVorgehenTelDatum(defaultDate)
+                            setVorgehenEmailOpen(false)
+                            setVorgehenReminderOpen(false)
+                          }
                         } else {
                           setField('aufgebotErstellt', '')
                           setField('naechsteKons', '')
                           setField('keinTermin', false)
+                          if (value === 'Tel') setVorgehenTelOpen(false)
                         }
                       }}
                       className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
@@ -7441,8 +7451,9 @@ const lirisExtractRef  = useRef(lirisExtract)
               {/* ── Weiteres Vorgehen & Verlauf ──────────────────────────────────
                   Sichtbar wenn: Storno-Grund gesetzt, oder Storniert=nein gewählt
                   (auch ohne Grund — Patient soll dann angerufen/kontaktiert werden),
-                  oder bereits Verlauf-Eintraege existieren. */}
-              {editTarget !== 'new' && ((form.grundStornierung !== '' && form.grundStornierung !== 'Terminverschiebung') || form.storniert === 'nein' || form.verlauf.length > 0) && (
+                  oder bereits Verlauf-Eintraege existieren, oder Telefonaufgebot
+                  gewählt (Erreicht/Nicht erreicht/Grundvermerk/Wieder-anrufen-Reminder). */}
+              {editTarget !== 'new' && ((form.grundStornierung !== '' && form.grundStornierung !== 'Terminverschiebung') || form.storniert === 'nein' || form.verlauf.length > 0 || form.aufgebotArt === 'Tel') && (
                 <div className="pt-3 border-t border-amber-200 bg-amber-50 -mx-6 px-6 pb-4">
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                     <ListChecks className="w-3.5 h-3.5" /> Weiteres Vorgehen
@@ -7451,7 +7462,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                   {/* Contact method toggles – wenn ein Storno-Grund gesetzt (ausser
                       Verstorben/Arztwechsel — bei denen ist Kontakt obsolet) ODER
                       Storniert=nein (Patient soll kontaktiert werden). */}
-                  {((form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel' && form.grundStornierung !== 'Terminverschiebung') || form.storniert === 'nein') && (
+                  {((form.grundStornierung !== '' && form.grundStornierung !== 'Verstorben' && form.grundStornierung !== 'Arztwechsel' && form.grundStornierung !== 'Terminverschiebung') || form.storniert === 'nein' || form.aufgebotArt === 'Tel') && (
                     <>
                       {/* "Weshalb anrufen?" — gehört zum Schritt "Patient anrufen",
                           nicht ins Telefon-Detail-Panel. Wird beim Klick auf die
