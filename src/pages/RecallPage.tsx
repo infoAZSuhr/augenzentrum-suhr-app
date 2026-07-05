@@ -3291,7 +3291,13 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Ablegen läuft eigenständig im Postausgang weiter, ohne Rückfrage.
     try {
       await persistAufgebot(aufgebotTarget.patient, form)
-      reloadLiris()
+      // WICHTIG: Liris NICHT sofort neu laden, wenn ein Brief zum Auto-Upload
+      // im Postausgang liegt — der Import braucht die noch geöffnete
+      // Patientenakte; ein Reload würde sie schliessen und der Upload
+      // schlüge fehl («Patient muss in Liris geöffnet sein»).
+      const briefWirdHochgeladen = (alreadyCreated || willGeneratePdf)
+        && !!(window as any).electronApp?.autoImportToLiris
+      if (!briefWirdHochgeladen) reloadLiris()
       setAufgebotTarget(null)
     } catch {
       toast.error('Fehler beim Speichern. Bitte erneut versuchen.')
