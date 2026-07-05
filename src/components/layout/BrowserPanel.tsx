@@ -836,6 +836,29 @@ export default function BrowserPanel() {
     const wv = webviewRef.current as any
     if (!wv) return
 
+    // executeJavaScript wirft SYNCHRON ("The WebView must be attached to the
+    // DOM and the dom-ready event emitted"), wenn das Webview abgehaengt ist —
+    // z.B. wenn nach Navigation zur Startseite noch Retry-Timer aus diesem
+    // Panel feuern. Ein .catch() am Promise faengt das NICHT ab. Einmal
+    // zentral wrappen: nicht angehaengt/nicht bereit -> still null liefern.
+    // (Idempotent dank __azSafeExec-Flag; getWebContentsId analog.)
+    if (!wv.__azSafeExec && typeof wv.executeJavaScript === 'function') {
+      wv.__azSafeExec = true
+      const origExec = wv.executeJavaScript.bind(wv)
+      wv.executeJavaScript = (...args: unknown[]) => {
+        try {
+          if (!wv.isConnected) return Promise.resolve(null)
+          return origExec(...args)
+        } catch { return Promise.resolve(null) }
+      }
+      const origGetId = typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId.bind(wv) : null
+      if (origGetId) {
+        wv.getWebContentsId = () => {
+          try { return wv.isConnected ? origGetId() : null } catch { return null }
+        }
+      }
+    }
+
     // Klick-Listener im Liris-Kalender: erkennt PID des angeklickten Patienten
     // und meldet sie via console.log('__AZ_PID__:<pid>') zurueck an den Host.
     // Sucht die PID im angeklickten Element und bis zu 8 Eltern-Ebenen:
