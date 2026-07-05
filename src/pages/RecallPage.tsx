@@ -3259,18 +3259,20 @@ const lirisExtractRef  = useRef(lirisExtract)
       ].join('\n')
     } else {
       const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
-      // KEIN Box-Drawing (┌─┐ etc.) mehr: die ~90 Unicode-Linienzeichen blaehten
-      // die mailto-URL um ~800 kodierte Zeichen auf und rissen das Windows-
-      // Limit (~2000) — Outlook oeffnete dann stillschweigend NICHT.
+      // Termin-Kasten (Box-Drawing) — bewusst SCHMAL gehalten und der Text
+      // darunter kompakt formuliert: jedes ─-Zeichen kostet in der mailto-URL
+      // 9 kodierte Zeichen; ueber ~2000 verwirft Windows den Aufruf still
+      // (Outlook oeffnet nicht). Gesamtlaenge wird unten geloggt/gewarnt.
       const terminBox = terminZeile ? [
-        '📅 IHR TERMIN',
-        `    ${terminZeile}`,
+        '  ┌─ 📅 IHR TERMIN ' + '─'.repeat(12) + '┐',
+        `  │  ${terminZeile}`,
+        '  └' + '─'.repeat(30) + '┘',
       ].join('\n') : ''
       const terminSection = terminZeile ? [
         '',
         terminBox,
         '',
-        'Bei Terminänderung bitten wir um Rückmeldung bis spätestens 24 Std. vorher:',
+        'Terminänderung? Bitte bis spätestens 24 Std. vorher melden:',
         '',
         kontakt,
       ].join('\n') : [
@@ -3279,24 +3281,15 @@ const lirisExtractRef  = useRef(lirisExtract)
         '',
         kontakt,
       ].join('\n')
-      const vuSection = vuItems.length > 0 ? [
-        '',
-        'Zusätzlich geplante Voruntersuchungen:',
-        ...vuItems.map(v => `  →  ${v}`),
-      ].join('\n') : ''
+      const vuSection = vuItems.length > 0
+        ? `\nGeplante Voruntersuchungen: ${vuItems.join(', ')}`
+        : ''
       const sehSection = hasZykloplegie
-        ? '\n⚠  Wichtiger Hinweis: Für diesen Termin ist eine Zykloplegie (Pupillenerweiterung mit\n   Augentropfen) geplant. Die Sehleistung kann danach für 12–24 Std. beeinträchtigt sein.\n   Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
+        ? '\n⚠ Zykloplegie (Pupillenerweiterung) geplant: Sehleistung danach 12–24 Std. beeinträchtigt — kein Fahrzeug lenken, Sonnenbrille mitbringen.'
         : form.pupille
-          ? '\n⚠  Wichtiger Hinweis: Für diesen Termin ist eine Pupillenerweiterung mit Augentropfen\n   geplant. Die Sehleistung ist danach ca. 4–6 Std. eingeschränkt.\n   Bitte kein Fahrzeug lenken und eine Sonnenbrille mitbringen.'
+          ? '\n⚠ Pupillenerweiterung geplant: Sehleistung danach ca. 4–6 Std. eingeschränkt — kein Fahrzeug lenken, Sonnenbrille mitbringen.'
           : ''
-      const mitbringen = [
-        '',
-        'Bitte mitbringen:',
-        '  →  Brille / Kontaktlinsen (KL bitte vor dem Termin entfernen)',
-        '  →  Aktuelle Medikamentenliste',
-        '  →  Krankenkassenausweis',
-        ...(form.pupille ? ['  →  Sonnenbrille (empfohlen)'] : []),
-      ].join('\n')
+      const mitbringen = `\nBitte mitbringen: Brille/Kontaktlinsen (vor dem Termin entfernen), Medikamentenliste, Krankenkassenausweis${form.pupille ? ', Sonnenbrille' : ''}.`
       const introLineEmail = form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
         : form.briefVariante === 'terminVerschoben'
