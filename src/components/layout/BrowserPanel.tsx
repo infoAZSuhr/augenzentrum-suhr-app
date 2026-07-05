@@ -497,11 +497,28 @@ export default function BrowserPanel() {
         for (let i = 0; i < 16 && !fieldDa; i++) {
           await sleep(450)
           fieldDa = await wv.executeJavaScript(`!!document.querySelector('input[placeholder*="atientensuche"]')`).catch(() => false)
-          if (!fieldDa && !navigatedHome && i === 3 && defaultUrl) {
-            console.log('[TerminAnlegen] Suchfeld nicht gefunden — navigiere zur Liris-Startseite (Terminkalender)')
+          if (!fieldDa && !navigatedHome && i === 3) {
             navigatedHome = true
-            navigate(defaultUrl)
-            await sleep(1200) // Navigation + Nachladen abwarten, bevor weiter gepollt wird
+            // User ist z.B. in einer Patientenakte: zum Terminkalender springen.
+            // 1) Bevorzugt Liris-INTERN navigieren (Kalender-/Home-Link klicken)
+            //    — SPA-Routing, kein Reload, das Todo bleibt erhalten.
+            const clicked = await wv.executeJavaScript(`(function(){
+              var as = [].slice.call(document.querySelectorAll('a[href]'));
+              var cand = as.find(function(a){
+                var h = a.getAttribute('href') || '';
+                return h === '/' || /agenda|calendar|termin/i.test(h);
+              });
+              if (cand) { cand.click(); return true; }
+              return false;
+            })()`).catch(() => false)
+            console.log('[TerminAnlegen] Suchfeld nicht gefunden — Kalender-Link geklickt:', clicked)
+            // 2) Fallback: harter Reload der Startseite (verliert SPA-State,
+            //    aber besser als gar keine Navigation).
+            if (!clicked && defaultUrl) {
+              console.log('[TerminAnlegen] Kein Kalender-Link — lade Startseite hart neu')
+              try { (wv as { loadURL?: (u: string) => Promise<void> }).loadURL?.(defaultUrl) } catch { /* ignore */ }
+            }
+            await sleep(1500) // Navigation + Nachladen abwarten, bevor weiter gepollt wird
           }
         }
         console.log('[TerminAnlegen] Patient-Feld da:', fieldDa)
