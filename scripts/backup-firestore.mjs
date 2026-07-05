@@ -24,18 +24,64 @@ const KEEP = 30
 const PREFIX = 'azs-firestore-'
 
 // ── Credentials ──────────────────────────────────────────────────────────
+// Reihenfolge: 1) Service-Account (Env), 2) Login der Firebase CLI auf
+// dieser Maschine (firebase-tools speichert einen Refresh-Token unter
+// %APPDATA%/configstore/firebase-tools.json — das Admin SDK kann damit
+// direkt authentifizieren, kein Schluessel-Download noetig).
+import { readFileSync, writeFileSync } from 'node:fs'
+
+// Oeffentliche OAuth-Client-Daten der Firebase CLI (in firebase-tools
+// einkompiliert, kein Geheimnis) — noetig fuer den Refresh-Token-Flow.
+const FIREBASE_CLI_CLIENT_ID = '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com'
+const FIREBASE_CLI_CLIENT_SECRET = 'j9iVZfS8kkCEFUPaAeJV0sAi'
+
+function prepareCliAdcFile() {
+  // configstore nutzt den XDG-Pfad (~/.config/configstore), aeltere
+  // Versionen %APPDATA%/configstore — beide probieren.
+  const candidates = [
+    path.join(os.homedir(), '.config', 'configstore', 'firebase-tools.json'),
+    path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'configstore', 'firebase-tools.json'),
+  ]
+  let cfg = null
+  for (const p of candidates) {
+    try { cfg = JSON.parse(readFileSync(p, 'utf8')); break } catch { /* naechsten Pfad probieren */ }
+  }
+  if (!cfg) throw new Error('firebase-tools.json nicht gefunden — `firebase login` ausfuehren')
+  const rt = cfg?.tokens?.refresh_token
+  if (!rt) throw new Error('Kein refresh_token in firebase-tools.json')
+  // Firestore im Admin SDK akzeptiert refreshToken-Credentials nicht direkt —
+  // wohl aber via Application-Default-Credentials-Datei im
+  // "authorized_user"-Format. Diese hier aus dem CLI-Login erzeugen.
+  const adc = {
+    type: 'authorized_user',
+    client_id: FIREBASE_CLI_CLIENT_ID,
+    client_secret: FIREBASE_CLI_CLIENT_SECRET,
+    refresh_token: rt,
+    quota_project_id: PROJECT_ID,
+  }
+  const adcPath = path.join(os.homedir(), '.config', 'azs-backup-adc.json')
+  writeFileSync(adcPath, JSON.stringify(adc), 'utf8')
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath
+}
+
 let credential
 if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   credential = admin.credential.applicationDefault()
 } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
 } else {
-  console.error('\n❌ Fehler: keine Service-Account-Credentials gefunden.')
-  console.error('   Setze GOOGLE_APPLICATION_CREDENTIALS (Pfad zur JSON-Datei)')
-  console.error('   oder FIREBASE_SERVICE_ACCOUNT (JSON-Inhalt).')
-  console.error('   Service-Account-Key: Firebase Console → Projekteinstellungen →')
-  console.error('   Dienstkonten → Neuen privaten Schluessel generieren.\n')
-  process.exit(1)
+  try {
+    prepareCliAdcFile()
+    credential = admin.credential.applicationDefault()
+    console.log('ℹ Verwende Firebase-CLI-Login (kein Service-Account gesetzt).')
+  } catch (e) {
+    console.error('\n❌ Fehler: keine Credentials gefunden.')
+    console.error('   Option A: `firebase login` auf dieser Maschine ausfuehren, oder')
+    console.error('   Option B: GOOGLE_APPLICATION_CREDENTIALS (Pfad zur Service-')
+    console.error('   Account-JSON) bzw. FIREBASE_SERVICE_ACCOUNT (Inhalt) setzen.')
+    console.error('   (' + (e && e.message) + ')\n')
+    process.exit(1)
+  }
 }
 admin.initializeApp({ credential, projectId: PROJECT_ID })
 const db = getFirestore()
