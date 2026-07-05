@@ -5342,6 +5342,39 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <button onClick={() => { setAufgebotTarget(null); setAufgebotConfirmPending(false) }} className="btn btn-secondary text-sm">
                     Abbrechen
                   </button>
+                  {/* Nur Datum eintragen — Brief wurde bereits anderweitig
+                      erstellt/versendet. Setzt Art + Erstellt-Datum, ohne
+                      PDF/E-Mail zu generieren. */}
+                  {(af.art === 'Brief' || af.art === 'Reminder') && (
+                    <button
+                      onClick={async () => {
+                        if (!aufgebotTarget || aufgebotSaving) return
+                        setAufgebotSaving(true)
+                        try {
+                          const effArt = af.art === 'Brief' && !af.terminDatum ? 'Reminder' : af.art
+                          await updateRecallPatient(aufgebotTarget.patient.id, {
+                            aufgebotArt: effArt,
+                            aufgebotErstellt: new Date().toISOString().slice(0, 10),
+                            aufgebotFuer: null,
+                            rcErstellt: true,
+                            excelAbgeglichen: true,
+                          } as any, displayLabel)
+                          await reloadAllTabs()
+                          toast.success('Datum eingetragen (ohne Brief).')
+                          setAufgebotTarget(null)
+                        } catch {
+                          toast.error('Speichern fehlgeschlagen. Bitte erneut versuchen.')
+                        } finally {
+                          setAufgebotSaving(false)
+                        }
+                      }}
+                      disabled={aufgebotSaving}
+                      title="Kein Brief/keine E-Mail erstellen — nur Aufgebotsart und Datum beim Patienten eintragen"
+                      className="btn btn-secondary text-sm disabled:opacity-40"
+                    >
+                      Nur Datum eintragen
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       if (af.versand === 'Email' || af.versand === 'Post') {
@@ -7292,7 +7325,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                         setEditTarget(null)
                       }
                     }}
-                    title={editTarget === 'new' ? 'Erst nach dem Anlegen des Patienten verfügbar' : 'Aufbieten-Dialog öffnen (Briefaufgebot / Reminder / Terminverschiebung)'}
+                    title={editTarget === 'new' ? 'Erst nach dem Anlegen des Patienten verfügbar' : 'Aufbieten-Dialog öffnen (Briefaufgebot / Reminder / Terminverschiebung) — dort auch «Nur Datum eintragen» möglich'}
                     className={`flex-[2] flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-40 ${
                       form.aufgebotArt === 'Brief' || form.aufgebotArt === 'Reminder'
                         ? 'border-primary-500 bg-primary-50 text-primary-700'
