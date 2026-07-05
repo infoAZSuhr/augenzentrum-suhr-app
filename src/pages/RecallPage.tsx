@@ -3320,7 +3320,12 @@ const lirisExtractRef  = useRef(lirisExtract)
     if (mailtoUrl.length > 1950) {
       toast.warning('E-Mail-Text ist sehr lang — falls sich Outlook nicht öffnet, bitte Text kürzen (z.B. weniger Voruntersuchungen).')
     }
-    window.location.href = mailtoUrl
+    // WICHTIG: window.open statt location.href — in der Electron-Desktop-App
+    // wird eine location.href-Navigation auf mailto: STILL verschluckt
+    // (kein will-navigate-Handler); window.open laeuft ueber den
+    // setWindowOpenHandler und landet via shell.openExternal in Outlook.
+    // (Gleicher Mechanismus wie bei der Berichtsanfrage im ZW-Management.)
+    try { window.open(mailtoUrl) } catch { window.location.href = mailtoUrl }
 
     setEmailCopied(true)
     setTimeout(() => setEmailCopied(false), 4000)
