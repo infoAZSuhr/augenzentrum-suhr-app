@@ -4754,10 +4754,14 @@ const lirisExtractRef  = useRef(lirisExtract)
         )
         const livePreviewHtml = (af.art === 'Brief' || af.art === 'Reminder') ? buildBriefHtml(p, af) : null
 
-        const ART_BUTTONS: { art: AufgebotArt; Icon: React.ComponentType<{className?:string}>; label: string; sub: string; color: string }[] = [
+        // Terminverschiebung ist technisch ein Briefaufgebot mit der Variante
+        // 'terminVerschoben' — als eigene Karte, damit der Ablauf gleich
+        // funktioniert wie Briefaufgebot/Reminder (Adresse, Versand, Vorschau).
+        const ART_BUTTONS: { art: AufgebotArt; variante?: 'terminVerschoben'; Icon: React.ComponentType<{className?:string}>; label: string; sub: string; color: string }[] = [
           { art: 'Brief',    Icon: Mail,  label: 'Briefaufgebot', sub: 'Einladung zu festem Termin',        color: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' },
           { art: 'Reminder', Icon: Bell,  label: 'Reminder',      sub: 'ohne Termin · meldet sich selbst',   color: 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100' },
           { art: 'Tel',      Icon: Phone, label: 'Telefon',       sub: 'Anruf mit Grundvermerk',             color: 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' },
+          { art: 'Brief', variante: 'terminVerschoben', Icon: CalendarClock, label: 'Terminverschiebung', sub: 'Bestätigung des neuen Termins', color: 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' },
         ]
 
         return (
@@ -4804,29 +4808,33 @@ const lirisExtractRef  = useRef(lirisExtract)
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aufgebots-Art</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {ART_BUTTONS.map(({ art, Icon, label, sub, color }) => (
+                    {ART_BUTTONS.map(({ art, variante, Icon, label, sub, color }) => {
+                      const isVerschiebungAktiv = af.briefVariante === 'terminVerschoben'
+                      const isActive = af.art === art && (variante ? isVerschiebungAktiv : !(art === 'Brief' && isVerschiebungAktiv))
+                      return (
                       <button
-                        key={art}
+                        key={art + (variante ?? '')}
                         onClick={() => {
-                          const next = af.art === art ? null : art
-                          setAf({ art: next, versand: '', notiz: '', pupille: false })
-                          // Bei Brief ODER Reminder -> Liris-Akte oeffnen, damit
-                          // Anrede/Adresse via lirisExtract-Handler ins Formular
-                          // gefuellt werden. Tel braucht das nicht.
+                          const next = isActive ? null : art
+                          setAf({ art: next, briefVariante: next && variante ? variante : '', versand: '', notiz: '', pupille: false })
+                          // Bei Brief ODER Reminder (inkl. Verschiebung) -> Liris-Akte
+                          // oeffnen, damit Anrede/Adresse via lirisExtract-Handler ins
+                          // Formular gefuellt werden. Tel braucht das nicht.
                           if ((next === 'Brief' || next === 'Reminder') && aufgebotTarget) {
                             const pid = normalizePid(aufgebotTarget.patient.pid)
                             if (pid) openWithPid(pid)
                           }
                         }}
                         className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors ${
-                          af.art === art ? color + ' border-current' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                          isActive ? color + ' border-current' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                         }`}
                       >
                         <Icon className="w-5 h-5" />
                         <span className="text-xs font-semibold leading-tight">{label}</span>
                         <span className="text-[10px] opacity-70 leading-tight">{sub}</span>
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -4848,7 +4856,10 @@ const lirisExtractRef  = useRef(lirisExtract)
                 {/* Brief- & Reminder-Felder (Adresse/Versand gemeinsam) */}
                 {(af.art === 'Brief' || af.art === 'Reminder') && (
                   <>
-                    {/* Variante — gilt für Briefaufgebot UND Reminder */}
+                    {/* Variante — gilt für Briefaufgebot UND Reminder.
+                        Terminverschiebung hat eine eigene Art-Karte oben und
+                        blendet die Varianten-Auswahl aus. */}
+                    {af.briefVariante !== 'terminVerschoben' && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Variante</p>
                       <div className="flex gap-2">
@@ -4856,7 +4867,6 @@ const lirisExtractRef  = useRef(lirisExtract)
                           ['', 'Normal', 'Übliche Einladung / Erinnerung zur Kontrolle'],
                           ['neuerArzt', 'Neuen Arzt vorschlagen', 'Bestehender Patient: neuen Arzt vorschlagen/erwähnen (früherer Arzt nicht mehr in der Praxis)'],
                           ['terminVerpasst', 'Termin verpasst', 'Patient hat Termin nicht wahrgenommen – Bitte um Rückmeldung / CHF 80 Ausfallgebühr'],
-                          ['terminVerschoben', 'Terminverschiebung', 'Bestehender Termin wurde verschoben – Bestätigung des neuen Termins (nur Briefaufgebot mit Termindatum)'],
                         ] as const).map(([v, label, hint]) => (
                           <button key={v || 'std'} type="button" title={hint}
                             onClick={() => setAf({ briefVariante: v })}
@@ -4875,6 +4885,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                         </div>
                       )}
                     </div>
+                    )}
 
                     {/* Verpasstes Datum bei «Termin verpasst»-Variante */}
                     {af.briefVariante === 'terminVerpasst' && (
