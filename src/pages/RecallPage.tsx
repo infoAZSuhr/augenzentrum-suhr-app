@@ -678,7 +678,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
-    briefVariante: '' | 'neuerArzt' | 'terminVerpasst'   // Brief-Textvariante ('' = Standard)
+    briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben'   // Brief-Textvariante ('' = Standard)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
     vertreterModus: boolean           // Erwachsener Patient mit gesetzlichem Vertreter — Brief geht an den Vertreter, nicht direkt an den Patienten (analog Minderjährige)
   }
@@ -2877,6 +2877,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         : ``
 
     const title = form.briefVariante === 'terminVerpasst' ? 'Ihr verpasster Termin &#8211; Bitte um kurze R&#252;ckmeldung'
+      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung &#8211; Best&#228;tigung Ihres neuen Termins'
       : isReminder ? 'Erinnerung &#8211; Augenkontrolle'
       : hasTermin ? 'Terminvorschlag f&#252;r die Routine Augenkontrolle'
       : 'Einladung zur Augenkontrolle'
@@ -2903,7 +2904,10 @@ const lirisExtractRef  = useRef(lirisExtract)
     const introStandard = `<p>Gem&#228;ss unseren Unterlagen steht eine Augenkontrolle <strong>${pupTxt}</strong> bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''} an.</p>`
     const frueherArztTxt = escLine(form.frueherArzt.trim())
     const introNeuerArzt = `<p>Gem&#228;ss unseren Unterlagen w&#228;re bei Ihnen wieder eine Kontrolle f&#228;llig.${frueherArztTxt ? ` Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ` Gerne schlagen wir Ihnen folgenden Termin vor:`}</p>`
-    const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt : introStandard
+    const introVerschoben = `<p>Gerne best&#228;tigen wir Ihnen die <strong>Verschiebung Ihres Termins</strong>. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
+    const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt
+      : form.briefVariante === 'terminVerschoben' ? introVerschoben
+      : introStandard
     // Reminder-Variante «Neuen Arzt vorschlagen»: zusätzlicher Hinweis-Absatz.
     const reminderArztHinweis = form.briefVariante === 'neuerArzt'
       ? (frueherArztTxt
@@ -3175,6 +3179,7 @@ const lirisExtractRef  = useRef(lirisExtract)
 
     const subject = isReminder
       ? 'Erinnerung – Augenkontrolle'
+      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
       : terminZeile ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
 
     // ── Formatierter Plaintext + direkt Outlook öffnen via mailto ────────────
@@ -3270,7 +3275,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       ].join('\n')
       const introLineEmail = form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
-        : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
+        : form.briefVariante === 'terminVerschoben'
+          ? `Gerne bestätigen wir Ihnen die Verschiebung Ihres Termins. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
+          : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
       body = [
         salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
@@ -4849,6 +4856,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           ['', 'Normal', 'Übliche Einladung / Erinnerung zur Kontrolle'],
                           ['neuerArzt', 'Neuen Arzt vorschlagen', 'Bestehender Patient: neuen Arzt vorschlagen/erwähnen (früherer Arzt nicht mehr in der Praxis)'],
                           ['terminVerpasst', 'Termin verpasst', 'Patient hat Termin nicht wahrgenommen – Bitte um Rückmeldung / CHF 80 Ausfallgebühr'],
+                          ['terminVerschoben', 'Terminverschiebung', 'Bestehender Termin wurde verschoben – Bestätigung des neuen Termins (nur Briefaufgebot mit Termindatum)'],
                         ] as const).map(([v, label, hint]) => (
                           <button key={v || 'std'} type="button" title={hint}
                             onClick={() => setAf({ briefVariante: v })}
@@ -7215,27 +7223,34 @@ const lirisExtractRef  = useRef(lirisExtract)
               <div>
                 <label className={labelCls}>Aufgebot{changedFields.has('aufgebotArt') && <span className="ml-1.5 text-amber-600">●</span>}</label>
                 <div className={`flex gap-2${changedFields.has('aufgebotArt') ? ' p-1 -m-1 rounded-lg ring-2 ring-amber-300 bg-amber-50' : ''}`}>
-                  {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => (
+                  {/* Briefaufgebot + Reminder + Terminverschiebung zusammengefasst:
+                      EIN Button, der direkt das Aufbieten-Modal oeffnet (dort
+                      waehlt der User Art und Variante). */}
+                  <button
+                    type="button"
+                    disabled={!editTarget || editTarget === 'new'}
+                    onClick={() => {
+                      if (editTarget && editTarget !== 'new') {
+                        openAufgebotDialog({ patient: editTarget })
+                        setEditTarget(null)
+                      }
+                    }}
+                    title={editTarget === 'new' ? 'Erst nach dem Anlegen des Patienten verfügbar' : 'Aufbieten-Dialog öffnen (Briefaufgebot / Reminder / Terminverschiebung)'}
+                    className={`flex-[2] flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-40 ${
+                      form.aufgebotArt === 'Brief' || form.aufgebotArt === 'Reminder'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    Aufbieten/Reminder/Verschiebung
+                  </button>
+                  {AUFGEBOT_OPTIONS.filter(o => o.value === 'Tel' || o.value === 'Praxis').map(({ value, Icon, label }) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => {
                         const next = form.aufgebotArt === value ? '' : value
-                        // Briefaufgebot/Reminder: nachfragen, ob der Brief erstellt
-                        // werden soll (Dialog) ODER nur das Datum eingetragen wird
-                        // (inline, ohne Brief). OK = Brief erstellen, Abbrechen = nur Datum.
-                        if ((next === 'Brief' || next === 'Reminder') && editTarget && editTarget !== 'new') {
-                          const artLabel = next === 'Brief' ? 'Briefaufgebot' : 'Reminder'
-                          const br_erstellen = window.confirm(
-                            `${artLabel}: Brief jetzt erstellen?\n\nOK = Brief erstellen (Dialog mit Adresse/Vorschau)\nAbbrechen = nur Datum eintragen (ohne Brief)`
-                          )
-                          if (br_erstellen) {
-                            openAufgebotDialog({ patient: editTarget }, next)
-                            setEditTarget(null)
-                            return
-                          }
-                          // sonst: weiter unten nur Datum eintragen (inline)
-                        }
                         setField('aufgebotArt', next)
                         if (next) {
                           // Aufgebotsart gewählt (Reminder/Tel/Praxis) → das

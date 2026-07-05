@@ -548,9 +548,15 @@ export default function BrowserPanel() {
           var el = document.querySelector('input[placeholder*="atientensuche"]');
           if (!el) return 'no-input';
           var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-          setter.call(el, ${JSON.stringify('#' + pid)});
+          // Cache-Bust: erst leeren, dann tippen — erzwingt frische
+          // Autocomplete-Abfrage (sonst zeigt Liris veraltete Termine).
+          setter.call(el, '');
           el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
+          setTimeout(function() {
+            setter.call(el, ${JSON.stringify('#' + pid)});
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, 150);
 
           var pidStr = ${JSON.stringify(pid)};
           function isVisible(node) {
@@ -1437,10 +1443,19 @@ export default function BrowserPanel() {
           var proto = Object.getPrototypeOf(el);
           var desc = Object.getOwnPropertyDescriptor(proto, 'value');
           var setter = desc && desc.set;
-          if (setter) setter.call(el, ${JSON.stringify(pid)});
-          else el.value = ${JSON.stringify(pid)};
-          el.dispatchEvent(new Event('input',  { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
+          // Cache-Bust: Feld ERST leeren (mit input-Event), dann neu tippen.
+          // Bleibt der Wert gleich, fragt das Liris-Autocomplete den Server
+          // nicht neu ab und zeigt veraltete Termine (z.B. nach Termin-
+          // Anlage/-Loeschung). Leeren+Neutippen erzwingt eine frische Abfrage
+          // — ohne das ganze Liris neu zu laden.
+          if (setter) setter.call(el, ''); else el.value = '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          setTimeout(function() {
+            if (setter) setter.call(el, ${JSON.stringify(pid)});
+            else el.value = ${JSON.stringify(pid)};
+            el.dispatchEvent(new Event('input',  { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, 150);
           // KEIN el.focus() — würde den Tastatur-Fokus ins Liris-Webview ziehen und
           // Eingaben in App-Feldern (Suche/Bearbeiten) blockieren. Das Autocomplete
           // reagiert auf das input-Event auch ohne Fokus; die Treffer-Auswahl unten
