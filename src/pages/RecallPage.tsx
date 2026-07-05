@@ -4985,7 +4985,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                           Adresse <span className="text-amber-600 font-normal normal-case">(nicht gespeichert · hineinziehen oder einfügen)</span>
                         </p>
-                        {!af.adressBlock.trim() && (
+                        {isElectron && !af.adressBlock.trim() && (
                           <button type="button"
                             onClick={() => { const pid = normalizePid(p.pid); if (pid) { toast.info('Liris wird erneut ausgelesen…'); openWithPid(pid) } }}
                             className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 hover:underline shrink-0"
@@ -5318,14 +5318,17 @@ const lirisExtractRef  = useRef(lirisExtract)
                   )}
                 </div>
               </button>
-              <button
-                onClick={() => startTerminFlow(p)}
-                title="Termin anlegen"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shrink-0"
-              >
-                <CalendarClock className="w-3.5 h-3.5" />
-                Termin
-              </button>
+              {/* Termin-anlegen steuert das Liris-Webview — nur in der Desktop-App möglich. */}
+              {isElectron && (
+                <button
+                  onClick={() => startTerminFlow(p)}
+                  title="Termin anlegen"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shrink-0"
+                >
+                  <CalendarClock className="w-3.5 h-3.5" />
+                  Termin
+                </button>
+              )}
               {p.patientenStatus === 'kein Aufgebot' ? (
                 <button
                   onClick={() => openAufgebotDialog(entry, 'Reminder')}
