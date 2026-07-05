@@ -61,11 +61,11 @@ export default function PostausgangPanel() {
   }
 
   // Hochgeladene UND gedruckte Briefe automatisch entfernen — gilt für
-  // Aufgebot UND Reminder. Trägt das Item ein Aufgebot-Payload, wird erst
-  // entfernt, NACHDEM der Patient als aufgeboten/Reminder markiert wurde
-  // (recallSaved) — sonst ginge die Markierung beim Entfernen verloren.
+  // Aufgebot UND Reminder. Das 'aufgeboten markieren' selbst passiert bereits
+  // beim Klick auf Per Post/Per E-Mail (RecallPage), unabhängig vom
+  // Upload-/Druckstatus dieses Postausgang-Items.
   useEffect(() => {
-    const done = items.filter(it => it.uploaded && (it.printed || it.skipPrint) && (!it.aufgebot || it.recallSaved))
+    const done = items.filter(it => it.uploaded && (it.printed || it.skipPrint))
     if (done.length === 0) return
     done.forEach(it => remove(it.id))
   }, [items, remove])

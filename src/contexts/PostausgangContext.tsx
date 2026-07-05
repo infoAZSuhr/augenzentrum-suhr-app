@@ -16,8 +16,11 @@ export interface PostausgangItem {
   autoUpload?: boolean        // true → Postausgang-Panel importiert automatisch ins Liris
   skipPrint?: boolean         // true → Brief wurde per E-Mail versendet, muss NICHT gedruckt werden (nur Liris-Upload)
   versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
-  recallSaved?: boolean       // true sobald der Recall-Patient als 'aufgeboten' markiert wurde
-  aufgebot?:   unknown        // Payload (patient + form) fuer das automatische 'aufgeboten markieren'
+  // Payload (patient + form) — nur noch fuer die "Haengende Briefe"-Anzeige
+  // im Sicherheitsnetz. Das 'aufgeboten markieren' selbst passiert seit dem
+  // Klick auf Per Post/Per E-Mail sofort (nicht mehr abhaengig vom Liris-
+  // Upload dieses Postausgang-Items).
+  aufgebot?:   unknown
   createdAt:   number
 }
 
@@ -28,7 +31,6 @@ interface PostausgangContextType {
   markUploaded: (id: string) => void
   markPrinted: (ids: string[]) => void
   markVersendet: (ids: string[]) => void
-  markRecallSaved: (id: string) => void
   clear: () => void
 }
 
@@ -39,7 +41,6 @@ const PostausgangContext = createContext<PostausgangContextType>({
   markUploaded: () => {},
   markPrinted: () => {},
   markVersendet: () => {},
-  markRecallSaved: () => {},
   clear: () => {},
 })
 
@@ -112,10 +113,6 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     setItems(prev => prev.map(i => set.has(i.id) ? { ...i, versendet: true } : i))
   }, [])
 
-  const markRecallSaved = useCallback((id: string) => {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, recallSaved: true } : i))
-  }, [])
-
   const clear = useCallback(() => {
     if (electronApi?.deletePdfTmp) {
       items.forEach(i => { if (i.tmpPath) electronApi.deletePdfTmp!(i.tmpPath).catch(() => {}) })
@@ -137,7 +134,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
   }, [pendingCount])
 
   return (
-    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markPrinted, markVersendet, markRecallSaved, clear }}>
+    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markPrinted, markVersendet, clear }}>
       {children}
     </PostausgangContext.Provider>
   )

@@ -630,7 +630,6 @@ const lirisExtractRef  = useRef(lirisExtract)
   }, [location.search, navigate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [aufgebotSaving,        setAufgebotSaving]        = useState(false)
-  const [aufgebotConfirmPending, setAufgebotConfirmPending] = useState(false)
   const [briefPreview, setBriefPreview] = useState<string | null>(null)
   const [doctorFachtitelMap, setDoctorFachtitelMap] = useState<Record<string, string>>({})
   const [doctorFotoMap, setDoctorFotoMap] = useState<Record<string, string>>({})
@@ -3267,33 +3266,31 @@ const lirisExtractRef  = useRef(lirisExtract)
     await reloadAllTabs()
   }
 
-  async function handleAufgebotSave() {
-    if (!aufgebotTarget || !aufgebotForm.art) return
-    setAufgebotConfirmPending(false)
+  // `formOverride`/`pdfAlreadyCreated` werden von den Per-Post/Per-E-Mail-
+  // Buttons übergeben: setAf() aktualisiert den State asynchron, ein direkt
+  // im selben Klick-Handler folgender Aufruf würde sonst noch den ALTEN
+  // (veralteten) aufgebotForm-Stand sehen (React-Closure, kein Re-Render
+  // zwischen den beiden Aufrufen).
+  async function handleAufgebotSave(formOverride?: AufgebotForm, pdfAlreadyCreated?: boolean) {
+    const form = formOverride ?? aufgebotForm
+    if (!aufgebotTarget || !form.art) return
     setAufgebotSaving(true)
     // PDF erzeugen und in den Postausgang legen NUR bei Post-Versand.
     // Bei E-Mail-Versand wird kein PDF im Postausgang abgelegt (Brief liegt in Liris via Outlook).
     // NUR wenn nicht schon per «Per Post (PDF)»-Button erzeugt — sonst doppelt im Postausgang.
-    const willGeneratePdf = !aufgebotPdfCreated && aufgebotForm.versand === 'Post' && (
-      (aufgebotForm.art === 'Brief' && aufgebotForm.terminDatum) ||
-      aufgebotForm.art === 'Reminder'
+    const alreadyCreated = pdfAlreadyCreated ?? aufgebotPdfCreated
+    const willGeneratePdf = !alreadyCreated && form.versand === 'Post' && (
+      (form.art === 'Brief' && form.terminDatum) ||
+      form.art === 'Reminder'
     )
     if (willGeneratePdf) {
-      try { generateBriefPDF(aufgebotTarget.patient, aufgebotForm) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
+      try { generateBriefPDF(aufgebotTarget.patient, form) } catch (e) { console.warn('[handleAufgebotSave] PDF-Gen fehlgeschlagen', e) }
     }
-    // Reihenfolge: Wenn ein Brief in den Postausgang gelegt wurde UND der
-    // Liris-Auto-Upload verfügbar ist (Desktop-App), wird der Patient ERST
-    // NACH erfolgreicher Liris-Ablage als aufgeboten/Reminder markiert — das
-    // erledigt der Post-Upload-Effekt (it.uploaded → persistAufgebot). Sonst
-    // (Web / Tel / Praxis ohne Brief) wie bisher sofort markieren.
-    const briefImPostausgang = aufgebotPdfCreated || willGeneratePdf
-    const wirdAutoHochgeladen = briefImPostausgang && !!(window as any).electronApp?.autoImportToLiris
+    // «Als aufgeboten markieren» geschieht IMMER sofort, unabhängig davon ob
+    // der Brief bereits gedruckt/ins Liris hochgeladen wurde — das Drucken/
+    // Ablegen läuft eigenständig im Postausgang weiter, ohne Rückfrage.
     try {
-      if (!wirdAutoHochgeladen) {
-        await persistAufgebot(aufgebotTarget.patient, aufgebotForm)
-      } else {
-        toast.info('Brief wird zuerst ins Liris hochgeladen — danach wird automatisch als aufgeboten markiert.')
-      }
+      await persistAufgebot(aufgebotTarget.patient, form)
       reloadLiris()
       setAufgebotTarget(null)
     } catch {
@@ -3302,30 +3299,6 @@ const lirisExtractRef  = useRef(lirisExtract)
       setAufgebotSaving(false)
     }
   }
-
-  // Auto-'aufgeboten markieren': sobald ein Postausgang-Brief verarbeitet
-  // ist (ins Liris hochgeladen ODER per E-Mail an die Praxis versandt) und
-  // ein Aufgebot-Payload traegt, wird der Recall-Patient automatisch als
-  // aufgeboten markiert.
-  useEffect(() => {
-    const pending = postausgang.items.filter(it =>
-      (it.uploaded || it.versendet) && it.aufgebot && !it.recallSaved
-    )
-    if (pending.length === 0) return
-    ;(async () => {
-      for (const it of pending) {
-        const payload = it.aufgebot as { patient: RecallPatient; form: AufgebotForm } | undefined
-        if (!payload?.patient || !payload?.form) { postausgang.markRecallSaved(it.id); continue }
-        try {
-          await persistAufgebot(payload.patient, payload.form)
-          postausgang.markRecallSaved(it.id)
-        } catch (e) {
-          console.warn('[auto-aufgeboten] fehlgeschlagen fuer', it.id, e)
-          // nicht markieren -> beim naechsten Render erneut versuchen
-        }
-      }
-    })()
-  }, [postausgang.items]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages  = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const pageRows    = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -5050,8 +5023,13 @@ const lirisExtractRef  = useRef(lirisExtract)
                             <button
                               onClick={() => {
                                 console.log('[Brief] Per Post PDF Button geklickt — art:', af.art, 'terminDatum:', af.terminDatum)
+                                const nextForm = { ...af, versand: 'Post' as const }
                                 setAf({ versand: 'Post' })
-                                generateBriefPDF(p, af)
+                                generateBriefPDF(p, nextForm)
+                                // Direkt als aufgeboten markieren — kein Zwischenschritt/Rückfrage
+                                // mehr, ob gedruckt/im Liris abgelegt ist. Das Drucken/Ablegen
+                                // läuft eigenständig im Postausgang weiter.
+                                handleAufgebotSave(nextForm, true)
                               }}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
                                 af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
@@ -5061,16 +5039,20 @@ const lirisExtractRef  = useRef(lirisExtract)
                             <button
                               disabled={!hasEmail}
                               onClick={() => {
+                                const nextForm = { ...af, versand: 'Email' as const }
                                 setAf({ versand: 'Email' })
-                                openEmailInOutlook(p, af, patientEmail)
+                                openEmailInOutlook(p, nextForm, patientEmail)
                                 // Bei E-Mail-Versand wird NICHT gedruckt und nichts im
                                 // Postausgang angezeigt — der Brief wird aber (nur Desktop-App)
                                 // als unsichtbarer Hintergrund-Job ins Liris hochgeladen
                                 // (skipPrint: true). Im Browser gibt es keinen Liris-Upload,
                                 // dort entfaellt die Ablage komplett.
                                 if ((window as any).electronApp?.autoImportToLiris) {
-                                  generateBriefPDF(p, { ...af, versand: 'Email' }, true)
+                                  generateBriefPDF(p, nextForm, true)
                                 }
+                                // Direkt als aufgeboten markieren — kein Zwischenschritt/Rückfrage
+                                // mehr, ob die E-Mail versendet wurde.
+                                handleAufgebotSave(nextForm, true)
                               }}
                               title={hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
@@ -5192,59 +5174,33 @@ const lirisExtractRef  = useRef(lirisExtract)
 
               </div>{/* end two-column */}
 
-              {/* Footer */}
-              {aufgebotConfirmPending ? (
-                <div className="shrink-0 px-6 py-4 border-t border-gray-200 bg-amber-50">
-                  <p className="text-sm font-medium text-amber-800 mb-3">
-                    {af.versand === 'Email'
-                      ? '📧 Wurde die E-Mail an den Patienten versendet?'
-                      : '🖨️ Wurde der Brief gedruckt und im LIRIS abgelegt?'}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setAufgebotConfirmPending(false)}
-                      className="flex-1 btn btn-secondary text-sm">
-                      Zurück
-                    </button>
-                    <button
-                      onClick={handleAufgebotSave}
-                      disabled={aufgebotSaving}
-                      className="flex-1 btn btn-primary text-sm disabled:opacity-40">
-                      {aufgebotSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      Ja, aufgeboten markieren
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-                  {livePreviewHtml && (
-                    <button
-                      onClick={() => setBriefPreview(livePreviewHtml)}
-                      title="Briefvorschau in grossem Popup öffnen (mit Drucken/Speichern)"
-                      className="btn btn-secondary text-sm mr-auto"
-                    >
-                      <Search className="w-4 h-4" /> Vorschau
-                    </button>
-                  )}
-                  <button onClick={() => { setAufgebotTarget(null); setAufgebotConfirmPending(false) }} className="btn btn-secondary text-sm">
-                    Abbrechen
-                  </button>
+              {/* Footer — bei Brief/Reminder erledigen die Per-Post/Per-E-Mail-
+                  Buttons das Markieren bereits direkt (kein separater Schritt
+                  mehr nötig). Dieser Button bleibt für Tel/Praxis (kein Versand). */}
+              <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+                {livePreviewHtml && (
                   <button
-                    onClick={() => {
-                      if (af.versand === 'Email' || af.versand === 'Post') {
-                        setAufgebotConfirmPending(true)
-                      } else {
-                        handleAufgebotSave()
-                      }
-                    }}
+                    onClick={() => setBriefPreview(livePreviewHtml)}
+                    title="Briefvorschau in grossem Popup öffnen (mit Drucken/Speichern)"
+                    className="btn btn-secondary text-sm mr-auto"
+                  >
+                    <Search className="w-4 h-4" /> Vorschau
+                  </button>
+                )}
+                <button onClick={() => setAufgebotTarget(null)} className="btn btn-secondary text-sm">
+                  Abbrechen
+                </button>
+                {!(af.art === 'Brief' || af.art === 'Reminder') && (
+                  <button
+                    onClick={() => handleAufgebotSave()}
                     disabled={!canSave || aufgebotSaving}
                     className="btn btn-primary text-sm disabled:opacity-40"
                   >
                     {aufgebotSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     Als aufgeboten markieren
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             )
             })()}
