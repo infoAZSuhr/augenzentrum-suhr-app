@@ -120,10 +120,14 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     setItems([])
   }, [items, electronApi])
 
-  // Warnung beim Schliessen nur wenn noch NICHT hochgeladene Briefe haengen
+  // Warnung beim Schliessen nur wenn noch NICHT hochgeladene Briefe haengen.
+  // NUR im Browser: Electron zeigt bei beforeunload KEINEN Dialog, sondern
+  // blockiert das Schliessen still und dauerhaft — die App liess sich weder
+  // beenden noch aktualisieren, solange ein Brief im Postausgang hing.
+  const isElectron = typeof window !== 'undefined' && !!(window as { electronApp?: unknown }).electronApp
   const pendingCount = items.filter(i => !i.uploaded && !i.versendet).length
   useEffect(() => {
-    if (pendingCount === 0) return
+    if (isElectron || pendingCount === 0) return
     const onUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = `Es liegen noch ${pendingCount} unbearbeitete Briefe im Postausgang. Wirklich schliessen?`
@@ -131,7 +135,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('beforeunload', onUnload)
     return () => window.removeEventListener('beforeunload', onUnload)
-  }, [pendingCount])
+  }, [pendingCount, isElectron])
 
   return (
     <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markPrinted, markVersendet, clear }}>
