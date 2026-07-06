@@ -1005,11 +1005,14 @@ const lirisExtractRef  = useRef(lirisExtract)
       } else {
         const isNewer = !form.letzteKons || lirisExtract.letzteKons > form.letzteKons
         if (isNewer) {
-          // Neues Datum → alles zurücksetzen (ausser Status)
+          // Neues Datum → alles zurücksetzen (ausser Status). Auch das alte
+          // «Aufgebot erstellt am» gehört zum ABGESCHLOSSENEN Zyklus und
+          // muss weg — sonst wirkt der Patient weiterhin als aufgeboten.
           setField('letzteKons', lirisExtract.letzteKons)
           setField('storniert', '')
           setField('grundStornierung', '')
           setField('aufgebotArt', '')
+          setField('aufgebotErstellt', '')
           setField('aufgebotFuer', '')
           setField('naechsteKons', '')
           setField('keinTermin', false)
@@ -1044,6 +1047,20 @@ const lirisExtractRef  = useRef(lirisExtract)
             }
             filled = true
           }
+        }
+        // Liris zeigt bereits einen ZUKUENFTIGEN Termin (Timeline) → der
+        // Patient wurde direkt in der Praxis aufgeboten: Praxis waehlen,
+        // Vereinbarungsdatum = letzte Kons., naechste Konst. = Liris-Termin.
+        // Nur beim neuen Zyklus (oder wenn noch nichts erfasst ist) — sonst
+        // wuerden manuell gesetzte Werte ueberschrieben.
+        if (lirisExtract.naechsterTerminDatum
+            && (isNewer || (!form.aufgebotArt && !form.naechsteKons))) {
+          setField('aufgebotArt', 'Praxis')
+          setField('aufgebotErstellt', baseLk)
+          setField('naechsteKons', lirisExtract.naechsterTerminDatum)
+          setField('keinTermin', false)
+          setField('aufgebotFuer', '')
+          filled = true
         }
       }
     }
