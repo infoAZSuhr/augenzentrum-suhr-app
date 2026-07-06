@@ -1064,14 +1064,24 @@ const lirisExtractRef  = useRef(lirisExtract)
           setField('keinTermin', false)
           setField('aufgebotFuer', '')
           filled = true
+        } else if (lirisExtract.naechsterTerminDatum && !form.naechsteKons) {
+          // Aufgebot ist bereits erfasst (z.B. Brief verschickt) und in Liris
+          // ist inzwischen ein Termin erschienen → NUR die naechste Konst.
+          // uebernehmen; Art/Datum des bestehenden Aufgebots bleiben.
+          setField('naechsteKons', lirisExtract.naechsterTerminDatum)
+          setField('keinTermin', false)
+          setField('aufgebotFuer', '')
+          filled = true
         }
       }
-    } else if (lirisExtract.naechsterTerminDatum && !form.naechsteKons && !form.aufgebotArt) {
+    } else if (lirisExtract.naechsterTerminDatum && !form.naechsteKons) {
       // Neupatient: noch KEINE Konsultation in Liris, aber bereits ein
-      // gebuchter Termin → naechste Konst. direkt uebernehmen (Praxis,
-      // Vereinbarungsdatum = heute, da kein Konsultationsdatum existiert).
-      setField('aufgebotArt', 'Praxis')
-      setField('aufgebotErstellt', new Date().toISOString().slice(0, 10))
+      // gebuchter Termin → naechste Konst. direkt uebernehmen. Ohne
+      // bestehendes Aufgebot zusaetzlich Praxis + Vereinbarungsdatum=heute.
+      if (!form.aufgebotArt) {
+        setField('aufgebotArt', 'Praxis')
+        setField('aufgebotErstellt', new Date().toISOString().slice(0, 10))
+      }
       setField('naechsteKons', lirisExtract.naechsterTerminDatum)
       setField('keinTermin', false)
       setField('aufgebotFuer', '')
