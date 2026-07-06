@@ -100,7 +100,8 @@
       {
         "provider": "github",
         "owner": "infoAZSuhr",
-        "repo": "augenzentrum-suhr-app"
+        "repo": "augenzentrum-suhr-app",
+        "releaseType": "release"
       }
     ],
     "win": {
