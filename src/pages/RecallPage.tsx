@@ -1066,6 +1066,16 @@ const lirisExtractRef  = useRef(lirisExtract)
           filled = true
         }
       }
+    } else if (lirisExtract.naechsterTerminDatum && !form.naechsteKons && !form.aufgebotArt) {
+      // Neupatient: noch KEINE Konsultation in Liris, aber bereits ein
+      // gebuchter Termin → naechste Konst. direkt uebernehmen (Praxis,
+      // Vereinbarungsdatum = heute, da kein Konsultationsdatum existiert).
+      setField('aufgebotArt', 'Praxis')
+      setField('aufgebotErstellt', new Date().toISOString().slice(0, 10))
+      setField('naechsteKons', lirisExtract.naechsterTerminDatum)
+      setField('keinTermin', false)
+      setField('aufgebotFuer', '')
+      filled = true
     }
     // Arzt-zuweisen auto-fill nur wenn Patient in "Zu bearbeiten" und leer
     if (!assignDoctor && lirisExtract.autor && editTarget.doctor === ZU_BEARB) {
