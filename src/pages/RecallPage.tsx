@@ -1017,6 +1017,9 @@ const lirisExtractRef  = useRef(lirisExtract)
           setField('naechsteKons', '')
           setField('keinTermin', false)
           setField('konsInterval', '')
+          // «Weiteres Vorgehen»/Verlauf gehoert zum alten Zyklus → bereinigen
+          // (historische Statistik bleibt: recall_activity_log ist immutable).
+          setField('verlauf', [])
           filled = true
         }
         // Intervall aus Liris übernehmen (immer, auch bei gleichem Datum)
@@ -3631,6 +3634,11 @@ const lirisExtractRef  = useRef(lirisExtract)
       // (eine echte neue Konsultation) — nicht bei Korrekturen auf ein älteres Datum.
       const letzteKonsNeuer = oldP && form.letzteKons > (oldP.letzteKons ?? '')
       const aufgebotErstellt = letzteKonsNeuer ? null : (form.aufgebotErstellt || null)
+      // Neuer Zyklus → auch «Weiteres Vorgehen»/Verlauf bereinigen: die
+      // Eintraege (Telefonanrufe, Aufgebote, Reminder) gehoeren zum alten,
+      // abgeschlossenen Recall-Zyklus. Die historische Statistik bleibt
+      // davon unberuehrt (recall_activity_log ist immutable).
+      if (letzteKonsNeuer) finalVerlauf = []
 
       // Zuweisungen: Form-Zuweisung als PRIMÄRE (erste) in die Liste schreiben,
       // weitere bestehende Zuweisungen (z.B. via ZW-Management) bewahren.
