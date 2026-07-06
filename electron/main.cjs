@@ -389,26 +389,41 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     } else {
       const lnEsc = ln.replace(/[.*+?^${}()|[\]\\]/g, '')
       let res = null
-      for (let i = 0; i < 8 && res !== 'ok'; i++) {
+      for (let i = 0; i < 12 && res !== 'ok'; i++) {
         res = await evalJs(`(function(){
           var ln=${JSON.stringify(lnEsc.toLowerCase())};
           var re=new RegExp('\\\\b'+ln+'\\\\b');
-          var as=[].slice.call(document.querySelectorAll('a'));
-          var hits=[];
-          for(var k=0;k<as.length;k++){
-            var t=(as[k].innerText||'').trim(); if(!t)continue;
+          var titleRe=/(^|\\s)(dr|prof|med|medic)\\b|\\bdr\\.?\\s|prof\\.?\\s/;
+          var els=[].slice.call(document.querySelectorAll('a,button,[role="button"],li'));
+          var strict=[],loose=[],texts=[];
+          for(var k=0;k<els.length;k++){
+            var t=(els[k].innerText||'').trim(); if(!t)continue;
+            // Nur Blatt-Kandidaten (keine Container, die den Treffer nur enthalten)
+            if(t.length>90) continue;
             var low=t.toLowerCase();
-            if(/(^|\\s)(dr|prof|med|medic)\\b|\\bdr\\.?\\s|prof\\.?\\s/.test(low) && re.test(low)) hits.push(as[k]);
+            texts.push(t);
+            if(low==='gleich wie verantwortlicher arzt') continue;
+            if(re.test(low)){ (titleRe.test(low)?strict:loose).push(els[k]); }
           }
+          // Bevorzugt Eintraege MIT Arzt-Titel; Fallback: Nachname reicht
+          // (Liris listet Aerzte nicht immer mit "Dr./med."-Prefix).
+          var hits = strict.length ? strict : loose;
           if(hits.length===1){ hits[0].click(); return 'ok'; }
-          if(hits.length===0) return 'none';
-          return 'multiple';
+          if(hits.length>1){
+            // Mehrere Treffer mit demselben Element-Text (verschachtelte
+            // Elemente) sind in Wahrheit EIN Eintrag — dann den innersten klicken.
+            var uniq={}; for(var j=0;j<hits.length;j++){ uniq[(hits[j].innerText||'').trim()]=hits[j]; }
+            var keys=Object.keys(uniq);
+            if(keys.length===1){ uniq[keys[0]].click(); return 'ok'; }
+            return 'multiple:'+keys.slice(0,5).join(' | ').slice(0,300);
+          }
+          return 'none:'+texts.slice(0,30).join(' | ').slice(0,700);
         })()`)
-        if (res !== 'ok' && res !== 'multiple') await sleep(300)
-        if (res === 'multiple') break
+        if (res !== 'ok' && String(res).indexOf('multiple') !== 0) await sleep(300)
+        if (String(res).indexOf('multiple') === 0) break
       }
       step('Schritt 1: Arzt-Match-Ergebnis = ' + res)
-      if (res === 'multiple') return fail('Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.')
+      if (String(res).indexOf('multiple') === 0) return fail('Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.')
       if (res !== 'ok') return fail('Arzt "' + ln + '" nicht in Liris-Auswahl gefunden. Bitte manuell waehlen.')
     }
     await sleep(1200)
