@@ -746,6 +746,12 @@ export default function BrowserPanel() {
   // Webview-Fokuswechsel als "Fokus-Klau" (Fix 3 unten).
   const lastHostInput = useRef<HTMLElement | null>(null)
   const lastHostTypingAt = useRef(0)
+  // Zeitpunkt des letzten Fokus-Wechsels AUF ein Host-Eingabefeld (Klick in
+  // ein Modal-Feld zaehlt auch OHNE Tippen) und des letzten Maus-Klicks IM
+  // Liris-Gast (via injiziertem mousedown-Listener gemeldet — Host-Events
+  // sehen Klicks im Webview nicht).
+  const lastHostFocusAt = useRef(0)
+  const lastGuestMouseAt = useRef(0)
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       const wv = webviewRef.current
@@ -763,6 +769,7 @@ export default function BrowserPanel() {
       const tag = t.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) {
         lastHostInput.current = t
+        lastHostFocusAt.current = Date.now()
       }
     }
     // Aktives Tippen in einem Host-Feld erfassen (Zeitstempel).
@@ -787,27 +794,40 @@ export default function BrowserPanel() {
   }, [])
 
   // Fix 3: Liris kann per eigenem JS den Fokus in den Webview ziehen — mitten
-  // beim Tippen in einem App-Feld. WICHTIG: Klicks INS Liris-Panel sind fuer
-  // die Host-App unsichtbar (Webview-Events bleiben im Gast) — deshalb darf
-  // die Wache NUR greifen, wenn der User in den letzten ~1s aktiv in einem
-  // App-Feld GETIPPT hat. Sonst wuerde jeder bewusste Klick nach Liris als
-  // Fokus-Klau gewertet und Liris waere nicht mehr bedienbar (z.B. waehrend
-  // das Aufbieten-Modal offen ist).
+  // beim Tippen ODER direkt nachdem der User in ein Modal-Feld geklickt hat
+  // (z.B. wenn die per openWithPid geladene Akte fertig laedt und Liris ein
+  // Suchfeld autofokussiert). Bewusste Klicks INS Liris-Panel meldet der
+  // injizierte Gast-Listener als '__AZ_MDOWN__' (Host-Events sehen Webview-
+  // Klicks nicht). Entscheidung:
+  //   - User tippte/fokussierte gerade ein Host-Feld -> sofort zurueckholen
+  //   - sonst 250ms warten: kam ein Gast-Klick -> bewusster Wechsel, ok;
+  //     kam keiner -> programmatischer Klau -> zurueckholen (sofern das
+  //     zuletzt aktive Host-Feld noch existiert, d.h. ein Modal offen ist).
   useEffect(() => {
     if (!isOpen) return
     const wv = webviewRef.current as any
     if (!wv) return
-    const onWvFocus = () => {
-      if (lastClickInWebview.current) return   // bewusster Klick in Liris -> Fokus dort lassen
-      if (Date.now() - lastHostTypingAt.current > 1200) return  // User tippte nicht gerade -> Klick nach Liris zulassen
-      const prev = lastHostInput.current
-      if (!prev || !document.contains(prev)) return  // kein Host-Feld aktiv -> nichts erzwingen
+    const reclaim = (prev: HTMLElement) => {
       try { wv.blur?.() } catch { /* ignore */ }
       // Fokus-Rueckgabe leicht verzoegert, da Electron den Webview-Fokus
       // asynchron setzt und ein sofortiges focus() sonst wieder ueberschrieben wird.
       window.setTimeout(() => {
         try { if (document.contains(prev)) prev.focus() } catch { /* ignore */ }
       }, 50)
+    }
+    const onWvFocus = () => {
+      if (lastClickInWebview.current) return   // bewusster Klick in Liris -> Fokus dort lassen
+      const prev = lastHostInput.current
+      if (!prev || !document.contains(prev)) return  // kein Host-Feld (mehr) da -> nichts erzwingen
+      const typed   = Date.now() - lastHostTypingAt.current < 1200
+      const focused = Date.now() - lastHostFocusAt.current  < 800
+      if (typed || focused) { reclaim(prev); return }
+      // Unklar: Gast-Klick-Meldung kommt async leicht verzoegert — kurz warten.
+      window.setTimeout(() => {
+        if (Date.now() - lastGuestMouseAt.current < 700) return  // Klick in Liris -> ok
+        if (!document.contains(prev)) return                     // Modal inzwischen zu
+        reclaim(prev)
+      }, 250)
     }
     wv.addEventListener('focus', onWvFocus)
     return () => wv.removeEventListener('focus', onWvFocus)
@@ -867,6 +887,12 @@ export default function BrowserPanel() {
       (function() {
         if (window.__azPidClick) return 'already';
         window.__azPidClick = true;
+        // Jeden Maus-Klick im Liris-Gast an den Host melden — Host-seitige
+        // Events sehen Klicks im Webview nicht; das Signal braucht die
+        // Fokus-Wache um bewusste Klicks von Fokus-Klau zu unterscheiden.
+        document.addEventListener('mousedown', function() {
+          console.log('__AZ_MDOWN__');
+        }, true);
         document.addEventListener('click', function(e) {
           var node = e.target;
           var pid = null;
@@ -1110,6 +1136,13 @@ export default function BrowserPanel() {
     }
     const onConsole = (e: any) => {
       const msg = e?.message || ''
+      if (msg === '__AZ_MDOWN__') {
+        // Klick im Liris-Gast: als bewusste Webview-Interaktion merken —
+        // die Fokus-Wache laesst den Fokus dann in Liris.
+        lastGuestMouseAt.current = Date.now()
+        lastClickInWebview.current = true
+        return
+      }
       if (msg.indexOf('__AZ_PID__:') === 0) {
         const pid = msg.slice('__AZ_PID__:'.length).trim()
         if (pid) {
