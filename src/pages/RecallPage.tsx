@@ -1350,7 +1350,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   //    durch (openWithPid), liest den Autor der letzten Konsultation und
   //    persistiert ihn (letzterKonsArzt) — Grundlage fuer den Filter
   //    «Noch nie beim Arzt» und dessen Auswertung. Nur Desktop-App.
-  const [arztScan, setArztScan] = useState<{ running: boolean; done: number; total: number; current: string; found: number } | null>(null)
+  const [arztScan, setArztScan] = useState<{ running: boolean; done: number; total: number; current: string; found: number; umgeteilt: number } | null>(null)
   const arztScanAbort = useRef(false)
   const arztScanWaiter = useRef<{ pid: string; resolve: (autor: string | null) => void } | null>(null)
 
@@ -1366,8 +1366,11 @@ const lirisExtractRef  = useRef(lirisExtract)
 
   async function startArztScan() {
     const targets: RecallPatient[] = []
-    for (const d of doctors) {
-      for (const p of allData.get(d) ?? []) {
+    // ALLE Arzt-Tabs scannen — auch inaktive (z.B. Nessmann): dort haengen
+    // Patienten, die ggf. laengst von einem aktiven Arzt betreut werden.
+    for (const [tab, list] of allData) {
+      if (tab === OFFEN_TAB || tab === AUFGEBOT_TAB || tab === ZU_BEARB) continue
+      for (const p of list) {
         if (!p.pid || p.letzterKonsArzt) continue
         if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') continue
         if (!toInputDate(p.letzteKons)) continue   // ohne Konsultation greift der Filter ohnehin
@@ -1376,7 +1379,14 @@ const lirisExtractRef  = useRef(lirisExtract)
     }
     if (targets.length === 0) { toast.info('Alle aktiven Patienten haben bereits einen erfassten Konsultations-Arzt.'); return }
     const min = Math.max(1, Math.round(targets.length * 8 / 60))
-    if (!window.confirm(`Arzt-Abgleich für ${targets.length} Patienten starten?\n\nLiris blättert dafür automatisch durch die Akten (ca. ${min} Min.). Während des Abgleichs bitte nicht in Liris arbeiten. Der Lauf kann jederzeit gestoppt werden.`)) return
+    if (!window.confirm(
+      `Arzt-Abgleich für ${targets.length} Patienten starten?\n\n` +
+      `Liris blättert dafür automatisch durch die Akten (ca. ${min} Min.). ` +
+      `Während des Abgleichs bitte nicht in Liris arbeiten. Der Lauf kann jederzeit gestoppt werden.\n\n` +
+      `Zuteilung: Hängt ein Patient bei einem NICHT mehr aktiven Arzt und war ` +
+      `zuletzt bei einem aktiven Arzt in Konsultation, wird er diesem automatisch ` +
+      `zugeteilt. Zuteilungen an aktive Ärzte werden NIE verändert.`
+    )) return
     arztScanAbort.current = false
     arztScanRunningRef.current = true
     openBrowser()
@@ -1385,7 +1395,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       if (tab !== OFFEN_TAB && tab !== AUFGEBOT_TAB && tab !== ZU_BEARB) alleAerzte.add(tab)
     }
     let found = 0
-    setArztScan({ running: true, done: 0, total: targets.length, current: '', found: 0 })
+    let umgeteilt = 0
+    setArztScan({ running: true, done: 0, total: targets.length, current: '', found: 0, umgeteilt: 0 })
     for (let i = 0; i < targets.length; i++) {
       if (arztScanAbort.current) break
       const p = targets[i]
@@ -1404,14 +1415,25 @@ const lirisExtractRef  = useRef(lirisExtract)
         const matched = Array.from(alleAerzte).find(d => d && cleanedA.includes(d.toLowerCase()))
         if (matched) {
           found++
-          try { await updateRecallPatient(p.id, { letzterKonsArzt: matched } as Partial<RecallPatient>, displayLabel) } catch { /* weiter */ }
+          try {
+            await updateRecallPatient(p.id, { letzterKonsArzt: matched } as Partial<RecallPatient>, displayLabel)
+            // Korrekt zuteilen — NUR wenn der bisher zugeteilte Arzt nicht
+            // mehr aktiv ist UND die letzte Konsultation bei einem aktiven
+            // Arzt war. Bewusste Zuteilungen an aktive Ärzte bleiben stehen.
+            const zugeteilterAktiv = doctors.includes(p.doctor)
+            const konsArztAktiv    = doctors.includes(matched)
+            if (!zugeteilterAktiv && konsArztAktiv && matched !== p.doctor) {
+              await assignRecallPatient(p.id, matched, displayLabel)
+              umgeteilt++
+            }
+          } catch { /* weiter */ }
         }
       }
-      setArztScan(s => (s ? { ...s, done: i + 1, found } : s))
+      setArztScan(s => (s ? { ...s, done: i + 1, found, umgeteilt } : s))
     }
     arztScanRunningRef.current = false
     setArztScan(s => (s ? { ...s, running: false, current: '' } : s))
-    toast.success(`Arzt-Abgleich beendet: ${found} Patienten aktualisiert.`)
+    toast.success(`Arzt-Abgleich beendet: ${found} erfasst, ${umgeteilt} korrekt zugeteilt.`)
     await reloadAllTabs()
   }
 
@@ -4381,7 +4403,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           arztScan?.running ? (
             <span className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 shrink-0">
               <span className="animate-pulse">⟳</span>
-              Abgleich {arztScan.done}/{arztScan.total} · {arztScan.found} erkannt
+              Abgleich {arztScan.done}/{arztScan.total} · {arztScan.found} erkannt · {arztScan.umgeteilt} zugeteilt
               <button type="button" onClick={() => { arztScanAbort.current = true }}
                 className="ml-1 font-semibold underline hover:no-underline">Stopp</button>
             </span>
