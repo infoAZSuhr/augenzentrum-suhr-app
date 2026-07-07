@@ -1249,7 +1249,7 @@ export default function HelpPage() {
 
           <p className="font-semibold mt-3">Patient stornieren</p>
           <Step n={1}>Öffnen Sie den Bearbeitungsdialog durch Klick auf die Zeile.</Step>
-          <Step n={2}>Setzen Sie das Feld <strong>«Storniert»</strong> auf «Ja» und wählen Sie einen <strong>Stornierungsgrund</strong> (z.B. kein Bedarf, Wegzug, Selbstmeldung, Verstorben, Arztwechsel, Brief ungeöffnet retourniert, Krankheit).</Step>
+          <Step n={2}>Setzen Sie das Feld <strong>«Storniert»</strong> auf «Ja» und wählen Sie einen <strong>Stornierungsgrund</strong> (z.B. WV bei Bedarf, Wegzug, Verstorben, Arztwechsel, Brief ungeöffnet retourniert, Krankheit).</Step>
           <Step n={3}>Sobald ein Stornierungsgrund gewählt ist, erscheint automatisch der Abschnitt <strong>«Weiteres Vorgehen»</strong> — siehe nächster Abschnitt.</Step>
           <Step n={4}>Speichern. Die Zeile erscheint rot hinterlegt in der Tabelle. Beim Hover über «ja» sehen Sie den Grund.</Step>
         </Sub>
