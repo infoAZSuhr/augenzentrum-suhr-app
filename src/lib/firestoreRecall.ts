@@ -99,6 +99,7 @@ export interface RecallPatient {
   zuweisungen?: Zuweisung[] | null  // Mehrere Zuweisungen pro Patient (an verschiedene Orte)
   zuweisungNoetig?: boolean | null  // true = MPA hat markiert, dass eine Zuweisung noch aussteht (Erinnerung fuer ZW-Management)
   arztSeit?: string | null          // YYYY-MM-DD: seit wann dem aktuellen Arzt zugeteilt (gesetzt bei Umhaengung)
+  letzterKonsArzt?: string | null   // Arzt (Tab-Name) der LETZTEN Konsultation — aus dem Liris-Autor beim Oeffnen der Akte
 }
 
 export interface VerlaufEntry {

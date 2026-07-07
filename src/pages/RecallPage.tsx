@@ -134,15 +134,20 @@ function MinorBadge({ gebDatum }: { gebDatum: string | null | undefined }) {
 
 function isStorniert(row: RecallPatient): boolean   { return s(row.storniert).toLowerCase() === 'ja' }
 
-/** Aktiver Patient, der dem Arzt zugeteilt ist, aber noch NIE bei ihm war:
- *  keine Konsultation vorhanden, oder die Zuteilung (arztSeit) liegt NACH
- *  der letzten Konsultation (Umhaengung ohne Besuch seither). Patienten ohne
- *  arztSeit (vor Einfuehrung des Feldes umgehaengt) gelten als "war schon da". */
+/** Aktiver Patient, der dem Arzt zugeteilt ist, aber noch NIE bei ihm war.
+ *  Erkannt ueber (eines genuegt):
+ *   - keine Konsultation vorhanden (zugeteilter Neupatient),
+ *   - Zuteilung (arztSeit) NACH der letzten Konsultation (Umhaengung ohne
+ *     Besuch seither; arztSeit wird bei jeder Umhaengung gestempelt),
+ *   - letzte Konsultation war laut Liris bei einem ANDEREN Arzt
+ *     (letzterKonsArzt, z.B. frueher Dr. Nessmann, jetzt Dr. Artemiev
+ *     zugeteilt — wird beim Oeffnen der Akte automatisch erfasst). */
 function isNieBeimArzt(p: RecallPatient): boolean {
   if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
   const lk = toInputDate(p.letzteKons)
   if (!lk) return true
-  return !!p.arztSeit && p.arztSeit > lk
+  if (!!p.arztSeit && p.arztSeit > lk) return true
+  return !!p.letzterKonsArzt && p.letzterKonsArzt !== p.doctor
 }
 
 /**
@@ -1163,6 +1168,23 @@ const lirisExtractRef  = useRef(lirisExtract)
     }
     // Autor + Intervall-Daten merken für spätere manuelle Datumsänderung
     if (lirisExtract.autor) lastLirisAutor.current = lirisExtract.autor
+    // Arzt der LETZTEN Konsultation am Patienten persistieren (aus dem
+    // Liris-Autor, gegen die Tab-Namen inkl. inaktiver Aerzte gematcht).
+    // Grundlage fuer den Filter «Noch nie beim Arzt»: letzte Konsultation
+    // war bei einem ANDEREN Arzt als dem aktuell zugeteilten.
+    if (lirisExtract.autor && editTarget !== 'new') {
+      const cleanedA = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim().toLowerCase()
+      // Kandidaten: aktive Aerzte + alle Arzt-Tabs (inkl. inaktive wie Nessmann)
+      const alleAerzte = new Set<string>(doctors)
+      for (const tab of allData.keys()) {
+        if (tab !== OFFEN_TAB && tab !== AUFGEBOT_TAB && tab !== ZU_BEARB) alleAerzte.add(tab)
+      }
+      const matched = Array.from(alleAerzte).find(d => d && cleanedA.includes(d.toLowerCase()))
+      if (matched && matched !== (editTarget as RecallPatient).letzterKonsArzt) {
+        updateRecallPatient(editTarget.id, { letzterKonsArzt: matched } as Partial<RecallPatient>, displayLabel)
+          .catch(() => { /* nicht kritisch */ })
+      }
+    }
     lastLirisExtract.current = { intervalWeeks: lirisExtract.intervalWeeks, bpText: lirisExtract.bpText, naechsterTerminRaw: lirisExtract.naechsterTerminRaw }
     // Extract konsumiert -> nicht erneut anwenden
     setLirisExtract(null)
