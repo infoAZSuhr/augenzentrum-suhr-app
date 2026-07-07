@@ -8023,6 +8023,12 @@ const lirisExtractRef  = useRef(lirisExtract)
                       setField('aufgebotArt', '')
                       setField('aufgebotErstellt', '')
                     }
+                    if (v === 'verstorben') {
+                      // Status Verstorben → Storno-Grund automatisch mitsetzen,
+                      // damit Filter/Auswertung nach Grund konsistent sind.
+                      setField('storniert', 'ja')
+                      setField('grundStornierung', 'Verstorben')
+                    }
                     if ((v === 'inaktiv' || v === 'verstorben') && lastLirisAutor.current) {
                       const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
                       const words = cleaned.split(/\s+/)
