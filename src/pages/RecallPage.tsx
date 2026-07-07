@@ -505,6 +505,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [filterTermin, setFilterTermin] = useState<FilterTermin | null>(null)
   const [filterStatus, setFilterStatus] = useState<FilterStatus | null>(null)
   const [filterGrund, setFilterGrund] = useState<string | null>(null)   // Storno-Grund
+  // true solange der Arzt-Abgleich (Batch-Scan) laeuft — unterdrueckt u.a.
+  // das Auto-Oeffnen des Patient-bearbeiten-Modals bei Akte-Navigation.
+  const arztScanRunningRef = useRef(false)
   const [filterAufgebotArt, setFilterAufgebotArt] = useState<string | null>(null)
   const [filterNochZuErledigen, setFilterNochZuErledigen] = useState(false)
   const [filterReminderFaellig, setFilterReminderFaellig] = useState(false)
@@ -816,6 +819,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Patient ist dort bereits offen).
   useEffect(() => {
     if (!recallPidRequest) return
+    // Waehrend des Arzt-Abgleichs (Batch-Scan) KEIN Auto-Open — der Scan
+    // blaettert selbst durch die Akten.
+    if (arztScanRunningRef.current) { clearRecallPidRequest(); return }
     // Auto-Requests (Akte-Navigation) brauchen ein laengeres Fenster: Sie
     // warten auf den Liris-Extract (letzteKons etc.), der einige Sekunden
     // braucht. Bewusste Klicks oeffnen sofort (5s Fenster wie bisher).
@@ -1337,6 +1343,76 @@ const lirisExtractRef  = useRef(lirisExtract)
   async function reloadTab(doctor: string) {
     const fresh = await getRecallPatients(doctor)
     setAllData(prev => new Map(prev).set(doctor, fresh))
+  }
+
+  // ── Arzt-Abgleich: Batch-Scan aller aktiven Patienten ohne erfassten
+  //    letzten Konsultations-Arzt. Blaettert die Liris-Akten automatisch
+  //    durch (openWithPid), liest den Autor der letzten Konsultation und
+  //    persistiert ihn (letzterKonsArzt) — Grundlage fuer den Filter
+  //    «Noch nie beim Arzt» und dessen Auswertung. Nur Desktop-App.
+  const [arztScan, setArztScan] = useState<{ running: boolean; done: number; total: number; current: string; found: number } | null>(null)
+  const arztScanAbort = useRef(false)
+  const arztScanWaiter = useRef<{ pid: string; resolve: (autor: string | null) => void } | null>(null)
+
+  // Extract-Konsument fuer den Scan (laeuft ohne offenes Edit-Modal).
+  useEffect(() => {
+    const w = arztScanWaiter.current
+    if (!w || !lirisExtract) return
+    if (!lirisExtract.notFound && normalizePid(lirisExtract.pid) !== w.pid) return
+    arztScanWaiter.current = null
+    w.resolve(lirisExtract.notFound ? null : (lirisExtract.autor || null))
+    setLirisExtract(null)
+  }, [lirisExtract]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function startArztScan() {
+    const targets: RecallPatient[] = []
+    for (const d of doctors) {
+      for (const p of allData.get(d) ?? []) {
+        if (!p.pid || p.letzterKonsArzt) continue
+        if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') continue
+        if (!toInputDate(p.letzteKons)) continue   // ohne Konsultation greift der Filter ohnehin
+        targets.push(p)
+      }
+    }
+    if (targets.length === 0) { toast.info('Alle aktiven Patienten haben bereits einen erfassten Konsultations-Arzt.'); return }
+    const min = Math.max(1, Math.round(targets.length * 8 / 60))
+    if (!window.confirm(`Arzt-Abgleich für ${targets.length} Patienten starten?\n\nLiris blättert dafür automatisch durch die Akten (ca. ${min} Min.). Während des Abgleichs bitte nicht in Liris arbeiten. Der Lauf kann jederzeit gestoppt werden.`)) return
+    arztScanAbort.current = false
+    arztScanRunningRef.current = true
+    openBrowser()
+    const alleAerzte = new Set<string>(doctors)
+    for (const tab of allData.keys()) {
+      if (tab !== OFFEN_TAB && tab !== AUFGEBOT_TAB && tab !== ZU_BEARB) alleAerzte.add(tab)
+    }
+    let found = 0
+    setArztScan({ running: true, done: 0, total: targets.length, current: '', found: 0 })
+    for (let i = 0; i < targets.length; i++) {
+      if (arztScanAbort.current) break
+      const p = targets[i]
+      const pid = normalizePid(p.pid)
+      setArztScan(s => (s ? { ...s, done: i, current: `${p.vorname || ''} #${pid}` } : s))
+      const autor = await new Promise<string | null>(resolve => {
+        arztScanWaiter.current = { pid, resolve }
+        openWithPid(pid)
+        // Timeout: Akte laedt nicht / Extract kommt nicht -> Patient ueberspringen
+        window.setTimeout(() => {
+          if (arztScanWaiter.current?.pid === pid) { arztScanWaiter.current = null; resolve(null) }
+        }, 15000)
+      })
+      if (autor) {
+        const cleanedA = autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim().toLowerCase()
+        const matched = Array.from(alleAerzte).find(d => d && cleanedA.includes(d.toLowerCase()))
+        if (matched) {
+          found++
+          try { await updateRecallPatient(p.id, { letzterKonsArzt: matched } as Partial<RecallPatient>, displayLabel) } catch { /* weiter */ }
+        }
+      }
+      setArztScan(s => (s ? { ...s, done: i + 1, found } : s))
+    }
+    arztScanRunningRef.current = false
+    setArztScan(s => (s ? { ...s, running: false, current: '' } : s))
+    toast.success(`Arzt-Abgleich beendet: ${found} Patienten aktualisiert.`)
+    await reloadAllTabs()
   }
 
   async function reloadAllTabs() {
@@ -4297,6 +4373,27 @@ const lirisExtractRef  = useRef(lirisExtract)
             </select>
           )
         })()}
+
+        {/* Arzt-Abgleich (Batch-Scan, nur Desktop-App): liest fuer alle
+            aktiven Patienten den letzten Konsultations-Arzt aus Liris aus,
+            damit «Noch nie beim Arzt» vollstaendig auswertbar ist. */}
+        {isElectron && (
+          arztScan?.running ? (
+            <span className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 shrink-0">
+              <span className="animate-pulse">⟳</span>
+              Abgleich {arztScan.done}/{arztScan.total} · {arztScan.found} erkannt
+              <button type="button" onClick={() => { arztScanAbort.current = true }}
+                className="ml-1 font-semibold underline hover:no-underline">Stopp</button>
+            </span>
+          ) : (
+            <button type="button" onClick={startArztScan}
+              title="Liest für alle aktiven Patienten den Arzt der letzten Konsultation aus Liris aus (Akten werden automatisch durchgeblättert). Danach ist der Filter «Noch nie beim Arzt» vollständig."
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-500 hover:bg-gray-50 shrink-0"
+            >
+              Arzt-Abgleich{arztScan && !arztScan.running ? ` (${arztScan.found} ✓)` : ''}
+            </button>
+          )
+        )}
 
         {/* Aufgebot-Dropdown */}
         <select
