@@ -828,7 +828,11 @@ const lirisExtractRef  = useRef(lirisExtract)
       if (!lx) return   // Extract noch nicht da -> warten (Effect re-runt bei lirisExtract-Update; maxAge raeumt auf)
       const neueKons = !!(lx.letzteKons && String(lx.letzteKons) > String(found.letzteKons ?? ''))
       const verstorbenNeu = !!lx.verstorben && found.patientenStatus !== 'verstorben'
-      if (!neueKons && !verstorbenNeu) {
+      // Neuer/geaenderter Termin in Liris, der lokal noch nicht erfasst ist —
+      // das Auto-Fill im Modal wuerde ihn uebernehmen -> Modal lohnt sich.
+      const terminNeu = !!lx.naechsterTerminDatum
+        && toInputDate(found.naechsteKons) !== lx.naechsterTerminDatum
+      if (!neueKons && !verstorbenNeu && !terminNeu) {
         console.log('[Recall] Auto-Open unterdrueckt — keine Aenderung in der Akte (PID', wantPid + ')')
         clearRecallPidRequest()
         return
