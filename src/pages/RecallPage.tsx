@@ -4247,15 +4247,17 @@ const lirisExtractRef  = useRef(lirisExtract)
           )
         })()}
 
-        {/* Grund-Dropdown (Storno-Grund) — kombinierbar mit Status */}
+        {/* Grund-Dropdown (Storno-Grund) — kombinierbar mit Status. Nur
+            Gruende anbieten, die im AKTUELLEN Tab tatsaechlich vorkommen. */}
         {(() => {
           const gruende = new Set<string>()
-          for (const list of allData.values()) {
-            for (const p of list) {
-              const g = (p.grundStornierung || '').trim()
-              if (g) gruende.add(g)
-            }
+          for (const p of allData.get(activeTab) ?? []) {
+            const g = (p.grundStornierung || '').trim()
+            if (g) gruende.add(g)
           }
+          // Aktiver Filter aus einem anderen Tab bleibt sichtbar/abwaehlbar,
+          // auch wenn der Grund hier nicht vorkommt.
+          if (filterGrund) gruende.add(filterGrund)
           const sorted = Array.from(gruende).sort((a, b) => a.localeCompare(b, 'de'))
           if (sorted.length === 0) return null
           return (
