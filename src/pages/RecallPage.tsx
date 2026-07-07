@@ -6469,6 +6469,49 @@ const lirisExtractRef  = useRef(lirisExtract)
                     </button>
                   ))}
                 </div>
+                {/* Kreuztabelle Arzt × Kategorie — beantwortet «wie viele
+                    Inaktive/Verstorbene hat welcher Arzt» auf einen Blick.
+                    Respektiert den Zeitraum-Filter oben. */}
+                {auswertungStats.inaktiveRows.length > 0 && (() => {
+                  type K = 'verstorben' | 'arztwechsel' | 'wegzug' | 'inaktiv'
+                  const byDoc = new Map<string, Record<K, number> & { total: number }>()
+                  for (const r of auswertungStats.inaktiveRows) {
+                    const doc = r.doctor === OFFEN_TAB ? 'ohne Zuordnung' : r.doctor
+                    if (!byDoc.has(doc)) byDoc.set(doc, { verstorben: 0, arztwechsel: 0, wegzug: 0, inaktiv: 0, total: 0 })
+                    const e = byDoc.get(doc)!
+                    e[(r.kind as K) in e ? (r.kind as K) : 'inaktiv']++
+                    e.total++
+                  }
+                  const rows = [...byDoc.entries()].sort((a, b) => b[1].total - a[1].total)
+                  return (
+                    <div className="overflow-auto rounded-xl border border-gray-200 mb-4">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          <tr>
+                            <th className="text-left px-4 py-2">Arzt</th>
+                            <th className="text-right px-4 py-2">✝ Verstorben</th>
+                            <th className="text-right px-4 py-2">Arztwechsel</th>
+                            <th className="text-right px-4 py-2">Wegzug</th>
+                            <th className="text-right px-4 py-2">Sonstige</th>
+                            <th className="text-right px-4 py-2 font-bold">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {rows.map(([doc, e]) => (
+                            <tr key={doc} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 font-medium text-gray-800">{doc}</td>
+                              <td className="px-4 py-2 text-right tabular-nums text-gray-700">{e.verstorben || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2 text-right tabular-nums text-amber-700">{e.arztwechsel || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2 text-right tabular-nums text-sky-700">{e.wegzug || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2 text-right tabular-nums text-gray-600">{e.inaktiv || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2 text-right tabular-nums font-bold text-gray-900">{e.total}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()}
                 {/* History table */}
                 {auswertungStats.inaktiveRows.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-3">
