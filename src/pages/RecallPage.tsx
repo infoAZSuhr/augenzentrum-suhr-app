@@ -52,7 +52,7 @@ const OFFEN_LABEL = 'Inaktive Ärzte'              // sichtbares Label im UI
 const AUFGEBOT_TAB = '📅 RECALL'
 const PAGE_SIZE  = 50
 
-const STORNO_GRUENDE = ['Terminverschiebung', 'WV bei Bedarf', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit', 'Behandlung im Spital', 'im Altersheim', 'Zweitmeinung - einmalige Konst.', 'Notfall - einmalige Konst.']
+const STORNO_GRUENDE = ['Terminverschiebung', 'WV bei Bedarf', 'Wegzug', 'Verstorben', 'Arztwechsel', 'no Show', 'Brief ungeöffnet retourniert', 'Krankheit', 'Behandlung im Spital', 'im Altersheim', 'Arzt lehnt Behandlung ab', 'Zweitmeinung - einmalige Konst.', 'Notfall - einmalige Konst.']
 
 const AUFGEBOT_OPTIONS = [
   { value: 'Brief',    Icon: Mail,      label: 'Briefaufgebot' },
