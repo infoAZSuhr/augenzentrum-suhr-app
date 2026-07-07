@@ -98,6 +98,7 @@ export interface RecallPatient {
   zuweisung?: Zuweisung | null      // Legacy: einzelne Zuweisung (wird migriert)
   zuweisungen?: Zuweisung[] | null  // Mehrere Zuweisungen pro Patient (an verschiedene Orte)
   zuweisungNoetig?: boolean | null  // true = MPA hat markiert, dass eine Zuweisung noch aussteht (Erinnerung fuer ZW-Management)
+  arztSeit?: string | null          // YYYY-MM-DD: seit wann dem aktuellen Arzt zugeteilt (gesetzt bei Umhaengung)
 }
 
 export interface VerlaufEntry {
@@ -244,6 +245,9 @@ export async function assignRecallPatient(
 ): Promise<void> {
   await updateDoc(doc(db, 'recall_patients', id), {
     doctor,
+    // Zuteilungsdatum merken: erlaubt den Filter «Noch nie beim Arzt»
+    // (arztSeit > letzteKons = seit der Umhaengung keine Konsultation).
+    arztSeit: new Date().toISOString().slice(0, 10),
     aktualisiert: recallTimestamp(username),
   })
 }

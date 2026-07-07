@@ -105,7 +105,7 @@ const VU_MIN: Record<string, number> = {
 const SONSTIGE_MIN = 5
 
 type FilterTermin = 'heute' | 'week' | 'month' | 'overdue' | 'inPlanung' | 'ohneTermin' | 'nachfass' | 'ohneRC'
-type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot' | 'wartetBericht'
+type FilterStatus = 'storniert' | 'inaktiv' | 'reminder' | 'keinAufgebot' | 'wartetBericht' | 'nieBeimArzt'
 const TERMIN_FILTER_LABELS: Record<FilterTermin, string> = {
   heute:      'Heute',
   week:       'Nächste 7 Tage',
@@ -133,6 +133,17 @@ function MinorBadge({ gebDatum }: { gebDatum: string | null | undefined }) {
 }
 
 function isStorniert(row: RecallPatient): boolean   { return s(row.storniert).toLowerCase() === 'ja' }
+
+/** Aktiver Patient, der dem Arzt zugeteilt ist, aber noch NIE bei ihm war:
+ *  keine Konsultation vorhanden, oder die Zuteilung (arztSeit) liegt NACH
+ *  der letzten Konsultation (Umhaengung ohne Besuch seither). Patienten ohne
+ *  arztSeit (vor Einfuehrung des Feldes umgehaengt) gelten als "war schon da". */
+function isNieBeimArzt(p: RecallPatient): boolean {
+  if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
+  const lk = toInputDate(p.letzteKons)
+  if (!lk) return true
+  return !!p.arztSeit && p.arztSeit > lk
+}
 
 /**
  * Patient gilt als "im Recall" (geplante Recall-Erstellung), wenn:
@@ -2337,6 +2348,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       base = base.filter(p => p.patientenStatus === 'kein Aufgebot')
     } else if (filterStatus === 'wartetBericht') {
       base = base.filter(isAwaitingZuweisungsBericht)
+    } else if (filterStatus === 'nieBeimArzt') {
+      base = base.filter(isNieBeimArzt)
     } else if (activeTab === ZU_BEARB) {
       // 'Zu bearbeiten': inaktive sichtbar lassen, nur Verstorbene ausblenden.
       base = base.filter(p => p.patientenStatus !== 'verstorben')
@@ -2421,6 +2434,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       storniert:         base.filter(isStorniert).length,
       inaktiv:           base.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben').length,
       nochZuErledigen:   base.filter(p => p.verlauf?.some(v => v.ergebnis === 'noch zu erledigen')).length,
+      nieBeimArzt:       base.filter(isNieBeimArzt).length,
       reminderFaellig:   active.filter(p => getReminderDueDate(p) !== null).length,
       reminderGeplant:   active.filter(p => getUpcomingReminderDate(p) !== null).length,
     }
@@ -4215,7 +4229,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                 const v = e.target.value
                 setFilterNeupatient(v === 'neu')
                 setFilterNochZuErledigen(v === 'nze')
-                setFilterStatus(v === 'storniert' ? 'storniert' : v === 'inaktiv' ? 'inaktiv' : null)
+                setFilterStatus(v === 'storniert' ? 'storniert' : v === 'inaktiv' ? 'inaktiv' : v === 'nieBeimArzt' ? 'nieBeimArzt' : null)
                 setFilterTermin(null)
                 setPage(1)
               }}
@@ -4228,6 +4242,7 @@ const lirisExtractRef  = useRef(lirisExtract)
               <option value="nze">⏳ Noch zu erledigen ({tabStats.nochZuErledigen})</option>
               <option value="storniert">Storniert ({tabStats.storniert})</option>
               <option value="inaktiv">Inaktiv / ✝ ({tabStats.inaktiv})</option>
+              <option value="nieBeimArzt">Noch nie beim Arzt ({tabStats.nieBeimArzt})</option>
             </select>
           )
         })()}
