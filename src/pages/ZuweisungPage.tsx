@@ -229,6 +229,7 @@ export default function ZuweisungPage() {
   const [patients, setPatients] = useState<RecallPatient[]>([])
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('pendent')
   const [filterTyp, setFilterTyp] = useState<FilterTyp>('alle')
+  const [filterGrund, setFilterGrund] = useState('')   // '' = alle Gründe
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   // Inline-Formular «weitere Zuweisung» (pro Patient)
@@ -263,6 +264,7 @@ export default function ZuweisungPage() {
       if (filterAnfrageFaellig && !istAnfrageFaellig(z)) return false
       if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
       if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
+      if (filterGrund && (z.grund || '').trim() !== filterGrund) return false
       const q = search.trim().toLowerCase()
       if (q) {
         const hay = `${p.vorname ?? ''} ${(p as { name?: string }).name ?? ''} ${p.pid ?? ''} ${z.ziel ?? ''} ${z.grund ?? ''}`.toLowerCase()
@@ -325,6 +327,10 @@ export default function ZuweisungPage() {
   }
 
   const allZ = patients.flatMap(p => patientZuweisungen(p))
+  // Alle real vorkommenden Gründe (inkl. Freitext) für den Grund-Filter.
+  const alleGruende = Array.from(new Set(
+    allZ.map(z => (z.grund || '').trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'de'))
   const ausstehendCount = allZ.filter(z => normStatus(z.status) === 'pendent').length
   const erledigtCount   = allZ.filter(z => z.status === 'erledigt').length
   const anfrageFaelligCount = allZ.filter(istAnfrageFaellig).length
@@ -558,6 +564,19 @@ export default function ZuweisungPage() {
               </button>
             ))}
           </div>
+          {/* Grund-Filter — alle real vorkommenden Zuweisungsgründe */}
+          <select
+            value={filterGrund}
+            onChange={e => setFilterGrund(e.target.value)}
+            className={`ml-2 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors focus:outline-none ${
+              filterGrund
+                ? 'bg-violet-100 text-violet-700 border-violet-300'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <option value="">Alle Gründe</option>
+            {alleGruende.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
         </div>
       </div>
 
