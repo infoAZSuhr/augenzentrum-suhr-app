@@ -4380,9 +4380,11 @@ const lirisExtractRef  = useRef(lirisExtract)
           )
         })()}
 
-        {/* Grund-Dropdown (Storno-Grund) — kombinierbar mit Status. Nur
-            Gruende anbieten, die im AKTUELLEN Tab tatsaechlich vorkommen. */}
-        {(() => {
+        {/* Grund-Dropdown (Storno-Grund) — erscheint erst, wenn ein passender
+            Status-Filter (Storniert / Inaktiv) aktiv ist, damit die Leiste
+            im Normalzustand schlank bleibt. Nur Gruende anbieten, die im
+            AKTUELLEN Tab tatsaechlich vorkommen. */}
+        {(filterStatus === 'storniert' || filterStatus === 'inaktiv' || filterGrund) && (() => {
           const gruende = new Set<string>()
           for (const p of allData.get(activeTab) ?? []) {
             const g = (p.grundStornierung || '').trim()
@@ -4407,25 +4409,15 @@ const lirisExtractRef  = useRef(lirisExtract)
           )
         })()}
 
-        {/* Arzt-Abgleich (Batch-Scan, nur Desktop-App): liest fuer alle
-            aktiven Patienten den letzten Konsultations-Arzt aus Liris aus,
-            damit «Noch nie beim Arzt» vollstaendig auswertbar ist. */}
-        {isElectron && (
-          arztScan?.running ? (
-            <span className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 shrink-0">
-              <span className="animate-pulse">⟳</span>
-              Abgleich {arztScan.done}/{arztScan.total} · {arztScan.found} erkannt · {arztScan.umgeteilt} zugeteilt
-              <button type="button" onClick={() => { arztScanAbort.current = true }}
-                className="ml-1 font-semibold underline hover:no-underline">Stopp</button>
-            </span>
-          ) : (
-            <button type="button" onClick={startArztScan}
-              title="Liest für alle aktiven Patienten den Arzt der letzten Konsultation aus Liris aus (Akten werden automatisch durchgeblättert). Danach ist der Filter «Noch nie beim Arzt» vollständig."
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-500 hover:bg-gray-50 shrink-0"
-            >
-              Arzt-Abgleich{arztScan && !arztScan.running ? ` (${arztScan.found} ✓)` : ''}
-            </button>
-          )
+        {/* Arzt-Abgleich läuft: kompakte Fortschritts-Anzeige (Start-Button
+            liegt in der Auswertung — er ist kein Filter). */}
+        {isElectron && arztScan?.running && (
+          <span className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 shrink-0">
+            <span className="animate-pulse">⟳</span>
+            Abgleich {arztScan.done}/{arztScan.total} · {arztScan.found} erkannt · {arztScan.umgeteilt} zugeteilt
+            <button type="button" onClick={() => { arztScanAbort.current = true }}
+              className="ml-1 font-semibold underline hover:no-underline">Stopp</button>
+          </span>
         )}
 
         {/* Aufgebot-Dropdown */}
@@ -6426,6 +6418,17 @@ const lirisExtractRef  = useRef(lirisExtract)
                     <span className="text-xs font-normal text-gray-400 ml-1">
                       ({auswertungStats.inaktiveRows.length})
                     </span>
+                    {/* Arzt-Abgleich (Batch-Scan, nur Desktop-App): liest den
+                        letzten Konsultations-Arzt aus Liris aus und teilt
+                        Patienten inaktiver Aerzte ggf. korrekt zu. */}
+                    {isElectron && !arztScan?.running && (
+                      <button type="button" onClick={startArztScan}
+                        title="Liest für alle aktiven Patienten den Arzt der letzten Konsultation aus Liris aus (Akten werden automatisch durchgeblättert). Patienten inaktiver Ärzte werden dem zuletzt konsultierten aktiven Arzt zugeteilt."
+                        className="text-xs border border-indigo-200 rounded-lg px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold"
+                      >
+                        Arzt-Abgleich starten{arztScan && !arztScan.running ? ` (${arztScan.found} ✓)` : ''}
+                      </button>
+                    )}
                   </h3>
                   {/* Period-Filter analog zu Aktivität + Neupatienten. Filtert
                       Tabelle UND Summary-Cards rückwirkend — Kind-Counts
