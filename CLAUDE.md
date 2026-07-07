@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Wichtig:** Lies zusätzlich [docs/KI-PLAYBOOK.md](docs/KI-PLAYBOOK.md) — Methodik, Deploy-/Release-Workflow und hart erarbeitete Fallstricke (Liris-Webview, Firestore, Electron). Pflichtlektüre vor Änderungen.
+
 ## Overview
 
 Internal practice-management web app for **Augenzentrum Suhr** (Swiss ophthalmology clinic). German UI throughout — keep all user-facing strings in German. Runs as a Vite/React SPA hosted on Firebase Hosting and, optionally, as a packaged Electron desktop app.
