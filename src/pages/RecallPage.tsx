@@ -1172,7 +1172,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Liris-Autor, gegen die Tab-Namen inkl. inaktiver Aerzte gematcht).
     // Grundlage fuer den Filter «Noch nie beim Arzt»: letzte Konsultation
     // war bei einem ANDEREN Arzt als dem aktuell zugeteilten.
-    if (lirisExtract.autor && editTarget !== 'new') {
+    if (lirisExtract.autor) {
+      // (editTarget ist hier immer ein bestehender Patient — der Effect
+      //  bricht fuer 'new' ganz oben ab.)
       const cleanedA = lirisExtract.autor.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim().toLowerCase()
       // Kandidaten: aktive Aerzte + alle Arzt-Tabs (inkl. inaktive wie Nessmann)
       const alleAerzte = new Set<string>(doctors)
