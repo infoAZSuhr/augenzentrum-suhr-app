@@ -395,6 +395,10 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
           var re=new RegExp('\\\\b'+ln+'\\\\b');
           var titleRe=/(^|\\s)(dr|prof|med|medic)\\b|\\bdr\\.?\\s|prof\\.?\\s/;
           var els=[].slice.call(document.querySelectorAll('a,button,[role="button"],li'));
+          // Termin-/Datumszeilen enthalten den Arztnamen oft AUCH (z.B.
+          // "Do. 13 August 2026, 15:15 (Dr. med. Tschopp)") — das sind
+          // KEINE Arzt-Eintraege und muessen raus.
+          var dateRe=/\\d{1,2}:\\d{2}|\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}|\\b(januar|februar|m(?:ä|ae)rz|april|mai|juni|juli|august|september|oktober|november|dezember)\\b/i;
           var strict=[],loose=[],texts=[];
           for(var k=0;k<els.length;k++){
             var t=(els[k].innerText||'').trim(); if(!t)continue;
@@ -403,6 +407,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
             var low=t.toLowerCase();
             texts.push(t);
             if(low==='gleich wie verantwortlicher arzt') continue;
+            if(dateRe.test(t)) continue;
             if(re.test(low)){ (titleRe.test(low)?strict:loose).push(els[k]); }
           }
           // Bevorzugt Eintraege MIT Arzt-Titel; Fallback: Nachname reicht
@@ -415,6 +420,10 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
             var uniq={}; for(var j=0;j<hits.length;j++){ uniq[(hits[j].innerText||'').trim()]=hits[j]; }
             var keys=Object.keys(uniq);
             if(keys.length===1){ uniq[keys[0]].click(); return 'ok'; }
+            // Verschiedene Texte: der KUERZESTE ist der reine Namens-Eintrag
+            // (laengere enthalten Zusatzinfos) — nur klicken wenn eindeutig.
+            keys.sort(function(a,b){ return a.length-b.length; });
+            if(keys[0].length < keys[1].length){ uniq[keys[0]].click(); return 'ok'; }
             return 'multiple:'+keys.slice(0,5).join(' | ').slice(0,300);
           }
           return 'none:'+texts.slice(0,30).join(' | ').slice(0,700);
