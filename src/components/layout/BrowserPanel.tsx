@@ -10,14 +10,14 @@ import { useToast } from '../../lib/ToastContext'
  *  nichts gefunden.
  *
  *  Wird nach PID-Inject + ~1.5s Render-Delay ausgefuehrt. */
-async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; emailVerdaechtig: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null; zusKontaktName: string | null; zusKontaktAdresse: string | null } | null> {
+async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pidMatchesLiris: boolean; vorname: string | null; nachname: string | null; gebDatum: string | null; autor: string | null; letzteKons: string | null; intervalWeeks: number | null; notFound: boolean; verstorben: boolean; anrede: string | null; postAdresse: string | null; email: string | null; emailVerdaechtig: string | null; bpKeywords: string[]; naechsterTerminDatum: string | null; naechsterTerminZeit: string | null; naechsterTerminRaw: string | null; bpText: string | null; zusKontaktName: string | null; zusKontaktAdresse: string | null; zusKontaktTyp: 'vertreter' | 'kontaktperson' | null } | null> {
   if (!wv?.executeJavaScript) return null
   // PID ohne # — Liris zeigt evtl. mit oder ohne Padding (0042 vs 42).
   const expectedPidDigits = (pid || '').replace(/\D/g, '').replace(/^0+/, '')
   const script = `
     (function() {
       var expectedPid = ${JSON.stringify(expectedPidDigits)};
-      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, emailVerdaechtig: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, zusKontaktName: null, zusKontaktAdresse: null, _debug: { textLen: 0 } };
+      var result = { pidMatchesLiris: false, vorname: null, nachname: null, gebDatum: null, autor: null, letzteKons: null, intervalWeeks: null, notFound: false, verstorben: false, anrede: null, postAdresse: null, email: null, emailVerdaechtig: null, bpKeywords: [], naechsterTerminDatum: null, naechsterTerminZeit: null, naechsterTerminRaw: null, bpText: null, zusKontaktName: null, zusKontaktAdresse: null, zusKontaktTyp: null, _debug: { textLen: 0 } };
       function collectText(doc) {
         var t = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
         var frames = doc.querySelectorAll ? doc.querySelectorAll('iframe') : [];
@@ -237,6 +237,42 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
               if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(gl)) { gvAddr.push(gl); break; }
             }
             if (gvAddr.length) result.zusKontaktAdresse = gvAddr.join('\\n');
+            result.zusKontaktTyp = 'vertreter';
+          }
+        }
+
+        // "Zusätzlicher Kontakt" (z.B. "Waldvogel Daniela (Kontaktperson), 079/...")
+        // — Typ aus der Klammer lesen: Kontaktperson vs. Vormund/Beistand/
+        // Vertreter. Nur wenn nicht schon ein gesetzlicher Vertreter gefunden.
+        if (!result.zusKontaktName) {
+          var zkStart = allText.search(/Zus[a\\u00e4]tzlicher\\s+Kontakt/i);
+          if (zkStart >= 0) {
+            var zkBlock = allText.slice(zkStart, zkStart + 500);
+            var zkLines = zkBlock.split('\\n').map(function(l){return l.trim()}).filter(Boolean);
+            var zkNameIdx = -1;
+            for (var zi = 1; zi < zkLines.length && zi < 6; zi++) {
+              var zt = zkLines[zi];
+              if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Rechnungsadresse)/i.test(zt)) break;
+              if (/:\\s*$/.test(zt)) continue;
+              zkNameIdx = zi; break;
+            }
+            if (zkNameIdx >= 0) {
+              var zkRaw = zkLines[zkNameIdx];
+              var zkRole = (zkRaw.match(/\\(([^)]*)\\)/) || [])[1] || '';
+              result.zusKontaktName = zkRaw.replace(/\\s*\\([^)]*\\)/g, '').replace(/,\\s*0\\d[\\d\\/\\s]+$/, '').trim();
+              result.zusKontaktTyp = /vormund|beistand|vertreter|vater|mutter/i.test(zkRole) ? 'vertreter' : 'kontaktperson';
+              var zkAddr = [];
+              for (var zj = zkNameIdx + 1; zj < zkLines.length && zj < zkNameIdx + 5; zj++) {
+                var zl = zkLines[zj];
+                if (/^(Verwaltungsbereich|Andere Versicherungen|Kontaktangaben|Rechnungsadresse)/i.test(zl)) break;
+                if (/:\\s*$/.test(zl)) break;
+                var zCombo = zl.match(/^([A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+\\s?[a-zA-Z]?)\\s*,\\s*(\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc][^\\d].*)$/);
+                if (zCombo) { zkAddr.push(zCombo[1].trim(), zCombo[2].trim()); break; }
+                if (/^[A-Z\\u00c4\\u00d6\\u00dc][\\w\\u00c4\\u00d6\\u00dc\\u00df\\u00e4\\u00f6\\u00fc.\\s-]+\\s+\\d+\\s?[a-zA-Z]?$/.test(zl)) { zkAddr.push(zl); continue; }
+                if (/^\\d{4,5}\\s+[A-Z\\u00c4\\u00d6\\u00dc]/.test(zl)) { zkAddr.push(zl); break; }
+              }
+              if (zkAddr.length) result.zusKontaktAdresse = zkAddr.join('\\n');
+            }
           }
         }
 
@@ -449,6 +485,7 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           bpText:              res.bpText               ?? null,
           zusKontaktName:      res.zusKontaktName       ?? null,
           zusKontaktAdresse:   res.zusKontaktAdresse    ?? null,
+          zusKontaktTyp:       (res.zusKontaktTyp as 'vertreter' | 'kontaktperson' | null) ?? null,
         }
       }
       console.log('[Liris-Extract] attempt', attempt + 1, 'nothing yet, debug:', res?._debug)

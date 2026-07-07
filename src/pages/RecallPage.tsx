@@ -574,6 +574,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
     verschiebungDurch: 'praxis' | 'patient'   // Terminverschiebung: wer hat verschoben? (bestimmt den Brieftext)
     vertreterModus: boolean           // Erwachsener Patient mit gesetzlichem Vertreter — Brief geht an den Vertreter, nicht direkt an den Patienten (analog Minderjährige)
+    vertreterTyp: 'vertreter' | 'kontaktperson'   // Art des Dritt-Empfaengers: gesetzl. Vertreter/Vormund vs. Kontaktperson (bestimmt die Formulierung)
   }
   const emptyAufgebotForm = (): AufgebotForm => ({
     art: null, pupille: false, anrede: '', adressBlock: '',
@@ -584,6 +585,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     nachnameOverride: '', briefVariante: '', frueherArzt: '',
     verschiebungDurch: 'patient',
     vertreterModus: false,
+    vertreterTyp: 'vertreter',
   })
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
@@ -2743,7 +2745,10 @@ const lirisExtractRef  = useRef(lirisExtract)
           // Vertreter-Modus nur zusammen mit der Erst-Befuellung aktivieren —
           // NICHT bei jedem Extraktions-Retry, sonst laesst er sich waehrend
           // der Nachlade-Phase nicht manuell abschalten.
-          if (hasVertreterData && !f.vertreterModus) patch.vertreterModus = true
+          if (hasVertreterData && !f.vertreterModus) {
+            patch.vertreterModus = true
+            patch.vertreterTyp = lirisExtract.zusKontaktTyp === 'kontaktperson' ? 'kontaktperson' : 'vertreter'
+          }
           // nachnameOverride bleibt beim Patienten-Nachnamen (aus Liris-Header)
         } else if (lirisExtract.postAdresse) {
           // Name-Zeile in LIRIS-Reihenfolge "Nachname Vorname" — so wie beim
@@ -2850,7 +2855,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     const kindHinweis = isMinor
       ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(kindNameDisplay)}</strong>.</p>`
       : form.vertreterModus
-        ? `<p>Dieses Schreiben betrifft <strong>${escLine(kindNameDisplay)}</strong>, f&#252;r die/den Sie als gesetzliche/r Vertreter/in handeln.</p>`
+        ? (form.vertreterTyp === 'kontaktperson'
+            ? `<p>Dieses Schreiben betrifft <strong>${escLine(kindNameDisplay)}</strong>. Sie erhalten es als hinterlegte Kontaktperson &#8212; wir bitten Sie, die Information weiterzuleiten.</p>`
+            : `<p>Dieses Schreiben betrifft <strong>${escLine(kindNameDisplay)}</strong>, f&#252;r die/den Sie als gesetzliche/r Vertreter/in handeln.</p>`)
         : ''
     // Build structured address: Anrede / Vorname Nachname / Strasse / PLZ Ort
     const adressHtml = [form.anrede, nameDisplay, adressLines[1] ?? '', adressLines[2] ?? '']
@@ -3284,7 +3291,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       body = [
         salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        ...(!eMinor && form.vertreterModus ? [`Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
+        ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
+          ? `Dieses Schreiben betrifft ${childName}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
+          : `Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
         ...(form.briefVariante === 'terminVerpasst' ? [
           `Ihr Termin am ${terminVerpasstDatumTxt || '[Datum]'} konnte leider nicht wahrgenommen werden.`,
           '',
@@ -3357,7 +3366,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       body = [
         salut, '',
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        ...(!eMinor && form.vertreterModus ? [`Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
+        ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
+          ? `Dieses Schreiben betrifft ${childName}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
+          : `Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
         introLineEmail,
         terminSection, vuSection, sehSection, mitbringen,
       ].join('\n')
@@ -5178,8 +5189,27 @@ const lirisExtractRef  = useRef(lirisExtract)
                           ? 'border-violet-400 bg-violet-50 text-violet-700'
                           : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
                       }`}>
-                      {af.vertreterModus ? '✓ Adressiert an gesetzlichen Vertreter' : 'Erwachsener mit gesetzlichem Vertreter'}
+                      {af.vertreterModus
+                        ? (af.vertreterTyp === 'kontaktperson' ? '✓ Adressiert an Kontaktperson' : '✓ Adressiert an gesetzlichen Vertreter')
+                        : 'Brief an Drittperson (Vertreter/Kontaktperson)'}
                     </button>
+                    {/* Art des Dritt-Empfaengers — bestimmt die Formulierung im
+                        Brief/E-Mail («als gesetzliche/r Vertreter/in» vs.
+                        «als hinterlegte Kontaktperson»). Aus Liris vorbelegt. */}
+                    {af.vertreterModus && (
+                      <div className="flex gap-2 mt-1.5">
+                        {([
+                          ['vertreter', 'Vormund / gesetzl. Vertreter', 'Brief: «…für die/den Sie als gesetzliche/r Vertreter/in handeln»'],
+                          ['kontaktperson', 'Kontaktperson', 'Brief: «Sie erhalten es als hinterlegte Kontaktperson — bitte weiterleiten»'],
+                        ] as const).map(([v, label, hint]) => (
+                          <button key={v} type="button" title={hint}
+                            onClick={() => setAf({ vertreterTyp: v })}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                              af.vertreterTyp === v ? 'border-violet-400 bg-violet-50 text-violet-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                            }`}>{label}</button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Anrede */}
                     <div>

@@ -25,6 +25,7 @@ export interface LirisExtract {
   bpText?:               string | null  // Rohtext "Beurteilung und Prozedere" aus Liris
   zusKontaktName?:       string | null  // Name des zusätzlichen Kontakts (Elternteil bei Minderjährigen)
   zusKontaktAdresse?:    string | null  // Adresse des zusätzlichen Kontakts (Strasse\nPLZ Ort)
+  zusKontaktTyp?:        'vertreter' | 'kontaktperson' | null  // gesetzl. Vertreter/Vormund vs. blosse Kontaktperson
   at:               number              // Timestamp damit Consumer nur frisches sehen
 }
 
