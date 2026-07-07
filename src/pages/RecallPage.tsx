@@ -488,6 +488,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [filterNeupatient, setFilterNeupatient] = useState(false)
   const [filterTermin, setFilterTermin] = useState<FilterTermin | null>(null)
   const [filterStatus, setFilterStatus] = useState<FilterStatus | null>(null)
+  const [filterGrund, setFilterGrund] = useState<string | null>(null)   // Storno-Grund
   const [filterAufgebotArt, setFilterAufgebotArt] = useState<string | null>(null)
   const [filterNochZuErledigen, setFilterNochZuErledigen] = useState(false)
   const [filterReminderFaellig, setFilterReminderFaellig] = useState(false)
@@ -2347,6 +2348,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     }
     if (filterAufgebotArt === 'kein') base = base.filter(p => !p.aufgebotArt)
     else if (filterAufgebotArt) base = base.filter(p => p.aufgebotArt === filterAufgebotArt)
+    // Grund-Filter (Storno-Grund) — kombinierbar mit dem Status-Filter.
+    if (filterGrund) base = base.filter(p => (p.grundStornierung || '').trim() === filterGrund)
     if (filterNochZuErledigen) base = base.filter(p => p.verlauf?.some(v => v.ergebnis === 'noch zu erledigen'))
     if (filterVerlaufAktion) base = base.filter(p => p.verlauf?.some(v => v.aktion === filterVerlaufAktion && v.von !== 'System'))
     if (filterReminderFaellig) base = base.filter(p => getReminderDueDate(p) !== null)
@@ -2396,7 +2399,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       return 0
     })
     return sorted
-  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, inaktiveAerzte, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterGrund, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, inaktiveAerzte, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Per-tab statistics for the filter bar chips
   const tabStats = useMemo(() => {
@@ -4119,9 +4122,9 @@ const lirisExtractRef  = useRef(lirisExtract)
               ? `${rows.length} Treffer`
               : `${rows.length} Einträge`}
           </span>
-          {(filterTermin || filterNeupatient || filterStatus || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion || filterInaktivArzt) && (
+          {(filterTermin || filterNeupatient || filterStatus || filterGrund || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion || filterInaktivArzt) && (
             <button
-              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setFilterInaktivArzt(null); setPage(1) }}
+              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterGrund(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setFilterInaktivArzt(null); setPage(1) }}
               className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200 font-medium hover:bg-gray-200 transition-colors"
             >
               <X className="w-3 h-3" /> Filter zurücksetzen
@@ -4225,6 +4228,31 @@ const lirisExtractRef  = useRef(lirisExtract)
               <option value="nze">⏳ Noch zu erledigen ({tabStats.nochZuErledigen})</option>
               <option value="storniert">Storniert ({tabStats.storniert})</option>
               <option value="inaktiv">Inaktiv / ✝ ({tabStats.inaktiv})</option>
+            </select>
+          )
+        })()}
+
+        {/* Grund-Dropdown (Storno-Grund) — kombinierbar mit Status */}
+        {(() => {
+          const gruende = new Set<string>()
+          for (const list of allData.values()) {
+            for (const p of list) {
+              const g = (p.grundStornierung || '').trim()
+              if (g) gruende.add(g)
+            }
+          }
+          const sorted = Array.from(gruende).sort((a, b) => a.localeCompare(b, 'de'))
+          if (sorted.length === 0) return null
+          return (
+            <select
+              value={filterGrund ?? ''}
+              onChange={e => { setFilterGrund(e.target.value || null); setPage(1) }}
+              className={`text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-300 cursor-pointer ${
+                filterGrund ? 'border-primary-300 bg-primary-50 text-primary-700 font-semibold' : 'border-gray-200 bg-white text-gray-500'
+              }`}
+            >
+              <option value="">Grund…</option>
+              {sorted.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
           )
         })()}
