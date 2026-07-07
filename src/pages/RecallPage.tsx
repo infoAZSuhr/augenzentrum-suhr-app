@@ -48,7 +48,7 @@ import { ref as storageRef, uploadBytes } from 'firebase/storage'
 const DOCTORS_DEFAULT = ['Artemiev', 'Menke', 'Malinina', 'Tschopp', 'Trachsler', 'Kirr', 'Papazoglou']
 const ZU_BEARB   = 'Zu bearbeiten'
 const OFFEN_TAB  = 'offen'                       // interner Doctor-Wert in der DB
-const OFFEN_LABEL = 'Inaktive Ärzte'              // sichtbares Label im UI
+const OFFEN_LABEL = 'Inaktive / Archiv'           // sichtbares Label im UI — Sammelansicht: Patienten inaktiver Ärzte + alle inaktiven/verstorbenen Patienten
 const AUFGEBOT_TAB = '📅 RECALL'
 const PAGE_SIZE  = 50
 
