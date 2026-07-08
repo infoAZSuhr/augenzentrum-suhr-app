@@ -1464,6 +1464,7 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
     try {
       await updateDoc(doc(db, 'users', profile.uid), {
         username: username.trim(),
+        usernameLower: username.trim().toLowerCase(),
         displayName: displayName.trim() || username.trim(),
       })
       await refreshProfile()

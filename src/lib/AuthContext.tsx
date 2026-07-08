@@ -182,9 +182,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     setProfile(null)
     // Resolve username → Firebase-Auth-Email via Firestore.
+    // Lookup case-insensitiv über `usernameLower`; Fallback auf exakten
+    // `username` für Altbestand ohne Backfill.
     // Bevorzugt das stabile `authEmail`-Feld; faellt fuer Altbestand auf `email` zurueck.
-    const q = query(collection(db, 'users'), where('username', '==', username.trim()))
-    const snap = await getDocs(q)
+    let snap = await getDocs(query(collection(db, 'users'), where('usernameLower', '==', username.trim().toLowerCase())))
+    if (snap.empty) snap = await getDocs(query(collection(db, 'users'), where('username', '==', username.trim())))
     if (snap.empty) throw { code: 'auth/user-not-found' }
     const data = snap.docs[0].data() as UserProfile
     const loginEmail = data.authEmail || data.email
@@ -213,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
     const p: UserProfile = { uid: cred.user.uid, email, authEmail: email, displayName, username, role, status: 'pending' }
-    await setDoc(doc(db, 'users', cred.user.uid), { ...p, createdAt: serverTimestamp() })
+    await setDoc(doc(db, 'users', cred.user.uid), { ...p, usernameLower: username.trim().toLowerCase(), createdAt: serverTimestamp() })
     setProfile(p)
   }
 
@@ -236,8 +238,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const sendResetByUsername = async (username: string) => {
-    const q = query(collection(db, 'users'), where('username', '==', username.trim()))
-    const snap = await getDocs(q)
+    let snap = await getDocs(query(collection(db, 'users'), where('usernameLower', '==', username.trim().toLowerCase())))
+    if (snap.empty) snap = await getDocs(query(collection(db, 'users'), where('username', '==', username.trim())))
     if (snap.empty) throw { code: 'auth/user-not-found' }
     const data = snap.docs[0].data() as UserProfile
     // Reset-Mail geht an die Auth-Identitaet (sonst kennt Firebase die Adresse nicht).

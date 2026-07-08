@@ -275,6 +275,7 @@ export default function UserManagementPage() {
       await updateDoc(doc(db, 'users', uid), {
         displayName:      newName,
         username:         editForm.username.trim(),
+        usernameLower:    editForm.username.trim().toLowerCase(),
         email:            editForm.email.trim().toLowerCase(),
         role:             editForm.role,
         additionalRoles:  editForm.additionalRoles,
@@ -383,6 +384,7 @@ export default function UserManagementPage() {
         authEmail: addForm.email.trim().toLowerCase(),
         displayName: addForm.name.trim(),
         username: addForm.username.trim(),
+        usernameLower: addForm.username.trim().toLowerCase(),
         role:            addForm.role,
         additionalRoles: addForm.additionalRoles,
         status: 'approved',

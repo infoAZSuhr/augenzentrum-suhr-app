@@ -49,6 +49,8 @@ export default function LoginPage() {
         setError('Zu viele Fehlversuche — Konto gesperrt. Bitte Administrator kontaktieren.')
       } else if (code === 'auth/user-not-found') {
         setError('Benutzername nicht gefunden.')
+      } else if (code === 'auth/network-request-failed' || code === 'unavailable') {
+        setError('Keine Verbindung zum Server — bitte Internetverbindung prüfen und erneut versuchen.')
       } else {
         setError('Benutzername oder Passwort falsch.')
       }
