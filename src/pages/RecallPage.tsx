@@ -5344,6 +5344,30 @@ const lirisExtractRef  = useRef(lirisExtract)
                         ))}
                       </div>
                     )}
+                    {/* Empfaenger explizit definieren — der Brief geht NIE an den
+                        Patienten selbst. Das Feld ist die erste Zeile des
+                        Adressblocks (Anrede/Begruessung leiten sich daraus ab);
+                        aus Liris («Zusätzlicher Kontakt») vorbefuellt, falls
+                        vorhanden — sonst hier eintragen. */}
+                    {af.vertreterModus && (
+                      <div className="mt-1.5">
+                        <p className="text-xs font-semibold text-violet-700 mb-1">
+                          Empfänger ({af.vertreterTyp === 'kontaktperson' ? 'Kontaktperson' : 'Vertreter/in'}) *
+                        </p>
+                        <input type="text"
+                          value={af.adressBlock.split('\n')[0] || ''}
+                          onChange={e => {
+                            const lines = af.adressBlock.split('\n')
+                            lines[0] = e.target.value
+                            setAf({ adressBlock: lines.join('\n') })
+                          }}
+                          placeholder="Nachname Vorname der Dritt-Person"
+                          className="input text-sm w-full" />
+                        <p className="mt-0.5 text-[10px] text-gray-400">
+                          Anrede + Briefbegrüssung beziehen sich auf diese Person; deren Adresse unten im Adressfeld ergänzen.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Anrede */}
                     <div>
