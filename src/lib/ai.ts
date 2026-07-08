@@ -1,15 +1,16 @@
-// KI-Brieftext-Formulierung via Firebase AI Logic (Gemini Developer API, Gratis-Kontingent).
+// KI-Brieftext-Formulierung via Firebase AI Logic (Vertex AI, läuft über die
+// bestehende Blaze-Abrechnung — Kosten pro Brief im Sub-Rappen-Bereich).
 // DATENSCHUTZ: Es werden KEINE Patientendaten an die API geschickt — nur der anonyme
 // Anliegen-Text. Konkrete Angaben (Namen, Daten) kommen als [Platzhalter] zurück und
 // werden erst lokal in der App ergänzt.
-import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai'
+import { getAI, getGenerativeModel, VertexAIBackend } from 'firebase/ai'
 import { app } from './firebase'
 
 let _model: ReturnType<typeof getGenerativeModel> | null = null
 
 function model() {
   if (!_model) {
-    const ai = getAI(app, { backend: new GoogleAIBackend() })
+    const ai = getAI(app, { backend: new VertexAIBackend('europe-west1') })
     _model = getGenerativeModel(ai, {
       model: 'gemini-2.5-flash',
       generationConfig: { responseMimeType: 'application/json' },
