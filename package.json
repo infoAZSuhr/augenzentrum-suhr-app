@@ -51,7 +51,7 @@
     "clsx": "^2.1.0",
     "date-fns": "^3.3.1",
     "electron-updater": "^6.3.9",
-    "firebase": "^10.8.0",
+    "firebase": "^12.15.0",
     "lucide-react": "^0.323.0",
     "mermaid": "^11.15.0",
     "pdf-lib": "^1.17.1",

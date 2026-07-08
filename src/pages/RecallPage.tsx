@@ -5,7 +5,8 @@ import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
 import { doctorPhoto } from '../lib/doctorPhotos'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ArrowLeft } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ArrowLeft, Sparkles } from 'lucide-react'
+import { generateBriefText } from '../lib/ai'
 import {
   RecallPatient,
   Zuweisung,
@@ -593,6 +594,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
+  // KI-Formulierung im Freien Brief (Gemini via Firebase AI Logic, gratis, ohne Patientendaten)
+  const [kiAnliegen, setKiAnliegen] = useState('')
+  const [kiLoading, setKiLoading] = useState(false)
   // Inline-Formular «weitere Zuweisung» im Patient-bearbeiten-Dialog
   const [zwAddOpen, setZwAddOpen] = useState(false)
   const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
@@ -5129,6 +5133,39 @@ const lirisExtractRef  = useRef(lirisExtract)
                           >{v.label}</button>
                         ))}
                       </div>
+                    </div>
+                    {/* KI-Formulierung: Anliegen in Stichworten → Gemini formuliert Betreff+Text.
+                        Es werden keine Patientendaten mitgeschickt (nur der Anliegen-Text). */}
+                    <div className="p-2.5 rounded-lg border border-violet-200 bg-violet-50/60 space-y-1.5">
+                      <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" /> KI-Formulierung
+                      </p>
+                      <div className="flex gap-1.5">
+                        <input type="text" value={kiAnliegen}
+                          onChange={e => setKiAnliegen(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
+                          placeholder="Anliegen in Stichworten, z.B. «Patient soll neue Brille abholen, freundlich erinnern»"
+                          className="input text-sm flex-1" />
+                        <button type="button" disabled={kiLoading || !kiAnliegen.trim()}
+                          onClick={async () => {
+                            setKiLoading(true)
+                            try {
+                              const empfaenger = af.vertreterModus
+                                ? 'die gesetzliche Vertretung bzw. Kontaktperson eines Patienten'
+                                : 'der Patient / die Patientin selbst'
+                              const entwurf = await generateBriefText(kiAnliegen, empfaenger)
+                              setAf({ freiBetreff: entwurf.betreff || af.freiBetreff, freiText: entwurf.text })
+                            } catch (err) {
+                              console.error('KI-Formulierung fehlgeschlagen', err)
+                              toast.error('KI-Formulierung fehlgeschlagen — bitte erneut versuchen oder Text manuell schreiben.')
+                            } finally {
+                              setKiLoading(false)
+                            }
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1 shrink-0"
+                        >{kiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Formulieren</button>
+                      </div>
+                      <p className="text-[10px] text-violet-500">Ohne Patientendaten — konkrete Angaben erscheinen als [Platzhalter] und bitte vor dem Versand ersetzen.</p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Betreff *</p>
