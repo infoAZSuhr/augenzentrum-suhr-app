@@ -5048,9 +5048,35 @@ const lirisExtractRef  = useRef(lirisExtract)
                   )
                 })()}
 
-                {/* Freier Brief: Betreff + Text */}
+                {/* Freier Brief: Betreff + Text (mit Vorlagen) */}
                 {af.briefVariante === 'freierBrief' && (
                   <div className="space-y-2">
+                    {/* Vorlagen: fuellen Betreff+Text vor, bleiben frei editierbar.
+                        [Platzhalter] in eckigen Klammern vor dem Versand ersetzen. */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Vorlagen</p>
+                      <div className="flex flex-wrap gap-1">
+                        {([
+                          { label: 'Anwesenheitsbestätigung',
+                            betreff: 'Anwesenheitsbestätigung',
+                            text: `Hiermit bestätigen wir, dass ${titleCaseName(p.vorname) || '[Name]'} am [Datum] um [Uhrzeit] Uhr zur augenärztlichen Behandlung in unserer Praxis war.\n\nDieses Schreiben dient zur Vorlage beim Arbeitgeber bzw. bei der Schule.` },
+                          { label: 'Rezept-Begleitbrief',
+                            betreff: 'Ihr Rezept',
+                            text: `Gerne senden wir Ihnen das gewünschte Rezept — es liegt diesem Schreiben bei.\n\nBei Fragen erreichen Sie uns unter 062 842 18 46 oder info@augenzentrum-suhr.ch.` },
+                          { label: 'Unterlagen anfordern',
+                            betreff: 'Fehlende Unterlagen',
+                            text: `Für die weitere Bearbeitung benötigen wir noch folgende Unterlagen von Ihnen:\n\n- [Unterlage 1]\n- [Unterlage 2]\n\nBitte senden Sie uns diese per Post oder E-Mail an info@augenzentrum-suhr.ch. Herzlichen Dank.` },
+                          { label: 'Nicht erreicht',
+                            betreff: 'Wir konnten Sie nicht erreichen',
+                            text: `Wir haben mehrfach versucht, Sie telefonisch zu erreichen — leider ohne Erfolg.\n\nBitte melden Sie sich bei uns unter 062 842 18 46 oder info@augenzentrum-suhr.ch, damit wir das weitere Vorgehen mit Ihnen besprechen können.` },
+                        ]).map(v => (
+                          <button key={v.label} type="button"
+                            onClick={() => setAf({ freiBetreff: v.betreff, freiText: v.text })}
+                            className="px-2 py-0.5 text-[11px] font-medium border border-slate-300 bg-white text-slate-700 rounded-full hover:bg-slate-100 transition-colors"
+                          >{v.label}</button>
+                        ))}
+                      </div>
+                    </div>
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Betreff *</p>
                       <input type="text" value={af.freiBetreff}
