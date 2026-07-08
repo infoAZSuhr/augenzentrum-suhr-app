@@ -1051,9 +1051,12 @@ const lirisExtractRef  = useRef(lirisExtract)
           setField('verlauf', [])
           filled = true
         }
-        // Intervall aus Liris übernehmen (immer, auch bei gleichem Datum)
+        // Intervall aus Liris übernehmen — NUR bei echter Änderung (neuer
+        // Zyklus) oder als reines Ergänzen, wenn lokal noch kein Intervall
+        // erfasst ist. Bei unveränderter Akte darf das Auto-Ausfüllen keine
+        // manuell gesetzten Werte (Storno, nächste Konst., RC-ab) anfassen.
         const baseLk = lirisExtract.letzteKons
-        if (lirisExtract.intervalWeeks) {
+        if (lirisExtract.intervalWeeks && (isNewer || !form.konsInterval.trim())) {
           const w = lirisExtract.intervalWeeks
           let label: string | null = null
           if (w % 52 === 0 && w / 52 <= 120)      label = `${w / 52}j`
@@ -1061,12 +1064,18 @@ const lirisExtractRef  = useRef(lirisExtract)
           else if (w <= 120)                      label = `${w}w`
           if (label) {
             setField('konsInterval', label)
-            setField('storniert', '')
-            setField('grundStornierung', '')
+            if (isNewer) {
+              setField('storniert', '')
+              setField('grundStornierung', '')
+            }
             const computed = computeNextKons(baseLk, label)
-            if (computed) {
-              setField('naechsteKons', '')
-              setField('keinTermin', false)
+            // RC-ab nur berechnen wenn neuer Zyklus ODER beide Zielfelder
+            // noch leer sind (Ergänzung statt Überschreiben).
+            if (computed && (isNewer || (!form.naechsteKons && !form.aufgebotFuer))) {
+              if (isNewer) {
+                setField('naechsteKons', '')
+                setField('keinTermin', false)
+              }
               const lk2 = new Date(baseLk + 'T00:00:00Z')
               lk2.setUTCMonth(lk2.getUTCMonth() + 2)
               if (computed <= lk2.toISOString().slice(0, 10)) {
