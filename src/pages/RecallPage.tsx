@@ -5159,11 +5159,13 @@ const lirisExtractRef  = useRef(lirisExtract)
                               // p.vorname enthält den vollen Namen in Liris-Reihenfolge
                               // «NACHNAME VORNAME» — für den Brieftext umdrehen.
                               const nw = (p.vorname ?? '').trim().split(/\s+/).filter(Boolean)
-                              const patientName = titleCaseName(nw.length >= 2
-                                ? `${nw[nw.length - 1]} ${nw.slice(0, -1).join(' ')}`
-                                : nw.join(' '))
+                              const vorname  = titleCaseName(nw.length >= 2 ? nw[nw.length - 1] : nw.join(' '))
+                              const nachname = titleCaseName(nw.length >= 2 ? nw.slice(0, -1).join(' ') : '')
+                              const patientName = [vorname, nachname].filter(Boolean).join(' ')
                               const fillPlatzhalter = (t: string) => t
                                 .replace(/\[(Name|Patientenname|Patient(?:in)?)\]/gi, patientName || '[Name]')
+                                .replace(/\[Vorname\]/gi, vorname || '[Vorname]')
+                                .replace(/\[Nachname\]/gi, nachname || '[Nachname]')
                                 .replace(/\[Geburtsdatum\]/gi, p.gebDatum ? formatDate(p.gebDatum) : '[Geburtsdatum]')
                               setAf({
                                 freiBetreff: fillPlatzhalter(entwurf.betreff) || af.freiBetreff,
