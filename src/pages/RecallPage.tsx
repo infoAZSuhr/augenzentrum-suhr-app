@@ -852,24 +852,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       const hit = list.find(p => normalizePid(p.pid) === wantPid)
       if (hit) { found = hit; break }
     }
-    if (found && recallPidRequest.auto) {
-      // Automatisch (blosse Akte-Navigation): NUR oeffnen wenn es in der Akte
-      // etwas Neues gibt — neue Konsultation (Liris-Datum neuer als gespeichert)
-      // oder †-Markierung, die im Recall noch fehlt. Sonst kein Popup.
-      const lx = (lirisExtract && normalizePid(lirisExtract.pid) === wantPid && Date.now() - lirisExtract.at < 20000) ? lirisExtract : null
-      if (!lx) return   // Extract noch nicht da -> warten (Effect re-runt bei lirisExtract-Update; maxAge raeumt auf)
-      const neueKons = !!(lx.letzteKons && String(lx.letzteKons) > String(found.letzteKons ?? ''))
-      const verstorbenNeu = !!lx.verstorben && found.patientenStatus !== 'verstorben'
-      // Neuer/geaenderter Termin in Liris, der lokal noch nicht erfasst ist —
-      // das Auto-Fill im Modal wuerde ihn uebernehmen -> Modal lohnt sich.
-      const terminNeu = !!lx.naechsterTerminDatum
-        && toInputDate(found.naechsteKons) !== lx.naechsterTerminDatum
-      if (!neueKons && !verstorbenNeu && !terminNeu) {
-        console.log('[Recall] Auto-Open unterdrueckt — keine Aenderung in der Akte (PID', wantPid + ')')
-        clearRecallPidRequest()
-        return
-      }
-    }
+    // Auch bei blosser Akte-Navigation (auto) IMMER oeffnen — das Auto-Fill
+    // im Modal aktualisiert ohnehin nur Felder mit tatsaechlich neuen Infos.
     clearRecallPidRequest()
     if (found) {
       openEdit(found, false)   // false = nicht zurueck an Liris senden
