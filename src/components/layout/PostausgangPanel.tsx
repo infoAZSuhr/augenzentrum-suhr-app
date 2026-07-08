@@ -25,13 +25,25 @@ const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
  *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
-  const { items, remove, markUploaded, markPrinted, markVersendet } = usePostausgang()
+  const { items, restoredCount, remove, markUploaded, markPrinted, markVersendet } = usePostausgang()
   // Per E-Mail versendete Briefe (skipPrint) laufen nur als unsichtbarer
   // Liris-Upload-Job im Hintergrund mit — sie erscheinen NICHT in der Liste
   // und zaehlen nicht im Badge (Postausgang = nur zu druckende Briefe).
   const visibleItems = items.filter(i => !i.skipPrint)
   const { lirisWebContentsId, openWithPid } = useBrowser()
   const toast = useToast()
+
+  // Erinnerung beim App-Start: wiederhergestellte, noch ungedruckte Briefe
+  // duerfen nicht vergessen gehen — Toast + Panel automatisch oeffnen.
+  const restoreReminded = useRef(false)
+  useEffect(() => {
+    if (restoreReminded.current || restoredCount === 0) return
+    const offen = items.filter(i => !i.skipPrint && !i.printed && !i.versendet)
+    if (offen.length === 0) return
+    restoreReminded.current = true
+    toast.warning(`📬 ${offen.length} Brief${offen.length === 1 ? '' : 'e'} im Postausgang warten noch auf den Druck!`, 12000)
+    setOpen(true)
+  }, [restoredCount, items]) // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)

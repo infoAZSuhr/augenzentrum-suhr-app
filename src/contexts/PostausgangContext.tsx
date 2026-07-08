@@ -26,6 +26,7 @@ export interface PostausgangItem {
 
 interface PostausgangContextType {
   items: PostausgangItem[]
+  restoredCount: number   // Anzahl beim Start wiederhergestellter Briefe (fuer die Erinnerung)
   add: (item: Omit<PostausgangItem, 'id' | 'createdAt'>) => Promise<PostausgangItem>
   remove: (id: string) => void
   markUploaded: (id: string) => void
@@ -36,6 +37,7 @@ interface PostausgangContextType {
 
 const PostausgangContext = createContext<PostausgangContextType>({
   items: [],
+  restoredCount: 0,
   add: async () => { throw new Error('Provider missing') },
   remove: () => {},
   markUploaded: () => {},
@@ -51,25 +53,92 @@ interface ElectronPostausgangApi {
   deletePdfTmp?: (filePath: string) => Promise<{ ok: boolean }>
 }
 
+// ── Persistenz (IndexedDB) ────────────────────────────────────────────────
+// Die Brief-PDFs lagen frueher NUR im Arbeitsspeicher — ein Reload/Absturz
+// verwarf sie kommentarlos und der Druck wurde vergessen. Jetzt wird jeder
+// Brief (inkl. PDF-Blob) in IndexedDB gespeichert und beim Start
+// wiederhergestellt, bis er wirklich gedruckt/hochgeladen und entfernt ist.
+const IDB_NAME = 'azs-postausgang'
+const IDB_STORE = 'items'
+function openIdb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1)
+    req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE, { keyPath: 'id' }) }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+async function idbSaveAll(items: PostausgangItem[]): Promise<void> {
+  const db = await openIdb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite')
+    const store = tx.objectStore(IDB_STORE)
+    store.clear()
+    // tmpPath nicht persistieren — die Temp-Datei ueberlebt den Neustart
+    // evtl. nicht und wird beim Restore neu geschrieben. aufgebot-Payload
+    // per JSON-Runde entschaerfen (koennte Nicht-Klonbares enthalten, das
+    // sonst die GANZE Transaktion und damit alle Briefe scheitern liesse).
+    for (const it of items) {
+      let aufgebot: unknown
+      try { aufgebot = it.aufgebot ? JSON.parse(JSON.stringify(it.aufgebot)) : undefined } catch { aufgebot = undefined }
+      store.put({ ...it, tmpPath: undefined, aufgebot })
+    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+async function idbLoadAll(): Promise<PostausgangItem[]> {
+  const db = await openIdb()
+  const items = await new Promise<PostausgangItem[]>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly')
+    const req = tx.objectStore(IDB_STORE).getAll()
+    req.onsuccess = () => resolve((req.result as PostausgangItem[]) ?? [])
+    req.onerror = () => reject(req.error)
+  })
+  db.close()
+  return items.sort((a, b) => b.createdAt - a.createdAt)
+}
+
 export function PostausgangProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<PostausgangItem[]>([])
-
-  // Warnung beim Seiten-Reload/Schliessen solange noch Briefe im Postausgang
-  // liegen — die PDFs leben nur im Arbeitsspeicher und waeren sonst weg.
-  useEffect(() => {
-    if (items.length === 0) return
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-      // Chrome/Edge zeigen einen generischen Dialog; returnValue muss gesetzt sein.
-      e.returnValue = ''
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [items.length])
+  const [restoredCount, setRestoredCount] = useState(0)
 
   const electronApi = (typeof window !== 'undefined'
     ? (window as unknown as { electronApp?: ElectronPostausgangApi }).electronApp
     : undefined)
+
+  // Beim Start gespeicherte Briefe wiederherstellen; fuer Electron die
+  // Temp-Dateien (Drag&Drop/Upload) neu schreiben.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const restored = await idbLoadAll()
+        if (cancelled || restored.length === 0) return
+        if (electronApi?.writePdfTmp) {
+          for (const it of restored) {
+            try {
+              const res = await electronApi.writePdfTmp(await it.blob.arrayBuffer(), it.filename)
+              if (res.ok && res.path) it.tmpPath = res.path
+            } catch { /* Brief bleibt ohne tmpPath nutzbar (Druck geht via Blob) */ }
+          }
+        }
+        if (cancelled) return
+        setItems(prev => {
+          const have = new Set(prev.map(i => i.id))
+          return [...restored.filter(r => !have.has(r.id)), ...prev]
+        })
+        setRestoredCount(restored.length)
+      } catch (e) { console.warn('[Postausgang] Restore fehlgeschlagen', e) }
+    })()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Jede Aenderung persistieren — so ueberleben Briefe Reload & Neustart.
+  useEffect(() => {
+    idbSaveAll(items).catch(e => console.warn('[Postausgang] Persistieren fehlgeschlagen', e))
+  }, [items])
 
   const add = useCallback(async (item: Omit<PostausgangItem, 'id' | 'createdAt'>) => {
     const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random()
@@ -138,7 +207,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
   }, [pendingCount, isElectron])
 
   return (
-    <PostausgangContext.Provider value={{ items, add, remove, markUploaded, markPrinted, markVersendet, clear }}>
+    <PostausgangContext.Provider value={{ items, restoredCount, add, remove, markUploaded, markPrinted, markVersendet, clear }}>
       {children}
     </PostausgangContext.Provider>
   )
