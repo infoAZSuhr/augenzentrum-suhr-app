@@ -5156,7 +5156,12 @@ const lirisExtractRef  = useRef(lirisExtract)
                               const entwurf = await generateBriefText(kiAnliegen, empfaenger)
                               // [Name]/[Geburtsdatum] lokal mit echten Patientendaten füllen —
                               // die Daten verlassen die App nicht, nur die KI kennt sie nicht.
-                              const patientName = titleCaseName((p.vorname ?? '').trim())
+                              // p.vorname enthält den vollen Namen in Liris-Reihenfolge
+                              // «NACHNAME VORNAME» — für den Brieftext umdrehen.
+                              const nw = (p.vorname ?? '').trim().split(/\s+/).filter(Boolean)
+                              const patientName = titleCaseName(nw.length >= 2
+                                ? `${nw[nw.length - 1]} ${nw.slice(0, -1).join(' ')}`
+                                : nw.join(' '))
                               const fillPlatzhalter = (t: string) => t
                                 .replace(/\[(Name|Patientenname|Patient(?:in)?)\]/gi, patientName || '[Name]')
                                 .replace(/\[Geburtsdatum\]/gi, p.gebDatum ? formatDate(p.gebDatum) : '[Geburtsdatum]')
