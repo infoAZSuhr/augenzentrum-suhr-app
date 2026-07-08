@@ -7165,7 +7165,26 @@ const lirisExtractRef  = useRef(lirisExtract)
                         // «Letzte Konst.» ist, gilt es als NEUE Konsultation → neuer
                         // Recall-Zyklus. Korrektur (gleich/älter) löst nichts aus.
                         const savedLK = (editTarget !== 'new' && editTarget) ? (editTarget.letzteKons ?? '') : ''
-                        if (newDate <= savedLK) return
+                        if (newDate <= savedLK) {
+                          // Korrektur (kein neuer Zyklus): «RC zu erstellen ab» trotzdem auf
+                          // die neue Basis nachziehen, sonst bleibt der Wert der alten
+                          // Datum/Intervall-Kombination stehen.
+                          if (form.konsInterval && form.aufgebotFuer && !form.naechsteKons) {
+                            const computed = computeNextKons(newDate, form.konsInterval)
+                            if (computed) {
+                              const lk2 = new Date(newDate + 'T00:00:00Z')
+                              lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+                              if (computed <= lk2.toISOString().slice(0, 10)) {
+                                setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+                              } else {
+                                const d = new Date(computed + 'T00:00:00Z')
+                                d.setUTCMonth(d.getUTCMonth() - 2)
+                                setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                              }
+                            }
+                          }
+                          return
+                        }
                         // Neuer Zyklus: altes Aufgebot/Termin ist obsolet.
                         setField('aufgebotErstellt', '')   // «Aufgebot/Reminder erstellt am» leeren
                         setField('aufgebotArt', '')
