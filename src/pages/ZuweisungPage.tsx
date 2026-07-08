@@ -72,7 +72,10 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
 
   const subject = `Berichtsanfrage – ${ident}`
   const body = [
-    'Sehr geehrte Damen und Herren',
+    // KSA-Augenklinik: persoenliche Team-Begruessung, sonst neutral.
+    empfaenger === 'berichtesekretariat-augenklinik@ksa.ch'
+      ? 'Sehr geehrtes Team der Augenklinik'
+      : 'Sehr geehrte Damen und Herren',
     '',
     `${zuweisungsSatz}${z.grund ? ` (Grund: ${z.grund})` : ''}:`,
     '',

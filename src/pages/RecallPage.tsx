@@ -5061,6 +5061,41 @@ const lirisExtractRef  = useRef(lirisExtract)
                       <div className="grid grid-cols-2 gap-2">
                         {renderCard({ art: 'Brief', variante: 'terminBestaetigung', Icon: CalendarClock, label: 'Terminbestätigung', sub: 'Bestätigung des vereinbarten Termins', color: 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100' })}
                         {renderCard({ art: 'Brief', variante: 'freierBrief', Icon: Pencil, label: 'Freier Brief', sub: 'Eigener Betreff & Text auf Briefkopf', color: 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100' })}
+                        {/* Direkt-Aktion (kein Brief-Flow): vorbereitete E-Mail an das
+                            Berichtesekretariat der KSA-Augenklinik oeffnen + Verlauf. */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = titleCaseName(p.vorname) || '[Name]'
+                            const geb = p.gebDatum ? formatDate(p.gebDatum) : ''
+                            const ident = `${name}${geb ? `, geb. ${geb}` : ''}`
+                            const subject = `Berichtsanfrage – ${ident}`
+                            const body = [
+                              'Sehr geehrtes Team der Augenklinik',
+                              '',
+                              'Folgende Patientin / folgender Patient war bei Ihnen in Behandlung:',
+                              '',
+                              `    ${ident}`,
+                              '',
+                              'Bisher ist bei uns noch kein Bericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
+                              '',
+                              'Freundliche Grüsse',
+                              'Augenzentrum Suhr',
+                            ].join('\n')
+                            const url = `mailto:berichtesekretariat-augenklinik@ksa.ch?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+                            try { window.open(url) } catch { window.location.href = url }
+                            const entry: VerlaufEntry = { datum: new Date().toISOString().slice(0, 10), aktion: 'Notiz', ergebnis: 'Berichtsanfrage an KSA-Augenklinik versendet', von: displayLabel }
+                            updateRecallPatient(p.id, { verlauf: [...(p.verlauf ?? []), entry] }, displayLabel)
+                              .then(() => reloadAllTabs()).catch(() => {})
+                            toast.success('E-Mail an das Berichtesekretariat der KSA-Augenklinik wird geöffnet.')
+                          }}
+                          title="Öffnet eine vorbereitete E-Mail an berichtesekretariat-augenklinik@ksa.ch («Sehr geehrtes Team der Augenklinik») mit Name und Geburtsdatum des Patienten. Wird im Verlauf protokolliert."
+                          className="col-span-2 flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+                        >
+                          <Mail className="w-5 h-5" />
+                          <span className="text-xs font-semibold leading-tight">Bericht anfordern (KSA Augenklinik)</span>
+                          <span className="text-[10px] opacity-70 leading-tight">E-Mail an das Berichtesekretariat · öffnet sofort Outlook</span>
+                        </button>
                       </div>
                     </div>
                   )
