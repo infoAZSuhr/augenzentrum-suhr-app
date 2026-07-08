@@ -5006,7 +5006,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                 className={`flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
               >
                 <div className="pointer-events-none">
-                  <h2 className="font-bold text-gray-900 flex items-center gap-2">Patient aufbieten <MinorBadge gebDatum={p.gebDatum} /></h2>
+                  <h2 className="font-bold text-gray-900 flex items-center gap-2">Aufbieten & Briefe <MinorBadge gebDatum={p.gebDatum} /></h2>
                   <p className="text-xs text-gray-500 mt-0.5">{p.vorname} {p.pid && `· #${normalizePid(p.pid)}`} · {p.doctor}</p>
                 </div>
                 <button onClick={() => setAufgebotTarget(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
@@ -5057,7 +5057,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                   }
                   return (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aufgebots-Art</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aufgebot & Reminder</p>
                       <div className="grid grid-cols-2 gap-2">
                         {ART_BUTTONS.map(b => renderCard({ ...b, fullWidth: !!b.variante }))}
                       </div>
@@ -5855,7 +5855,7 @@ const lirisExtractRef  = useRef(lirisExtract)
               ) : (
                 <button
                   onClick={() => openAufgebotDialog(entry)}
-                  title="Aufgebot erstellen"
+                  title="Aufbieten oder Brief erstellen"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition-colors shrink-0"
                 >
                   <CalendarDays className="w-3.5 h-3.5" />
