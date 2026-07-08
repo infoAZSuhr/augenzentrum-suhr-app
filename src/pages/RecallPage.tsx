@@ -570,7 +570,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
-    briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben'   // Brief-Textvariante ('' = Standard)
+    briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben' | 'terminBestaetigung' | 'freierBrief'   // Brief-Textvariante ('' = Standard); terminBestaetigung/freierBrief = Allgemeine Briefe (kein Aufgebot)
+    freiBetreff: string               // Freier Brief: Betreffzeile
+    freiText: string                  // Freier Brief: Fliesstext (Absaetze durch Leerzeile)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
     verschiebungDurch: 'praxis' | 'patient'   // Terminverschiebung: wer hat verschoben? (bestimmt den Brieftext)
     vertreterModus: boolean           // Erwachsener Patient mit gesetzlichem Vertreter — Brief geht an den Vertreter, nicht direkt an den Patienten (analog Minderjährige)
@@ -583,6 +585,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
     nachnameOverride: '', briefVariante: '', frueherArzt: '',
+    freiBetreff: '', freiText: '',
     verschiebungDurch: 'patient',
     vertreterModus: false,
     vertreterTyp: 'vertreter',
@@ -2878,7 +2881,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     const today   = new Date()
     const dateStr = `${today.getDate()}. ${GERMAN_MONTHS[today.getMonth()]} ${today.getFullYear()}`
 
-    const isReminder = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim())
+    const isAllgemein = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const isReminder = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemein)
     const arztName   = form.arztName || doctorFullName(patient.doctor)
     const isFemale    = FEMALE_DOCTORS.has(patient.doctor)
     const arztArtikel = isFemale ? 'unserer Augenärztin' : 'unserem Augenarzt'
@@ -2967,6 +2971,8 @@ const lirisExtractRef  = useRef(lirisExtract)
         : ``
 
     const title = form.briefVariante === 'terminVerpasst' ? 'Ihr verpasster Termin &#8211; Bitte um kurze R&#252;ckmeldung'
+      : form.briefVariante === 'terminBestaetigung' ? 'Terminbest&#228;tigung'
+      : form.briefVariante === 'freierBrief' ? escLine(form.freiBetreff.trim() || 'Mitteilung')
       : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung &#8211; Best&#228;tigung Ihres neuen Termins'
       : isReminder ? 'Erinnerung &#8211; Augenkontrolle'
       : hasTermin ? 'Terminvorschlag f&#252;r die Routine Augenkontrolle'
@@ -2997,8 +3003,10 @@ const lirisExtractRef  = useRef(lirisExtract)
     const introVerschoben = form.verschiebungDurch === 'praxis'
       ? `<p>Leider m&#252;ssen wir Ihren geplanten Termin <strong>aus organisatorischen Gr&#252;nden verschieben</strong> &#8211; wir bitten um Ihr Verst&#228;ndnis. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
       : `<p>Gerne best&#228;tigen wir Ihnen die <strong>Verschiebung Ihres Termins</strong>. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
+    const introBestaetigung = `<p>Gerne best&#228;tigen wir Ihnen Ihren <strong>vereinbarten Termin</strong> bei ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''}:</p>`
     const introPara = form.briefVariante === 'neuerArzt' ? introNeuerArzt
       : form.briefVariante === 'terminVerschoben' ? introVerschoben
+      : form.briefVariante === 'terminBestaetigung' ? introBestaetigung
       : introStandard
     // Reminder-Variante «Neuen Arzt vorschlagen»: zusätzlicher Hinweis-Absatz.
     const reminderArztHinweis = form.briefVariante === 'neuerArzt'
@@ -3070,7 +3078,13 @@ const lirisExtractRef  = useRef(lirisExtract)
       <p>Wir freuen uns &#252;ber Ihre R&#252;ckmeldung.</p>
     `
 
-    const bodyHtml = isTerminVerpasst ? bodyTerminVerpasst : isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
+    // Freier Brief: Betreff = Titel, Fliesstext als Absaetze (Leerzeile trennt).
+    const bodyFrei = `
+      ${salut}
+      ${kindHinweis}
+      ${form.freiText.split(/\n{2,}/).map(abs => `<p>${escLine(abs.trim()).replace(/\n/g, '<br>')}</p>`).join('')}
+    `
+    const bodyHtml = form.briefVariante === 'freierBrief' ? bodyFrei : isTerminVerpasst ? bodyTerminVerpasst : isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
 
     const html = `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Brief</title>
@@ -3232,7 +3246,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
     const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
 
-    const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim())
+    const isAllgemeinE = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemeinE)
     const nameLine     = (form.adressBlock.trim().split('\n')[0] || '').trim()
     const nameWordsE   = nameLine.split(/\s+/).filter(Boolean)
     // Erwachsener mit gesetzlichem Vertreter: adressBlock enthält den Namen
@@ -3274,6 +3289,8 @@ const lirisExtractRef  = useRef(lirisExtract)
 
     const subject = isReminder
       ? 'Erinnerung – Augenkontrolle'
+      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr'
+      : form.briefVariante === 'freierBrief' ? (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr')
       : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
       : terminZeile ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
 
@@ -3365,22 +3382,30 @@ const lirisExtractRef  = useRef(lirisExtract)
           ? '\n⚠ Pupillenerweiterung geplant: Sehleistung danach ca. 4–6 Std. eingeschränkt — kein Fahrzeug lenken, Sonnenbrille mitbringen.'
           : ''
       const mitbringen = `\nBitte mitbringen: Brille/Kontaktlinsen (vor dem Termin entfernen), Medikamentenliste, Krankenkassenausweis${form.pupille ? ', Sonnenbrille' : ''}.`
-      const introLineEmail = form.briefVariante === 'neuerArzt'
+      const introLineEmail = form.briefVariante === 'terminBestaetigung'
+        ? `Gerne bestätigen wir Ihnen Ihren vereinbarten Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
+        : form.briefVariante === 'neuerArzt'
         ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
         : form.briefVariante === 'terminVerschoben'
           ? form.verschiebungDurch === 'praxis'
             ? `Leider müssen wir Ihren geplanten Termin aus organisatorischen Gründen verschieben – wir bitten um Ihr Verständnis. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
             : `Gerne bestätigen wir Ihnen die Verschiebung Ihres Termins. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
           : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
-      body = [
-        salut, '',
+      const hinweisZeilen = [
         ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
         ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
           ? `Dieses Schreiben betrifft ${childName}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
           : `Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
-        introLineEmail,
-        terminSection, vuSection, sehSection, mitbringen,
-      ].join('\n')
+      ]
+      body = form.briefVariante === 'freierBrief'
+        // Freier Brief: nur Anrede + Freitext (keine Termin-/VU-Sektionen)
+        ? [salut, '', ...hinweisZeilen, form.freiText.trim()].join('\n')
+        : [
+            salut, '',
+            ...hinweisZeilen,
+            introLineEmail,
+            terminSection, vuSection, sehSection, mitbringen,
+          ].join('\n')
     }
 
     // Identifikations-Fussnote: bei E-Mails gibt es keinen Briefkopf mit
@@ -3420,6 +3445,22 @@ const lirisExtractRef  = useRef(lirisExtract)
   async function persistAufgebot(patient: RecallPatient, form: AufgebotForm) {
     const today = new Date().toISOString().slice(0, 10)
     const existingVerlauf: VerlaufEntry[] = patient.verlauf ?? []
+    // Allgemeine Briefe (Terminbestaetigung, Freier Brief) sind KEIN
+    // Aufgebot: nur ein Verlaufseintrag, keine Aufgebots-Felder anfassen.
+    if (form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief') {
+      const label = form.briefVariante === 'terminBestaetigung'
+        ? 'Terminbestätigung'
+        : `Brief «${form.freiBetreff.trim() || 'Allgemein'}»`
+      await updateRecallPatient(patient.id, {
+        verlauf: [...existingVerlauf, {
+          datum: today, aktion: 'Notiz',
+          ergebnis: `${label} versendet${form.versand ? ` via ${form.versand}` : ''}`,
+          von: displayLabel,
+        }],
+      }, displayLabel)
+      await reloadAllTabs()
+      return
+    }
     const effectiveArt: AufgebotArt =
       form.art === 'Brief' && !form.terminDatum ? 'Reminder' : (form.art as AufgebotArt)
     const telResultLabel =
@@ -3484,6 +3525,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const alreadyCreated = pdfAlreadyCreated ?? aufgebotPdfCreated
     const willGeneratePdf = !alreadyCreated && form.versand === 'Post' && (
       (form.art === 'Brief' && form.terminDatum) ||
+      form.briefVariante === 'freierBrief' ||
       form.art === 'Reminder'
     )
     if (willGeneratePdf) {
@@ -4956,20 +4998,24 @@ const lirisExtractRef  = useRef(lirisExtract)
               {/* Left: form */}
               <div className="w-[420px] shrink-0 overflow-y-auto px-6 py-5 space-y-5 border-r border-gray-200">
 
-                {/* Step 1: Art wählen */}
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aufgebots-Art</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {ART_BUTTONS.map(({ art, variante, Icon, label, sub, color }) => {
-                      const isVerschiebungAktiv = af.briefVariante === 'terminVerschoben'
-                      const isActive = af.art === art && (variante ? isVerschiebungAktiv : !(art === 'Brief' && isVerschiebungAktiv))
-                      return (
+                {/* Step 1: Art wählen — Aufgebote + Allgemeine Briefe.
+                    Sondervarianten (eigene Karten) vs. Brief-Basiskarte:
+                    die Basiskarte ist aktiv, solange KEINE Sondervariante
+                    gewaehlt ist (Normal/neuerArzt/terminVerpasst laufen
+                    ueber die Varianten-Buttons darunter). */}
+                {(() => {
+                  const SONDER = ['terminVerschoben', 'terminBestaetigung', 'freierBrief']
+                  const renderCard = ({ art, variante, Icon, label, sub, color, fullWidth }: { art: AufgebotArt; variante?: string; Icon: React.ComponentType<{className?:string}>; label: string; sub: string; color: string; fullWidth?: boolean }) => {
+                    const isActive = variante
+                      ? af.art === art && af.briefVariante === variante
+                      : af.art === art && !(art === 'Brief' && SONDER.includes(af.briefVariante))
+                    return (
                       <button
                         key={art + (variante ?? '')}
                         onClick={() => {
                           const next = isActive ? null : art
-                          setAf({ art: next, briefVariante: next && variante ? variante : '', versand: '', notiz: '', pupille: false })
-                          // Bei Brief ODER Reminder (inkl. Verschiebung) -> Liris-Akte
+                          setAf({ art: next, briefVariante: (next && variante ? variante : '') as AufgebotForm['briefVariante'], versand: '', notiz: '', pupille: false })
+                          // Bei Brief ODER Reminder (inkl. Sondervarianten) -> Liris-Akte
                           // oeffnen, damit Anrede/Adresse via lirisExtract-Handler ins
                           // Formular gefuellt werden. Tel braucht das nicht.
                           if ((next === 'Brief' || next === 'Reminder') && aufgebotTarget) {
@@ -4977,7 +5023,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                             if (pid) openWithPid(pid)
                           }
                         }}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors ${variante ? 'col-span-2' : ''} ${
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-colors ${fullWidth ? 'col-span-2' : ''} ${
                           isActive ? color + ' border-current' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                         }`}
                       >
@@ -4985,10 +5031,42 @@ const lirisExtractRef  = useRef(lirisExtract)
                         <span className="text-xs font-semibold leading-tight">{label}</span>
                         <span className="text-[10px] opacity-70 leading-tight">{sub}</span>
                       </button>
-                      )
-                    })}
+                    )
+                  }
+                  return (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aufgebots-Art</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ART_BUTTONS.map(b => renderCard({ ...b, fullWidth: !!b.variante }))}
+                      </div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Allgemeine Briefe <span className="font-normal normal-case text-gray-400">(kein Aufgebot)</span></p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {renderCard({ art: 'Brief', variante: 'terminBestaetigung', Icon: CalendarClock, label: 'Terminbestätigung', sub: 'Bestätigung des vereinbarten Termins', color: 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100' })}
+                        {renderCard({ art: 'Brief', variante: 'freierBrief', Icon: Pencil, label: 'Freier Brief', sub: 'Eigener Betreff & Text auf Briefkopf', color: 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100' })}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Freier Brief: Betreff + Text */}
+                {af.briefVariante === 'freierBrief' && (
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Betreff *</p>
+                      <input type="text" value={af.freiBetreff}
+                        onChange={e => setAf({ freiBetreff: e.target.value })}
+                        placeholder="z.B. Bestätigung Ihrer Behandlung"
+                        className="input text-sm w-full" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Text *</p>
+                      <textarea rows={7} value={af.freiText}
+                        onChange={e => setAf({ freiText: e.target.value })}
+                        placeholder={'Brieftext… Absätze durch Leerzeile trennen.\nAnrede und Grussformel werden automatisch ergänzt.'}
+                        className="input text-sm w-full resize-none" />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Nächste Konst. – nur für Tel */}
                 {af.art === 'Tel' && (
@@ -5011,7 +5089,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                     {/* Variante — gilt für Briefaufgebot UND Reminder.
                         Terminverschiebung hat eine eigene Art-Karte oben und
                         blendet die Varianten-Auswahl aus. */}
-                    {af.briefVariante !== 'terminVerschoben' && (
+                    {!['terminVerschoben', 'terminBestaetigung', 'freierBrief'].includes(af.briefVariante) && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Variante</p>
                       <div className="flex gap-2">
@@ -5070,7 +5148,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                     )}
 
                     {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
-                    {af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && (<>
+                    {af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && af.briefVariante !== 'freierBrief' && (<>
                     {/* Pupillenerweiterung */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Untersuchungsart</p>
@@ -5298,8 +5376,10 @@ const lirisExtractRef  = useRef(lirisExtract)
                         // Termin im Brief — ohne Datum UND Zeit darf nicht versendet
                         // werden (der Brief enthielte einen leeren Termin). Reminder
                         // und «Termin verpasst» haben keinen festen Termin.
-                        const terminFehlt = af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && (!af.terminDatum || !af.terminZeit)
-                        const terminHinweis = 'Bitte zuerst Termin-Datum und -Zeit erfassen'
+                        const terminFehlt = af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && af.briefVariante !== 'freierBrief' && (!af.terminDatum || !af.terminZeit)
+                        const freiFehlt = af.briefVariante === 'freierBrief' && (!af.freiBetreff.trim() || !af.freiText.trim())
+                        const terminHinweis = freiFehlt ? 'Bitte zuerst Betreff und Text erfassen' : 'Bitte zuerst Termin-Datum und -Zeit erfassen'
+                        const sendGesperrt = terminFehlt || freiFehlt
                         return (
                           <>
                           {emailVerdaechtig && (
@@ -5312,7 +5392,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           )}
                           <div className="mt-2 flex gap-2">
                             <button
-                              disabled={terminFehlt}
+                              disabled={sendGesperrt}
                               onClick={() => {
                                 console.log('[Brief] Per Post PDF Button geklickt — art:', af.art, 'terminDatum:', af.terminDatum)
                                 const nextForm = { ...af, versand: 'Post' as const }
@@ -5323,15 +5403,15 @@ const lirisExtractRef  = useRef(lirisExtract)
                                 // läuft eigenständig im Postausgang weiter.
                                 handleAufgebotSave(nextForm, true)
                               }}
-                              title={terminFehlt ? terminHinweis : undefined}
+                              title={sendGesperrt ? terminHinweis : undefined}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                                terminFehlt ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
+                                sendGesperrt ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
                                 af.versand === 'Post' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                               }`}>
                               <Printer className="w-4 h-4" /> Per Post (PDF)
                             </button>
                             <button
-                              disabled={!hasEmail || terminFehlt}
+                              disabled={!hasEmail || sendGesperrt}
                               onClick={() => {
                                 const nextForm = { ...af, versand: 'Email' as const }
                                 setAf({ versand: 'Email' })
@@ -5348,9 +5428,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                                 // mehr, ob die E-Mail versendet wurde.
                                 handleAufgebotSave(nextForm, true)
                               }}
-                              title={terminFehlt ? terminHinweis : hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
+                              title={sendGesperrt ? terminHinweis : hasEmail ? `An ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
                               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
-                                (!hasEmail || terminFehlt) ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
+                                (!hasEmail || sendGesperrt) ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed' :
                                 emailCopied ? 'border-green-400 bg-green-50 text-green-700' :
                                 af.versand === 'Email' ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                               }`}>
