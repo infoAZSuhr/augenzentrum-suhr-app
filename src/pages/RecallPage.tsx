@@ -3079,9 +3079,19 @@ const lirisExtractRef  = useRef(lirisExtract)
     `
 
     // Freier Brief: Betreff = Titel, Fliesstext als Absaetze (Leerzeile trennt).
+    // Bei Versand an Dritte (Eltern/Vertreter/Kontaktperson) den Patienten
+    // EINDEUTIG identifizieren: voller Name + Geburtsdatum im Betrifft-Hinweis.
+    const gebSuffix = patient.gebDatum ? `, geb. ${formatDate(patient.gebDatum)}` : ''
+    const kindHinweisFrei = isMinor
+      ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(kindNameDisplay)}${gebSuffix}</strong>.</p>`
+      : form.vertreterModus
+        ? (form.vertreterTyp === 'kontaktperson'
+            ? `<p>Dieses Schreiben betrifft <strong>${escLine(kindNameDisplay)}${gebSuffix}</strong>. Sie erhalten es als hinterlegte Kontaktperson &#8212; wir bitten Sie, die Information weiterzuleiten.</p>`
+            : `<p>Dieses Schreiben betrifft <strong>${escLine(kindNameDisplay)}${gebSuffix}</strong>, f&#252;r die/den Sie als gesetzliche/r Vertreter/in handeln.</p>`)
+        : ''
     const bodyFrei = `
       ${salut}
-      ${kindHinweis}
+      ${kindHinweisFrei}
       ${form.freiText.split(/\n{2,}/).map(abs => `<p>${escLine(abs.trim()).replace(/\n/g, '<br>')}</p>`).join('')}
     `
     const bodyHtml = form.briefVariante === 'freierBrief' ? bodyFrei : isTerminVerpasst ? bodyTerminVerpasst : isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
@@ -3397,9 +3407,17 @@ const lirisExtractRef  = useRef(lirisExtract)
           ? `Dieses Schreiben betrifft ${childName}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
           : `Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
       ]
+      // Freier Brief an Dritte: Patient eindeutig benennen (Name + Geburtsdatum).
+      const gebSuffixE = patient.gebDatum ? `, geb. ${formatDate(patient.gebDatum)}` : ''
+      const hinweisZeilenFrei = [
+        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}${gebSuffixE}.`, ''] : []),
+        ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
+          ? `Dieses Schreiben betrifft ${childName}${gebSuffixE}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
+          : `Dieses Schreiben betrifft ${childName}${gebSuffixE}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
+      ]
       body = form.briefVariante === 'freierBrief'
         // Freier Brief: nur Anrede + Freitext (keine Termin-/VU-Sektionen)
-        ? [salut, '', ...hinweisZeilen, form.freiText.trim()].join('\n')
+        ? [salut, '', ...hinweisZeilenFrei, form.freiText.trim()].join('\n')
         : [
             salut, '',
             ...hinweisZeilen,
