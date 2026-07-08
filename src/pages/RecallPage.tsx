@@ -3744,16 +3744,27 @@ const lirisExtractRef  = useRef(lirisExtract)
     const istInaktiverPatient = form.patientenStatus === 'inaktiv' || form.patientenStatus === 'verstorben'
     const oldP = editTarget !== 'new' && editTarget ? editTarget : null
     const aufgebotUnveraendert = oldP && form.aufgebotArt === (oldP.aufgebotArt ?? '') && form.aufgebotFuer === (oldP.aufgebotFuer ?? '')
+    let inaktiverArztName = ''
     if ((hatAufgebot || hatIntervallUndRc) && !istInaktiverPatient && !aufgebotUnveraendert) {
       const effDoctor = assignDoctor || (editTarget !== 'new' ? (editTarget as RecallPatient).doctor : '')
       const istAktiverArzt = doctors.includes(effDoctor)
-      if (!istAktiverArzt) errors.assignDoctor = true
+      if (!istAktiverArzt) {
+        errors.assignDoctor = true
+        inaktiverArztName = effDoctor && effDoctor !== OFFEN_TAB && effDoctor !== ZU_BEARB ? effDoctor : ''
+      }
     }
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       if (errors.pid || errors.vorname || errors.gebDatum) toast.error('Bitte Pflichtfelder ausfüllen (PID, Vorname, Geburtsdatum).')
       if (errors.grundStornierung) toast.error('Bitte einen Grund angeben — bei inaktiven Patienten ist das Pflicht.')
-      if (errors.assignDoctor && (hatAufgebot || hatIntervallUndRc)) toast.error('Bitte einen aktiven Arzt zuweisen — bei gesetztem Aufgebot oder Intervall ist das Pflicht.')
+      if (errors.assignDoctor && (hatAufgebot || hatIntervallUndRc)) {
+        // Konkret sagen, WELCHER Arzt das Problem ist und WO er gewechselt
+        // wird — «bereits gewählt» ist sonst irreführend, wenn der Patient
+        // einem inzwischen inaktiven Arzt zugeteilt ist.
+        toast.error(inaktiverArztName
+          ? `Der zugeteilte Arzt «${inaktiverArztName}» ist nicht mehr aktiv — bitte im Feld «Arzt wechseln» einen aktiven Arzt wählen, bevor ein Aufgebot/Intervall gesetzt wird.`
+          : 'Bitte einen aktiven Arzt zuweisen — bei gesetztem Aufgebot oder Intervall ist das Pflicht.')
+      }
       else if (errors.assignDoctor) toast.error('Bitte einen Arzt auswählen — der Patient braucht eine Zuweisung.')
       return
     }
