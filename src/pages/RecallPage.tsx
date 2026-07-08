@@ -5154,7 +5154,16 @@ const lirisExtractRef  = useRef(lirisExtract)
                                 ? 'die gesetzliche Vertretung bzw. Kontaktperson eines Patienten'
                                 : 'der Patient / die Patientin selbst'
                               const entwurf = await generateBriefText(kiAnliegen, empfaenger)
-                              setAf({ freiBetreff: entwurf.betreff || af.freiBetreff, freiText: entwurf.text })
+                              // [Name]/[Geburtsdatum] lokal mit echten Patientendaten füllen —
+                              // die Daten verlassen die App nicht, nur die KI kennt sie nicht.
+                              const patientName = titleCaseName((p.vorname ?? '').trim())
+                              const fillPlatzhalter = (t: string) => t
+                                .replace(/\[(Name|Patientenname|Patient(?:in)?)\]/gi, patientName || '[Name]')
+                                .replace(/\[Geburtsdatum\]/gi, p.gebDatum ? formatDate(p.gebDatum) : '[Geburtsdatum]')
+                              setAf({
+                                freiBetreff: fillPlatzhalter(entwurf.betreff) || af.freiBetreff,
+                                freiText: fillPlatzhalter(entwurf.text),
+                              })
                             } catch (err) {
                               console.error('KI-Formulierung fehlgeschlagen', err)
                               toast.error('KI-Formulierung fehlgeschlagen — bitte erneut versuchen oder Text manuell schreiben.')
@@ -5165,7 +5174,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1 shrink-0"
                         >{kiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Formulieren</button>
                       </div>
-                      <p className="text-[10px] text-violet-500">Ohne Patientendaten — konkrete Angaben erscheinen als [Platzhalter] und bitte vor dem Versand ersetzen.</p>
+                      <p className="text-[10px] text-violet-500">Ohne Patientendaten zur KI — Name/Geburtsdatum werden lokal eingesetzt, übrige [Platzhalter] bitte vor dem Versand ersetzen.</p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Betreff *</p>
