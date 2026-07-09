@@ -187,7 +187,14 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       setDefaultUrl,
       openWithPid: (pid: string) => {
         const withHash = pid.startsWith('#') ? pid : `#${pid}`
-        setPendingPid(withHash)
+        // Bei identischem PID wie zuvor faende React (Object.is) keinen State-
+        // Wechsel und der Inject-Effect in BrowserPanel wuerde NICHT erneut
+        // feuern — obwohl ein erneuter Injection-Versuch gewuenscht ist (z.B.
+        // Retry beim automatischen Liris-Upload). Daher kurz auf null setzen,
+        // dann im naechsten Tick den PID erneut setzen, damit garantiert ein
+        // frischer State-Wechsel (und damit der Effect) ausgeloest wird.
+        setPendingPid(null)
+        setTimeout(() => setPendingPid(withHash), 0)
         setIsOpen(true)
       },
       clearPendingPid: () => setPendingPid(null),
