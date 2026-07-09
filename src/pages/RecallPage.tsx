@@ -1065,7 +1065,10 @@ const lirisExtractRef  = useRef(lirisExtract)
             }
             // RC-ab nur berechnen/aktualisieren, solange kein fixer Termin
             // (naechsteKons) erfasst ist — sonst hat der Termin Vorrang.
-            if (!form.naechsteKons) {
+            // AUSNAHME: neuer Zyklus (isNewer) — ein alter naechsteKons-Wert
+            // aus dem VORHERIGEN Zyklus darf die Neuberechnung nicht
+            // blockieren, er wird unten ohnehin geleert.
+            if (!form.naechsteKons || isNewer) {
               const computed = computeNextKons(baseLk, label)
               if (computed) {
                 if (isNewer) { setField('naechsteKons', ''); setField('keinTermin', false) }
