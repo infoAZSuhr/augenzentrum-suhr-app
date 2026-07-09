@@ -1,0 +1,87 @@
+{
+  "0mTIwUfI4HVvFYjEizMfwkIrowz1": {
+    "username": "anthia",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "7k00zFMhdNOTYz2Xwl6wGfWzlgu1": {
+    "username": "venetia",
+    "role": "mpa",
+    "status": "approved"
+  },
+  "DsVLIlfR8wdXYK8pJj6o0tMqAdx1": {
+    "username": "markus",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "Ju78S3GVUtUAyZQ2K0eJDpfOIIM2": {
+    "username": "christian",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "KWSkTgqNXBgqRNQ09xbFbI8bC1l2": {
+    "username": "mpa",
+    "role": "mpa",
+    "status": "approved"
+  },
+  "NpyWvlmqZnT5BbitofQTsFz1wvs1": {
+    "username": "marcel",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "PqItiaV35rXd3A7EyzZSp1I03xe2": {
+    "username": "dmitri",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "T821u1VWAkRSADfbOfM3wJa7f6g2": {
+    "username": "gast",
+    "role": "gast",
+    "status": "approved"
+  },
+  "ZYC9Yje1C0aoitazRoaVJDKuRM73": {
+    "username": "administrator",
+    "role": "admin",
+    "status": "approved"
+  },
+  "cO1L08kjXlfOnS0KaYUSC0wzSX32": {
+    "username": "saran",
+    "role": "admin",
+    "status": "approved"
+  },
+  "g46GDATIRohbjVsAW49UDJl1mo42": {
+    "username": "stefan",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "giqWZH8p4jYBbyxZzkHgg4Y3Xgt1": {
+    "username": "hina",
+    "role": "mpa",
+    "status": "approved"
+  },
+  "i1VHpOp5YxX3N0JLWlGderNHMAx1": {
+    "username": "kristina",
+    "role": "mpa",
+    "status": "approved"
+  },
+  "m96PJFt1MSdkRksIB5kPHXWlZ9k2": {
+    "username": "arzt",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "miaGXnCBdDhI9PwL5cOGGzu4QOa2": {
+    "username": "gl",
+    "role": "geschaeftsleitung",
+    "status": "approved"
+  },
+  "nat3zCCiAvWXNZ8t8JgYXFaPMv43": {
+    "username": "svetlana",
+    "role": "arzt",
+    "status": "approved"
+  },
+  "yRiF92siAMRf7UZlZ1acoKunhZp2": {
+    "username": "dijana",
+    "role": "geschaeftsleitung",
+    "status": "approved"
+  }
+}
