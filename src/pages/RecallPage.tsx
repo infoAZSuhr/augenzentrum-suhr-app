@@ -3263,7 +3263,6 @@ const lirisExtractRef  = useRef(lirisExtract)
     return [
       '', '',
       'Freundliche Grüsse', '',
-      'Kimenda AG',
       name,
       ...(signatureFunktion ? [signatureFunktion] : []),
       '',
@@ -3275,222 +3274,14 @@ const lirisExtractRef  = useRef(lirisExtract)
     ].join('\n')
   }
 
-  function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
-    const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
-    const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
-
-    const isAllgemeinE = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
-    const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemeinE)
-    const nameLine     = (form.adressBlock.trim().split('\n')[0] || '').trim()
-    const nameWordsE   = nameLine.split(/\s+/).filter(Boolean)
-    // Erwachsener mit gesetzlichem Vertreter: adressBlock enthält den Namen
-    // des Vertreters, nicht des Patienten — Anrede muss daher von dort kommen.
-    const nachname     = form.vertreterModus
-      ? titleCaseName(nameWordsE.length > 1 ? nameWordsE.slice(0, -1).join(' ') : (nameWordsE[0] || nameLine))
-      : titleCaseName(form.nachnameOverride.trim() || nameWordsE[0] || nameLine)
-    const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : 'geehrte Frau'
-    // Minderjährig (< 18): immer an die Familie, Kind namentlich nennen.
-    const eAge = (() => {
-      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.gebDatum || ''))
-      if (!m) return null
-      const t = new Date()
-      let a = t.getFullYear() - parseInt(m[1], 10)
-      const mo = t.getMonth() + 1, d = t.getDate()
-      if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
-      return a
-    })()
-    const eMinor   = eAge !== null && eAge >= 0 && eAge < 18
-    // childName: Vorname + Nachname des Patienten (nicht aus adressBlock, der bei Minderjährigen die Eltern enthält)
-    const childName = titleCaseName(`${patient.vorname || ''} ${titleCaseName(form.nachnameOverride)}`.trim())
-    const salut    = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
-    const arztName     = form.arztName || doctorFullName(patient.doctor)
-    const FEMALE_DOCTORS = new Set(['Malinina','Papazoglou'])
-    const isFemale     = FEMALE_DOCTORS.has(patient.doctor)
-    const arztArtikel  = isFemale ? 'unserer Augenärztin' : 'unserem Augenarzt'
-    const fachtitelDisplay = form.fachtitel.trim() || (isFemale ? 'Fachärztin für Augenheilkunde' : 'Facharzt für Augenheilkunde')
-    const hasZykloplegie = form.voruntersuchungen.includes('Zykloplegie')
-
-    let terminZeile = ''
-    if (!isReminder && form.terminDatum) {
-      const td = new Date(form.terminDatum + 'T00:00:00')
-      terminZeile = `${GERMAN_DAYS[td.getDay()]}, ${td.getDate()}. ${GERMAN_MONTHS[td.getMonth()]} ${td.getFullYear()}${form.terminZeit ? ` um ${form.terminZeit} Uhr` : ''}${arztName ? ` mit ${arztName}` : ''}`
-    }
-
-    const vuItems = form.voruntersuchungen.map(v =>
-      v === 'Sonstige' && form.voruntersuchungenSonstige.trim() ? form.voruntersuchungenSonstige.trim() : v
-    ).filter(v => v !== 'Sonstige' || form.voruntersuchungenSonstige.trim())
-
-    const subject = isReminder
-      ? 'Erinnerung – Augenkontrolle'
-      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr'
-      : form.briefVariante === 'freierBrief' ? (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr')
-      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
-      : terminZeile ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
-
-    // ── Formatierter Plaintext + direkt Outlook öffnen via mailto ────────────
-    const kontakt = [
-      '📞  +41 62 842 18 46',
-      '✉   info@augenzentrum-suhr.ch',
-      '🌐  www.augenzentrum-suhr.ch',
-    ].join('\n')
-    let body: string
-    if (isReminder) {
-      const arztHinweis = form.briefVariante === 'neuerArzt'
-        ? (form.frueherArzt.trim()
-            ? `Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, wird Ihre augenärztliche Betreuung neu von ${arztArtikel}${arztName ? ` ${arztName}` : ''} übernommen. Gerne dürfen Sie sich für einen Termin bei uns melden.\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
-            : 'Ihre augenärztliche Betreuung in unserer Praxis liegt neu in guten Händen – gerne dürfen Sie sich für einen Termin bei uns melden.\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team')
-        : ''
-      const terminVerpasstDatumTxt = (() => {
-        if (form.briefVariante !== 'terminVerpasst' || !form.terminDatum) return ''
-        const td = new Date(form.terminDatum + 'T00:00:00')
-        const DAYS = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
-        const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
-        return `${DAYS[td.getDay()]}, ${td.getDate()}. ${MONTHS[td.getMonth()]} ${td.getFullYear()}`
-      })()
-      body = [
-        salut, '',
-        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
-          ? `Dieses Schreiben betrifft ${childName}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
-          : `Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
-        ...(form.briefVariante === 'terminVerpasst' ? [
-          `Ihr Termin am ${terminVerpasstDatumTxt || '[Datum]'} konnte leider nicht wahrgenommen werden.`,
-          '',
-          'Bitte melden Sie sich kurz bei uns, damit wir gemeinsam einen neuen Termin vereinbaren können.',
-          '',
-          'Aufgrund der aktuell sehr hohen Nachfrage sind unsere Terminplätze stark ausgelastet. Gemäss unseren Praxisrichtlinien müssen wir versäumte Termine mit CHF 80.00 in Rechnung stellen, wenn keine Rückmeldung erfolgt.',
-          '',
-          'Falls Sie inzwischen den Arzt gewechselt haben, weggezogen sind oder keine weiteren Termine benötigen, bitten wir ebenfalls um eine kurze Rückmeldung.',
-          '',
-          kontakt,
-        ] : [
-          eMinor
-            ? 'Die Augengesundheit Ihres Kindes liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.'
-            : form.vertreterModus
-              ? `Die Augengesundheit von ${childName} liegt uns am Herzen. Da die letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und zu einer erneuten Untersuchung einladen.`
-              : 'Ihre Augengesundheit liegt uns am Herzen. Da Ihre letzte augenärztliche Kontrolle bereits einige Zeit zurückliegt, möchten wir Sie freundlich daran erinnern und Sie herzlich zu einer erneuten Untersuchung einladen.',
-          '',
-          ...(arztHinweis ? [arztHinweis, ''] : []),
-          'Gerne vereinbaren wir mit Ihnen einen Termin:',
-          '',
-          kontakt,
-          '',
-          'Sollten Sie inzwischen anderweitig augenärztlich betreut werden, umgezogen sein oder aktuell keine weiteren Kontrollen benötigen, freuen wir uns über eine kurze Rückmeldung – per E-Mail, Telefon oder Web-Formular. So können wir Ihre Angaben aktuell halten und unnötigen administrativen Aufwand vermeiden.',
-          '',
-          'Falls Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
-          '',
-          'Herzlichen Dank für Ihr Vertrauen. Wir sind gerne für Sie da.',
-        ]),
-      ].join('\n')
-    } else {
-      const pupText = form.pupille ? 'mit Pupillenerweiterung' : 'ohne Pupillenerweiterung'
-      // Termin-Kasten (Box-Drawing) — bewusst SCHMAL gehalten und der Text
-      // darunter kompakt formuliert: jedes ─-Zeichen kostet in der mailto-URL
-      // 9 kodierte Zeichen; ueber ~2000 verwirft Windows den Aufruf still
-      // (Outlook oeffnet nicht). Gesamtlaenge wird unten geloggt/gewarnt.
-      const terminBox = terminZeile ? [
-        '  ┌─ 📅 IHR TERMIN ' + '─'.repeat(12) + '┐',
-        `  │  ${terminZeile}`,
-        '  └' + '─'.repeat(30) + '┘',
-      ].join('\n') : ''
-      const terminSection = terminZeile ? [
-        '',
-        terminBox,
-        '',
-        'Terminänderung? Bitte bis spätestens 24 Std. vorher melden:',
-        '',
-        kontakt,
-      ].join('\n') : [
-        '',
-        'Für einen Termin erreichen Sie uns gerne:',
-        '',
-        kontakt,
-      ].join('\n')
-      const vuSection = vuItems.length > 0
-        ? `\nGeplante Voruntersuchungen: ${vuItems.join(', ')}`
-        : ''
-      const sehSection = hasZykloplegie
-        ? '\n⚠ Zykloplegie (Pupillenerweiterung) geplant: Sehleistung danach 12–24 Std. beeinträchtigt — kein Fahrzeug lenken, Sonnenbrille mitbringen.'
-        : form.pupille
-          ? '\n⚠ Pupillenerweiterung geplant: Sehleistung danach ca. 4–6 Std. eingeschränkt — kein Fahrzeug lenken, Sonnenbrille mitbringen.'
-          : ''
-      const mitbringen = `\nBitte mitbringen: Brille/Kontaktlinsen (vor dem Termin entfernen), Medikamentenliste, Krankenkassenausweis${form.pupille ? ', Sonnenbrille' : ''}.`
-      const introLineEmail = form.briefVariante === 'terminBestaetigung'
-        ? `Gerne bestätigen wir Ihnen Ihren vereinbarten Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
-        : form.briefVariante === 'neuerArzt'
-        ? `Gemäss unseren Unterlagen wäre bei Ihnen wieder eine Kontrolle fällig.${form.frueherArzt.trim() ? ` Da ${form.frueherArzt.trim()} nicht mehr in unserer Praxis tätig ist, erlauben wir uns, Ihnen folgenden Termin vorzuschlagen:` : ' Gerne schlagen wir Ihnen folgenden Termin vor:'}\n\nLernen Sie unsere Ärzte kennen:\n    www.augenzentrum-suhr.ch/team`
-        : form.briefVariante === 'terminVerschoben'
-          ? form.verschiebungDurch === 'praxis'
-            ? `Leider müssen wir Ihren geplanten Termin aus organisatorischen Gründen verschieben – wir bitten um Ihr Verständnis. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
-            : `Gerne bestätigen wir Ihnen die Verschiebung Ihres Termins. Ihr neuer Termin bei ${arztArtikel}${arztName ? ` ${arztName}` : ''}:`
-          : `Gemäss unseren Unterlagen steht eine Augenkontrolle ${pupText} bei ${arztArtikel}${arztName ? ` ${arztName}` : ''} an.`
-      const hinweisZeilen = [
-        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}.`, ''] : []),
-        ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
-          ? `Dieses Schreiben betrifft ${childName}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
-          : `Dieses Schreiben betrifft ${childName}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
-      ]
-      // Freier Brief an Dritte: Patient eindeutig benennen (Name + Geburtsdatum).
-      const gebSuffixE = patient.gebDatum ? `, geb. ${formatDate(patient.gebDatum)}` : ''
-      const hinweisZeilenFrei = [
-        ...(eMinor ? [`Dieses Schreiben betrifft Ihr Kind ${childName}${gebSuffixE}.`, ''] : []),
-        ...(!eMinor && form.vertreterModus ? [form.vertreterTyp === 'kontaktperson'
-          ? `Dieses Schreiben betrifft ${childName}${gebSuffixE}. Sie erhalten es als hinterlegte Kontaktperson — wir bitten Sie, die Information weiterzuleiten.`
-          : `Dieses Schreiben betrifft ${childName}${gebSuffixE}, für die/den Sie als gesetzliche/r Vertreter/in handeln.`, ''] : []),
-      ]
-      body = form.briefVariante === 'freierBrief'
-        // Freier Brief: nur Anrede + Freitext (keine Termin-/VU-Sektionen)
-        ? [salut, '', ...hinweisZeilenFrei, form.freiText.trim()].join('\n')
-        : [
-            salut, '',
-            ...hinweisZeilen,
-            introLineEmail,
-            terminSection, vuSection, sehSection, mitbringen,
-          ].join('\n')
-    }
-
-    // Signatur: Name + Funktion des versendenden Benutzers, automatisch
-    // angehängt (Nutzer-Wunsch — jeder Account hat dafür ein Funktion-Feld
-    // in der Benutzerverwaltung / unter «Meine Angaben»).
-    body += emailSignature()
-
-    // Identifikations-Fussnote: bei E-Mails gibt es keinen Briefkopf mit
-    // Adressfenster — ohne PID/Geburtsdatum lässt sich der Patient bei
-    // Rückfragen (z.B. gleicher Nachname, mehrere Familienmitglieder) nicht
-    // eindeutig zuordnen.
-    body += `\n\n---\nPat.-Nr.: ${normalizePid(patient.pid) || '—'} · Geb.: ${formatDate(patient.gebDatum)}`
-
-    // Empfänger: bevorzugt die übergebene Patienten-E-Mail (aus Liris),
-    // sonst der Adressblock falls er selbst eine E-Mail ist.
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    const adressTrimmedLocal = form.adressBlock.trim()
-    const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
-             : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal
-             : ''
-    const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    // Windows/ShellExecute begrenzt URLs auf ~2000 Zeichen — laengere mailto-
-    // Links werden STILL verworfen (Outlook oeffnet nicht). Warnen statt raten.
-    console.log('[E-Mail] mailto-Laenge:', mailtoUrl.length)
-    if (mailtoUrl.length > 1950) {
-      toast.warning('E-Mail-Text ist sehr lang — falls sich Outlook nicht öffnet, bitte Text kürzen (z.B. weniger Voruntersuchungen).')
-    }
-    // WICHTIG: window.open statt location.href — in der Electron-Desktop-App
-    // wird eine location.href-Navigation auf mailto: STILL verschluckt
-    // (kein will-navigate-Handler); window.open laeuft ueber den
-    // setWindowOpenHandler und landet via shell.openExternal in Outlook.
-    // (Gleicher Mechanismus wie bei der Berichtsanfrage im ZW-Management.)
-    try { window.open(mailtoUrl) } catch { window.location.href = mailtoUrl }
-
-    setEmailCopied(true)
-    setTimeout(() => setEmailCopied(false), 4000)
-  }
-
-  // Bevorzugter E-Mail-Versand: Brief als PDF-Anhang (mit Briefkopf/Layout)
-  // + kurzem Begleittext, statt den ganzen Brieftext in den mailto-Body zu
-  // packen (dortiges ~1950-Zeichen-Limit unter Windows, kein Briefkopf).
-  // Nutzt denselben .eml-Mechanismus wie "An Praxis senden" im Postausgang.
-  // Fallback auf openEmailInOutlook (mailto) im Browser bzw. auf alten
-  // Electron-Versionen ohne die noetigen APIs.
+  // Einziger E-Mail-Versandweg: Brief als PDF-Anhang (mit Briefkopf/Layout)
+  // + kurzem Begleittext. Der frühere mailto-Weg (ganzer Brieftext im Body)
+  // wurde entfernt — er stiess an ein ~1950-Zeichen-Limit unter Windows und
+  // führte dazu, dass teils ZWEI E-Mails gleichzeitig zum Versenden offen
+  // waren. Nutzt denselben .eml-Mechanismus wie "An Praxis senden" im
+  // Postausgang. Ohne die nötigen Electron-APIs (Browser / altes Update)
+  // bricht der Versand mit einer klaren Fehlermeldung ab, statt still auf
+  // eine andere Methode umzuschalten.
   async function openEmailWithPdfAttachment(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
     const ea = (window as unknown as { electronApp?: {
       renderBriefPdf?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
@@ -3498,11 +3289,12 @@ const lirisExtractRef  = useRef(lirisExtract)
       openMailWithAttachments?: (filePaths: string[], subject: string, recipient?: string, bodyText?: string) => Promise<{ ok: boolean; error?: string }>
     } }).electronApp
     if (!ea?.renderBriefPdf || !ea?.writePdfTmp || !ea?.openMailWithAttachments) {
-      openEmailInOutlook(patient, form, toEmail)
+      toast.error('E-Mail-Versand mit PDF-Anhang erfordert die Desktop-App (aktuelle Version).')
       return
     }
 
     const isAllgemeinE = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemeinE)
     const nameLine   = (form.adressBlock.trim().split('\n')[0] || '').trim()
     const nameWordsE = nameLine.split(/\s+/).filter(Boolean)
     const nachname   = form.vertreterModus
@@ -3520,10 +3312,20 @@ const lirisExtractRef  = useRef(lirisExtract)
     })()
     const eMinor = eAge !== null && eAge >= 0 && eAge < 18
     const salut  = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
-    const subject = isAllgemeinE
-      ? (form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr' : (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr'))
+    const subject = isReminder
+      ? 'Erinnerung – Augenkontrolle'
+      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr'
+      : form.briefVariante === 'freierBrief' ? (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr')
       : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
-      : 'Schreiben – Augenzentrum Suhr'
+      : form.terminDatum ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
+    // Briefart fuer den PDF-Dateinamen (Nutzer-Wunsch: Briefart_PID_Geburtsdatum.pdf).
+    const briefart = isReminder ? 'Erinnerung'
+      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestaetigung'
+      : form.briefVariante === 'freierBrief' ? 'FreierBrief'
+      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung'
+      : form.briefVariante === 'terminVerpasst' ? 'TerminVerpasst'
+      : form.briefVariante === 'neuerArzt' ? 'NeuerArzt'
+      : form.terminDatum ? 'Terminvorschlag' : 'Einladung'
     const shortBody = `${salut}\n\nIm Anhang erhalten Sie unser Schreiben.${emailSignature()}`
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -3536,9 +3338,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       const html = buildBriefHtml(patient, form)
       const pdfRes = await ea.renderBriefPdf(html)
       if (!pdfRes.ok || !pdfRes.buffer) { toast.error(`PDF-Fehler: ${pdfRes.error}`); return }
-      const pid   = normalizePid(patient.pid)
-      const today = new Date().toISOString().slice(0, 10)
-      const filename = `Brief_${nachname || patient.vorname || 'Patient'}${pid ? '_' + pid : ''}_${today}.pdf`
+      const pid = normalizePid(patient.pid)
+      const geb = patient.gebDatum || ''
+      const filename = `${briefart}_${pid || 'keinePID'}_${geb || 'keinGebDatum'}.pdf`
       const tmpRes = await ea.writePdfTmp(pdfRes.buffer, filename)
       if (!tmpRes.ok || !tmpRes.path) { toast.error(`PDF konnte nicht gespeichert werden: ${tmpRes.error}`); return }
       const mailRes = await ea.openMailWithAttachments([tmpRes.path], subject, to, shortBody)
@@ -5187,7 +4989,6 @@ const lirisExtractRef  = useRef(lirisExtract)
                               '',
                               'Freundliche Grüsse',
                               '',
-                              'Kimenda AG',
                               ...(profile?.displayName || profile?.username ? [profile.displayName || profile.username!] : []),
                               ...(signatureFunktion ? [signatureFunktion] : []),
                               '',

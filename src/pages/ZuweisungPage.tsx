@@ -87,7 +87,6 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
     '',
     ...(opts.mpaName ? [
       'Freundliche Grüsse', '',
-      'Kimenda AG',
       opts.mpaName,
       ...(opts.mpaFunktion ? [opts.mpaFunktion] : []),
       '',
