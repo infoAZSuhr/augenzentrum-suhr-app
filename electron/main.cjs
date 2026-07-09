@@ -361,9 +361,36 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       })()`)
       step('Schritt 0: "Dokument importieren" geklickt? ' + opened)
       if (!opened) return fail('"Dokument importieren" nicht gefunden. Ist der Patient in Liris geoeffnet?')
+      // War 12x350ms=4.2s — bei einer langsamen Liris-Antwort (z.B. hohe
+      // Serverlast) reichte das nicht immer; auf 20x400ms=8s verlaengert.
       let appeared = false
-      for (let i = 0; i < 12 && !appeared; i++) { await sleep(350); appeared = await arztAuswahlDa() }
+      for (let i = 0; i < 20 && !appeared; i++) { await sleep(400); appeared = await arztAuswahlDa() }
       step('Schritt 0: Arzt-Auswahl erschienen? ' + appeared)
+      if (!appeared) {
+        // Einmaliger Retry: nochmal auf "Dokument importieren" klicken, falls
+        // der erste Klick zwar ein Element traf aber keine Wirkung hatte
+        // (z.B. Liris war zu diesem Zeitpunkt noch nicht interaktionsbereit).
+        const opened2 = await evalJs(`(function(){
+          var cands=[].slice.call(document.querySelectorAll('[data-tooltip],a,button'));
+          for(var k=0;k<cands.length;k++){
+            var el=cands[k];
+            var tip=(el.getAttribute&&el.getAttribute('data-tooltip')||'').toLowerCase();
+            var txt=(el.innerText||'').trim().toLowerCase();
+            if(tip.indexOf('dokument importieren')>=0 || txt==='dokument importieren'){
+              var clickTarget = el.closest ? (el.closest('a,button')||el) : el;
+              clickTarget.click();
+              try{ el.click(); }catch(e){}
+              return true;
+            }
+          }
+          return false;
+        })()`)
+        step('Schritt 0: Retry-Klick? ' + opened2)
+        if (opened2) {
+          for (let i = 0; i < 15 && !appeared; i++) { await sleep(400); appeared = await arztAuswahlDa() }
+          step('Schritt 0: Arzt-Auswahl nach Retry erschienen? ' + appeared)
+        }
+      }
       if (!appeared) return fail('Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".')
     }
     // Settle-Pause: die Links existieren oft schon im DOM bevor Liris die

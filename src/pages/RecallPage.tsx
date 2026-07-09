@@ -3260,7 +3260,19 @@ const lirisExtractRef  = useRef(lirisExtract)
   function emailSignature(): string {
     const name = profile?.displayName?.trim() || profile?.username?.trim() || ''
     if (!name) return ''
-    return `\n\nFreundliche Grüsse\n${name}${signatureFunktion ? `\n${signatureFunktion}` : ''}\nAugenzentrum Suhr`
+    return [
+      '', '',
+      'Freundliche Grüsse', '',
+      'Kimenda AG',
+      name,
+      ...(signatureFunktion ? [signatureFunktion] : []),
+      '',
+      'Augenzentrum Suhr',
+      'Website: www.augenzentrum-suhr.ch',
+      'Email: info@augenzentrum-suhr.ch',
+      'HIN Mail: augenzentrum-suhr@hin.ch',
+      'Tel.: 062 842 18 46',
+    ].join('\n')
   }
 
   function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
@@ -5108,9 +5120,16 @@ const lirisExtractRef  = useRef(lirisExtract)
                               'Bisher ist bei uns noch kein Bericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
                               '',
                               'Freundliche Grüsse',
+                              '',
+                              'Kimenda AG',
                               ...(profile?.displayName || profile?.username ? [profile.displayName || profile.username!] : []),
                               ...(signatureFunktion ? [signatureFunktion] : []),
+                              '',
                               'Augenzentrum Suhr',
+                              'Website: www.augenzentrum-suhr.ch',
+                              'Email: info@augenzentrum-suhr.ch',
+                              'HIN Mail: augenzentrum-suhr@hin.ch',
+                              'Tel.: 062 842 18 46',
                             ].join('\n')
                             const url = `mailto:berichtesekretariat-augenklinik@ksa.ch?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
                             try { window.open(url) } catch { window.location.href = url }

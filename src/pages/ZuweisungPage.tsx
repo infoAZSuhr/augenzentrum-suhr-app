@@ -85,7 +85,18 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
     '',
     'Sollte die Behandlung noch nicht stattgefunden haben, bitten wir um Mitteilung des geplanten Termins.',
     '',
-    ...(opts.mpaName ? ['Freundliche Grüsse', opts.mpaName, ...(opts.mpaFunktion ? [opts.mpaFunktion] : []), 'Augenzentrum Suhr'] : []),
+    ...(opts.mpaName ? [
+      'Freundliche Grüsse', '',
+      'Kimenda AG',
+      opts.mpaName,
+      ...(opts.mpaFunktion ? [opts.mpaFunktion] : []),
+      '',
+      'Augenzentrum Suhr',
+      'Website: www.augenzentrum-suhr.ch',
+      'Email: info@augenzentrum-suhr.ch',
+      'HIN Mail: augenzentrum-suhr@hin.ch',
+      'Tel.: 062 842 18 46',
+    ] : []),
   ].join('\n')
   const url = `mailto:${empfaenger}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   try { window.open(url) } catch { window.location.href = url }
