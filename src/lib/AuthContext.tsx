@@ -153,6 +153,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           updateDoc(profileRef, patch).catch(() => {})
         }
+      } else if (snap.metadata.fromCache) {
+        // Kalter Start (z.B. nach App-Neustart durchs Auto-Update): der
+        // lokale Offline-Cache ist noch leer und liefert HIER faelschlich
+        // "Dokument existiert nicht", bevor die Server-Antwort eintrifft.
+        // Fix (2026-07-10, nach mehrfachem ungeklaertem Account-Reset):
+        // NICHT self-healen auf einem reinen Cache-Snapshot — abwarten,
+        // bis der naechste (server-bestaetigte) Snapshot eintrifft. War
+        // zuvor der Grund, warum echte Profile durch frische
+        // gast/pending-Platzhalter ueberschrieben wurden.
+        setLoading(false)
       } else {
         // No Firestore profile yet — create a pending placeholder.
         //
