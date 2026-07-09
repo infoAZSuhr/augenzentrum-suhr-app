@@ -3485,6 +3485,72 @@ const lirisExtractRef  = useRef(lirisExtract)
     setTimeout(() => setEmailCopied(false), 4000)
   }
 
+  // Bevorzugter E-Mail-Versand: Brief als PDF-Anhang (mit Briefkopf/Layout)
+  // + kurzem Begleittext, statt den ganzen Brieftext in den mailto-Body zu
+  // packen (dortiges ~1950-Zeichen-Limit unter Windows, kein Briefkopf).
+  // Nutzt denselben .eml-Mechanismus wie "An Praxis senden" im Postausgang.
+  // Fallback auf openEmailInOutlook (mailto) im Browser bzw. auf alten
+  // Electron-Versionen ohne die noetigen APIs.
+  async function openEmailWithPdfAttachment(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
+    const ea = (window as unknown as { electronApp?: {
+      renderBriefPdf?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
+      writePdfTmp?: (buf: ArrayBuffer, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
+      openMailWithAttachments?: (filePaths: string[], subject: string, recipient?: string, bodyText?: string) => Promise<{ ok: boolean; error?: string }>
+    } }).electronApp
+    if (!ea?.renderBriefPdf || !ea?.writePdfTmp || !ea?.openMailWithAttachments) {
+      openEmailInOutlook(patient, form, toEmail)
+      return
+    }
+
+    const isAllgemeinE = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const nameLine   = (form.adressBlock.trim().split('\n')[0] || '').trim()
+    const nameWordsE = nameLine.split(/\s+/).filter(Boolean)
+    const nachname   = form.vertreterModus
+      ? titleCaseName(nameWordsE.length > 1 ? nameWordsE.slice(0, -1).join(' ') : (nameWordsE[0] || nameLine))
+      : titleCaseName(form.nachnameOverride.trim() || nameWordsE[0] || nameLine)
+    const anredeAnrede = form.anrede === 'Herr' ? 'geehrter Herr' : form.anrede === 'Familie' ? 'geehrte Familie' : 'geehrte Frau'
+    const eAge = (() => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.gebDatum || ''))
+      if (!m) return null
+      const t = new Date()
+      let a = t.getFullYear() - parseInt(m[1], 10)
+      const mo = t.getMonth() + 1, d = t.getDate()
+      if (mo < parseInt(m[2], 10) || (mo === parseInt(m[2], 10) && d < parseInt(m[3], 10))) a--
+      return a
+    })()
+    const eMinor = eAge !== null && eAge >= 0 && eAge < 18
+    const salut  = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
+    const subject = isAllgemeinE
+      ? (form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr' : (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr'))
+      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
+      : 'Schreiben – Augenzentrum Suhr'
+    const shortBody = `${salut}\n\nIm Anhang erhalten Sie unser Schreiben.${emailSignature()}`
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const adressTrimmedLocal = form.adressBlock.trim()
+    const to = (toEmail && emailRe.test(toEmail.trim())) ? toEmail.trim()
+             : emailRe.test(adressTrimmedLocal) ? adressTrimmedLocal : ''
+
+    toast.info('PDF wird vorbereitet…')
+    try {
+      const html = buildBriefHtml(patient, form)
+      const pdfRes = await ea.renderBriefPdf(html)
+      if (!pdfRes.ok || !pdfRes.buffer) { toast.error(`PDF-Fehler: ${pdfRes.error}`); return }
+      const pid   = normalizePid(patient.pid)
+      const today = new Date().toISOString().slice(0, 10)
+      const filename = `Brief_${nachname || patient.vorname || 'Patient'}${pid ? '_' + pid : ''}_${today}.pdf`
+      const tmpRes = await ea.writePdfTmp(pdfRes.buffer, filename)
+      if (!tmpRes.ok || !tmpRes.path) { toast.error(`PDF konnte nicht gespeichert werden: ${tmpRes.error}`); return }
+      const mailRes = await ea.openMailWithAttachments([tmpRes.path], subject, to, shortBody)
+      if (!mailRes.ok) { toast.error(`E-Mail konnte nicht geöffnet werden: ${mailRes.error}`); return }
+      toast.success('E-Mail mit PDF-Anhang wird geöffnet')
+      setEmailCopied(true)
+      setTimeout(() => setEmailCopied(false), 4000)
+    } catch (err) {
+      toast.error(`E-Mail-Versand fehlgeschlagen: ${String(err)}`)
+    }
+  }
+
   // Reine Save-Logik (ohne Modal/PDF): markiert den Recall-Patienten als
   // aufgeboten. Wird sowohl manuell (handleAufgebotSave) als auch
   // automatisch (nach Postausgang-Verarbeitung) aufgerufen.
@@ -5616,7 +5682,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                               onClick={() => {
                                 const nextForm = { ...af, versand: 'Email' as const }
                                 setAf({ versand: 'Email' })
-                                openEmailInOutlook(p, nextForm, patientEmail)
+                                openEmailWithPdfAttachment(p, nextForm, patientEmail)
                                 // Bei E-Mail-Versand wird NICHT gedruckt und nichts im
                                 // Postausgang angezeigt — der Brief wird aber (nur Desktop-App)
                                 // als unsichtbarer Hintergrund-Job ins Liris hochgeladen
