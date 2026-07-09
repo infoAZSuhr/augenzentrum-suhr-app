@@ -290,6 +290,12 @@ export default function AppShell() {
   const [ferienModal,         setFerienModal]         = useState<FerienEditData|null>(null)
   const [taskNotifications,   setTaskNotifications]   = useState<TaskNotification[]>([])
   const [glossarOpen,         setGlossarOpen]         = useState(false)
+  // Update-Banner (nur Electron): macht ein heruntergeladenes, aber noch
+  // nicht installiertes Update sichtbar — vorher nur auf der Hilfe-Seite
+  // versteckt, wurde auf Dauerlauf-PCs uebersehen (Ursache fuer veraltete
+  // Versionen bei einzelnen Nutzern und dadurch fehlgeschlagene Liris-Uploads).
+  const [updateReady,   setUpdateReady]   = useState<string | null>(null)
+  const [installing,    setInstalling]    = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const userRef   = useRef<HTMLDivElement>(null)
@@ -305,6 +311,17 @@ export default function AppShell() {
 
   // Close mobile menu on route change
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
+
+  // Update-Banner: auf 'downloaded' warten (Update ist fertig heruntergeladen,
+  // braucht nur noch einen Neustart) — 'checking'/'available'/'downloading'
+  // sind kein Handlungsbedarf und bleiben still.
+  useEffect(() => {
+    const electronApp = (window as unknown as { electronApp?: { onUpdateProgress?: (cb: (p: { state: string; version?: string }) => void) => () => void } }).electronApp
+    if (!electronApp?.onUpdateProgress) return
+    return electronApp.onUpdateProgress(p => {
+      if (p.state === 'downloaded') setUpdateReady(p.version || 'neue Version')
+    })
+  }, [])
 
   // Inactivity-logout: bewusst NICHT hier — die Logik lebt in App.tsx
   // <InactivityLogout/> mit 15 Min Timeout + 2 Min Warn-Countdown (siehe
@@ -541,6 +558,24 @@ export default function AppShell() {
   return (
     <div className="flex flex-col h-screen h-dvh bg-gray-50 overflow-hidden">
       {glossarOpen && <GlossarModal onClose={() => setGlossarOpen(false)} />}
+      {/* ── Update-Banner: erscheint app-weit, sobald ein Update fertig
+          heruntergeladen ist und nur noch installiert werden muss. ── */}
+      {updateReady && (
+        <div className="shrink-0 bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-3 text-sm font-medium z-40">
+          <span>🔄 Update {updateReady} ist bereit — bitte jetzt neu starten, um Fehler beim Liris-Versand zu vermeiden.</span>
+          <button
+            disabled={installing}
+            onClick={() => {
+              setInstalling(true)
+              const electronApp = (window as unknown as { electronApp?: { installUpdate?: () => Promise<void> } }).electronApp
+              electronApp?.installUpdate?.().catch(() => setInstalling(false))
+            }}
+            className="px-3 py-1 bg-white text-amber-700 rounded-lg font-semibold hover:bg-amber-50 transition-colors disabled:opacity-60"
+          >
+            {installing ? 'Startet neu…' : 'Jetzt neu starten'}
+          </button>
+        </div>
+      )}
       {/* ── Top Navigation Bar ── */}
       <header ref={headerRef} className="bg-white border-b border-gray-200 shrink-0 z-30">
         <div className="flex items-center gap-2 px-4 h-14">

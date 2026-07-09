@@ -43,4 +43,7 @@ contextBridge.exposeInMainWorld('electronApp', {
     ipcRenderer.on('updater-status', handler)
     return () => ipcRenderer.removeListener('updater-status', handler)
   },
+  // Update sofort installieren (App-Neustart) — vom Update-Banner in
+  // AppShell aufgerufen, unabhaengig vom nativen Dialog.
+  installUpdate: () => ipcRenderer.invoke('install-update'),
 })

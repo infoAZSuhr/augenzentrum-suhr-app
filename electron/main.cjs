@@ -801,6 +801,11 @@ function setupAutoUpdater() {
     autoUpdater.checkForUpdatesAndNotify().catch(err =>
       console.warn('[Updater] checkForUpdatesAndNotify Fehler:', err?.message ?? err)
     )
+    // Renderer-seitiger Update-Banner (AppShell) kann den Neustart direkt
+    // anstossen, statt sich auf den nativen Dialog zu verlassen — der wird
+    // auf Dauerlauf-PCs offenbar oft uebersehen/weggeklickt (Ursache fuer
+    // veraltete Versionen bei einzelnen Nutzern, siehe Liris-Upload-Fehler).
+    ipcMain.handle('install-update', () => { autoUpdater.quitAndInstall() })
   } catch (err) {
     // Modul nicht installiert oder feed nicht konfiguriert — kein Showstopper
     console.warn('[Updater] Setup uebersprungen:', err?.message ?? err)
