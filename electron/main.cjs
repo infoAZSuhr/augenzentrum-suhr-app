@@ -344,7 +344,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     const alreadyOpen = await arztAuswahlDa()
     step('Schritt 0: Arzt-Auswahl bereits offen? ' + alreadyOpen)
     if (!alreadyOpen) {
-      const opened = await evalJs(`(function(){
+      const findAndClickImport = () => evalJs(`(function(){
         var cands=[].slice.call(document.querySelectorAll('[data-tooltip],a,button'));
         for(var k=0;k<cands.length;k++){
           var el=cands[k];
@@ -359,6 +359,16 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         }
         return false;
       })()`)
+      // Nach dem automatischen Oeffnen der Akte per PID ist die Symbolleiste
+      // (inkl. "Dokument importieren") oft noch nicht gerendert, wenn diese
+      // Funktion startet — ein einzelner sofortiger Suchversuch findet dann
+      // nichts, obwohl das Element Sekundenbruchteile spaeter erscheint.
+      // Daher die Suche selbst mehrfach wiederholen, nicht nur den Klick.
+      let opened = false
+      for (let i = 0; i < 15 && !opened; i++) {
+        opened = await findAndClickImport()
+        if (!opened) await sleep(400)
+      }
       step('Schritt 0: "Dokument importieren" geklickt? ' + opened)
       if (!opened) return fail('"Dokument importieren" nicht gefunden. Ist der Patient in Liris geoeffnet?')
       // War 12x350ms=4.2s — bei einer langsamen Liris-Antwort (z.B. hohe
