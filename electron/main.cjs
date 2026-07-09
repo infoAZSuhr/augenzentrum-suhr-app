@@ -459,8 +459,22 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         if (String(res).indexOf('multiple') === 0) break
       }
       step('Schritt 1: Arzt-Match-Ergebnis = ' + res)
-      if (String(res).indexOf('multiple') === 0) return fail('Mehrere Aerzte passen zu "' + ln + '". Bitte manuell waehlen.')
-      if (res !== 'ok') return fail('Arzt "' + ln + '" nicht in Liris-Auswahl gefunden. Bitte manuell waehlen.')
+      if (res !== 'ok') {
+        // Automatik konnte den Arzt nicht eindeutig waehlen (mehrdeutig
+        // oder gar nicht gefunden). Statt sofort abzubrechen: Dialog bleibt
+        // offen, die MPA kann den Arzt manuell anklicken — wir warten bis zu
+        // 90s darauf (Dialog schliesst sich beim Klick) und machen dann mit
+        // Schritt 2/3 automatisch weiter, statt den Rest von Hand verlangen
+        // zu muessen.
+        const reason = String(res).indexOf('multiple') === 0
+          ? 'Mehrere Aerzte passen zu "' + ln + '"'
+          : 'Arzt "' + ln + '" nicht in Liris-Auswahl gefunden'
+        step('Schritt 1: ' + reason + ' — warte auf manuelle Arztauswahl…')
+        let closed = false
+        for (let i = 0; i < 225 && !closed; i++) { await sleep(400); closed = !(await arztAuswahlDa()) }
+        step('Schritt 1: manuelle Arztauswahl erkannt? ' + closed)
+        if (!closed) return fail(reason + '. Bitte manuell waehlen.')
+      }
     }
     await sleep(1200)
 
