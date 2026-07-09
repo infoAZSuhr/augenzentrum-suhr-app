@@ -405,7 +405,11 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     }
     // Settle-Pause: die Links existieren oft schon im DOM bevor Liris die
     // Klick-Handler gebunden hat — zu fruehe Klicks verpuffen wirkungslos.
-    await sleep(1000)
+    // 2026-07-10: auf Nutzerwunsch verlangsamt (1000ms -> 1500ms), nachdem
+    // ein Fall auftrat, in dem Liris nach dem Datei-Upload eine eigene
+    // Fehlermeldung zeigte — Verdacht: Automatik agiert stellenweise
+    // schneller, als Liris serverseitig mithalten kann.
+    await sleep(1500)
 
     // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
     const ln = (doctorLastName || '').trim()
@@ -486,7 +490,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         if (!closed) return fail(reason + '. Bitte manuell waehlen.')
       }
     }
-    await sleep(1200)
+    await sleep(1800)
 
     // ── Schritt 2: Dokumenttyp 'Mail gesendet' ──────────────────────────────
     // Erst warten bis der Link EXISTIERT (ohne Klick), dann Settle-Pause,
@@ -501,7 +505,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     for (let i = 0; i < 10 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
     step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
     if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?')
-    await sleep(800)
+    await sleep(1200)
     // Klick mit Wiederholung: Liris kann die Seite zwischen Sichtbarkeits-
     // Check und Klick neu rendern (Link dann kurzzeitig nicht mehr im DOM) —
     // daher mehrere Versuche statt nur einem einzelnen Klick.
@@ -517,7 +521,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     }
     step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
     if (!mailOk) return fail('"Mail gesendet"-Klick fehlgeschlagen.')
-    await sleep(1200)
+    await sleep(1800)
 
     // ── Schritt 3: Datei ins file-input ─────────────────────────────────────
     step('Schritt 3: file-input suchen…')
@@ -535,7 +539,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     if (!fileSet) return fail('Upload-Feld nicht gefunden.')
     // Manche Frameworks hoeren nur auf input/change — sicherheitshalber
     // beide Events auf dem letzten file-input nachfeuern.
-    await sleep(300)
+    await sleep(500)
     const evFired = await evalJs(`(function(){
       var ins=document.querySelectorAll('input[type="file"]');
       if(!ins.length) return false;
@@ -544,6 +548,12 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       catch(e){ return 'ev-error:'+e; }
     })()`)
     step('Schritt 3: change-Events gefeuert, files.length=' + evFired)
+    // Liris braucht nach dem Datei-Event Zeit, um die Datei serverseitig zu
+    // verarbeiten (Upload/Validierung) — vorher gaben wir sofort "ok" zurueck,
+    // obwohl Liris den Vorgang noch nicht abgeschlossen hatte. Kurze
+    // Nachlauf-Pause, damit ein etwaiger Liris-Fehler zumindest die Chance
+    // hat, VOR dem naechsten Automatik-Schritt sichtbar zu werden.
+    await sleep(2000)
 
     step('Fertig — Upload gesetzt.')
     return { ok: true, log }
