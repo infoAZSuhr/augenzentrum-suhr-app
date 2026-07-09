@@ -92,6 +92,15 @@ service cloud.firestore {
         && !(uid in ['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73']);
     }
 
+    // app_versions: Electron-Desktop-App meldet bei jedem Start ihre
+    // Versionsnummer — hilft nachzuvollziehen, welcher PC auf welcher
+    // Version haengt (Ursache vergangener Liris-Upload-Fehler durch
+    // veraltete Versionen). Nur self-write, Staff darf alle lesen.
+    match /app_versions/{uid} {
+      allow read: if isStaff();
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // sekretariatChats: Besucher-Isolation
     // - Besucher (anonym) sehen + bearbeiten NUR ihre eigene Konversation
     // - Conversation-ID == visitorUid (verhindert Spoofing)
