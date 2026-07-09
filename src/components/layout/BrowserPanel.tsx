@@ -351,8 +351,11 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       // bis zum Termin) markiert eindeutig den naechsten kuenftigen Termin.
       // Keine Uhrzeit in diesem Element sichtbar — wird bewusst leer gelassen
       // statt geraten (MPA traegt sie manuell im Liris-Kalender ein).
+      // Luecke zwischen Badge und Datum bewusst NICHT auf \\D beschraenkt:
+      // das Kalender-Icon dazwischen kann als Ziffern-Ligatur (z.B. "11")
+      // im extrahierten Text landen, was \\D faelschlich blockieren wuerde.
       if (!result.naechsterTerminDatum) {
-        var wBadge = allText.match(/(\\d{1,3})\\s*[TWMJ]\\b\\D{0,20}?(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
+        var wBadge = allText.match(/(\\d{1,3})\\s*[TWMJ]\\b[\\s\\S]{0,20}?(\\d{2})\\.(\\d{2})\\.(\\d{4})/);
         if (wBadge && isFuture(+wBadge[4], +wBadge[3], +wBadge[2])) {
           result.naechsterTerminDatum = wBadge[4] + '-' + wBadge[3] + '-' + wBadge[2];
           // Uhrzeit steht in der Zeitleiste nur im Hover-Tooltip (title-Attribut):
