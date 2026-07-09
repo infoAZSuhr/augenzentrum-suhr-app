@@ -7957,15 +7957,20 @@ const lirisExtractRef  = useRef(lirisExtract)
                             setField('grundStornierung', 'Terminverschiebung')
                             setField('storniert', '')
                             setField('aufgebotFuer', '')
+                            setField('aufgebotErstellt', '')
                             setTimeout(() => naechsteKonsRef.current?.focus(), 50)
                             return
                           }
                           // Alle übrigen Gründe = Stornierung → storniert='ja',
-                          // offener RC obsolet.
+                          // gesamte Aufgebots-Zeile (RC-ab, Aufgebot erstellt am,
+                          // Nächste Konst.) wird obsolet und zurückgesetzt.
                           if (v === 'Sonstiges') setField('grundStornierung', ' ')
                           else setField('grundStornierung', v)
                           setField('storniert', 'ja')
                           setField('aufgebotFuer', '')
+                          setField('aufgebotErstellt', '')
+                          setField('naechsteKons', '')
+                          setField('keinTermin', false)
                           if (v === 'WV bei Bedarf' || v === 'Notfall - einmalige Konst.' || v === 'Zweitmeinung - einmalige Konst.') setField('patientenStatus', 'kein Aufgebot')
                           if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
                           if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
