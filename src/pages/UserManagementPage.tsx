@@ -159,8 +159,8 @@ export default function UserManagementPage() {
 
   // Permission: can current admin modify this user?
   function canModify(u: UserProfile) {
+    if (u.isSuperAdmin) return u.uid === me?.uid            // Super-Admin nur von sich selbst änderbar
     if (u.uid === me?.uid) return false                    // can't modify yourself
-    if (u.isSuperAdmin) return false                       // can never touch System-Admin
     if (u.role === 'admin' && !isSuperAdmin && !isAdmin && !isGeschaeftsleitung) return false
     return true
   }
@@ -214,6 +214,10 @@ export default function UserManagementPage() {
     setDeleting(true)
     try {
       const target = users.find(u => u.uid === uid)
+      if (target?.isSuperAdmin && uid !== me?.uid) {
+        setDeleteErr('Super-Admin-Konto kann nur von sich selbst gelöscht werden.')
+        return
+      }
       if (target && (target.role === 'admin' || target.role === 'geschaeftsleitung')) {
         setDeleteErr('Admin/GL-Konten können nicht gelöscht werden.')
         return
@@ -251,6 +255,10 @@ export default function UserManagementPage() {
   }
 
   const openEdit = (u: UserProfile) => {
+    if (u.isSuperAdmin && u.uid !== me?.uid) {
+      alert('Super-Admin-Konto kann nur von sich selbst bearbeitet werden.')
+      return
+    }
     setEditUser(u)
     setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '', fotoUrl: (u as any).fotoUrl ?? '', mustSetRealEmail: u.mustSetRealEmail ?? false })
     setEditErr('')
@@ -258,6 +266,10 @@ export default function UserManagementPage() {
 
   const saveEdit = async () => {
     if (!editUser) return
+    if (editUser.isSuperAdmin && editUser.uid !== me?.uid) {
+      setEditErr('Super-Admin-Konto kann nur von sich selbst bearbeitet werden.')
+      return
+    }
     if (!editForm.name.trim() || !editForm.username.trim()) {
       setEditErr('Name und Benutzername sind erforderlich.')
       return
