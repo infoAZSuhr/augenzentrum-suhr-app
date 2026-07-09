@@ -1042,42 +1042,45 @@ const lirisExtractRef  = useRef(lirisExtract)
           setField('verlauf', [])
           filled = true
         }
-        // Intervall aus Liris übernehmen — NUR bei echter Änderung (neuer
-        // Zyklus) oder als reines Ergänzen, wenn lokal noch kein Intervall
-        // erfasst ist. Bei unveränderter Akte darf das Auto-Ausfüllen keine
-        // manuell gesetzten Werte (Storno, nächste Konst., RC-ab) anfassen.
+        // Intervall aus Liris übernehmen — bei neuem Zyklus, als Ergänzung
+        // wenn lokal noch keins erfasst ist, ODER (neu) als Pruef-Lauf bei
+        // JEDEM Akte-Oeffnen: Intervall ist meistens unveraendert, aber falls
+        // es in Liris doch abweicht, wird es angeglichen und «RC zu erstellen
+        // ab» konsequent neu berechnet — ohne einen bereits fixierten Termin
+        // (naechsteKons) anzutasten. Ein echter «filled»-Trigger (Toast) nur
+        // bei tatsaechlicher Wertaenderung, kein Rauschen bei Wiederholung.
         const baseLk = lirisExtract.letzteKons
-        if (lirisExtract.intervalWeeks && (isNewer || !form.konsInterval.trim())) {
+        if (lirisExtract.intervalWeeks) {
           const w = lirisExtract.intervalWeeks
           let label: string | null = null
           if (w % 52 === 0 && w / 52 <= 120)      label = `${w / 52}j`
           else if (w % 4  === 0 && w / 4  <= 120) label = `${w / 4}m`
           else if (w <= 120)                      label = `${w}w`
           if (label) {
-            setField('konsInterval', label)
+            const intervalChanged = label !== form.konsInterval
+            if (intervalChanged) setField('konsInterval', label)
             if (isNewer) {
               setField('storniert', '')
               setField('grundStornierung', '')
             }
-            const computed = computeNextKons(baseLk, label)
-            // RC-ab nur berechnen wenn neuer Zyklus ODER beide Zielfelder
-            // noch leer sind (Ergänzung statt Überschreiben).
-            if (computed && (isNewer || (!form.naechsteKons && !form.aufgebotFuer))) {
-              if (isNewer) {
-                setField('naechsteKons', '')
-                setField('keinTermin', false)
-              }
-              const lk2 = new Date(baseLk + 'T00:00:00Z')
-              lk2.setUTCMonth(lk2.getUTCMonth() + 2)
-              if (computed <= lk2.toISOString().slice(0, 10)) {
-                setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
-              } else {
-                const d = new Date(computed + 'T00:00:00Z')
-                d.setUTCMonth(d.getUTCMonth() - 2)
-                setField('aufgebotFuer', d.toISOString().slice(0, 10))
+            // RC-ab nur berechnen/aktualisieren, solange kein fixer Termin
+            // (naechsteKons) erfasst ist — sonst hat der Termin Vorrang.
+            if (!form.naechsteKons) {
+              const computed = computeNextKons(baseLk, label)
+              if (computed) {
+                if (isNewer) { setField('naechsteKons', ''); setField('keinTermin', false) }
+                const lk2 = new Date(baseLk + 'T00:00:00Z')
+                lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+                const newAufgebotFuer = computed <= lk2.toISOString().slice(0, 10)
+                  ? new Date().toISOString().slice(0, 10)
+                  : (() => { const d = new Date(computed + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 2); return d.toISOString().slice(0, 10) })()
+                if (isNewer || newAufgebotFuer !== form.aufgebotFuer) {
+                  setField('aufgebotFuer', newAufgebotFuer)
+                  filled = true
+                }
               }
             }
-            filled = true
+            if (intervalChanged || isNewer) filled = true
           }
         }
         // Liris zeigt bereits einen ZUKUENFTIGEN Termin (Timeline) → der
