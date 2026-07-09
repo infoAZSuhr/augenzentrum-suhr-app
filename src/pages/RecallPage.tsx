@@ -420,6 +420,13 @@ function ClearBtn({ show, onClear }: { show: boolean; onClear: () => void }) {
 
 export default function RecallPage() {
   const { user: currentUser, profile, isAdmin, isGeschaeftsleitung, isArzt } = useAuth()
+  // E-Mail-Signatur-Funktion des eingeloggten Benutzers: eigenes Profilfeld
+  // > Fachtitel (nur Ärzte) > rollenbasierter Fallback. Zentral berechnet,
+  // damit emailSignature() und die KSA-Direktanfrage-Karte konsistent sind.
+  const ROLE_FALLBACK_FUNKTION: Record<string, string> = { admin: 'Administration', arzt: 'Arzt/Ärztin', mpa: 'Medizinische Praxisassistenz', geschaeftsleitung: 'Geschäftsleitung' }
+  const signatureFunktion = profile?.funktion?.trim()
+    || (profile?.role === 'arzt' ? profile?.fachtitel?.trim() : '')
+    || ROLE_FALLBACK_FUNKTION[profile?.role ?? ''] || ''
   // Electron-Erkennung — Liris-Integration (Webview + Auto-PID) funktioniert
   // NUR in der Desktop-App. Im Browser blockiert CORS, daher Buttons
   // ausblenden statt einen toten Link anzubieten.
@@ -3253,9 +3260,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   function emailSignature(): string {
     const name = profile?.displayName?.trim() || profile?.username?.trim() || ''
     if (!name) return ''
-    const ROLE_FALLBACK: Record<string, string> = { admin: 'Administration', arzt: 'Arzt/Ärztin', mpa: 'Medizinische Praxisassistenz', geschaeftsleitung: 'Geschäftsleitung' }
-    const funktion = profile?.funktion?.trim() || ROLE_FALLBACK[profile?.role ?? ''] || ''
-    return `\n\nFreundliche Grüsse\n${name}${funktion ? `\n${funktion}` : ''}\nAugenzentrum Suhr`
+    return `\n\nFreundliche Grüsse\n${name}${signatureFunktion ? `\n${signatureFunktion}` : ''}\nAugenzentrum Suhr`
   }
 
   function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
@@ -5104,7 +5109,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                               '',
                               'Freundliche Grüsse',
                               ...(profile?.displayName || profile?.username ? [profile.displayName || profile.username!] : []),
-                              ...(profile?.funktion?.trim() ? [profile.funktion.trim()] : []),
+                              ...(signatureFunktion ? [signatureFunktion] : []),
                               'Augenzentrum Suhr',
                             ].join('\n')
                             const url = `mailto:berichtesekretariat-augenklinik@ksa.ch?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`

@@ -100,7 +100,9 @@ export default function ZuweisungPage() {
   const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
   const ROLE_FALLBACK: Record<string, string> = { admin: 'Administration', arzt: 'Arzt/Ärztin', mpa: 'Medizinische Praxisassistenz', geschaeftsleitung: 'Geschäftsleitung' }
-  const displayFunktion = profile?.funktion?.trim() || ROLE_FALLBACK[profile?.role ?? ''] || ''
+  const displayFunktion = profile?.funktion?.trim()
+    || (profile?.role === 'arzt' ? profile?.fachtitel?.trim() : '')
+    || ROLE_FALLBACK[profile?.role ?? ''] || ''
   const [search, setSearch] = useState('')
 
   // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
