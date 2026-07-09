@@ -157,10 +157,17 @@ export default function UserManagementPage() {
     }
   }, [searchParams, setSearchParams])
 
+  // Fest verdrahteter Loeschschutz — greift UNABHAENGIG von der aktuellen
+  // Rolle des Kontos. Grund: faellt ein Konto z.B. durch die Profil-
+  // Selbstheilung in AuthContext auf role='gast' zurueck, wuerde der
+  // rollenbasierte Admin/GL-Schutz unten NICHT mehr greifen.
+  const PROTECTED_UIDS = new Set(['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73'])
+
   // Permission: can current admin modify this user?
   function canModify(u: UserProfile) {
     if (u.isSuperAdmin) return u.uid === me?.uid            // Super-Admin nur von sich selbst änderbar
     if (u.uid === me?.uid) return false                    // can't modify yourself
+    if (PROTECTED_UIDS.has(u.uid) && u.uid !== me?.uid) return false
     if (u.role === 'admin' && !isSuperAdmin && !isAdmin && !isGeschaeftsleitung) return false
     return true
   }
@@ -216,6 +223,10 @@ export default function UserManagementPage() {
       const target = users.find(u => u.uid === uid)
       if (target?.isSuperAdmin && uid !== me?.uid) {
         setDeleteErr('Super-Admin-Konto kann nur von sich selbst gelöscht werden.')
+        return
+      }
+      if (PROTECTED_UIDS.has(uid) && uid !== me?.uid) {
+        setDeleteErr('Dieses Konto ist dauerhaft vor Löschung geschützt.')
         return
       }
       if (target && (target.role === 'admin' || target.role === 'geschaeftsleitung')) {

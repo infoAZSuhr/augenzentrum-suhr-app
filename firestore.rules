@@ -85,7 +85,11 @@ service cloud.firestore {
                     'mustSetRealEmail'
                   ]));
 
-      allow delete: if isAdmin();
+      // Fest geschuetzte Konten (System-Admin + Praxisinhaber) koennen NIE
+      // ueber die Client-SDKs geloescht werden — unabhaengig von ihrer
+      // aktuellen Rolle (z.B. nach einer Profil-Selbstheilung auf 'gast').
+      allow delete: if isAdmin()
+        && !(uid in ['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73']);
     }
 
     // sekretariatChats: Besucher-Isolation
