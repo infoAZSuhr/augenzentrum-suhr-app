@@ -4361,17 +4361,24 @@ const lirisExtractRef  = useRef(lirisExtract)
       {/* ── Filter bar ──────────────────────────────────────────────────────── */}
       <div className="shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2 bg-white border-b border-gray-100 overflow-x-auto">
 
-        {/* Termin-chips: nur die 3 wichtigsten immer sichtbar */}
+        {/* Termin-chips: nur die 3 wichtigsten immer sichtbar.
+            title = Tooltip beim Hovern, erklärt die Filterbedeutung
+            (sonst nicht selbsterklärend, siehe Nutzer-Feedback). */}
         {([
-          { key: 'overdue'    as FilterTermin, label: 'Überfällig',  count: tabStats.overdue,    cls: 'bg-red-100 text-red-700 border-red-300' },
-          { key: 'nachfass'   as FilterTermin, label: 'Nachfassen',  count: tabStats.nachfass,   cls: 'bg-orange-100 text-orange-700 border-orange-300' },
-          { key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', count: tabStats.inPlanung, cls: 'bg-amber-100 text-amber-700 border-amber-300' },
-          { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300' },
-          { key: 'ohneRC'     as FilterTermin, label: 'Ohne RC',     count: tabStats.ohneRC,     cls: 'bg-slate-200 text-slate-700 border-slate-300' },
+          { key: 'overdue'    as FilterTermin, label: 'Überfällig',  count: tabStats.overdue,    cls: 'bg-red-100 text-red-700 border-red-300',
+            title: 'Letzte Konsultation liegt in der Vergangenheit, kein neuer Termin gebucht und kein RC-Datum geplant — braucht dringend ein Aufgebot.' },
+          { key: 'nachfass'   as FilterTermin, label: 'Nachfassen',  count: tabStats.nachfass,   cls: 'bg-orange-100 text-orange-700 border-orange-300',
+            title: 'Aufgebot/Reminder wurde vor mind. 8 Wochen verschickt, Patient hat sich aber nicht gemeldet — Zeit für einen Nachfass-Anruf oder -Brief.' },
+          { key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', count: tabStats.inPlanung, cls: 'bg-amber-100 text-amber-700 border-amber-300',
+            title: 'RC-Datum ("RC zu erstellen ab") ist gesetzt, aber das Aufgebot wurde noch nicht erstellt — steht in der Recall-Planung an.' },
+          { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300',
+            title: 'Aktiver Patient ohne nächsten Termin und ohne geplantes RC-Datum — noch nicht erfasst, was als Nächstes ansteht.' },
+          { key: 'ohneRC'     as FilterTermin, label: 'Ohne RC',     count: tabStats.ohneRC,     cls: 'bg-slate-200 text-slate-700 border-slate-300',
+            title: 'Aktiver Patient, für den noch nie ein Aufgebot oder Reminder erstellt wurde.' },
         ]).map(chip => {
           const isActive = filterTermin === chip.key
           return (
-            <button key={chip.key}
+            <button key={chip.key} title={chip.title}
               onClick={() => { setFilterTermin(isActive ? null : chip.key); setFilterNeupatient(false); setFilterStatus(null); setPage(1) }}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${isActive ? chip.cls : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
             >
@@ -4385,6 +4392,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         {/* Reminder fällig chip */}
         {(tabStats.reminderFaellig > 0 || filterReminderFaellig) && (
           <button
+            title="Ein Reminder wurde vor mehr als 6 Monaten verschickt, ohne Reaktion — gilt jetzt wieder als überfällig."
             onClick={() => { setFilterReminderFaellig(v => !v); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setPage(1) }}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${filterReminderFaellig ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
           >
@@ -4398,6 +4406,7 @@ const lirisExtractRef  = useRef(lirisExtract)
         {/* Reminder geplant chip */}
         {(tabStats.reminderGeplant > 0 || filterReminderGeplant) && (
           <button
+            title="Ein Reminder wurde bereits verschickt und die 6-Monats-Frist zum Reagieren läuft noch — kein Handlungsbedarf."
             onClick={() => { setFilterReminderGeplant(v => !v); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setPage(1) }}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${filterReminderGeplant ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
           >
@@ -4410,6 +4419,7 @@ const lirisExtractRef  = useRef(lirisExtract)
 
         {/* Zeitraum-Dropdown: Heute / 7 Tage / 30 Tage */}
         <select
+          title="Filtert nach fälligen/geplanten Terminen im gewählten Zeitraum ab heute."
           value={(['heute','week','month'] as FilterTermin[]).includes(filterTermin as FilterTermin) ? filterTermin! : ''}
           onChange={e => { setFilterTermin((e.target.value as FilterTermin) || null); setFilterNeupatient(false); setFilterStatus(null); setPage(1) }}
           className={`text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-300 cursor-pointer ${
@@ -4431,6 +4441,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           const val = filterNeupatient ? 'neu' : filterNochZuErledigen ? 'nze' : filterStatus ?? ''
           return (
             <select
+              title="Filtert nach Patienten-Status: Neupatienten, offene Aufgaben, stornierte/inaktive Patienten oder solche, die beim aktuellen Arzt noch nie in Behandlung waren."
               value={val}
               onChange={e => {
                 const v = e.target.value
@@ -4496,6 +4507,7 @@ const lirisExtractRef  = useRef(lirisExtract)
 
         {/* Aufgebot-Dropdown */}
         <select
+          title="Filtert nach der Art des letzten Aufgebots (Brief, Reminder, Telefon, Praxis-Termin) — «Kein RC» zeigt Patienten ohne erstelltes Aufgebot."
           value={filterAufgebotArt ?? ''}
           onChange={e => { setFilterAufgebotArt(e.target.value || null); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setPage(1) }}
           className={`text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-300 cursor-pointer ${
