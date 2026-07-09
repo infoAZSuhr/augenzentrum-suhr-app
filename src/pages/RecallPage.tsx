@@ -3246,6 +3246,18 @@ const lirisExtractRef  = useRef(lirisExtract)
     setBriefPreview(html)
   }
 
+  // Automatische Signatur (Name + Funktion des versendenden Benutzers) für
+  // E-Mails. Funktion ist ein separates Profilfeld (siehe Benutzerverwaltung
+  // / «Meine Angaben»), fällt auf die Rollen-Bezeichnung zurück, falls noch
+  // nicht gepflegt.
+  function emailSignature(): string {
+    const name = profile?.displayName?.trim() || profile?.username?.trim() || ''
+    if (!name) return ''
+    const ROLE_FALLBACK: Record<string, string> = { admin: 'Administration', arzt: 'Arzt/Ärztin', mpa: 'Medizinische Praxisassistenz', geschaeftsleitung: 'Geschäftsleitung' }
+    const funktion = profile?.funktion?.trim() || ROLE_FALLBACK[profile?.role ?? ''] || ''
+    return `\n\nFreundliche Grüsse\n${name}${funktion ? `\n${funktion}` : ''}\nAugenzentrum Suhr`
+  }
+
   function openEmailInOutlook(patient: RecallPatient, form: AufgebotForm, toEmail?: string) {
     const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
     const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
@@ -3419,6 +3431,11 @@ const lirisExtractRef  = useRef(lirisExtract)
             terminSection, vuSection, sehSection, mitbringen,
           ].join('\n')
     }
+
+    // Signatur: Name + Funktion des versendenden Benutzers, automatisch
+    // angehängt (Nutzer-Wunsch — jeder Account hat dafür ein Funktion-Feld
+    // in der Benutzerverwaltung / unter «Meine Angaben»).
+    body += emailSignature()
 
     // Identifikations-Fussnote: bei E-Mails gibt es keinen Briefkopf mit
     // Adressfenster — ohne PID/Geburtsdatum lässt sich der Patient bei
@@ -5086,6 +5103,8 @@ const lirisExtractRef  = useRef(lirisExtract)
                               'Bisher ist bei uns noch kein Bericht eingegangen. Wir bitten Sie freundlich um Zustellung des Berichts.',
                               '',
                               'Freundliche Grüsse',
+                              ...(profile?.displayName || profile?.username ? [profile.displayName || profile.username!] : []),
+                              ...(profile?.funktion?.trim() ? [profile.funktion.trim()] : []),
                               'Augenzentrum Suhr',
                             ].join('\n')
                             const url = `mailto:berichtesekretariat-augenklinik@ksa.ch?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`

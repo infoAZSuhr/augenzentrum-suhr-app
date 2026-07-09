@@ -1440,6 +1440,7 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
   // Info tab
   const [username,    setUsername]    = useState(profile.username || '')
   const [displayName, setDisplayName] = useState(profile.displayName || '')
+  const [funktion,    setFunktion]    = useState(profile.funktion || '')
   const [infoMsg,     setInfoMsg]     = useState('')
   const [infoErr,     setInfoErr]     = useState('')
   const [infoSaving,  setInfoSaving]  = useState(false)
@@ -1466,6 +1467,7 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
         username: username.trim(),
         usernameLower: username.trim().toLowerCase(),
         displayName: displayName.trim() || username.trim(),
+        funktion: funktion.trim() || null,
       })
       await refreshProfile()
       setInfoMsg('Angaben gespeichert.')
@@ -1575,9 +1577,17 @@ function ProfileModal({ profile, onClose }: { profile: import('../../lib/AuthCon
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   placeholder="Vorname Nachname" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Funktion <span className="text-gray-400 font-normal">(erscheint in der E-Mail-Signatur)</span>
+                </label>
+                <input type="text" value={funktion} onChange={e => setFunktion(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="z.B. Medizinische Praxisassistentin" />
+              </div>
               <div className="bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-500 space-y-1">
                 <p><span className="font-medium">E-Mail:</span> {profile.email}</p>
-                <p><span className="font-medium">Funktion:</span> {ROLE_LABEL_MAP[profile.role] ?? profile.role}</p>
+                <p><span className="font-medium">Rolle:</span> {ROLE_LABEL_MAP[profile.role] ?? profile.role}</p>
               </div>
               {infoErr && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{infoErr}</p>}
               {infoMsg && <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">{infoMsg}</p>}

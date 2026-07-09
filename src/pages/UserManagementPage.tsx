@@ -84,7 +84,7 @@ export default function UserManagementPage() {
   const [deleteErr, setDeleteErr] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [editUser, setEditUser] = useState<UserProfile | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '', fotoUrl: '', mustSetRealEmail: false })
+  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', role: 'mpa' as UserRole, additionalRoles: [] as UserRole[], fachtitel: '', funktion: '', fotoUrl: '', mustSetRealEmail: false })
   const [editSaving, setEditSaving] = useState(false)
   const [editErr, setEditErr] = useState('')
   const [loginRequests, setLoginRequests] = useState<LoginRequest[]>([])
@@ -271,7 +271,7 @@ export default function UserManagementPage() {
       return
     }
     setEditUser(u)
-    setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '', fotoUrl: (u as any).fotoUrl ?? '', mustSetRealEmail: u.mustSetRealEmail ?? false })
+    setEditForm({ name: u.displayName, username: u.username, email: u.email ?? '', role: u.role, additionalRoles: u.additionalRoles ?? [], fachtitel: u.fachtitel ?? '', funktion: u.funktion ?? '', fotoUrl: (u as any).fotoUrl ?? '', mustSetRealEmail: u.mustSetRealEmail ?? false })
     setEditErr('')
   }
 
@@ -303,6 +303,7 @@ export default function UserManagementPage() {
         role:             editForm.role,
         additionalRoles:  editForm.additionalRoles,
         fachtitel:        editForm.fachtitel.trim() || null,
+        funktion:         editForm.funktion.trim() || null,
         fotoUrl:          editForm.fotoUrl.trim() || null,
         mustSetRealEmail: editForm.mustSetRealEmail,
       })
@@ -635,6 +636,15 @@ export default function UserManagementPage() {
                     </span>
                   </span>
                 </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Funktion <span className="text-gray-400 font-normal">(erscheint in der E-Mail-Signatur)</span>
+                </label>
+                <input type="text" value={editForm.funktion}
+                  onChange={e => setEditForm(f => ({ ...f, funktion: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="z.B. Medizinische Praxisassistentin" />
               </div>
               {(editForm.role === 'arzt' || editForm.additionalRoles.includes('arzt')) && (
                 <div>

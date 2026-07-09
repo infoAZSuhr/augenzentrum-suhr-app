@@ -35,6 +35,7 @@ export interface UserProfile {
   canEditPlanung?: boolean      // Darf Einsatzplanung bearbeiten (ohne Admin-Rolle)
   permissions?: UserPermissions // Bereichsberechtigungen für Geschäftsleitung
   fachtitel?: string | null     // Fachtitel für Briefköpfe (z.B. «Fachärztin FMH für Ophthalmologie»)
+  funktion?: string | null      // Funktion für die automatische E-Mail-Signatur (z.B. «Medizinische Praxisassistentin»)
   arbeitszeit?: Arbeitszeit
   createdAt?: unknown
   approvedBy?: string

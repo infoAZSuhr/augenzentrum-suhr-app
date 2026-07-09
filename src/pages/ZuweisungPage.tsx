@@ -53,7 +53,7 @@ function zielEmail(ziel: string | null | undefined): string {
 /** Öffnet eine vorbereitete E-Mail (Bericht-Nachfrage) im Standard-Mailprogramm.
  *  Empfänger wird – wenn bekannt – automatisch gesetzt (z. B. KSA Augenklinik),
  *  sonst leer gelassen. Patient: Nach-/Vorname + Geburtsdatum (keine interne PID). */
-interface MailOpts { name?: string; geb?: string | null; anrede?: string | null; mpaName?: string }
+interface MailOpts { name?: string; geb?: string | null; anrede?: string | null; mpaName?: string; mpaFunktion?: string }
 
 function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {}) {
   const name = (opts.name && opts.name.trim()) || vollName(p) || 'unbekannt'
@@ -85,6 +85,7 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
     '',
     'Sollte die Behandlung noch nicht stattgefunden haben, bitten wir um Mitteilung des geplanten Termins.',
     '',
+    ...(opts.mpaName ? ['Freundliche Grüsse', opts.mpaName, ...(opts.mpaFunktion ? [opts.mpaFunktion] : []), 'Augenzentrum Suhr'] : []),
   ].join('\n')
   const url = `mailto:${empfaenger}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   try { window.open(url) } catch { window.location.href = url }
@@ -98,6 +99,8 @@ export default function ZuweisungPage() {
   const { profile } = useAuth()
   const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
   const displayLabel = profile?.displayName || profile?.username || 'System'
+  const ROLE_FALLBACK: Record<string, string> = { admin: 'Administration', arzt: 'Arzt/Ärztin', mpa: 'Medizinische Praxisassistenz', geschaeftsleitung: 'Geschäftsleitung' }
+  const displayFunktion = profile?.funktion?.trim() || ROLE_FALLBACK[profile?.role ?? ''] || ''
   const [search, setSearch] = useState('')
 
   // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
@@ -212,10 +215,10 @@ export default function ZuweisungPage() {
       setPendingMail({ p, z })
       if (pendingMailTimer.id) window.clearTimeout(pendingMailTimer.id)
       pendingMailTimer.id = window.setTimeout(() => {
-        setPendingMail(cur => { if (cur && cur.p.id === p.id && cur.z.id === z.id) { sendBerichtNachfrage(cur.p, cur.z, { mpaName: displayLabel }); return null } return cur })
+        setPendingMail(cur => { if (cur && cur.p.id === p.id && cur.z.id === z.id) { sendBerichtNachfrage(cur.p, cur.z, { mpaName: displayLabel, mpaFunktion: displayFunktion }); return null } return cur })
       }, 12000)
     } else {
-      sendBerichtNachfrage(p, z, { mpaName: displayLabel })
+      sendBerichtNachfrage(p, z, { mpaName: displayLabel, mpaFunktion: displayFunktion })
     }
   }
 
@@ -225,7 +228,7 @@ export default function ZuweisungPage() {
     const name = [lirisExtract.nachname, lirisExtract.vorname].filter(Boolean).join(' ').trim()
     if (!name) return
     if (pendingMailTimer.id) { window.clearTimeout(pendingMailTimer.id); pendingMailTimer.id = null }
-    sendBerichtNachfrage(pendingMail.p, pendingMail.z, { name, geb: lirisExtract.gebDatum, anrede: lirisExtract.anrede, mpaName: displayLabel })
+    sendBerichtNachfrage(pendingMail.p, pendingMail.z, { name, geb: lirisExtract.gebDatum, anrede: lirisExtract.anrede, mpaName: displayLabel, mpaFunktion: displayFunktion })
     setPendingMail(null)
   }, [lirisExtract, pendingMail]) // eslint-disable-line react-hooks/exhaustive-deps
 
