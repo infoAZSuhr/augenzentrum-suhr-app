@@ -10,6 +10,7 @@ import { db } from '../../lib/firebase'
 import { usePostausgang, type PostausgangItem } from '../../contexts/PostausgangContext'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { useToast } from '../../lib/ToastContext'
+import { normalizePid } from '../../lib/recallUtils'
 
 interface ElectronPostausgangApi {
   startPdfDrag?: (filePath: string) => Promise<{ ok: boolean; error?: string }>
@@ -30,8 +31,12 @@ export default function PostausgangPanel() {
   // Liris-Upload-Job im Hintergrund mit — sie erscheinen NICHT in der Liste
   // und zaehlen nicht im Badge (Postausgang = nur zu druckende Briefe).
   const visibleItems = items.filter(i => !i.skipPrint)
-  const { lirisWebContentsId, openWithPid } = useBrowser()
+  const { lirisWebContentsId, openWithPid, lirisExtract } = useBrowser()
   const toast = useToast()
+  // Immer aktueller lirisExtract-Wert fuer die Warteschleife in uploadToLiris
+  // (async, darf keinen veralteten Closure-Stand lesen).
+  const lirisExtractRef = useRef(lirisExtract)
+  useEffect(() => { lirisExtractRef.current = lirisExtract }, [lirisExtract])
 
   // Erinnerung beim App-Start: wiederhergestellte, noch ungedruckte Briefe
   // duerfen nicht vergessen gehen — Toast + Panel automatisch oeffnen.
@@ -128,11 +133,37 @@ export default function PostausgangPanel() {
     }
     setUploadingId(it.id)
     // Patientenakte automatisch in Liris öffnen (per PID), damit der Import
-    // nicht voraussetzt, dass der Patient schon offen ist.
+    // nicht voraussetzt, dass der Patient schon offen ist. Statt einer festen
+    // Wartezeit (war zu kurz — Akte teils noch nicht geladen, "Dokument
+    // importieren" dadurch nicht gefunden): auf lirisExtract warten, das die
+    // korrekte PID bestätigt; ein Fehlschlag löst einen zweiten Versuch aus.
+    const waitForAkte = async (): Promise<boolean> => {
+      const wantPid = normalizePid(it.pid)
+      const requestedAt = Date.now()
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 500))
+        const lx = lirisExtractRef.current
+        if (lx && lx.at >= requestedAt && normalizePid(lx.pid) === wantPid && lx.pidMatchesLiris !== false) return true
+      }
+      return false
+    }
     if (it.pid) {
       setStatusMsg({ kind: 'ok', text: 'Öffne Patientenakte in Liris…' })
       openWithPid(it.pid)
-      await new Promise(r => setTimeout(r, 4500))  // auf das Laden der Akte warten
+      let akteOffen = await waitForAkte()
+      if (!akteOffen) {
+        setStatusMsg({ kind: 'ok', text: 'Akte noch nicht bereit — zweiter Versuch…' })
+        openWithPid(it.pid)
+        akteOffen = await waitForAkte()
+      }
+      if (!akteOffen) {
+        const text = 'Patientenakte konnte in Liris nicht automatisch geöffnet werden.'
+        setStatusMsg({ kind: 'err', text })
+        reportUploadFehler(it, text)
+        setUploadingId(null)
+        return
+      }
+      await new Promise(r => setTimeout(r, 600))  // kurze Settle-Pause nach Bestätigung
     }
     setStatusMsg({ kind: 'ok', text: 'Auto-Import läuft…' })
     try {
