@@ -33,6 +33,22 @@ jobs:
       - name: Unit-Tests
         run: npm test
 
+      # Refdata-Artikelstamm frisch laden: die Datei ist gitignored (taeglich
+      # ~2MB Churn), ein Build aus frischem Checkout enthielte sie sonst NICHT
+      # — jedes Code-Push-Deployment loeschte damit die Medikamentensuche aus
+      # dem Live-Hosting (bis zum naechsten 04:00-Refdata-Cron). Schlaegt der
+      # Download fehl, wird als Fallback die aktuell live ausgelieferte Datei
+      # uebernommen; schlaegt auch das fehl, laeuft der Deploy trotzdem
+      # (Suche zeigt dann nur BAG-SL-Treffer, die im Repo liegen).
+      - name: Refdata-Artikelstamm laden
+        run: |
+          node scripts/update-refdata.js --force || {
+            echo "::warning::Refdata-Download fehlgeschlagen — versuche Live-Datei zu uebernehmen"
+            curl -sf https://azsdb-999d6.web.app/refdata-data.json -o public/refdata-data.json \
+              && head -c1 public/refdata-data.json | grep -q '[[{]' \
+              || { echo "::warning::Auch Live-Fallback fehlgeschlagen — Deploy ohne Refdata"; rm -f public/refdata-data.json; }
+          }
+
       - name: Build (Kompilier-Check auch ohne Deploy)
         run: npm run build
 

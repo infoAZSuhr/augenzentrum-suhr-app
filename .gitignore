@@ -10,7 +10,10 @@ service-account*.json
 .firebase/
 
 # Grosse generierte Datendateien (via Scripts heruntergeladen)
-public/sl-data.json
+# sl-data.json ist bewusst NICHT ignoriert: es gibt kein Generator-Skript
+# im Repo (BAG-SL-Update laeuft lokal), und deploy-web.yml baute sonst bei
+# jedem Push ein Hosting-Deployment OHNE die Datei — die Medikamentensuche
+# im Lager zeigte danach "0 Ergebnisse" bis zum naechsten Refdata-Cron.
 public/refdata-data.json
 public/lieferengpaesse-data.json
 public/zurrose-nota-data.json
