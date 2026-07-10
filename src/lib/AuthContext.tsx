@@ -4,7 +4,7 @@ import {
   createUserWithEmailAndPassword, signOut, updateProfile, updatePassword,
   sendPasswordResetEmail
 } from 'firebase/auth'
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, onSnapshot, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import * as perm from './permissions'
 
@@ -173,6 +173,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // wäre ein Admin, der bei Approval nur auf den Status schaut,
         // dem User unbeabsichtigt Admin-Rechte gegeben.
         // Admin kann die Rolle bei Approval explizit hochstufen.
+        //
+        // Doppelte Absicherung (2026-07-10, nach einem 5. Reset-Vorfall
+        // TROTZ des fromCache-Fixes — das Log zeigte ein server-bestaetigtes
+        // "existiert nicht" nur 88ms nach einem erfolgreichen Schreibzugriff
+        // auf dasselbe, existierende Dokument — vermutlich ein kurzzeitig
+        // inkonsistenter Firestore-Watch-Stream): unmittelbar vor dem
+        // destruktiven Schreiben eine FRISCHE, direkte Server-Abfrage
+        // (nicht der Listener-Snapshot) einholen und nur fortfahren, wenn
+        // die Nicht-Existenz sich dort bestaetigt.
+        let reallyMissing = true
+        try {
+          const serverSnap = await getDocFromServer(profileRef)
+          reallyMissing = !serverSnap.exists()
+        } catch {
+          // Server-Nachfrage fehlgeschlagen (z.B. offline) -> vorsichtshalber
+          // NICHT self-healen, lieber im Loading-Zustand bleiben als ein
+          // echtes Profil zu riskieren.
+          reallyMissing = false
+        }
+        if (!reallyMissing) { setLoading(false); return }
         const newProfile: UserProfile = {
           uid: user.uid,
           email: user.email ?? '',
