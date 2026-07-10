@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw } from 'lucide-react'
 import { getArticles, createArticle, getAlerts, getArticle, addLot, addMovement, getCategories } from '../../../lib/firestoreLager'
 import PageHeader from '../../../components/ui/PageHeader'
+import BackButton from '../../../components/ui/BackButton'
 import StatusBadge from '../../../components/ui/StatusBadge'
 import { formatDate } from '../../../utils/dateUtils'
 import ArticleForm from '../components/ArticleForm'
@@ -214,6 +215,9 @@ const { data: bookingData } = useQuery({
 
   return (
     <div>
+      <div className="px-4 sm:px-6 pt-3">
+        <BackButton className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1" />
+      </div>
       <PageHeader
         title="Lagermanagement"
         subtitle={`${articles.length} Artikel`}
