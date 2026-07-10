@@ -62,9 +62,19 @@ service cloud.firestore {
 
       // Admin-Create via Secondary-App (UserManagementPage) erstellt User direkt
       // mit status='approved' — daher zwei alternative create-Pfade.
+      //
+      // Fest geschuetzte Konten (System-Admin + Praxisinhaber) duerfen NIE
+      // per Self-Heal-Create neu angelegt werden — nur ein Admin darf das.
+      // Grund: mehrfach (zuletzt 2026-07-10) verschwand das echte Profil
+      // server-seitig kurzzeitig (Ursache ungeklaert — vermutlich ein
+      // inkonsistenter Firestore-Watch-Stream), woraufhin die App-eigene
+      // Selbstheilung (AuthContext.tsx) automatisch ein frisches
+      // gast/pending-Profil anlegte und das echte damit ueberschrieb.
+      // Diese Regel verhindert das serverseitig, unabhaengig vom Client-Code.
       allow create: if isAdmin()
         || (request.auth != null
             && request.auth.uid == uid
+            && !(uid in ['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73'])
             && request.resource.data.status == 'pending'
             && request.resource.data.get('locked', false) != true);
 

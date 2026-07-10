@@ -202,7 +202,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: 'gast',
           status: 'pending',
         }
-        await setDoc(profileRef, { ...newProfile, createdAt: serverTimestamp() })
+        // Fuer die zwei fest geschuetzten Konten lehnen die Firestore-Rules
+        // diesen Create serverseitig ab (siehe firestore.rules) — bewusst
+        // abfangen statt als unhandled rejection crashen zu lassen.
+        try {
+          await setDoc(profileRef, { ...newProfile, createdAt: serverTimestamp() })
+        } catch { /* PERMISSION_DENIED fuer geschuetzte UIDs — bleibt im Loading-Zustand */ }
         // onSnapshot will fire again with the newly created document
         setLoading(false)
       }
