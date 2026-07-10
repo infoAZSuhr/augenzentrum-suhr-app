@@ -166,8 +166,8 @@ service cloud.firestore {
     // update) komplett unterlaufen — unabhaengig davon was dort verboten
     // war, hat DIESE Regel es trotzdem erlaubt. users/** hat oben bereits
     // eigene, vollstaendige Regeln — braucht den Catch-All nicht.
-    match /{document=**} {
-      allow read, write: if isStaff() && document[0] != 'users';
+    match /{collection}/{document=**} {
+      allow read, write: if isStaff() && collection != 'users';
     }
   }
 }
