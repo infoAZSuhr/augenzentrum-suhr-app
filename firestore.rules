@@ -60,23 +60,24 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if true;
 
-      // Admin-Create via Secondary-App (UserManagementPage) erstellt User direkt
-      // mit status='approved' — daher zwei alternative create-Pfade.
-      //
-      // Fest geschuetzte Konten (System-Admin + Praxisinhaber) duerfen NIE
-      // per Self-Heal-Create neu angelegt werden — nur ein Admin darf das.
-      // Grund: mehrfach (zuletzt 2026-07-10) verschwand das echte Profil
-      // server-seitig kurzzeitig (Ursache ungeklaert — vermutlich ein
-      // inkonsistenter Firestore-Watch-Stream), woraufhin die App-eigene
-      // Selbstheilung (AuthContext.tsx) automatisch ein frisches
-      // gast/pending-Profil anlegte und das echte damit ueberschrieb.
-      // Diese Regel verhindert das serverseitig, unabhaengig vom Client-Code.
-      allow create: if isAdmin()
-        || (request.auth != null
-            && request.auth.uid == uid
-            && !(uid in ['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73'])
-            && request.resource.data.status == 'pending'
-            && request.resource.data.get('locked', false) != true);
+      // Fest geschuetzte Konten (System-Admin + Praxisinhaber): CREATE ueber
+      // Client-SDKs IMMER verboten, auch fuer Admins — bewusst OHNE
+      // isAdmin()-Ausnahme. Grund (2026-07-10, nach mehreren Reset-
+      // Vorfaellen): eine erste Version dieser Regel erlaubte weiterhin
+      // isAdmin() als Bypass — da genau diese beiden Konten selbst admin
+      // sind, hat isAdmin() (liest die eigene, zum Auswertungszeitpunkt noch
+      // admin-Rolle) den Self-Heal-Create trotzdem durchgelassen und das
+      // Konto erneut ueberschrieben, nur 38s nach Deployment dieser Regel.
+      // Ein (Wieder-)Anlegen dieser beiden Dokumente ist nur noch per
+      // Admin-SDK-Skript moeglich (bypasst Rules komplett) — kein Pfad mehr
+      // ueber die Client-App, weder Self-Heal noch UserManagementPage.
+      allow create: if uid in ['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73']
+        ? false
+        : (isAdmin()
+            || (request.auth != null
+                && request.auth.uid == uid
+                && request.resource.data.status == 'pending'
+                && request.resource.data.get('locked', false) != true));
 
       allow update: if isAdmin()
         || (request.auth != null
