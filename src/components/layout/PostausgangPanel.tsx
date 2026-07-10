@@ -198,11 +198,12 @@ export default function PostausgangPanel() {
   // ueber den persistierten uploadFailCount auch NICHT ueber App-Neustarts
   // hinweg (Bug bis 2026-07-10: autoTried lebte nur im Speicher, ein Item
   // versuchte sich bei JEDEM App-Neustart erneut und unsichtbar — Fall
-  // "Blanc/PID 946" hing so >2 Tage in Endlos-Retries fest). Nach 3
-  // gescheiterten Versuchen bleibt der Brief liegen; er wird dann (weil
+  // "Blanc/PID 946" hing so >2 Tage in Endlos-Retries fest). Nach dem 1.
+  // gescheiterten Versuch bleibt der Brief liegen (kein automatischer
+  // Wiederholungsversuch, auf Nutzerwunsch); er wird dann (weil
   // uploadFailCount>0) in der Liste sichtbar und kann manuell geloescht
   // oder per Klick erneut versucht werden.
-  const MAX_AUTO_RETRIES = 3
+  const MAX_AUTO_RETRIES = 1
   const autoTried = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (uploadingId) return  // ein Upload läuft bereits → seriell abarbeiten
