@@ -340,7 +340,17 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       return /einen (ausf(?:ü|ue)hrenden|verantwortlichen) arzt/i.test(document.body?document.body.innerText:'');
     })()`)
 
+    // Pruefen ob die Dokumenttyp-Auswahl (Schritt NACH der Arztwahl) sichtbar
+    // ist — Liris ueberspringt die Arztwahl, wenn es den verantwortlichen
+    // Arzt der Akte bereits eindeutig zuordnen kann.
+    const dokumenttypDa = () => evalJs(`(function(){
+      var as=[].slice.call(document.querySelectorAll('a'));
+      for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet') return true; }
+      return false;
+    })()`)
+
     // ── Schritt 0: 'Dokument importieren' oeffnen (falls noch nicht offen) ───
+    let skipArztwahl = false
     const alreadyOpen = await arztAuswahlDa()
     step('Schritt 0: Arzt-Auswahl bereits offen? ' + alreadyOpen)
     if (!alreadyOpen) {
@@ -401,7 +411,17 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
           step('Schritt 0: Arzt-Auswahl nach Retry erschienen? ' + appeared)
         }
       }
-      if (!appeared) return fail('Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".')
+      if (!appeared) {
+        // Liris zeigt die Arztwahl NICHT immer: hat die Akte einen eindeutig
+        // hinterlegten verantwortlichen Arzt, springt der Import-Dialog
+        // direkt zur Dokumenttyp-Auswahl. Vorher brach die Automatik hier
+        // faelschlich ab, obwohl der Dialog offen war — nur einen Schritt
+        // weiter. Daher: Dokumenttyp sichtbar? Dann Schritt 1 ueberspringen.
+        const dokTyp = await dokumenttypDa()
+        step('Schritt 0: Arzt-Auswahl uebersprungen (Dokumenttyp sichtbar)? ' + dokTyp)
+        if (dokTyp) skipArztwahl = true
+        else return fail('Import-Dialog (Arzt-Auswahl) erschien nicht nach Klick auf "Dokument importieren".')
+      }
     }
     // Settle-Pause: die Links existieren oft schon im DOM bevor Liris die
     // Klick-Handler gebunden hat — zu fruehe Klicks verpuffen wirkungslos.
@@ -414,8 +434,10 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
     const ln = (doctorLastName || '').trim()
     const isOffen = !ln || ln.toLowerCase() === 'offen' || ln.toLowerCase() === 'keinem arzt zugewiesen'
-    step('Schritt 1: Arzt waehlen (isOffen=' + isOffen + ')')
-    if (isOffen) {
+    step('Schritt 1: ' + (skipArztwahl ? 'uebersprungen — Liris hat den Arzt bereits automatisch zugeordnet' : 'Arzt waehlen (isOffen=' + isOffen + ')'))
+    if (skipArztwahl) {
+      // nichts zu tun — direkt weiter zu Schritt 2 (Dokumenttyp)
+    } else if (isOffen) {
       let okShortcut = false
       for (let i = 0; i < 8 && !okShortcut; i++) {
         okShortcut = await evalJs(`(function(){
