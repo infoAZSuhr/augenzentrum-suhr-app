@@ -79,7 +79,17 @@ service cloud.firestore {
                 && request.resource.data.status == 'pending'
                 && request.resource.data.get('locked', false) != true));
 
-      allow update: if isAdmin()
+      // Fest geschuetzte Konten: role/status sind per Client-SDK UNVERAENDERLICH
+      // — auch fuer Admins. Grund (2026-07-10, 7. Reset-Vorfall, diesmal TROTZ
+      // Create-Sperre): das Profil verschwindet serverseitig nie wirklich —
+      // der fehlgeleitete Self-Heal-setDoc trifft auf ein EXISTIERENDES
+      // Dokument und zaehlt daher als UPDATE, das isAdmin() pauschal erlaubte
+      // (der Betroffene ist zum Auswertungszeitpunkt ja noch admin). Aenderung
+      // von role/status dieser Konten geht nur noch per Admin-SDK-Skript.
+      allow update: if (
+          !(uid in ['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73'])
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status'])
+        ) && (isAdmin()
         || (request.auth != null
             && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys()
@@ -94,7 +104,7 @@ service cloud.firestore {
                     // Flag wird vom Self-Heal automatisch abgeraeumt sobald
                     // die Auth-Mail nach echter Adresse aussieht.
                     'mustSetRealEmail'
-                  ]));
+                  ])));
 
       // Fest geschuetzte Konten (System-Admin + Praxisinhaber) koennen NIE
       // ueber die Client-SDKs geloescht werden — unabhaengig von ihrer
