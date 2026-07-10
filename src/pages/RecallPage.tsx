@@ -5,7 +5,7 @@ import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
 import { doctorPhoto } from '../lib/doctorPhotos'
-import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ArrowLeft, Sparkles } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, X, Pencil, Plus, Loader2, UserRound, Mail, Phone, Building2, Info, BarChart2, CalendarClock, TrendingUp, CheckCircle2, MinusCircle, Bell, BellOff, Copy, Check, Download, CalendarDays, ListChecks, Printer, PhoneMissed, PhoneCall, UserX, Clock, FileSpreadsheet, ArrowRightLeft, Trash2, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ChevronUp, ArrowLeft, Sparkles } from 'lucide-react'
 import { generateBriefText } from '../lib/ai'
 import {
   RecallPatient,
@@ -607,10 +607,19 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Inline-Formular «weitere Zuweisung» im Patient-bearbeiten-Dialog
   const [zwAddOpen, setZwAddOpen] = useState(false)
   const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
+  // Primäre Zuweisung: volle Bearbeitungsansicht nur solange sie noch
+  // pendent ist. Ist sie bereits erledigt, reicht im «Patient bearbeiten»-
+  // Dialog eine kompakte Zusammenfassung — Details lassen sich bei Bedarf
+  // ausklappen. Verhindert, dass der Dialog mit lauter erledigten
+  // Zuweisungs-Feldern vollgestopft wird, obwohl nichts mehr zu tun ist.
+  const [zwEditExpanded, setZwEditExpanded] = useState(false)
 
   useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
   // «weitere Zuweisung»-Inline-Form zurücksetzen, wenn ein anderer Patient geöffnet wird
   useEffect(() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }, [editTarget])
+  // Bearbeitungsansicht der primären Zuweisung: automatisch ausgeklappt
+  // solange sie pendent ist (aktive Aufgabe), sonst eingeklappt.
+  useEffect(() => { setZwEditExpanded(form.zuweisungStatus !== 'erledigt') }, [editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
   const [emailCopied,       setEmailCopied]       = useState(false)
   const [previewCollapsed]  = useState(true)   // Dialog bleibt schmal (Vorschau ist Popup)
   // Benutzerdefinierte Voruntersuchungen (zusaetzlich zu VORUNTERSUCHUNGEN),
@@ -7301,8 +7310,28 @@ const lirisExtractRef  = useRef(lirisExtract)
                   {form.zuweisungNoetig ? '✓ Zuweisung noch ausstehend' : 'Muss noch zugewiesen werden'}
                 </button>
 
-                {form.zuweisungAktiv && (
+                {form.zuweisungAktiv && form.zuweisungStatus === 'erledigt' && !zwEditExpanded && (
+                  <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-green-200 bg-green-50 text-xs">
+                    <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold shrink-0">Erledigt</span>
+                    <span className="font-medium text-gray-800 truncate">→ {form.zuweisungZiel || '—'}</span>
+                    {form.zuweisungGrund && <span className="text-gray-500 truncate">· {form.zuweisungGrund}</span>}
+                    {form.zuweisungErledigtAm && <span className="text-gray-400 shrink-0">· {formatDate(form.zuweisungErledigtAm)}</span>}
+                    {!form.zuweisungBerichtErhalten && <span className="text-amber-600 font-semibold shrink-0">· Bericht ausstehend</span>}
+                    <button type="button" onClick={() => setZwEditExpanded(true)}
+                      title="Bearbeiten" className="ml-auto p-0.5 rounded text-gray-400 hover:text-violet-600 shrink-0">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {form.zuweisungAktiv && (form.zuweisungStatus !== 'erledigt' || zwEditExpanded) && (
                   <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
+                    {form.zuweisungStatus === 'erledigt' && (
+                      <button type="button" onClick={() => setZwEditExpanded(false)}
+                        className="flex items-center gap-1 text-[11px] font-medium text-violet-600 hover:text-violet-800 hover:underline">
+                        <ChevronUp className="w-3 h-3" /> Zusammenfassung einklappen
+                      </button>
+                    )}
                     {/* Typ */}
                     <div className="flex gap-2">
                       {(['intern', 'extern'] as const).map(t => (
