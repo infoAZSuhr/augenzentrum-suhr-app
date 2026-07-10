@@ -50,17 +50,39 @@ jobs:
         # wenn neue Deps committed wurden ohne lokales npm install vorab.
         run: npm install --no-audit --no-fund
 
+      - name: Refdata-Artikelstamm frisch laden
+        # refdata-data.json ist gitignored (taeglich ~2MB Churn) — ohne
+        # diesen Schritt wuerde jeder Code-Deploy die Medikamentensuche
+        # aus dem Live-Hosting entfernen. Download ist oeffentlich (kein
+        # Login); bei Fehlschlag greift unten der Live-Fallback.
+        run: node scripts/update-refdata.js --force || echo "::warning::Refdata-Download fehlgeschlagen — Live-Fallback uebernimmt"
+
       - name: Bestehende Daten-JSONs von Live-Site holen
         # Die grossen Daten-Dateien sind gitignored und werden nur von den
         # update-*.yml Cron-Workflows neu generiert. Damit ein Code-Deploy
         # die Daten nicht "wegdeployed", holen wir die aktuelle Version
         # vom Live-Hosting in den Build-Output.
+        #
+        # WICHTIG (Lehre vom 2026-07-10): fehlt die Datei im Hosting,
+        # liefert das SPA-Rewrite die index.html mit Status 200 — ein
+        # blosses `curl -f` merkt das NICHT und deployt die HTML-Seite als
+        # .json weiter (so blieb die Medikamentensuche dauerhaft kaputt,
+        # nachdem ein parallel existierender zweiter Deploy-Workflow die
+        # Dateien einmal weggeloescht hatte). Daher: erstes Zeichen muss
+        # '{' oder '[' sein, sonst Datei verwerfen.
+        # sl-data.json ist inzwischen im Repo committet und wird hier
+        # bewusst NICHT von Live geholt (Repo-Version ist die Wahrheit).
         run: |
-          for f in sl-data refdata-data lieferengpaesse-data zurrose-nota-data recall-data recall-pid-sync recall-zu-bearbeiten; do
-            if curl -fsSL "https://azsdb-999d6.web.app/${f}.json" -o "public/${f}.json"; then
+          for f in refdata-data lieferengpaesse-data zurrose-nota-data; do
+            if [ -s "public/${f}.json" ]; then
+              echo "  ${f}.json bereits vorhanden — kein Live-Fetch noetig"
+              continue
+            fi
+            if curl -fsSL "https://azsdb-999d6.web.app/${f}.json" -o "public/${f}.json" \
+               && head -c1 "public/${f}.json" | grep -q '[[{]'; then
               echo "  ${f}.json geholt ($(wc -c < "public/${f}.json") bytes)"
             else
-              echo "  ${f}.json nicht verfügbar — überspringe"
+              echo "  ${f}.json nicht verfügbar oder kein JSON — überspringe"
               rm -f "public/${f}.json"
             fi
           done
