@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, UserPlus, CalendarDays, GripHorizontal } from 'lucide-react'
+import { X, UserPlus, CalendarDays, GripHorizontal, Plus, Trash2 } from 'lucide-react'
 import { getDoctors, addDoctor, getPatient, subscribeIviDaysFromPlanung, getPlannedIviDays } from '../../../lib/firestorePatients'
 import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
 import { IVI_WORKING, filterIviDoctors } from '../../../lib/iviPlanLogic'
@@ -32,6 +32,7 @@ export interface TreatmentFormValues {
   setName: string
   setLotId: string
   setLotNumber: string
+  extraMaterials: { articleId: string; name: string; lotId: string; lotNumber: string }[]
   octFindings: string
   nextAppointment: string
   nextIntervalWeeks: number | undefined
@@ -114,6 +115,7 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
       behandlungsStatus: 'aktiv',
       inventoryArticleId: '', medicationName: '', inventoryLotId: '', lotNumber: '',
       setArticleId: '', setName: '', setLotId: '', setLotNumber: '',
+      extraMaterials: [],
       erstesOctDatum: '',
       kontrolldatum: '',
       kontrolldatumAmSpritztag: false,
@@ -186,6 +188,15 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
     setValue('setLotId', id)
     setValue('setLotNumber', lot?.lotNumber || '')
   }
+
+  // ── Weiteres Verbrauchsmaterial (beliebig viele Positionen) ──
+  const extraMaterials = watch('extraMaterials') ?? []
+  const addExtraMaterial = () =>
+    setValue('extraMaterials', [...extraMaterials, { articleId: '', name: '', lotId: '', lotNumber: '' }])
+  const updateExtraMaterial = (idx: number, patch: Partial<TreatmentFormValues['extraMaterials'][number]>) =>
+    setValue('extraMaterials', extraMaterials.map((m, i) => i === idx ? { ...m, ...patch } : m))
+  const removeExtraMaterial = (idx: number) =>
+    setValue('extraMaterials', extraMaterials.filter((_, i) => i !== idx))
 
   const handleIntervall = (weeks: number) => {
     setValue('nextIntervalWeeks', weeks)
@@ -365,6 +376,23 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
               }
               <input type="hidden" {...register('setLotId', { required: 'Set-Charge erforderlich' })} />
             </div>
+
+            {/* Weitere Verbrauchsmaterialien — optional, beliebig viele.
+                Jede Position wird beim Speichern automatisch vom Lager
+                abgebucht (wie das Set). */}
+            {extraMaterials.map((m, i) => (
+              <ExtraMaterialRow
+                key={i}
+                value={m}
+                articles={setArticles}
+                onChange={patch => updateExtraMaterial(i, patch)}
+                onRemove={() => removeExtraMaterial(i)}
+              />
+            ))}
+            <button type="button" onClick={addExtraMaterial}
+              className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline">
+              <Plus className="w-3.5 h-3.5" /> Weiteres Material
+            </button>
           </div>
 
           {/* OCT Befund */}
@@ -623,6 +651,60 @@ export default function TreatmentForm({ patientId, onClose, onSubmit, isLoading,
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// Eine Position "Weiteres Verbrauchsmaterial": Artikel- + Chargen-Auswahl mit
+// eigener Chargen-Abfrage pro Zeile. Ausserhalb von TreatmentForm definiert,
+// damit die Zeilen bei jedem Parent-Render nicht neu gemountet werden.
+function ExtraMaterialRow({ value, articles, onChange, onRemove }: {
+  value: { articleId: string; name: string; lotId: string; lotNumber: string }
+  articles: { id: string; name: string; currentStock?: number; unit?: string; quantityUnit?: string }[]
+  onChange: (patch: Partial<{ articleId: string; name: string; lotId: string; lotNumber: string }>) => void
+  onRemove: () => void
+}) {
+  const { data: lots = [] } = useQuery({
+    queryKey: ['inventory_lots', value.articleId],
+    queryFn: () => getArticleLots(value.articleId),
+    enabled: !!value.articleId,
+  })
+  return (
+    <div className="flex items-start gap-2 p-2.5 rounded-lg border border-gray-200 bg-gray-50">
+      <div className="flex-1 space-y-1.5">
+        <select className="input text-sm" value={value.articleId}
+          onChange={e => {
+            const art = articles.find(a => a.id === e.target.value)
+            onChange({ articleId: e.target.value, name: art?.name || '', lotId: '', lotNumber: '' })
+          }}>
+          <option value="">— Material auswählen —</option>
+          {[...articles].sort((a, b) => a.name.localeCompare(b.name, 'de')).map(a => (
+            <option key={a.id} value={a.id}>{a.name}{a.currentStock !== undefined ? ` (${a.currentStock} ${a.quantityUnit || a.unit})` : ''}</option>
+          ))}
+        </select>
+        {value.articleId && (
+          lots.length === 0
+            ? <p className="text-xs text-amber-600 italic">Keine Chargen vorhanden</p>
+            : <select className="input text-sm" value={value.lotId}
+                onChange={e => {
+                  const lot = lots.find((l: { id: string }) => l.id === e.target.value)
+                  onChange({ lotId: e.target.value, lotNumber: (lot as { lotNumber?: string } | undefined)?.lotNumber || '' })
+                }}>
+                <option value="">— Charge auswählen —</option>
+                {lots.map((l: { id: string; lotNumber: string; expiryDate?: string; quantity?: number }) => (
+                  <option key={l.id} value={l.id}>
+                    {l.lotNumber}
+                    {l.expiryDate ? ` · Ablauf: ${formatSwissDate(l.expiryDate)}` : ''}
+                    {l.quantity !== undefined ? ` · Bestand: ${l.quantity}` : ''}
+                  </option>
+                ))}
+              </select>
+        )}
+      </div>
+      <button type="button" onClick={onRemove} title="Entfernen"
+        className="p-1 rounded text-gray-400 hover:text-red-500 shrink-0 mt-1">
+        <Trash2 className="w-4 h-4" />
+      </button>
     </div>
   )
 }

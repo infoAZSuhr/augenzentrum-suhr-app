@@ -49,7 +49,17 @@ export interface Treatment {
   setName?: string
   setLotId?: string
   setLotNumber?: string
+  // Weitere Verbrauchsmaterialien (zusaetzlich zum Set) — jedes wird beim
+  // Erfassen automatisch vom Lager abgebucht.
+  extraMaterials?: ExtraMaterial[]
   createdAt?: string
+}
+
+export interface ExtraMaterial {
+  articleId: string
+  name: string
+  lotId: string
+  lotNumber: string
 }
 
 export interface Appointment {

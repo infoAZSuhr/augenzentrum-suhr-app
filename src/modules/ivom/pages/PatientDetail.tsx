@@ -5,7 +5,7 @@ import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check, Bell } from 'lucide-r
 import IVTIntervallblatt from '../components/IVTIntervallblatt'
 import {
   getPatient, getPatientTreatments, createTreatment,
-  updatePatient, updateTreatment, deletePatient, deleteTreatment,
+  updatePatient, updateTreatment, deletePatient, deleteTreatment, deductLot,
 } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
 import StatusBadge from '../../../components/ui/StatusBadge'
@@ -96,6 +96,15 @@ export default function PatientDetail() {
 
   const editTreatmentMut = useMutation({
     mutationFn: async (data: TreatmentFormValues) => {
+      // Beim Bearbeiten NEU hinzugefuegte Verbrauchsmaterialien nachbuchen
+      // (Diff gegen den alten Stand — bestehende Positionen wurden beim
+      // Erfassen schon abgebucht und duerfen nicht doppelt belastet werden).
+      const before = new Set((editTreatment?.extraMaterials ?? []).map(m => `${m.articleId}|${m.lotId}`))
+      for (const m of data.extraMaterials ?? []) {
+        if (m.lotId && m.articleId && !before.has(`${m.articleId}|${m.lotId}`)) {
+          await deductLot(m.lotId, m.articleId, 'IVOM-Behandlung (Material, nachgebucht)')
+        }
+      }
       await updateTreatment(editTreatment!.id, data as any)
       if (id) {
         const patch: Record<string, any> = {}

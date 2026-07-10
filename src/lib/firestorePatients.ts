@@ -269,7 +269,9 @@ export async function getPatientTreatments(patientId: string): Promise<Treatment
   return snap.docs.map(d => fromDoc<Treatment>(d)).sort((a, b) => b.treatmentDate.localeCompare(a.treatmentDate))
 }
 
-async function deductLot(lotId: string, articleId: string, reason: string): Promise<void> {
+// Auch exportiert: PatientDetail bucht beim BEARBEITEN einer Behandlung
+// neu hinzugefuegte Verbrauchsmaterialien nach (Diff alt vs. neu).
+export async function deductLot(lotId: string, articleId: string, reason: string): Promise<void> {
   try {
     const lotSnap = await getDoc(doc(db, 'inventory_lots', lotId))
     if (!lotSnap.exists()) return
@@ -306,6 +308,13 @@ export async function createTreatment(data: Omit<Treatment, 'id'>): Promise<Trea
   // Automatische Lagerabnahme: Set
   if ((data as any).setLotId && (data as any).setArticleId) {
     await deductLot((data as any).setLotId, (data as any).setArticleId, 'IVOM-Behandlung (Set)')
+  }
+
+  // Automatische Lagerabnahme: weitere Verbrauchsmaterialien
+  for (const m of ((data as any).extraMaterials ?? []) as { articleId?: string; lotId?: string }[]) {
+    if (m.lotId && m.articleId) {
+      await deductLot(m.lotId, m.articleId, 'IVOM-Behandlung (Material)')
+    }
   }
 
   return { id: ref.id, ...data }
