@@ -161,7 +161,7 @@ export default function UserManagementPage() {
   // Rolle des Kontos. Grund: faellt ein Konto z.B. durch die Profil-
   // Selbstheilung in AuthContext auf role='gast' zurueck, wuerde der
   // rollenbasierte Admin/GL-Schutz unten NICHT mehr greifen.
-  const PROTECTED_UIDS = new Set(['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73'])
+  const PROTECTED_UIDS = new Set(['cO1L08kjXlfOnS0KaYUSC0wzSX32', 'ZYC9Yje1C0aoitazRoaVJDKuRM73', 'yRiF92siAMRf7UZlZ1acoKunhZp2'])
 
   // Permission: can current admin modify this user?
   function canModify(u: UserProfile) {

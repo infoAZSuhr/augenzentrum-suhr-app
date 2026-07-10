@@ -50,6 +50,12 @@ jobs:
         # wenn neue Deps committed wurden ohne lokales npm install vorab.
         run: npm install --no-audit --no-fund
 
+      - name: Unit-Tests (Deploy-Gate)
+        # Schlagen die Tests fehl, wird NICHT deployt. War frueher nur im
+        # (inzwischen geloeschten) Parallel-Workflow deploy-web.yml enthalten
+        # — dieser kanonische Workflow deployte bis 2026-07-10 ungetestet.
+        run: npm test
+
       - name: Refdata-Artikelstamm frisch laden
         # refdata-data.json ist gitignored (taeglich ~2MB Churn) — ohne
         # diesen Schritt wuerde jeder Code-Deploy die Medikamentensuche

@@ -1,0 +1,66 @@
+# BAG Spezialitätenliste (SL) monatlich aktualisieren.
+#
+# Ersetzt den Windows-Task auf dem Praxis-PC (scripts/auto-update-sl.ps1) als
+# primaeren Update-Weg — der PC muss dafuer nicht mehr laufen. Der lokale Task
+# bleibt als Fallback funktionsfaehig (gleiches Skript).
+#
+# Das BAG publiziert die SL monatlich per 1. — wir laufen am 2. und 16.
+# (Mitte Monat gibt es gelegentlich Nachtraege). update-sl.js bricht ab,
+# wenn die Daten unplausibel sind (< 5000 Eintraege), dann bleibt der
+# bisherige Stand erhalten.
+name: SL Spezialitaetenliste aktualisieren
+
+on:
+  schedule:
+    - cron: '30 4 2,16 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependencies installieren
+        run: npm install --no-audit --no-fund
+
+      - name: SL herunterladen und parsen
+        run: node scripts/update-sl.js
+
+      - name: Daten committen
+        # sl-data.json ist im Repo committet (siehe .gitignore-Kommentar) —
+        # der Push allein deployt aber NICHT (GITHUB_TOKEN-Pushes triggern
+        # keine weiteren Workflows), daher unten expliziter Hosting-Deploy.
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin main
+          git add public/sl-data.json public/sl-meta.json
+          git diff --staged --quiet || git commit -m "chore: BAG SL $(date +%d.%m.%Y)"
+          git push
+
+      - name: Refdata-Artikelstamm frisch laden
+        run: node scripts/update-refdata.js --force || echo "::warning::Refdata-Download fehlgeschlagen"
+
+      - name: App bauen
+        run: npx vite build
+
+      - name: Firebase Hosting deployen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          npm install -g firebase-tools
+          firebase deploy --only hosting --project azsdb-999d6 --non-interactive
+          rm -f /tmp/sa.json
