@@ -7,6 +7,7 @@ import { storage } from '../../../lib/firebase'
 import { getArticle, addLot, addMovement, updateMovement, updateArticle, updateLot, deleteArticle, deleteLot } from '../../../lib/firestoreLager'
 import { getPatientNames } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
+import BackButton from '../../../components/ui/BackButton'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { formatDate, daysUntil, formatSwissDate } from '../../../utils/dateUtils'
 import { useToast } from '../../../lib/ToastContext'
@@ -288,6 +289,7 @@ const addLotMut = useMutation({
   return (
     <div>
       <PageHeader
+        back={<BackButton label="" fallback="/lager" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" />}
         title={safeDecode(article.name)}
         subtitle={`${article.category} · ${article.currentStock ?? 0} ${article.unit} auf Lager`}
         actions={
