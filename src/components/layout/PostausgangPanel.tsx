@@ -26,11 +26,15 @@ const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
  *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
-  const { items, restoredCount, remove, markUploaded, markPrinted, markVersendet } = usePostausgang()
+  const { items, restoredCount, remove, markUploaded, markUploadFailed, markPrinted, markVersendet } = usePostausgang()
   // Per E-Mail versendete Briefe (skipPrint) laufen nur als unsichtbarer
   // Liris-Upload-Job im Hintergrund mit — sie erscheinen NICHT in der Liste
   // und zaehlen nicht im Badge (Postausgang = nur zu druckende Briefe).
-  const visibleItems = items.filter(i => !i.skipPrint)
+  // AUSNAHME: haengt ein solcher Job fest (wiederholt gescheitert), wird er
+  // TROTZDEM angezeigt — sonst gibt es fuer den User keine Moeglichkeit, ihn
+  // zu sehen oder zu loeschen (Bug, der zu endlosen Retries ueber App-
+  // Neustarts hinweg fuehrte, 2026-07-10 beim Fall "Blanc/PID 946" entdeckt).
+  const visibleItems = items.filter(i => !i.skipPrint || (i.uploadFailCount ?? 0) > 0)
   const { lirisWebContentsId, openWithPid, lirisExtract } = useBrowser()
   const toast = useToast()
   // Immer aktueller lirisExtract-Wert fuer die Warteschleife in uploadToLiris
@@ -160,6 +164,7 @@ export default function PostausgangPanel() {
         const text = 'Patientenakte konnte in Liris nicht automatisch geöffnet werden.'
         setStatusMsg({ kind: 'err', text })
         reportUploadFehler(it, text)
+        markUploadFailed(it.id, text)
         setUploadingId(null)
         return
       }
@@ -176,10 +181,12 @@ export default function PostausgangPanel() {
       } else {
         setStatusMsg({ kind: 'err', text: res.error || 'Unbekannter Fehler', log: res.log })
         reportUploadFehler(it, res.error || 'Unbekannter Fehler', res.log)
+        markUploadFailed(it.id, res.error || 'Unbekannter Fehler')
       }
     } catch (e) {
       setStatusMsg({ kind: 'err', text: String(e) })
       reportUploadFehler(it, String(e))
+      markUploadFailed(it.id, String(e))
     } finally {
       setUploadingId(null)
     }
@@ -187,12 +194,19 @@ export default function PostausgangPanel() {
 
   // Auto-Import: Briefe mit autoUpload-Flag (aus «Per Post» / «Per E-Mail»)
   // automatisch ins Liris hochladen — einzeln, nacheinander. Fehlgeschlagene
-  // werden NICHT endlos wiederholt (autoTried-Set). Wenn Liris/Electron nicht
-  // verfügbar ist, bleibt der Brief liegen (kein Fehler-Spam, manueller Fallback).
+  // werden pro Sitzung NICHT endlos wiederholt (autoTried-Set) — UND zusaetzlich
+  // ueber den persistierten uploadFailCount auch NICHT ueber App-Neustarts
+  // hinweg (Bug bis 2026-07-10: autoTried lebte nur im Speicher, ein Item
+  // versuchte sich bei JEDEM App-Neustart erneut und unsichtbar — Fall
+  // "Blanc/PID 946" hing so >2 Tage in Endlos-Retries fest). Nach 3
+  // gescheiterten Versuchen bleibt der Brief liegen; er wird dann (weil
+  // uploadFailCount>0) in der Liste sichtbar und kann manuell geloescht
+  // oder per Klick erneut versucht werden.
+  const MAX_AUTO_RETRIES = 3
   const autoTried = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (uploadingId) return  // ein Upload läuft bereits → seriell abarbeiten
-    const next = items.find(it => it.autoUpload && !it.uploaded && !autoTried.current.has(it.id))
+    const next = items.find(it => it.autoUpload && !it.uploaded && !autoTried.current.has(it.id) && (it.uploadFailCount ?? 0) < MAX_AUTO_RETRIES)
     if (!next) return
     if (!electronApi?.autoImportToLiris || !lirisWebContentsId || !next.tmpPath) return
     autoTried.current.add(next.id)
@@ -235,7 +249,9 @@ export default function PostausgangPanel() {
   // Versand gelten die Patienten als aufgeboten (markVersendet -> RecallPage
   // loest 'aufgeboten markieren' aus).
   const mailAllToPraxis = async () => {
-    const offen = visibleItems.filter(i => !i.versendet && !i.uploaded)
+    // Bewusst NICHT visibleItems: die dort zusaetzlich sichtbaren haengenden
+    // skipPrint-Fehlschlaege sind reine Liris-Upload-Jobs, kein Praxis-Mailing.
+    const offen = items.filter(i => !i.skipPrint && !i.versendet && !i.uploaded)
     if (offen.length === 0) { setStatusMsg({ kind: 'ok', text: 'Keine offenen Briefe zum Senden.' }); return }
     if (!electronApi?.openMailWithAttachments || !electronApi?.writePdfTmp) {
       setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar (App-Update nötig).' }); return
@@ -274,8 +290,9 @@ export default function PostausgangPanel() {
   // von dort kann gesammelt gedruckt werden.
   const printAll = async () => {
     // Per E-Mail versendete Briefe (skipPrint) muessen nicht gedruckt werden
-    // — nur ins Liris hochgeladen. Aus dem Sammeldruck ausschliessen.
-    const printable = visibleItems
+    // — nur ins Liris hochgeladen. Aus dem Sammeldruck ausschliessen (auch
+    // die haengenden Fehlschlaege, die visibleItems inzwischen mit anzeigt).
+    const printable = items.filter(i => !i.skipPrint)
     if (printable.length === 0) {
       setStatusMsg({ kind: 'ok', text: 'Nichts zu drucken — alle Briefe wurden per E-Mail versendet.' })
       return
@@ -333,7 +350,7 @@ export default function PostausgangPanel() {
                   {merging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
                 </button>
               )}
-              {canMailPraxis && visibleItems.some(i => !i.versendet && !i.uploaded) && (
+              {canMailPraxis && items.some(i => !i.skipPrint && !i.versendet && !i.uploaded) && (
                 <button onClick={mailAllToPraxis} title={`Alle offenen Briefe gebündelt an ${PRAXIS_EMAIL} senden`} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary-600">
                   <Mail className="w-3.5 h-3.5" />
                 </button>
@@ -360,13 +377,18 @@ export default function PostausgangPanel() {
                 >
                   {(it.uploaded || it.versendet)
                     ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-500" />
-                    : <FileText className="w-4 h-4 shrink-0 text-blue-500" />}
+                    : (it.uploadFailCount ?? 0) >= MAX_AUTO_RETRIES
+                      ? <span title={it.lastUploadError || 'Auto-Import wiederholt fehlgeschlagen'} className="w-4 h-4 shrink-0 flex items-center justify-center text-red-500 font-bold text-sm">!</span>
+                      : <FileText className="w-4 h-4 shrink-0 text-blue-500" />}
                   <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-semibold truncate ${(it.uploaded || it.versendet) ? 'text-green-700' : 'text-blue-700'}`}>{it.vorname || it.filename}</div>
+                    <div className={`text-xs font-semibold truncate ${(it.uploaded || it.versendet) ? 'text-green-700' : (it.uploadFailCount ?? 0) >= MAX_AUTO_RETRIES ? 'text-red-700' : 'text-blue-700'}`}>{it.vorname || it.filename}</div>
                     <div className="text-[10px] text-gray-400 truncate">
                       {it.pid ? '#' + it.pid + ' · ' : ''}{it.arzt}
                       {it.uploaded && <span className="ml-1 text-green-600 font-semibold">· hochgeladen</span>}
                       {!it.uploaded && it.versendet && <span className="ml-1 text-green-600 font-semibold">· an Praxis gesendet</span>}
+                      {!it.uploaded && (it.uploadFailCount ?? 0) >= MAX_AUTO_RETRIES && (
+                        <span className="ml-1 text-red-600 font-semibold" title={it.lastUploadError}>· Auto-Import gescheitert ({it.uploadFailCount}x) — manuell prüfen</span>
+                      )}
                     </div>
                   </div>
                   <button onClick={() => printOne(it)} title="Diesen Brief einzeln drucken" className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white text-gray-400 hover:text-primary-600 transition-opacity">

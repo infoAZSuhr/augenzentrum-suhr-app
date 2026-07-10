@@ -14,6 +14,8 @@ export interface PostausgangItem {
   uploaded?:   boolean        // true sobald erfolgreich ins Liris hochgeladen
   printed?:    boolean        // true sobald gedruckt (Druckdialog gestartet)
   autoUpload?: boolean        // true → Postausgang-Panel importiert automatisch ins Liris
+  uploadFailCount?: number    // Anzahl gescheiterter Auto-Upload-Versuche (persistiert — verhindert endlose Retries nach App-Neustart)
+  lastUploadError?: string    // Text des letzten Fehlers (fuer die Anzeige haengender Items)
   skipPrint?: boolean         // true → Brief wurde per E-Mail versendet, muss NICHT gedruckt werden (nur Liris-Upload)
   versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
   // Payload (patient + form) — nur noch fuer die "Haengende Briefe"-Anzeige
@@ -30,6 +32,7 @@ interface PostausgangContextType {
   add: (item: Omit<PostausgangItem, 'id' | 'createdAt'>) => Promise<PostausgangItem>
   remove: (id: string) => void
   markUploaded: (id: string) => void
+  markUploadFailed: (id: string, error: string) => void
   markPrinted: (ids: string[]) => void
   markVersendet: (ids: string[]) => void
   clear: () => void
@@ -41,6 +44,7 @@ const PostausgangContext = createContext<PostausgangContextType>({
   add: async () => { throw new Error('Provider missing') },
   remove: () => {},
   markUploaded: () => {},
+  markUploadFailed: () => {},
   markPrinted: () => {},
   markVersendet: () => {},
   clear: () => {},
@@ -172,6 +176,10 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, uploaded: true } : i))
   }, [])
 
+  const markUploadFailed = useCallback((id: string, error: string) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, uploadFailCount: (i.uploadFailCount ?? 0) + 1, lastUploadError: error } : i))
+  }, [])
+
   const markPrinted = useCallback((ids: string[]) => {
     const set = new Set(ids)
     setItems(prev => prev.map(i => set.has(i.id) ? { ...i, printed: true } : i))
@@ -207,7 +215,7 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
   }, [pendingCount, isElectron])
 
   return (
-    <PostausgangContext.Provider value={{ items, restoredCount, add, remove, markUploaded, markPrinted, markVersendet, clear }}>
+    <PostausgangContext.Provider value={{ items, restoredCount, add, remove, markUploaded, markUploadFailed, markPrinted, markVersendet, clear }}>
       {children}
     </PostausgangContext.Provider>
   )
