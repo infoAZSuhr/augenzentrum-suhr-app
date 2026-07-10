@@ -605,6 +605,10 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [kiAnliegen, setKiAnliegen] = useState('')
   const [kiLoading, setKiLoading] = useState(false)
   // Inline-Formular «weitere Zuweisung» im Patient-bearbeiten-Dialog
+  // «Allgemeine Briefe»-Kartenauswahl im Aufgebot-Modal: standardmaessig
+  // eingeklappt, damit das Modal nicht mit selten genutzten Optionen
+  // vollgestopft wirkt — auf Klick ausklappbar.
+  const [allgBriefOpen, setAllgBriefOpen] = useState(false)
   const [zwAddOpen, setZwAddOpen] = useState(false)
   const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
   // Primäre Zuweisung: volle Bearbeitungsansicht nur solange sie noch
@@ -617,6 +621,12 @@ const lirisExtractRef  = useRef(lirisExtract)
   useEffect(() => () => setLirisSuppressed(false), [setLirisSuppressed])
   // «weitere Zuweisung»-Inline-Form zurücksetzen, wenn ein anderer Patient geöffnet wird
   useEffect(() => { setZwAddOpen(false); setZwAddDraft({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) }) }, [editTarget])
+  // «Allgemeine Briefe» automatisch ausklappen, wenn beim Oeffnen des
+  // Aufgebot-Dialogs bereits eine solche Variante aktiv ist (z.B. beim
+  // Bearbeiten eines bestehenden freien Briefs) — sonst eingeklappt.
+  useEffect(() => {
+    setAllgBriefOpen(aufgebotForm.briefVariante === 'terminBestaetigung' || aufgebotForm.briefVariante === 'freierBrief')
+  }, [aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
   // Bearbeitungsansicht der primären Zuweisung: automatisch ausgeklappt
   // solange sie pendent ist (aktive Aufgabe), sonst eingeklappt.
   useEffect(() => { setZwEditExpanded(form.zuweisungStatus !== 'erledigt') }, [editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -3115,7 +3125,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   .footer-id{position:absolute;left:2.5cm;right:2.2cm;bottom:.7cm;font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:.15cm;white-space:nowrap}
   .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.1cm}
   .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;max-width:7.5cm}
-  .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm}
+  .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm;margin-left:-.37cm}
   .lh-name{font-size:14pt;font-weight:bold;margin-bottom:.12cm}
   .lh-title{font-size:11.5pt;font-weight:bold;color:#1a3a6e;margin-bottom:.15cm}
   .lh-praxisname{font-size:12pt;font-weight:bold;color:#1a3a6e;margin-bottom:.1cm;letter-spacing:.02em}
@@ -4974,7 +4984,15 @@ const lirisExtractRef  = useRef(lirisExtract)
                       <div className="grid grid-cols-2 gap-2">
                         {ART_BUTTONS.map(b => renderCard({ ...b, fullWidth: !!b.variante }))}
                       </div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Allgemeine Briefe <span className="font-normal normal-case text-gray-400">(kein Aufgebot)</span></p>
+                      <button
+                        type="button"
+                        onClick={() => setAllgBriefOpen(o => !o)}
+                        className="w-full flex items-center justify-between mb-2 mt-4 group"
+                      >
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Allgemeine Briefe <span className="font-normal normal-case text-gray-400">(kein Aufgebot)</span></p>
+                        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-transform ${allgBriefOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {allgBriefOpen && (
                       <div className="grid grid-cols-2 gap-2">
                         {renderCard({ art: 'Brief', variante: 'terminBestaetigung', Icon: CalendarClock, label: 'Terminbestätigung', sub: 'Bestätigung des vereinbarten Termins', color: 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100' })}
                         {renderCard({ art: 'Brief', variante: 'freierBrief', Icon: Pencil, label: 'Freier Brief', sub: 'Eigener Betreff & Text auf Briefkopf', color: 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100' })}
@@ -5022,6 +5040,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           <span className="text-[10px] opacity-70 leading-tight">E-Mail an das Berichtesekretariat · öffnet sofort Outlook</span>
                         </button>
                       </div>
+                      )}
                     </div>
                   )
                 })()}

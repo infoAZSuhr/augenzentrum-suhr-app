@@ -38,7 +38,7 @@ export function buildPraxisBriefHtml(opts: PraxisBriefOpts): string {
   .page{width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
   .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.1cm}
   .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;max-width:7.5cm}
-  .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm}
+  .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm;margin-left:-.37cm}
   .lh-praxisname{font-size:12pt;font-weight:bold;color:#1a3a6e;margin-bottom:.1cm;letter-spacing:.02em}
   .lh-addr{font-size:9.5pt;color:#1a3a6e;letter-spacing:.03em;margin-bottom:.18cm;font-weight:600}
   .lh-contact-left{font-size:9pt;line-height:1.5;color:#1a3a6e}
