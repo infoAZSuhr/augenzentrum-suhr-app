@@ -155,8 +155,19 @@ service cloud.firestore {
     }
 
     // alle anderen Collections: nur für freigeschaltete Mitarbeiter
+    //
+    // WICHTIG: `users/**` bewusst ausgeschlossen (2026-07-10, root cause der
+    // wiederholten Account-Resets gefunden). Firestore verknuepft ALLE
+    // passenden match-Bloecke mit ODER — dieser Catch-All gewaehrte JEDEM
+    // Staff-Mitglied (ueber isStaff(), nicht nur Admins) pauschalen
+    // read/write-Zugriff auf JEDES Dokument, auch auf users/{uid}. Das hat
+    // die gezielten Einschraenkungen im users/{uid}-Block (u.a. das
+    // Create-Verbot fuer die geschuetzten UIDs, die Feld-Beschraenkung bei
+    // update) komplett unterlaufen — unabhaengig davon was dort verboten
+    // war, hat DIESE Regel es trotzdem erlaubt. users/** hat oben bereits
+    // eigene, vollstaendige Regeln — braucht den Catch-All nicht.
     match /{document=**} {
-      allow read, write: if isStaff();
+      allow read, write: if isStaff() && document[0] != 'users';
     }
   }
 }
