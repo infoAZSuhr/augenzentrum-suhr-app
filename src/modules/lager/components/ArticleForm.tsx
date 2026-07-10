@@ -58,6 +58,13 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
     : null
   const slStale = slDaysOld !== null && slDaysOld > 35
 
+  // Datenbank direkt beim Oeffnen des Panels laden — vorher zeigte die
+  // Anzeige bis zum ersten Tastendruck verwirrend "0 kassenpflichtig + 0
+  // Refdata", obwohl die Daten nur noch nicht angefordert waren.
+  useEffect(() => {
+    if (showCompendium && compTab === 'sl') loadSlData()
+  }, [showCompendium, compTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function loadSlData() {
     if (slData !== null || slLoading) return
     setSlLoading(true)
