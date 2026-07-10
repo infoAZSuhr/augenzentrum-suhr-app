@@ -9,7 +9,7 @@ import { useToast } from '../../lib/ToastContext'
 import { cn } from '../../utils/cn'
 import { version } from '../../../package.json'
 import { useAuth, UserProfile } from '../../lib/AuthContext'
-import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, setDoc, serverTimestamp, orderBy, deleteField } from 'firebase/firestore'
+import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, serverTimestamp, orderBy, deleteField } from 'firebase/firestore'
 import { db, auth } from '../../lib/firebase'
 import { manageFerienPlan, removePlanEntry, updatePlanComment } from '../../lib/firestorePlanung'
 import {
@@ -311,24 +311,6 @@ export default function AppShell() {
 
   // Close mobile menu on route change
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
-
-  // Versions-Reporting (nur Electron): schreibt bei jedem App-Start die
-  // aktuell laufende Version nach Firestore (app_versions/{uid}) — damit
-  // sich remote pruefen laesst, welcher PC auf welcher Version haengt, ohne
-  // auf einen Fehler im error_log warten zu muessen (Ursache der PC2-
-  // Liris-Upload-Faelle war eine veraltete, unbemerkt haengengebliebene App).
-  useEffect(() => {
-    if (!profile?.uid) return
-    const electronApp = (window as unknown as { electronApp?: { version?: string } }).electronApp
-    const version = electronApp?.version
-    if (!version) return
-    setDoc(doc(db, 'app_versions', profile.uid), {
-      version,
-      username: profile.username ?? null,
-      displayName: profile.displayName ?? null,
-      updatedAt: serverTimestamp(),
-    }, { merge: true }).catch(() => { /* nicht kritisch */ })
-  }, [profile?.uid])
 
   // Update-Banner: auf 'downloaded' warten (Update ist fertig heruntergeladen,
   // braucht nur noch einen Neustart) — 'checking'/'available'/'downloading'
