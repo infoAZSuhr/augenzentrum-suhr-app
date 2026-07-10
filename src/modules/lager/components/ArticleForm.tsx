@@ -65,19 +65,25 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
     if (showCompendium && compTab === 'sl') loadSlData()
   }, [showCompendium, compTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // cache: 'no-cache' erzwingt eine Revalidierung beim Server (ETag) statt
+  // blind den HTTP-Cache zu lesen — noetig, weil ein frueherer Hosting-Bug
+  // die index.html als .json auslieferte und Browser diese kaputte Antwort
+  // bis zu 1h cachten (Suche zeigte dann dauerhaft "0 Ergebnisse").
+  // Bei Fehlern bleibt der State null (statt []), damit der
+  // "Datenbank laden"-Button einen erneuten Versuch erlaubt.
   async function loadSlData() {
     if (slData !== null || slLoading) return
     setSlLoading(true)
     try {
-      const res = await fetch('/sl-data.json')
+      const res = await fetch('/sl-data.json', { cache: 'no-cache' })
       const json = await res.json()
-      if (json.meta && json.data) {
+      if (json.meta && Array.isArray(json.data)) {
         setSlMeta(json.meta)
         setSlData(json.data)
-      } else {
+      } else if (Array.isArray(json)) {
         setSlData(json) // legacy flat array
       }
-    } catch { setSlData([]) }
+    } catch { /* State bleibt null → Retry moeglich */ }
     setSlLoading(false)
     loadRdData()
   }
@@ -86,10 +92,11 @@ export default function ArticleForm({ onClose, onSubmit, isLoading, initial }: P
     if (rdData !== null || rdLoading) return
     setRdLoading(true)
     try {
-      const res = await fetch('/refdata-data.json')
+      const res = await fetch('/refdata-data.json', { cache: 'no-cache' })
       const json = await res.json()
-      setRdData(json.data ?? json)
-    } catch { setRdData([]) }
+      const arr = json.data ?? json
+      if (Array.isArray(arr)) setRdData(arr)
+    } catch { /* State bleibt null → Retry moeglich */ }
     setRdLoading(false)
   }
 
