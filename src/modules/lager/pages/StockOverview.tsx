@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw } from 'lucide-react'
+import { Plus, AlertTriangle, BookOpen, Search, X, Download, FileText, RefreshCw, Loader2 } from 'lucide-react'
 import { getArticles, createArticle, getAlerts, getArticle, addLot, addMovement, getCategories } from '../../../lib/firestoreLager'
+import { syncZurRoseFromWorker, getNotaListeMetaFromFirestore, type NotaListeMeta } from '../../../lib/zurroseUpdate'
 import PageHeader from '../../../components/ui/PageHeader'
 import BackButton from '../../../components/ui/BackButton'
 import StatusBadge from '../../../components/ui/StatusBadge'
@@ -11,6 +12,8 @@ import ArticleForm from '../components/ArticleForm'
 import BookingForm from '../components/BookingForm'
 import { vatRate } from '../../../types/inventory.types'
 import type { InventoryArticle } from '../../../types/inventory.types'
+import { useAuth } from '../../../lib/AuthContext'
+import { useToast } from '../../../lib/ToastContext'
 
 const safeDecode = (s: string) => { try { return decodeURIComponent(s) } catch { return s } }
 
@@ -35,11 +38,54 @@ export default function StockOverview() {
   }, [])
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { profile } = useAuth()
+  const toast = useToast()
 
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ['inventory-articles'],
     queryFn: () => getArticles(),
   })
+
+  // Zur-Rose-Ausstände (Nota-Liste): manueller "Aktualisieren"-Button wie
+  // im Dashboard, PLUS Auto-Sync beim Betreten des Lagermanagements, falls
+  // der Stand veraltet ist (>7 Tage) — der bisherige CI-Cron aktualisiert
+  // das nicht mehr zuverlässig, und ohne diesen Trigger blieb "Ausstände"
+  // beim reinen Aufrufen der Seite unveraendert.
+  const { data: zurRoseMeta } = useQuery({
+    queryKey: ['zurrose-meta'],
+    queryFn: async (): Promise<NotaListeMeta | null> => await getNotaListeMetaFromFirestore(),
+  })
+  const [zurroseUpdating, setZurroseUpdating] = useState(false)
+  const zurRoseIsStale = (() => {
+    if (!zurRoseMeta?.stand) return false
+    const m = zurRoseMeta.stand.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+    if (!m) return false
+    const standDate = new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00Z`)
+    if (isNaN(standDate.getTime())) return false
+    return (Date.now() - standDate.getTime()) / 86400000 > 7
+  })()
+  const runZurroseUpdate = async (auto: boolean) => {
+    if (zurroseUpdating) return
+    setZurroseUpdating(true)
+    try {
+      const result = await syncZurRoseFromWorker(profile?.displayName ?? profile?.username ?? 'Unbekannt')
+      if (!auto) toast.success(`Ausstände aktualisiert · Stand ${result.stand} · ${result.articlesMatched} Artikel als nicht lieferbar markiert`)
+      qc.invalidateQueries({ queryKey: ['zurrose-meta'] })
+      qc.invalidateQueries({ queryKey: ['inventory-articles'] })
+      qc.invalidateQueries({ queryKey: ['inventory-alerts'] })
+    } catch (e) {
+      if (!auto) toast.error(`Ausstände-Update fehlgeschlagen: ${String(e)}`)
+      // Auto-Sync-Fehler bewusst still (z.B. offline) — keine Toast-Spam bei jedem Seitenaufruf.
+    } finally {
+      setZurroseUpdating(false)
+    }
+  }
+  // Auto-Sync nur EINMAL pro Seitenbesuch versuchen, sobald der Stand
+  // geladen ist und sich als veraltet herausstellt.
+  useEffect(() => {
+    if (zurRoseMeta === undefined) return  // noch am Laden
+    if (zurRoseIsStale || zurRoseMeta === null) runZurroseUpdate(true)
+  }, [zurRoseMeta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
 
@@ -221,6 +267,20 @@ const { data: bookingData } = useQuery({
         subtitle={`${articles.length} Artikel`}
         actions={
           <div className="flex items-center gap-2">
+            {zurRoseMeta?.stand && (
+              <span className={`text-[10px] ${zurRoseIsStale ? 'text-amber-600 font-medium' : 'text-gray-400'}`}
+                title={zurRoseIsStale ? 'Ausstände-Stand älter als 7 Tage' : 'Aktueller Ausstände-Stand (Zur Rose)'}>
+                Ausstände {zurRoseMeta.stand}{zurRoseIsStale ? ' ⚠' : ''}
+              </span>
+            )}
+            <button
+              onClick={() => runZurroseUpdate(false)}
+              disabled={zurroseUpdating}
+              className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-wait"
+              title="Ausstände (Zur-Rose-Nota-Liste) manuell aktualisieren"
+            >
+              {zurroseUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Ausstände
+            </button>
             <button
               onClick={() => exportCSV(filtered)}
               className="btn-secondary text-sm"
