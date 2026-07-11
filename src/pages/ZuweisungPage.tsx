@@ -522,6 +522,50 @@ export default function ZuweisungPage() {
     iframe.srcdoc = html
   }
 
+  // «Noch zuzuweisen»-Liste drucken (gleicher Iframe-Mechanismus wie der
+  // Quartalsbericht — kein window.open, das Popup-Blocker triggern kann).
+  function printNoetigList() {
+    const esc = (v: string) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    const heute = formatDate(new Date().toISOString().slice(0, 10))
+    const rowsHtml = noetigList.map(p => `
+      <tr>
+        <td>${esc(p.pid || '—')}</td>
+        <td>${esc(p.vorname || '—')}</td>
+        <td>${esc(p.gebDatum ? formatDate(p.gebDatum) : '—')}</td>
+        <td>${esc(p.doctor || '—')}</td>
+        <td></td>
+      </tr>`).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Noch zuzuweisen — ${heute}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:24px;}
+        h1{font-size:18px;margin-bottom:2px;color:#c2410c;}
+        .sub{color:#666;font-size:12px;margin-bottom:16px;}
+        table{width:100%;border-collapse:collapse;}
+        th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;font-size:11px;}
+        th{background:#c2410c;color:#fff;}
+        tr:nth-child(even) td{background:#fff7ed;}
+        td:last-child{min-width:160px;}
+      </style></head><body>
+      <h1>Noch zuzuweisen</h1>
+      <p class="sub">${noetigList.length} Patient${noetigList.length === 1 ? '' : 'en'} · Stand ${heute}</p>
+      <table><tr><th>PID</th><th>Name</th><th>Geburtsdatum</th><th>Arzt</th><th>Notiz</th></tr>${rowsHtml}</table>
+      </body></html>`
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
+    iframe.onload = () => {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+      window.setTimeout(() => { document.body.removeChild(iframe) }, 1000)
+    }
+    iframe.srcdoc = html
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -640,6 +684,12 @@ export default function ZuweisungPage() {
               <p className="text-xs font-bold text-orange-800">
                 {noetigList.length} {noetigList.length === 1 ? 'Patient muss' : 'Patienten müssen'} noch zugewiesen werden
               </p>
+              <button onClick={printNoetigList}
+                className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-orange-700 border border-orange-300 hover:bg-orange-100 transition-colors"
+                title="Liste drucken">
+                <Printer className="w-3.5 h-3.5" />
+                Drucken
+              </button>
             </div>
             <div className="space-y-1.5">
               {noetigList.map(p => (
