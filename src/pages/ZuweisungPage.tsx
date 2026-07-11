@@ -380,10 +380,24 @@ export default function ZuweisungPage() {
       .flatMap(p => patientZuweisungen(p).map(z => ({ p, z })))
       .filter(({ z }) => z.typ === 'extern' && z.datum >= start && z.datum < end)
 
-    const zurueckgekehrt = (p: RecallPatient, z: Zuweisung) => {
+    const heute = new Date().toISOString().slice(0, 10)
+    // Tatsaechlich zurueckgekehrt: es gab NACH der Zuweisung bereits eine
+    // stattgefundene Konsultation bei uns (letzteKons in der Vergangenheit).
+    const tatsaechlichZurueckgekehrt = (p: RecallPatient, z: Zuweisung) =>
+      !!(p.letzteKons && p.letzteKons > z.datum && p.letzteKons <= heute)
+    // Termin vereinbart, aber noch nicht stattgefunden: naechsteKons liegt
+    // nach der Zuweisung UND in der Zukunft. Vorher zaehlte das faelschlich
+    // schon als "zurueckgekehrt: Ja", obwohl der Patient noch gar nicht da
+    // war — jetzt separat ausgewiesen statt mit echter Rueckkehr vermischt.
+    const terminNochNichtStattgefunden = (p: RecallPatient, z: Zuweisung) => {
       const nk = p.naechsteKons && p.naechsteKons !== 'kein Termin' ? p.naechsteKons : ''
-      return !!(p.letzteKons && p.letzteKons > z.datum) || !!(nk && nk > z.datum)
+      return !tatsaechlichZurueckgekehrt(p, z) && !!(nk && nk > z.datum && nk >= heute)
     }
+    // "Zurueckgekehrt" (fuer Rueckkehrquote/Legacy-Anzeige) bleibt bewusst
+    // grosszuegig: zaehlt auch einen bereits vereinbarten Folgetermin als
+    // "auf gutem Weg" — die Detailtabelle zeigt die Unterscheidung separat.
+    const zurueckgekehrt = (p: RecallPatient, z: Zuweisung) =>
+      tatsaechlichZurueckgekehrt(p, z) || terminNochNichtStattgefunden(p, z)
 
     const byGrund = new Map<string, number>()
     const byZiel  = new Map<string, number>()
@@ -398,13 +412,14 @@ export default function ZuweisungPage() {
     // mehreren Zuweisungen im Quartal würde derselbe Folgetermin sonst bei
     // jeder einzeln als Rückkehr mitgezählt und die Quote verzerren.
     const patientZurueckgekehrt = new Map<string, boolean>()
-    const detailRows: { name: string; pid: string; doctor: string; ziel: string; grund: string; datum: string; status: string; zurueckgekehrt: boolean; berichtErhalten: boolean }[] = []
+    const detailRows: { name: string; pid: string; doctor: string; ziel: string; grund: string; datum: string; status: string; zurueckgekehrt: boolean; terminOffen: boolean; naechsterTermin: string; berichtErhalten: boolean }[] = []
     for (const { p, z } of rows) {
       const g = z.grund.trim() || 'ohne Angabe'
       const zi = z.ziel.trim() || 'ohne Angabe'
       byGrund.set(g, (byGrund.get(g) ?? 0) + 1)
       byZiel.set(zi, (byZiel.get(zi) ?? 0) + 1)
       const zk = zurueckgekehrt(p, z)
+      const terminOffen = terminNochNichtStattgefunden(p, z)
       patientZurueckgekehrt.set(p.id, (patientZurueckgekehrt.get(p.id) ?? false) || zk)
       if (z.berichtErhalten) berichtCount++
       if (normStatus(z.status) === 'pendent') {
@@ -415,7 +430,9 @@ export default function ZuweisungPage() {
       detailRows.push({
         name: vollName(p) || '—', pid: p.pid || '', doctor: p.doctor || '',
         ziel: zi, grund: g, datum: z.datum, status: normStatus(z.status),
-        zurueckgekehrt: zk, berichtErhalten: !!z.berichtErhalten,
+        zurueckgekehrt: zk, terminOffen,
+        naechsterTermin: terminOffen && p.naechsteKons ? p.naechsteKons : '',
+        berichtErhalten: !!z.berichtErhalten,
       })
     }
     const total = rows.length
@@ -434,6 +451,13 @@ export default function ZuweisungPage() {
     }
   }, [patients, reportYear, reportQuarter])
 
+  // Dreistufige Rückkehr-Anzeige: "Ja" (tatsächlich zurückgekehrt),
+  // "Termin offen" (Folgetermin vereinbart, aber noch nicht stattgefunden —
+  // vorher fälschlich als "Ja" ausgewiesen) oder "Nein" (nichts vereinbart).
+  const rueckkehrLabel = (r: { zurueckgekehrt: boolean; terminOffen: boolean; naechsterTermin: string }) =>
+    r.terminOffen ? `Termin offen${r.naechsterTermin ? ` (${formatDate(r.naechsterTermin)})` : ''}`
+      : r.zurueckgekehrt ? 'Ja' : 'Nein'
+
   function exportReportCsv() {
     const header = ['Status', 'PID', 'Name', 'Zuweisender Arzt', 'Zielort', 'Grund', 'Zurückgekehrt', 'Bericht']
     const csvEscape = (v: string) => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
@@ -442,7 +466,7 @@ export default function ZuweisungPage() {
       ...report.detailRows.map(r => [
         r.status === 'erledigt' ? 'Erledigt' : 'Pendent',
         r.pid, r.name, r.doctor, r.ziel, r.grund,
-        r.zurueckgekehrt ? 'Ja' : 'Nein',
+        rueckkehrLabel(r),
         r.berichtErhalten ? 'Ja' : 'Nein',
       ].map(v => csvEscape(String(v))).join(';')),
     ]
@@ -466,7 +490,7 @@ export default function ZuweisungPage() {
       <tr>
         <td><span class="badge ${isErledigt ? 'badge-green' : 'badge-amber'}">${isErledigt ? 'Erledigt' : 'Pendent'}</span></td>
         <td>${esc(r.pid)}</td><td>${esc(r.name)}</td><td>${esc(r.doctor)}</td><td>${esc(r.ziel)}</td><td>${esc(r.grund)}</td>
-        <td><span class="badge ${r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${r.zurueckgekehrt ? 'Ja' : 'Nein'}</span></td>
+        <td><span class="badge ${r.terminOffen ? 'badge-amber' : r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${esc(rueckkehrLabel(r))}</span></td>
         <td><span class="badge ${r.berichtErhalten ? 'badge-blue' : 'badge-gray'}">${r.berichtErhalten ? 'Ja' : 'Nein'}</span></td>
       </tr>`
     }).join('')
@@ -1221,9 +1245,9 @@ export default function ZuweisungPage() {
                               <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grund}</td>
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  r.zurueckgekehrt ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                }`}>
-                                  {r.zurueckgekehrt ? 'Ja' : 'Nein'}
+                                  r.terminOffen ? 'bg-amber-100 text-amber-700' : r.zurueckgekehrt ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`} title={r.terminOffen ? 'Folgetermin bereits vereinbart, hat aber noch nicht stattgefunden' : undefined}>
+                                  {rueckkehrLabel(r)}
                                 </span>
                               </td>
                               <td className="px-2 py-1.5 whitespace-nowrap">
