@@ -415,7 +415,7 @@ export default function ZuweisungPage() {
     // mehreren Zuweisungen im Quartal würde derselbe Folgetermin sonst bei
     // jeder einzeln als Rückkehr mitgezählt und die Quote verzerren.
     const patientZurueckgekehrt = new Map<string, boolean>()
-    const detailRows: { name: string; pid: string; doctor: string; ziel: string; grund: string; datum: string; status: string; zurueckgekehrt: boolean; terminOffen: boolean; naechsterTermin: string; berichtErhalten: boolean }[] = []
+    const detailRows: { name: string; pid: string; doctor: string; ziel: string; grund: string; datum: string; status: string; zurueckgekehrt: boolean; terminOffen: boolean; naechsterTermin: string; geplanterTermin: string; berichtErhalten: boolean }[] = []
     for (const { p, z } of rows) {
       const g = z.grund.trim() || 'ohne Angabe'
       const zi = z.ziel.trim() || 'ohne Angabe'
@@ -435,6 +435,9 @@ export default function ZuweisungPage() {
         ziel: zi, grund: g, datum: z.datum, status: normStatus(z.status),
         zurueckgekehrt: zk, terminOffen,
         naechsterTermin: terminOffen && p.naechsteKons ? p.naechsteKons : '',
+        // Von der externen Stelle (z.B. KSA) mitgeteilter geplanter Behandlungs-
+        // /OP-Termin — nur relevant solange die Zuweisung noch pendent ist.
+        geplanterTermin: normStatus(z.status) === 'pendent' ? (z.geplanterTermin || '') : '',
         berichtErhalten: !!z.berichtErhalten,
       })
     }
@@ -467,12 +470,13 @@ export default function ZuweisungPage() {
       : r.zurueckgekehrt ? 'Ja' : 'Nein'
 
   function exportReportCsv() {
-    const header = ['Status', 'PID', 'Name', 'Zuweisender Arzt', 'Zielort', 'Grund', 'Zurückgekehrt', 'Bericht']
+    const header = ['Behandlung extern', 'Geplanter Termin extern', 'PID', 'Name', 'Zuweisender Arzt', 'Zielort', 'Grund', 'Termin Suhr', 'Bericht']
     const csvEscape = (v: string) => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
     const lines = [
       header.join(';'),
       ...report.detailRows.map(r => [
-        r.status === 'erledigt' ? 'Erledigt' : 'Pendent',
+        r.status === 'erledigt' ? 'Erfolgt' : 'Noch nicht erfolgt',
+        r.geplanterTermin ? formatDate(r.geplanterTermin) : '—',
         r.pid, r.name, r.doctor, r.ziel, r.grund,
         rueckkehrLabel(r),
         r.berichtErhalten ? 'Ja' : 'Nein',
@@ -496,7 +500,8 @@ export default function ZuweisungPage() {
       const isErledigt = r.status === 'erledigt'
       return `
       <tr>
-        <td><span class="badge ${isErledigt ? 'badge-green' : 'badge-amber'}">${isErledigt ? 'Erledigt' : 'Pendent'}</span></td>
+        <td><span class="badge ${isErledigt ? 'badge-green' : 'badge-amber'}">${isErledigt ? 'Erfolgt' : 'Noch nicht erfolgt'}</span></td>
+        <td>${r.geplanterTermin ? esc(formatDate(r.geplanterTermin)) : '—'}</td>
         <td>${esc(r.pid)}</td><td>${esc(r.name)}</td><td>${esc(r.doctor)}</td><td>${esc(r.ziel)}</td><td>${esc(r.grund)}</td>
         <td><span class="badge ${r.terminOffen ? 'badge-amber' : r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${esc(rueckkehrLabel(r))}</span></td>
         <td><span class="badge ${r.berichtErhalten ? 'badge-blue' : 'badge-gray'}">${r.berichtErhalten ? 'Ja' : 'Nein'}</span></td>
@@ -535,7 +540,7 @@ export default function ZuweisungPage() {
       <h2>Nach Zielort</h2>
       <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${esc(z)}</td><td>${n}</td></tr>`).join('')}</table>
       <h2>Details</h2>
-      <table><tr><th>Status</th><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Zurückgekehrt</th><th>Bericht</th></tr>${rowsHtml}</table>
+      <table><tr><th>Behandlung extern</th><th>Geplant extern</th><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Termin Suhr</th><th>Bericht</th></tr>${rowsHtml}</table>
       </body></html>`
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
@@ -1243,13 +1248,14 @@ export default function ZuweisungPage() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-violet-600 text-white">
-                            <th className="px-2 py-1.5 text-left font-semibold">Status</th>
+                            <th className="px-2 py-1.5 text-left font-semibold" title="Behandlung/OP am externen Zielort (z.B. KSA)">Behandlung extern</th>
+                            <th className="px-2 py-1.5 text-left font-semibold" title="Von der externen Stelle mitgeteilter geplanter Termin">Geplant extern</th>
                             <th className="px-2 py-1.5 text-left font-semibold">PID</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Name</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Zuw. Arzt</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Zielort</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Grund</th>
-                            <th className="px-2 py-1.5 text-left font-semibold">Zurückgekehrt</th>
+                            <th className="px-2 py-1.5 text-left font-semibold" title="Folgetermin/Rückkehr bei uns in Suhr">Termin Suhr</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Bericht</th>
                           </tr>
                         </thead>
@@ -1259,9 +1265,16 @@ export default function ZuweisungPage() {
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                                   r.status === 'erledigt' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                                }`}>
-                                  {r.status === 'erledigt' ? 'Erledigt' : 'Pendent'}
+                                }`} title="Behandlung/OP am externen Zielort (z.B. KSA)">
+                                  {r.status === 'erledigt' ? 'Erfolgt' : 'Noch nicht erfolgt'}
                                 </span>
+                              </td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">
+                                {r.geplanterTermin
+                                  ? <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-700" title="Von der externen Stelle mitgeteilter geplanter Termin">
+                                      {formatDate(r.geplanterTermin)}
+                                    </span>
+                                  : <span className="text-gray-300">—</span>}
                               </td>
                               <td className="px-2 py-1.5 font-mono text-gray-500 whitespace-nowrap">{r.pid || '—'}</td>
                               <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
