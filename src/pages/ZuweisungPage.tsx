@@ -387,8 +387,12 @@ export default function ZuweisungPage() {
 
     const byGrund = new Map<string, number>()
     const byZiel  = new Map<string, number>()
+    // Pro Zielort: wie viele Zuweisungen sind noch pendent (= Behandlung am
+    // Zielort noch nicht erfolgt)?
+    const byZielPendent = new Map<string, number>()
     let berichtCount = 0
     let ueberfaelligCount = 0
+    let pendentCount = 0
     // Rückkehr wird PRO PATIENT gezählt (nicht pro Zuweisung): letzteKons/
     // naechsteKons sind patientenweit gespeichert, nicht pro Zuweisung — bei
     // mehreren Zuweisungen im Quartal würde derselbe Folgetermin sonst bei
@@ -403,6 +407,10 @@ export default function ZuweisungPage() {
       const zk = zurueckgekehrt(p, z)
       patientZurueckgekehrt.set(p.id, (patientZurueckgekehrt.get(p.id) ?? false) || zk)
       if (z.berichtErhalten) berichtCount++
+      if (normStatus(z.status) === 'pendent') {
+        pendentCount++
+        byZielPendent.set(zi, (byZielPendent.get(zi) ?? 0) + 1)
+      }
       if (normStatus(z.status) === 'pendent' && (wochenSeit(z.datum) ?? 0) >= 8) ueberfaelligCount++
       detailRows.push({
         name: vollName(p) || '—', pid: p.pid || '', doctor: p.doctor || '',
@@ -418,8 +426,10 @@ export default function ZuweisungPage() {
       rueckkehrQuote: patientCount > 0 ? Math.round((patientRueckkehrCount / patientCount) * 100) : 0,
       berichtQuote:   total > 0 ? Math.round((berichtCount   / total) * 100) : 0,
       ueberfaelligCount,
+      pendentCount,
       byGrund: [...byGrund.entries()].sort((a, b) => b[1] - a[1]),
       byZiel:  [...byZiel.entries()].sort((a, b) => b[1] - a[1]),
+      byZielPendent,
       detailRows,
     }
   }, [patients, reportYear, reportQuarter])
@@ -1073,6 +1083,10 @@ export default function ZuweisungPage() {
                       <p className="text-2xl font-bold text-gray-900">{report.total}</p>
                       <p className="text-xs text-gray-500">Externe Zuweisungen</p>
                     </div>
+                    <div className={`rounded-xl border p-3 ${report.pendentCount > 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <p className={`text-2xl font-bold ${report.pendentCount > 0 ? 'text-amber-700' : 'text-gray-900'}`}>{report.pendentCount}</p>
+                      <p className="text-xs text-gray-500">Behandlung am Zielort ausstehend</p>
+                    </div>
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                       <p className="text-2xl font-bold text-gray-900">{report.rueckkehrQuote}%</p>
                       <p className="text-xs text-gray-500">Rückkehrquote</p>
@@ -1104,12 +1118,22 @@ export default function ZuweisungPage() {
                   <div>
                     <p className="text-xs font-semibold text-gray-600 mb-1.5">Nach Zielort</p>
                     <div className="space-y-1">
-                      {report.byZiel.map(([zi, n]) => (
-                        <div key={zi} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-700">{zi}</span>
-                          <span className="font-semibold text-gray-900">{n}</span>
-                        </div>
-                      ))}
+                      {report.byZiel.map(([zi, n]) => {
+                        const offen = report.byZielPendent.get(zi) ?? 0
+                        return (
+                          <div key={zi} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-700">{zi}</span>
+                            <span className="font-semibold text-gray-900">
+                              {n}
+                              {offen > 0 && (
+                                <span className="ml-1.5 font-semibold text-amber-600" title="Behandlung am Zielort noch nicht erfolgt">
+                                  · {offen} ausstehend
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
@@ -1132,7 +1156,7 @@ export default function ZuweisungPage() {
                         </thead>
                         <tbody>
                           {report.detailRows.map((r, i) => (
-                            <tr key={i} className={i % 2 === 1 ? 'bg-violet-50/50' : 'bg-white'}>
+                            <tr key={i} className={r.status !== 'erledigt' ? 'bg-amber-50' : i % 2 === 1 ? 'bg-violet-50/50' : 'bg-white'}>
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                                   r.status === 'erledigt' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
