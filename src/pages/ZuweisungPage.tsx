@@ -364,16 +364,19 @@ export default function ZuweisungPage() {
     finally { setClearingId(null) }
   }
 
-  // ── Quartalsbericht ────────────────────────────────────────────────────
+  // ── Zuweisungsbericht (Quartal oder Monat) ─────────────────────────────
   const [showReport, setShowReport] = useState(false)
   const now = new Date()
+  const [reportPeriodType, setReportPeriodType] = useState<'quartal' | 'monat'>('quartal')
   const [reportYear, setReportYear] = useState(now.getFullYear())
   const [reportQuarter, setReportQuarter] = useState<1 | 2 | 3 | 4>((Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4)
+  const [reportMonth, setReportMonth] = useState(now.getMonth() + 1) // 1-12
 
   const report = useMemo(() => {
-    const qStartMonth = (reportQuarter - 1) * 3
-    const start = `${reportYear}-${String(qStartMonth + 1).padStart(2, '0')}-01`
-    const endDate = new Date(reportYear, qStartMonth + 3, 1)
+    const startMonth = reportPeriodType === 'monat' ? reportMonth - 1 : (reportQuarter - 1) * 3
+    const monthSpan = reportPeriodType === 'monat' ? 1 : 3
+    const start = `${reportYear}-${String(startMonth + 1).padStart(2, '0')}-01`
+    const endDate = new Date(reportYear, startMonth + monthSpan, 1)
     const end = endDate.toISOString().slice(0, 10) // exklusiv
 
     const rows = patients
@@ -449,7 +452,12 @@ export default function ZuweisungPage() {
       byZielPendent,
       detailRows,
     }
-  }, [patients, reportYear, reportQuarter])
+  }, [patients, reportYear, reportQuarter, reportMonth, reportPeriodType])
+
+  const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+  // Kurzbezeichnung des gewaehlten Zeitraums fuer Titel/Dateiname (z.B. "Q3_2026" oder "Juli_2026")
+  const reportPeriodLabel = reportPeriodType === 'monat' ? `${MONTH_NAMES[reportMonth - 1]}_${reportYear}` : `Q${reportQuarter}_${reportYear}`
+  const reportPeriodTitle = reportPeriodType === 'monat' ? `${MONTH_NAMES[reportMonth - 1]} ${reportYear}` : `Q${reportQuarter} ${reportYear}`
 
   // Dreistufige Rückkehr-Anzeige: "Ja" (tatsächlich zurückgekehrt),
   // "Termin offen" (Folgetermin vereinbart, aber noch nicht stattgefunden —
@@ -474,7 +482,7 @@ export default function ZuweisungPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `Quartalsbericht_Zuweisungen_Q${reportQuarter}_${reportYear}.csv`
+    a.download = `Zuweisungsbericht_${reportPeriodLabel}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -494,7 +502,7 @@ export default function ZuweisungPage() {
         <td><span class="badge ${r.berichtErhalten ? 'badge-blue' : 'badge-gray'}">${r.berichtErhalten ? 'Ja' : 'Nein'}</span></td>
       </tr>`
     }).join('')
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quartalsbericht Q${reportQuarter}/${reportYear}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zuweisungsbericht ${reportPeriodTitle}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:24px;}
         h1{font-size:18px;margin-bottom:2px;color:#5b21b6;}
@@ -514,8 +522,8 @@ export default function ZuweisungPage() {
         .badge-red{background:#fee2e2;color:#991b1b;} .badge-blue{background:#dbeafe;color:#1e40af;}
         .badge-gray{background:#f3f4f6;color:#4b5563;}
       </style></head><body>
-      <h1>Quartalsbericht — externe Zuweisungen</h1>
-      <p class="sub">Q${reportQuarter} ${reportYear} &nbsp;(${formatDate(report.start)} – ${formatDate(report.end)})</p>
+      <h1>Zuweisungsbericht — externe Zuweisungen</h1>
+      <p class="sub">${reportPeriodTitle} &nbsp;(${formatDate(report.start)} – ${formatDate(report.end)})</p>
       <div class="kpis">
         <div class="kpi k1"><div class="n">${report.total}</div><div class="l">Externe Zuweisungen</div></div>
         <div class="kpi k2"><div class="n">${report.rueckkehrQuote}%</div><div class="l">Rückkehrquote</div></div>
@@ -625,7 +633,7 @@ export default function ZuweisungPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors shrink-0"
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            Quartalsbericht
+            Bericht
           </button>
         </div>
 
@@ -1112,7 +1120,7 @@ export default function ZuweisungPage() {
             <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-violet-600" />
-                Quartalsbericht — externe Zuweisungen
+                Zuweisungsbericht — extern
               </h2>
               <button onClick={() => setShowReport(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
                 <X className="w-4 h-4" />
@@ -1120,12 +1128,29 @@ export default function ZuweisungPage() {
             </div>
 
             <div className="px-5 py-4 space-y-4">
-              {/* Quartal-Auswahl */}
-              <div className="flex items-center gap-2">
-                <select value={reportQuarter} onChange={e => setReportQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
-                  {[1, 2, 3, 4].map(q => <option key={q} value={q}>Q{q}</option>)}
-                </select>
+              {/* Zeitraum-Auswahl: Quartal oder Monat */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                  {(['quartal', 'monat'] as const).map(t => (
+                    <button key={t} onClick={() => setReportPeriodType(t)}
+                      className={`px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                        reportPeriodType === t ? 'bg-violet-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                      }`}>
+                      {t === 'quartal' ? 'Quartal' : 'Monat'}
+                    </button>
+                  ))}
+                </div>
+                {reportPeriodType === 'quartal' ? (
+                  <select value={reportQuarter} onChange={e => setReportQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    {[1, 2, 3, 4].map(q => <option key={q} value={q}>Q{q}</option>)}
+                  </select>
+                ) : (
+                  <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                  </select>
+                )}
                 <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
                   className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
                   {Array.from({ length: 4 }, (_, i) => now.getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
