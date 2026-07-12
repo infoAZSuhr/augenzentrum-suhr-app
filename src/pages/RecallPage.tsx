@@ -8262,10 +8262,26 @@ const lirisExtractRef  = useRef(lirisExtract)
                 <select value={form.patientenStatus}
                   onChange={e => {
                     const v = e.target.value
+                    const wasInaktiv = form.patientenStatus === 'inaktiv'
                     setField('patientenStatus', v)
                     if (v !== 'aktiv') {
                       setField('naechsteKons', '')
                       setField('keinTermin', false)
+                    }
+                    if (v === 'aktiv' && wasInaktiv) {
+                      // Reaktivierung nach Inaktiv: die alte letzte Konsultation
+                      // (und alles was davon abhaengt — RC-ab, Aufgebot erstellt/
+                      // Art, Intervall) ist nach der inaktiven Phase veraltet.
+                      // Nutzerwunsch: komplett zuruecksetzen, damit die MPA beim
+                      // naechsten Kontakt frisch anhand von Liris neu erfasst,
+                      // statt mit einem stehengebliebenen alten Stand weiterzuarbeiten.
+                      setField('letzteKons', '')
+                      setField('naechsteKons', '')
+                      setField('keinTermin', false)
+                      setField('aufgebotFuer', '')
+                      setField('aufgebotErstellt', '')
+                      setField('aufgebotArt', '')
+                      setField('konsInterval', '')
                     }
                     if (v === 'kein Aufgebot' || v === 'inaktiv' || v === 'verstorben') {
                       // Self-Service / inaktiv / verstorben: keine Aufgebote/
