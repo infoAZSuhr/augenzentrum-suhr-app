@@ -7263,9 +7263,31 @@ const lirisExtractRef  = useRef(lirisExtract)
                       </label>
                       <select
                         value={assignDoctor}
-                        onChange={e => {
-                          setAssignDoctor(e.target.value)
+                        onChange={async e => {
+                          const next = e.target.value
+                          setAssignDoctor(next)
                           if (formErrors.assignDoctor) setFormErrors(prev => ({ ...prev, assignDoctor: false }))
+                          // Arztwechsel bei einem bestehenden Patienten sofort
+                          // speichern (Nutzerwunsch) — nicht erst beim Klick
+                          // auf den grossen "Speichern"-Button warten, der bei
+                          // Uebersehen zu einem "der Wechsel wurde ja gar nicht
+                          // gespeichert"-Missverstaendnis fuehrte. Bei einem
+                          // neuen (noch ungespeicherten) Patienten bleibt der
+                          // bisherige Weg (Teil des Gesamt-Speicherns).
+                          if (next && editTarget !== 'new') {
+                            try {
+                              await assignRecallPatient(editTarget.id, next, displayLabel)
+                              toast.success(`Arzt gewechselt zu ${next}`)
+                              setAssignDoctor('')
+                              // editTarget lokal nachfuehren — sonst zeigt der
+                              // Dialog bis zum naechsten Oeffnen noch den alten
+                              // Arzt (z.B. in der "Arzt wechseln"-Filterliste).
+                              setEditTarget(prev => prev === 'new' || !prev ? prev : { ...prev, doctor: next })
+                              await reloadAllTabs()
+                            } catch (err) {
+                              toast.error(`Arztwechsel fehlgeschlagen: ${String(err)}`)
+                            }
+                          }
                         }}
                         className={`w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
                           hasError ? 'border-red-400 focus:ring-red-300' : 'border-gray-200 focus:ring-primary-300'
@@ -7308,7 +7330,11 @@ const lirisExtractRef  = useRef(lirisExtract)
                         })()}
                       </select>
                       {hasError && <p className="mt-1 text-[11px] text-red-500">Bitte Arzt wählen.</p>}
-                      {editTarget !== 'new' && assignDoctor && !noDoctorYet && (
+                      {/* Bei bestehenden Patienten speichert die Auswahl sofort
+                          (siehe onChange) — kein "wird beim Speichern
+                          übernommen"-Hinweis mehr noetig. Nur bei neuen
+                          Patienten ist die Zuweisung Teil des Gesamt-Speicherns. */}
+                      {editTarget === 'new' && assignDoctor && (
                         <p className="mt-1 text-[11px] text-primary-500">(wird beim Speichern übernommen)</p>
                       )}
                     </div>
