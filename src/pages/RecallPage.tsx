@@ -3209,6 +3209,33 @@ const lirisExtractRef  = useRef(lirisExtract)
     return html
   }
 
+  // Betreff einer Aufgebot-/Brief-Variante — gemeinsam fuer E-Mail-Betreff
+  // UND Anhang-Dateinamen genutzt, damit beide zusammenpassen.
+  function briefSubjectFor(form: AufgebotForm): string {
+    const isAllgemeinS = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const isReminderS  = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemeinS)
+    return isReminderS
+      ? 'Erinnerung – Augenkontrolle'
+      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr'
+      : form.briefVariante === 'freierBrief' ? (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr')
+      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
+      : form.terminDatum ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
+  }
+
+  // Betreff (kann lang/mit Sonderzeichen sein) zu einem kompakten, dateisystem-
+  // sicheren Namensteil kürzen — Nutzerwunsch: PDF-Anhänge heissen nach dem
+  // Betreff + PID + Geburtsdatum statt nach kryptischen Zahlen/Zeitstempeln
+  // (die liessen ein Schreiben leicht wie Spam aussehen).
+  function compactFilenamePart(s: string, maxLen = 40): string {
+    const cleaned = s
+      .replace(/–|—/g, '-')
+      .replace(/[äöüÄÖÜ]/g, m => ({ ä: 'ae', ö: 'oe', ü: 'ue', Ä: 'Ae', Ö: 'Oe', Ü: 'Ue' }[m] || m))
+      .replace(/ß/g, 'ss')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+    return cleaned.length > maxLen ? cleaned.slice(0, maxLen).replace(/_+$/, '') : cleaned
+  }
+
   function generateBriefPDF(patient: RecallPatient, form: AufgebotForm, skipPrint = false) {
     const html = buildBriefHtml(patient, form)
     const ea = (window as unknown as { electronApp?: {
@@ -3216,9 +3243,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       saveBriefPdf?:   (html: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
     } }).electronApp
     const lastName = (form.adressBlock.trim().split('\n')[0] || patient.vorname || 'Patient').split(/\s+/)[0]
-    const today = new Date().toISOString().slice(0, 10)
     const pid = normalizePid(patient.pid)
-    const filename = `Brief_${lastName}${pid ? '_' + pid : ''}_${today}.pdf`
+    const geb = patient.gebDatum || ''
+    const filename = `${compactFilenamePart(briefSubjectFor(form))}_${pid || 'keinePID'}_${geb || 'keinGebDatum'}.pdf`
     setAufgebotPdfCreated(true)
 
     // Bevorzugter Pfad: PDF-Buffer direkt aus Main-Prozess holen und in
@@ -3312,8 +3339,6 @@ const lirisExtractRef  = useRef(lirisExtract)
       return
     }
 
-    const isAllgemeinE = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
-    const isReminder   = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemeinE)
     const nameLine   = (form.adressBlock.trim().split('\n')[0] || '').trim()
     const nameWordsE = nameLine.split(/\s+/).filter(Boolean)
     const nachname   = form.vertreterModus
@@ -3331,20 +3356,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     })()
     const eMinor = eAge !== null && eAge >= 0 && eAge < 18
     const salut  = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
-    const subject = isReminder
-      ? 'Erinnerung – Augenkontrolle'
-      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr'
-      : form.briefVariante === 'freierBrief' ? (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr')
-      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
-      : form.terminDatum ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
-    // Briefart fuer den PDF-Dateinamen (Nutzer-Wunsch: Briefart_PID_Geburtsdatum.pdf).
-    const briefart = isReminder ? 'Erinnerung'
-      : form.briefVariante === 'terminBestaetigung' ? 'Terminbestaetigung'
-      : form.briefVariante === 'freierBrief' ? 'FreierBrief'
-      : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung'
-      : form.briefVariante === 'terminVerpasst' ? 'TerminVerpasst'
-      : form.briefVariante === 'neuerArzt' ? 'NeuerArzt'
-      : form.terminDatum ? 'Terminvorschlag' : 'Einladung'
+    const subject = briefSubjectFor(form)
     const shortBody = `${salut}\n\nIm Anhang erhalten Sie unser Schreiben.${emailSignature()}`
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -3359,7 +3371,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       if (!pdfRes.ok || !pdfRes.buffer) { toast.error(`PDF-Fehler: ${pdfRes.error}`); return }
       const pid = normalizePid(patient.pid)
       const geb = patient.gebDatum || ''
-      const filename = `${briefart}_${pid || 'keinePID'}_${geb || 'keinGebDatum'}.pdf`
+      const filename = `${compactFilenamePart(subject)}_${pid || 'keinePID'}_${geb || 'keinGebDatum'}.pdf`
       const tmpRes = await ea.writePdfTmp(pdfRes.buffer, filename)
       if (!tmpRes.ok || !tmpRes.path) { toast.error(`PDF konnte nicht gespeichert werden: ${tmpRes.error}`); return }
       const mailRes = await ea.openMailWithAttachments([tmpRes.path], subject, to, shortBody)

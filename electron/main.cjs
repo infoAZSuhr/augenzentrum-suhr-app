@@ -613,7 +613,11 @@ ipcMain.handle('open-mail-with-attachments', async (_event, filePaths, subject, 
     for (const f of filePaths) {
       if (!fs.existsSync(f)) continue
       const b64 = fs.readFileSync(f).toString('base64')
-      const name = path.basename(f)
+      // write-pdf-tmp legt lokal einen Zeitstempel-Praefix vor den Dateinamen
+      // (Kollisionsschutz im tmp-Ordner) — der darf NICHT im sichtbaren
+      // Anhang-Namen landen: ein Empfaenger sieht sonst z.B.
+      // "1783712345678-Brief_..." und haelt das Schreiben leicht fuer Spam.
+      const name = path.basename(f).replace(/^\d{10,}-/, '')
       eml += '--' + boundary + CRLF
       eml += 'Content-Type: application/pdf; name="' + name + '"' + CRLF
       eml += 'Content-Transfer-Encoding: base64' + CRLF
