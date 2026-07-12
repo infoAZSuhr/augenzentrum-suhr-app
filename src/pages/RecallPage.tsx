@@ -8339,11 +8339,12 @@ const lirisExtractRef  = useRef(lirisExtract)
                       setField('naechsteKons', '')
                       setField('keinTermin', false)
                     }
-                    if (v === 'kein Aufgebot' || v === 'inaktiv') {
-                      // Self-Service / inaktiv: keine Aufgebote/Recall-Planung mehr
-                      // → "RC zu erstellen ab" (aufgebotFuer) und die restliche
-                      // Aufgebots-Zeile aufräumen, damit kein Widerspruch (offenes
-                      // RC bei inaktivem Patient) bestehen bleibt.
+                    if (v === 'kein Aufgebot' || v === 'inaktiv' || v === 'verstorben') {
+                      // Self-Service / inaktiv / verstorben: keine Aufgebote/
+                      // Recall-Planung mehr → "RC zu erstellen ab" (aufgebotFuer)
+                      // und die restliche Aufgebots-Zeile aufräumen, damit kein
+                      // Widerspruch (offenes RC bei inaktivem/verstorbenem
+                      // Patient) bestehen bleibt.
                       setField('aufgebotFuer', '')
                       setField('aufgebotArt', '')
                       setField('aufgebotErstellt', '')
