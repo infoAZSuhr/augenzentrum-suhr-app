@@ -432,10 +432,15 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     await sleep(1500)
 
     // ── Schritt 1: Arzt waehlen ─────────────────────────────────────────────
+    // arztWahlWeg dokumentiert, welcher der vier Pfade genommen wurde — hilft
+    // beim Diagnostizieren, wenn Schritt 2 danach fehlschlaegt (Nutzerwunsch
+    // 2026-07-12: klarer unterscheiden, ob/wie ein Arzt gewaehlt wurde).
+    let arztWahlWeg = ''
     const ln = (doctorLastName || '').trim()
     const isOffen = !ln || ln.toLowerCase() === 'offen' || ln.toLowerCase() === 'keinem arzt zugewiesen'
     step('Schritt 1: ' + (skipArztwahl ? 'uebersprungen — Liris hat den Arzt bereits automatisch zugeordnet' : 'Arzt waehlen (isOffen=' + isOffen + ')'))
     if (skipArztwahl) {
+      arztWahlWeg = 'von Liris automatisch zugeordnet (Auswahl uebersprungen)'
       // nichts zu tun — direkt weiter zu Schritt 2 (Dokumenttyp)
     } else if (isOffen) {
       let okShortcut = false
@@ -449,6 +454,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       }
       step('Schritt 1: Shortcut "Gleich wie verantwortlicher Arzt" geklickt? ' + okShortcut)
       if (!okShortcut) return fail('Arzt-Shortcut nicht gefunden.')
+      arztWahlWeg = 'automatisch per Shortcut "Gleich wie verantwortlicher Arzt" (kein Arzt in der App hinterlegt)'
     } else {
       const lnEsc = ln.replace(/[.*+?^${}()|[\]\\]/g, '')
       let res = null
@@ -495,6 +501,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         if (String(res).indexOf('multiple') === 0) break
       }
       step('Schritt 1: Arzt-Match-Ergebnis = ' + res)
+      if (res === 'ok') arztWahlWeg = 'automatisch anhand des Namens "' + ln + '" gefunden'
       if (res !== 'ok') {
         // Automatik konnte den Arzt nicht eindeutig waehlen (mehrdeutig
         // oder gar nicht gefunden). Statt sofort abzubrechen: Dialog bleibt
@@ -506,10 +513,30 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
           ? 'Mehrere Aerzte passen zu "' + ln + '"'
           : 'Arzt "' + ln + '" nicht in Liris-Auswahl gefunden'
         step('Schritt 1: ' + reason + ' — warte auf manuelle Arztauswahl…')
+        // "closed" = arztAuswahlDa() liefert false, d.h. der Auswahl-Dialog
+        // ist nicht mehr sichtbar. Bug (2026-07-12, Fall "Artemiev"): ein
+        // einzelner false-Check reichte nicht — der Dialog kann kurz aus
+        // anderen Gruenden (Re-Render, Netzwerk-Lag) unsichtbar wirken, ohne
+        // dass tatsaechlich ein Arzt gewaehlt wurde. Die Automatik hielt das
+        // faelschlich fuer eine erfolgte manuelle Auswahl und lief in
+        // Schritt 2 ("Mail gesendet") ins Leere, statt weiter zu warten.
+        // Fix: "closed" erst nach 2 aufeinanderfolgenden false-Checks (800ms
+        // auseinander) werten — filtert kurze Flacker-Faelle heraus.
         let closed = false
-        for (let i = 0; i < 225 && !closed; i++) { await sleep(400); closed = !(await arztAuswahlDa()) }
+        let consecutiveClosed = 0
+        for (let i = 0; i < 225 && !closed; i++) {
+          await sleep(400)
+          if (await arztAuswahlDa()) { consecutiveClosed = 0; continue }
+          consecutiveClosed++
+          if (consecutiveClosed >= 2) closed = true
+        }
         step('Schritt 1: manuelle Arztauswahl erkannt? ' + closed)
         if (!closed) return fail(reason + '. Bitte manuell waehlen.')
+        arztWahlWeg = 'manuell gewaehlt (Automatik fand "' + ln + '" nicht eindeutig)'
+        // Nach einer MANUELLEN Auswahl (echter Mensch, kein automatischer
+        // Klick) etwas grosszuegiger Zeit geben, bis Liris tatsaechlich zu
+        // Schritt 2 gewechselt hat, bevor die Settle-Pause unten startet.
+        await sleep(600)
       }
     }
     await sleep(1800)
@@ -526,7 +553,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     let mailVisible = false
     for (let i = 0; i < 10 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
     step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
-    if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Wurde ein Arzt gewaehlt?')
+    if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Arzt-Auswahl: ' + (arztWahlWeg || 'unbekannt') + '.')
     await sleep(1200)
     // Klick mit Wiederholung: Liris kann die Seite zwischen Sichtbarkeits-
     // Check und Klick neu rendern (Link dann kurzzeitig nicht mehr im DOM) —
