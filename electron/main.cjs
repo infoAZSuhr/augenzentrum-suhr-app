@@ -461,7 +461,12 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       for (let i = 0; i < 12 && res !== 'ok'; i++) {
         res = await evalJs(`(function(){
           var ln=${JSON.stringify(lnEsc.toLowerCase())};
-          var re=new RegExp('\\\\b'+ln+'\\\\b');
+          // \\b ist in JS rein ASCII (\\w = [A-Za-z0-9_]) — bei Nachnamen mit
+          // Umlaut am Rand (z.B. "Özdemir", "Müller") erkennt \\b die Grenze
+          // NICHT korrekt, der Match schlug komplett fehl. \\p{L} (Unicode-
+          // Buchstaben-Klasse, 'u'-Flag) behandelt Umlaute wie normale
+          // Buchstaben und macht die Grenzen-Erkennung robust.
+          var re=new RegExp('(?:^|[^\\\\p{L}])'+ln+'(?:[^\\\\p{L}]|$)','u');
           var titleRe=/(^|\\s)(dr|prof|med|medic)\\b|\\bdr\\.?\\s|prof\\.?\\s/;
           var els=[].slice.call(document.querySelectorAll('a,button,[role="button"],li'));
           // Termin-/Datumszeilen enthalten den Arztnamen oft AUCH (z.B.
