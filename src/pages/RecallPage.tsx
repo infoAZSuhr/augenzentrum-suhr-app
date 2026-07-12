@@ -2833,6 +2833,16 @@ const lirisExtractRef  = useRef(lirisExtract)
     })
   }, [lirisExtract, aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fusszeilen-Code fuer Briefe: rein numerisch statt "Pat.-Nr./Geb."
+  // ausgeschrieben (Nutzerwunsch, unauffälliger/kryptischer) —
+  // Format "<PID>-<TTMMJJJJ>", z.B. "259-19072004".
+  function footerIdCode(patient: RecallPatient): string {
+    const pid = normalizePid(patient.pid) || ''
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.gebDatum || ''))
+    const geb = m ? `${m[3]}${m[2]}${m[1]}` : ''
+    return [pid, geb].filter(Boolean).join('-')
+  }
+
   function buildBriefHtml(patient: RecallPatient, form: AufgebotForm): string {
     const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
     const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
@@ -3201,7 +3211,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     <p>Augenzentrum Suhr Team</p>
   </div></div>
 
-  <div class="footer-id">Pat.-Nr.: ${escLine(normalizePid(patient.pid) || '—')} &middot; Geb.: ${escLine(formatDate(patient.gebDatum))}</div>
+  <div class="footer-id">${escLine(footerIdCode(patient))}</div>
 
 </div>
 </body></html>`
