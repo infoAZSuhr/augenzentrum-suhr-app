@@ -8308,7 +8308,14 @@ const lirisExtractRef  = useRef(lirisExtract)
                     ['Nicht erreicht','Nr. nicht mehr gültig','Keine Antwort','E-Mail ungültig'].includes(v.ergebnis)
                   ) && (
                     <button type="button"
-                      onClick={() => setField('patientenStatus', 'inaktiv')}
+                      onClick={() => {
+                        setField('patientenStatus', 'inaktiv')
+                        setField('aufgebotFuer', '')
+                        setField('aufgebotArt', '')
+                        setField('aufgebotErstellt', '')
+                        setField('naechsteKons', '')
+                        setField('keinTermin', false)
+                      }}
                       className={`w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors ${
                         form.patientenStatus === 'inaktiv'
                           ? 'border-gray-400 bg-gray-200 text-gray-700'
@@ -8332,9 +8339,11 @@ const lirisExtractRef  = useRef(lirisExtract)
                       setField('naechsteKons', '')
                       setField('keinTermin', false)
                     }
-                    if (v === 'kein Aufgebot') {
-                      // Self-Service: keine Aufgebote/Recall-Planung → alles aufräumen,
-                      // damit kein Widerspruch (offenes RC/Aufgebot) bestehen bleibt.
+                    if (v === 'kein Aufgebot' || v === 'inaktiv') {
+                      // Self-Service / inaktiv: keine Aufgebote/Recall-Planung mehr
+                      // → "RC zu erstellen ab" (aufgebotFuer) und die restliche
+                      // Aufgebots-Zeile aufräumen, damit kein Widerspruch (offenes
+                      // RC bei inaktivem Patient) bestehen bleibt.
                       setField('aufgebotFuer', '')
                       setField('aufgebotArt', '')
                       setField('aufgebotErstellt', '')
