@@ -7841,56 +7841,72 @@ const lirisExtractRef  = useRef(lirisExtract)
                 {(() => {
                   const isCustom = form.grundStornierung !== '' && !STORNO_GRUENDE.includes(form.grundStornierung)
                   const selVal = isCustom ? 'Sonstiges' : form.grundStornierung
+                  const applyGrund = (v: string) => {
+                    // Leer → alles zurücksetzen
+                    if (v === '') {
+                      setField('grundStornierung', '')
+                      setField('storniert', '')
+                      return
+                    }
+                    // Terminverschiebung = KEINE Stornierung, sondern neuer Termin.
+                    // Offener RC wird obsolet, Fokus auf «Nächste Konst.» (oben).
+                    if (v === 'Terminverschiebung') {
+                      setField('grundStornierung', 'Terminverschiebung')
+                      setField('storniert', '')
+                      setField('aufgebotFuer', '')
+                      setField('aufgebotErstellt', '')
+                      setTimeout(() => naechsteKonsRef.current?.focus(), 50)
+                      return
+                    }
+                    // Alle übrigen Gründe = Stornierung → storniert='ja',
+                    // gesamte Aufgebots-Zeile (RC-ab, Aufgebot erstellt am,
+                    // Nächste Konst.) wird obsolet und zurückgesetzt.
+                    if (v === 'Sonstiges') setField('grundStornierung', ' ')
+                    else setField('grundStornierung', v)
+                    setField('storniert', 'ja')
+                    setField('aufgebotFuer', '')
+                    setField('aufgebotErstellt', '')
+                    setField('naechsteKons', '')
+                    setField('keinTermin', false)
+                    if (v === 'WV bei Bedarf' || v === 'Notfall - einmalige Konst.' || v === 'Zweitmeinung - einmalige Konst.') setField('patientenStatus', 'kein Aufgebot')
+                    if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
+                    if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
+                    if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
+                      setField('verlauf', form.verlauf.map(ve =>
+                        ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
+                      ))
+                      if (lastLirisAutor.current) {
+                        const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+                        const words = cleaned.split(/\s+/)
+                        let arztAktiv = false
+                        for (let n = 1; n <= words.length; n++) {
+                          const cand = words.slice(-n).join(' ').toLowerCase()
+                          if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+                        }
+                        if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
+                      }
+                    }
+                  }
+                  // Häufigste Gründe (aus den echten Erfassungsdaten ermittelt,
+                  // 2026-07-12) als kompakte Schnellauswahl-Chips oberhalb des
+                  // Dropdowns — spart bei den meisten Faellen das Aufklappen.
+                  const HAEUFIGE_GRUENDE = ['Arztwechsel', 'WV bei Bedarf', 'Verstorben', 'Wegzug']
                   return (
                     <>
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {HAEUFIGE_GRUENDE.map(g => (
+                          <button key={g} type="button"
+                            onClick={() => applyGrund(form.grundStornierung === g ? '' : g)}
+                            className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                              form.grundStornierung === g
+                                ? 'bg-primary-600 text-white border-primary-600'
+                                : 'bg-white text-gray-600 border-gray-300 hover:border-primary-400 hover:text-primary-700'
+                            }`}
+                          >{g}</button>
+                        ))}
+                      </div>
                       <select value={selVal}
-                        onChange={e => {
-                          const v = e.target.value
-                          // Leer → alles zurücksetzen
-                          if (v === '') {
-                            setField('grundStornierung', '')
-                            setField('storniert', '')
-                            return
-                          }
-                          // Terminverschiebung = KEINE Stornierung, sondern neuer Termin.
-                          // Offener RC wird obsolet, Fokus auf «Nächste Konst.» (oben).
-                          if (v === 'Terminverschiebung') {
-                            setField('grundStornierung', 'Terminverschiebung')
-                            setField('storniert', '')
-                            setField('aufgebotFuer', '')
-                            setField('aufgebotErstellt', '')
-                            setTimeout(() => naechsteKonsRef.current?.focus(), 50)
-                            return
-                          }
-                          // Alle übrigen Gründe = Stornierung → storniert='ja',
-                          // gesamte Aufgebots-Zeile (RC-ab, Aufgebot erstellt am,
-                          // Nächste Konst.) wird obsolet und zurückgesetzt.
-                          if (v === 'Sonstiges') setField('grundStornierung', ' ')
-                          else setField('grundStornierung', v)
-                          setField('storniert', 'ja')
-                          setField('aufgebotFuer', '')
-                          setField('aufgebotErstellt', '')
-                          setField('naechsteKons', '')
-                          setField('keinTermin', false)
-                          if (v === 'WV bei Bedarf' || v === 'Notfall - einmalige Konst.' || v === 'Zweitmeinung - einmalige Konst.') setField('patientenStatus', 'kein Aufgebot')
-                          if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
-                          if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
-                          if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
-                            setField('verlauf', form.verlauf.map(ve =>
-                              ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
-                            ))
-                            if (lastLirisAutor.current) {
-                              const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
-                              const words = cleaned.split(/\s+/)
-                              let arztAktiv = false
-                              for (let n = 1; n <= words.length; n++) {
-                                const cand = words.slice(-n).join(' ').toLowerCase()
-                                if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
-                              }
-                              if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
-                            }
-                          }
-                        }}
+                        onChange={e => applyGrund(e.target.value)}
                         className={(formErrors.grundStornierung ? inputClsErr : inputCls) + chCls('grundStornierung')}>
                         <option value="">—</option>
                         {STORNO_GRUENDE.map(g => <option key={g} value={g}>{g}</option>)}
