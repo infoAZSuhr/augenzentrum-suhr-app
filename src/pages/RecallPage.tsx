@@ -143,6 +143,20 @@ function isStorniert(row: RecallPatient): boolean   { return s(row.storniert).to
  *   - letzte Konsultation war laut Liris bei einem ANDEREN Arzt
  *     (letzterKonsArzt, z.B. frueher Dr. Nessmann, jetzt Dr. Artemiev
  *     zugeteilt — wird beim Oeffnen der Akte automatisch erfasst). */
+// Klassifiziert einen inaktiven/verstorbenen Patienten nach Grund — genutzt
+// von der Auswertungs-Kreuztabelle UND (Klick auf eine Zelle) vom normalen
+// Listen-Filter, damit "Grund X bei Arzt Y" direkt in dessen Recall-Liste
+// angezeigt werden kann statt in einem separaten Popup.
+type InaktivKind = 'verstorben' | 'arztwechsel' | 'wegzug' | 'inaktiv'
+function classifyInaktiv(p: RecallPatient): InaktivKind | null {
+  const g = (p.grundStornierung ?? '').trim().toLowerCase()
+  if (p.patientenStatus === 'verstorben' || g === 'verstorben') return 'verstorben'
+  if (g === 'arztwechsel') return 'arztwechsel'
+  if (g === 'wegzug')      return 'wegzug'
+  if (p.patientenStatus === 'inaktiv') return 'inaktiv'
+  return null
+}
+
 function isNieBeimArzt(p: RecallPatient): boolean {
   if (isStorniert(p) || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
   const lk = toInputDate(p.letzteKons)
@@ -522,6 +536,11 @@ const lirisExtractRef  = useRef(lirisExtract)
   // abgedeckt sind.
   const [filterVerlaufAktion, setFilterVerlaufAktion] = useState<string | null>(null)
   const [filterInaktivArzt, setFilterInaktivArzt] = useState<string | null>(null)
+  // Klick auf eine Zelle der Inaktive/Verstorbene-Kreuztabelle: zeigt genau
+  // diesen Grund in der normalen Recall-Liste des jeweiligen Arztes, statt
+  // in einem separaten Popup — "Patient bearbeiten" + Liris funktionieren
+  // dort wie gewohnt.
+  const [filterInaktivKind, setFilterInaktivKind] = useState<InaktivKind | null>(null)
 
   // ── Weiteres Vorgehen (Kontakt-Protokoll UI state) ───────────────────────────
   const [vorgehenTelOpen,       setVorgehenTelOpen]       = useState(false)
@@ -2108,15 +2127,6 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Erfasst auch Alt-Daten, bei denen nur grundStornierung gesetzt ist
     // ohne automatischen patientenStatus-Sync. "Deaktiviert von" basiert
     // auf aktualisiert-Stamp (Limitation — siehe Hinweis in UI).
-    type InaktivKind = 'verstorben' | 'arztwechsel' | 'wegzug' | 'inaktiv'
-    function classifyInaktiv(p: RecallPatient): InaktivKind | null {
-      const g = (p.grundStornierung ?? '').trim().toLowerCase()
-      if (p.patientenStatus === 'verstorben' || g === 'verstorben') return 'verstorben'
-      if (g === 'arztwechsel') return 'arztwechsel'
-      if (g === 'wegzug')      return 'wegzug'
-      if (p.patientenStatus === 'inaktiv') return 'inaktiv'
-      return null
-    }
     const inaktiveRowsAll = all
       .map(p => ({ p, kind: classifyInaktiv(p) }))
       .filter((x): x is { p: RecallPatient; kind: InaktivKind } => x.kind !== null)
@@ -2342,7 +2352,7 @@ const lirisExtractRef  = useRef(lirisExtract)
 
   // ── Tab helpers ──────────────────────────────────────────────────────────────
   function switchTab(doctor: string) {
-    setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterInaktivArzt(null)
+    setActiveTab(doctor); setPage(1); setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterInaktivArzt(null); setFilterInaktivKind(null)
     // Aufgebot-Plan Tab: oeffnet das eingebettete Aufgebot-Panel; sonst zu
     setWochenplanOpen(doctor === AUFGEBOT_TAB)
     if (doctor === AUFGEBOT_TAB) setWochenplanWeekOffset(0)
@@ -2397,7 +2407,13 @@ const lirisExtractRef  = useRef(lirisExtract)
       base = [...base, ...extra]
     }
     if (filterNeupatient) base = base.filter(p => p.neupatient === true)
-    if (filterStatus === 'storniert') {
+    if (filterInaktivKind) {
+      // Klick aus der Kreuztabelle: Grund entscheidet allein — der normale
+      // Sichtbarkeits-Filter unten (aktiv/inaktiv je Tab) wird bewusst
+      // uebersprungen, sonst waeren "Sonstige"/"Verstorben" etc. in normalen
+      // Arzt-Tabs unsichtbar (die blenden Inaktive/Verstorbene sonst aus).
+      base = base.filter(p => classifyInaktiv(p) === filterInaktivKind)
+    } else if (filterStatus === 'storniert') {
       base = base.filter(isStorniert)
     } else if (filterStatus === 'inaktiv') {
       base = base.filter(p => p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben')
@@ -2471,7 +2487,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       return 0
     })
     return sorted
-  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterGrund, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, inaktiveAerzte, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, activeTab, sortKeys, filterNeupatient, filterTermin, filterStatus, filterGrund, filterAufgebotArt, filterNochZuErledigen, filterReminderFaellig, filterReminderGeplant, filterVerlaufAktion, filterInaktivArzt, filterInaktivKind, inaktiveAerzte, search, searchResults]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Per-tab statistics for the filter bar chips
   const tabStats = useMemo(() => {
@@ -4189,9 +4205,17 @@ const lirisExtractRef  = useRef(lirisExtract)
               ? `${rows.length} Treffer`
               : `${rows.length} Einträge`}
           </span>
-          {(filterTermin || filterNeupatient || filterStatus || filterGrund || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion || filterInaktivArzt) && (
+          {filterInaktivKind && (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-violet-100 text-violet-700 border border-violet-300 font-semibold">
+              Grund: {{ verstorben: 'Verstorben', arztwechsel: 'Arztwechsel', wegzug: 'Wegzug', inaktiv: 'Sonstige' }[filterInaktivKind]}
+              <button onClick={() => { setFilterInaktivKind(null); setPage(1) }} className="ml-0.5 hover:text-violet-900">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {(filterTermin || filterNeupatient || filterStatus || filterGrund || filterAufgebotArt || filterNochZuErledigen || filterReminderFaellig || filterReminderGeplant || filterVerlaufAktion || filterInaktivArzt || filterInaktivKind) && (
             <button
-              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterGrund(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setFilterInaktivArzt(null); setPage(1) }}
+              onClick={() => { setFilterTermin(null); setFilterNeupatient(false); setFilterStatus(null); setFilterGrund(null); setFilterAufgebotArt(null); setFilterNochZuErledigen(false); setFilterReminderFaellig(false); setFilterVerlaufAktion(null); setFilterReminderGeplant(false); setFilterInaktivArzt(null); setFilterInaktivKind(null); setPage(1) }}
               className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200 font-medium hover:bg-gray-200 transition-colors"
             >
               <X className="w-3 h-3" /> Filter zurücksetzen
@@ -6588,21 +6612,22 @@ const lirisExtractRef  = useRef(lirisExtract)
                   }
                   const rows = [...byDoc.entries()].sort((a, b) => b[1].total - a[1].total)
                   const KIND_LABEL: Record<K, string> = { verstorben: 'Verstorben', arztwechsel: 'Arztwechsel', wegzug: 'Wegzug', inaktiv: 'Sonstige' }
-                  // Zelle klickbar machen: oeffnet die gefilterte Liste direkt im
-                  // bestehenden Popup (wie schon bei "Sonstige" je Arzt) — Nutzer-
-                  // wunsch, damit man nach dem Klick nicht mehr lange suchen muss.
+                  // Zelle klickbar machen: springt direkt in die normale Recall-
+                  // Liste des jeweiligen Arztes, gefiltert auf diesen Grund — kein
+                  // separates Popup mehr, "Patient bearbeiten"/Liris funktionieren
+                  // dort wie gewohnt (Nutzerwunsch).
                   const Cell = ({ doc, k, cls }: { doc: string; k: K; cls: string }) => {
                     const list = byDoc.get(doc)![k]
                     if (list.length === 0) return <span className="text-gray-300">—</span>
                     return (
                       <button
                         type="button"
-                        onClick={() => setListePopup({
-                          titel: `${KIND_LABEL[k]} — ${doc}`,
-                          subtitel: `Stand: gewählter Zeitraum oben`,
-                          list: list.map(r => ({ pid: r.pid ?? '', name: r.vorname, grund: r.grund || KIND_LABEL[k], patient: r.patient })),
-                        })}
-                        title={`${list.length} Patient(en) — Liste anzeigen`}
+                        onClick={() => {
+                          switchTab(doc === 'ohne Zuordnung' ? OFFEN_TAB : doc)
+                          setFilterInaktivKind(k)
+                          setAuswertungOpen(false)
+                        }}
+                        title={`${list.length} Patient(en) — in Recall-Liste anzeigen`}
                         className={`hover:underline hover:font-semibold cursor-pointer ${cls}`}
                       >
                         {list.length}
