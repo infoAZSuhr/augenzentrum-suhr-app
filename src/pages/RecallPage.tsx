@@ -2134,6 +2134,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           by:        ps?.user.trim() ?? '',
           isoDate:   ps?.isoDate ?? '',
           dateStr:   ps?.isoDate ? ps.isoDate.split('-').reverse().join('.') : '',
+          patient:   p,   // fuer die Kreuztabelle: Klick auf eine Zelle oeffnet die gefilterte Liste direkt
         }
       })
       .sort((a, b) => b.isoDate.localeCompare(a.isoDate))
@@ -6575,15 +6576,39 @@ const lirisExtractRef  = useRef(lirisExtract)
                     Respektiert den Zeitraum-Filter oben. */}
                 {auswertungStats.inaktiveRows.length > 0 && (() => {
                   type K = 'verstorben' | 'arztwechsel' | 'wegzug' | 'inaktiv'
-                  const byDoc = new Map<string, Record<K, number> & { total: number }>()
+                  type Row = typeof auswertungStats.inaktiveRows[number]
+                  const byDoc = new Map<string, Record<K, Row[]> & { total: number }>()
                   for (const r of auswertungStats.inaktiveRows) {
                     const doc = r.doctor === OFFEN_TAB ? 'ohne Zuordnung' : r.doctor
-                    if (!byDoc.has(doc)) byDoc.set(doc, { verstorben: 0, arztwechsel: 0, wegzug: 0, inaktiv: 0, total: 0 })
+                    if (!byDoc.has(doc)) byDoc.set(doc, { verstorben: [], arztwechsel: [], wegzug: [], inaktiv: [], total: 0 })
                     const e = byDoc.get(doc)!
-                    e[(r.kind as K) in e ? (r.kind as K) : 'inaktiv']++
+                    const k: K = (r.kind as K) in e ? (r.kind as K) : 'inaktiv'
+                    e[k].push(r)
                     e.total++
                   }
                   const rows = [...byDoc.entries()].sort((a, b) => b[1].total - a[1].total)
+                  const KIND_LABEL: Record<K, string> = { verstorben: 'Verstorben', arztwechsel: 'Arztwechsel', wegzug: 'Wegzug', inaktiv: 'Sonstige' }
+                  // Zelle klickbar machen: oeffnet die gefilterte Liste direkt im
+                  // bestehenden Popup (wie schon bei "Sonstige" je Arzt) — Nutzer-
+                  // wunsch, damit man nach dem Klick nicht mehr lange suchen muss.
+                  const Cell = ({ doc, k, cls }: { doc: string; k: K; cls: string }) => {
+                    const list = byDoc.get(doc)![k]
+                    if (list.length === 0) return <span className="text-gray-300">—</span>
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setListePopup({
+                          titel: `${KIND_LABEL[k]} — ${doc}`,
+                          subtitel: `Stand: gewählter Zeitraum oben`,
+                          list: list.map(r => ({ pid: r.pid ?? '', name: r.vorname, grund: r.grund || KIND_LABEL[k], patient: r.patient })),
+                        })}
+                        title={`${list.length} Patient(en) — Liste anzeigen`}
+                        className={`hover:underline hover:font-semibold cursor-pointer ${cls}`}
+                      >
+                        {list.length}
+                      </button>
+                    )
+                  }
                   return (
                     <div className="overflow-auto rounded-xl border border-gray-200 mb-4">
                       <table className="w-full text-sm">
@@ -6601,10 +6626,10 @@ const lirisExtractRef  = useRef(lirisExtract)
                           {rows.map(([doc, e]) => (
                             <tr key={doc} className="hover:bg-gray-50">
                               <td className="px-4 py-2 font-medium text-gray-800">{doc}</td>
-                              <td className="px-4 py-2 text-right tabular-nums text-gray-700">{e.verstorben || <span className="text-gray-300">—</span>}</td>
-                              <td className="px-4 py-2 text-right tabular-nums text-amber-700">{e.arztwechsel || <span className="text-gray-300">—</span>}</td>
-                              <td className="px-4 py-2 text-right tabular-nums text-sky-700">{e.wegzug || <span className="text-gray-300">—</span>}</td>
-                              <td className="px-4 py-2 text-right tabular-nums text-gray-600">{e.inaktiv || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-4 py-2 text-right tabular-nums text-gray-700"><Cell doc={doc} k="verstorben" cls="text-gray-700" /></td>
+                              <td className="px-4 py-2 text-right tabular-nums text-amber-700"><Cell doc={doc} k="arztwechsel" cls="text-amber-700" /></td>
+                              <td className="px-4 py-2 text-right tabular-nums text-sky-700"><Cell doc={doc} k="wegzug" cls="text-sky-700" /></td>
+                              <td className="px-4 py-2 text-right tabular-nums text-gray-600"><Cell doc={doc} k="inaktiv" cls="text-gray-600" /></td>
                               <td className="px-4 py-2 text-right tabular-nums font-bold text-gray-900">{e.total}</td>
                             </tr>
                           ))}
