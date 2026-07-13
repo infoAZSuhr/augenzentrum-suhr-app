@@ -240,10 +240,12 @@ function isOverdue(p: { letzteKons?: string | null; naechsteKons?: string | null
 
 /** Nachfass fällig: Es wurde ein Aufgebot/Reminder erstellt (aktueller Zyklus,
  *  also nach dem letzten Konsil), seit mind. `weeks` Wochen, aber es wurde noch
- *  KEIN (zukünftiger) Termin gebucht. -> Patient hat nicht reagiert. */
+ *  KEIN (zukünftiger) Termin gebucht. -> Patient hat nicht reagiert.
+ *  Nutzerwunsch (2026-07-13): 1-Monats-Rhythmus statt vorher 8 Wochen, passend
+ *  zum Brief→Reminder1→Reminder2-Eskalationsschema (je 1 Monat Wartezeit). */
 function isNachfassFaellig(
   p: { letzteKons?: string | null; naechsteKons?: string | null; patientenStatus?: string | null; aufgebotErstellt?: string | null; aufgebotArt?: string | null },
-  weeks = 8,
+  weeks = 4,
 ): boolean {
   if (p.patientenStatus === 'kein Aufgebot' || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
   if (!p.aufgebotArt || !p.aufgebotErstellt) return false
@@ -4238,7 +4240,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           { key: 'overdue'    as FilterTermin, label: 'Überfällig',  count: tabStats.overdue,    cls: 'bg-red-100 text-red-700 border-red-300',
             title: 'Letzte Konsultation liegt in der Vergangenheit, kein neuer Termin gebucht und kein RC-Datum geplant — braucht dringend ein Aufgebot.' },
           { key: 'nachfass'   as FilterTermin, label: 'Nachfassen',  count: tabStats.nachfass,   cls: 'bg-orange-100 text-orange-700 border-orange-300',
-            title: 'Aufgebot/Reminder wurde vor mind. 8 Wochen verschickt, Patient hat sich aber nicht gemeldet — Zeit für einen Nachfass-Anruf oder -Brief.' },
+            title: 'Aufgebot/Reminder wurde vor mind. 1 Monat verschickt, Patient hat sich aber nicht gemeldet — Zeit für einen Nachfass-Anruf oder -Brief.' },
           { key: 'inPlanung'  as FilterTermin, label: 'Geplante Recalls', count: tabStats.inPlanung, cls: 'bg-amber-100 text-amber-700 border-amber-300',
             title: 'RC-Datum ("RC zu erstellen ab") ist gesetzt, aber das Aufgebot wurde noch nicht erstellt — steht in der Recall-Planung an.' },
           { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300',
@@ -4629,7 +4631,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           })()}
                           {isNachfassFaellig(row) && (
                             <span
-                              title="Aufgeboten, aber seit über 8 Wochen kein Termin gebucht — bitte nachfassen. Nach dem 1. Brief als nächste Stufe telefonisch nachfassen."
+                              title="Aufgeboten, aber seit über 1 Monat kein Termin gebucht — bitte nachfassen. Nach dem 1. Brief als nächste Stufe telefonisch nachfassen."
                               className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 shrink-0 cursor-help">
                               ↻ Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
                             </span>
@@ -6254,7 +6256,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   {([
                     { kind: 'termin' as const, key: 'inPlanung'    as FilterTermin, label: 'Geplante Recalls', sub: 'RC-Datum oder im Recall',           value: auswertungStats.upcoming.inPlanung,         color: 'bg-amber-50 text-amber-700 border-amber-100' },
-                    { kind: 'termin' as const, key: 'nachfass'     as FilterTermin, label: 'Nachfassen',       sub: 'aufgeboten, >8 Wo. ohne Termin',    value: auswertungStats.upcoming.nachfass,          color: 'bg-orange-50 text-orange-700 border-orange-100' },
+                    { kind: 'termin' as const, key: 'nachfass'     as FilterTermin, label: 'Nachfassen',       sub: 'aufgeboten, >1 Mt. ohne Termin',    value: auswertungStats.upcoming.nachfass,          color: 'bg-orange-50 text-orange-700 border-orange-100' },
                     { kind: 'termin' as const, key: 'ohneTermin'   as FilterTermin, label: 'Wirklich offen',   sub: 'kein Termin, kein RC',              value: auswertungStats.upcoming.ohneTermin,        color: 'bg-gray-50 text-gray-700 border-gray-200' },
                     { kind: 'status' as const, key: 'wartetBericht'as FilterStatus, label: 'Wartet auf Bericht', sub: 'Zuweisung ausstehend',            value: auswertungStats.upcoming.wartetBericht,     color: 'bg-cyan-50 text-cyan-700 border-cyan-100' },
                     { kind: 'status' as const, key: 'reminder'     as FilterStatus, label: 'Status: Reminder', sub: 'meldet sich noch',                  value: auswertungStats.upcoming.statusReminder,    color: 'bg-purple-50 text-purple-700 border-purple-100' },
