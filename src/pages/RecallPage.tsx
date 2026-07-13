@@ -8298,6 +8298,15 @@ const lirisExtractRef  = useRef(lirisExtract)
                       setField('aufgebotErstellt', '')
                       setField('aufgebotArt', '')
                       setField('konsInterval', '')
+                      // Danach automatisch die letzte Konsultation aus Liris
+                      // nachziehen (Nutzerwunsch) — Akte erneut oeffnen, der
+                      // bestehende lirisExtract-Effekt (oben) fuellt letzteKons
+                      // + Intervall automatisch, sobald die Liris-Antwort kommt.
+                      const reactivatePid = normalizePid(form.pid)
+                      if (reactivatePid) {
+                        toast.info('Letzte Konsultation wird aus Liris nachgezogen…')
+                        openWithPid(reactivatePid)
+                      }
                     }
                     if (v === 'kein Aufgebot' || v === 'inaktiv' || v === 'verstorben') {
                       // Self-Service / inaktiv / verstorben: keine Aufgebote/
