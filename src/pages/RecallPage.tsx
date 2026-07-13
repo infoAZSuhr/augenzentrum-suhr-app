@@ -256,6 +256,27 @@ function isNachfassFaellig(
   return p.aufgebotErstellt <= cutoff.toISOString().slice(0, 10)
 }
 
+/** Aktuelle Eskalationsstufe im Nachfass-Schema (Brief/Reminder → Reminder 1 →
+ *  Reminder 2), gezählt anhand der "Reminder"-Verlaufseinträge seit dem
+ *  aktuellen Aufgebot. Stufe 1 = Erstkontakt, 2 = nach 1. Reminder, 3 = nach
+ *  2. Reminder (Obergrenze — danach folgt "Fall abschliessen", keine Stufe 4).
+ *  null = Schema nicht anwendbar (kein offenes Aufgebot, Termin bereits
+ *  gebucht, altes Zyklus-Aufgebot, oder inaktiv/verstorben/kein Aufgebot). */
+function nachfassStufe(p: {
+  letzteKons?: string | null; naechsteKons?: string | null; patientenStatus?: string | null
+  aufgebotErstellt?: string | null; aufgebotArt?: string | null; verlauf?: VerlaufEntry[] | null
+}): number | null {
+  if (p.patientenStatus === 'kein Aufgebot' || p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return null
+  if (!p.aufgebotArt || !p.aufgebotErstellt) return null
+  const today = new Date().toISOString().slice(0, 10)
+  if (p.naechsteKons && p.naechsteKons !== 'kein Termin' && p.naechsteKons >= today) return null   // Termin gebucht → erledigt
+  if (p.aufgebotErstellt < (p.letzteKons || '')) return null                                        // Aufgebot aus altem Zyklus
+  const reminderCount = (p.verlauf ?? []).filter(
+    v => v.aktion === 'Reminder' && v.datum >= p.aufgebotErstellt!
+  ).length
+  return Math.min(3, 1 + reminderCount)
+}
+
 /** Vorgeschlagene nächste Eskalationsstufe: nach Brief/Reminder/Praxis → Telefon, nach Telefon → Brief. */
 function nachfassNext(art?: string | null): 'Tel' | 'Brief' {
   return art === 'Tel' ? 'Brief' : 'Tel'
@@ -4636,6 +4657,17 @@ const lirisExtractRef  = useRef(lirisExtract)
                               ↻ Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
                             </span>
                           )}
+                          {(() => {
+                            const stufe = nachfassStufe(row)
+                            if (!stufe) return null
+                            return (
+                              <span
+                                title="Eskalationsstufe im Nachfass-Schema: 1 = Erstkontakt, 2 = nach 1. Reminder, 3 = nach 2. Reminder"
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 shrink-0 cursor-help">
+                                Stufe {stufe}/3
+                              </span>
+                            )
+                          })()}
                         </span>
                         {search.trim().length >= 2 && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 self-start leading-tight">{row.doctor}</span>
