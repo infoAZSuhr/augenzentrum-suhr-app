@@ -167,12 +167,25 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         }
       }
 
-      // 5) Autor: "Autor: Dr. Name" / "Autor Prof. ..."
-      var autorMatch = allText.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
-      if (autorMatch && autorMatch[1]) {
-        result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
-        var stop = result.autor.search(/[,\\n\\r]|  /);
-        if (stop > 0) result.autor = result.autor.slice(0, stop).trim();
+      // 5) Autor: NUR aus dem "Untersuchung vom ..."-Block lesen — nicht
+      //    irgendeinen "Autor:"-Treffer auf der Seite. Liris zeigt auch bei
+      //    Notizen/Anmerkungen/Telefonaten einen "Autor:", ein blinder
+      //    Seiten-weiter Match griff da faelschlich den Verfasser einer
+      //    Notiz statt des Arztes der eigentlichen Untersuchung. Fix (Nutzer-
+      //    wunsch): Autor nur erfassen, wenn er WIRKLICH im Untersuchungs-
+      //    Block steht — Suchfenster ab "Untersuchung vom", begrenzt bis zum
+      //    naechsten Eintrags-Header (Notiz/Anmerkung/Telefonat/naechste
+      //    Untersuchung), damit kein fremder Eintrag hineinragt.
+      if (untersMatch && untersMatch.index !== undefined) {
+        var untersBlock = allText.slice(untersMatch.index, untersMatch.index + 2000);
+        var blockEnd = untersBlock.slice(untersMatch[0].length).search(/\\n\\s*(?:Notiz|Anmerkung|Telefonat|Anruf|E-?Mail|Untersuchung\\s+vom)\\b/i);
+        if (blockEnd > 0) untersBlock = untersBlock.slice(0, untersMatch[0].length + blockEnd);
+        var autorMatch = untersBlock.match(/Autor:?\\s*([^\\n\\r]{1,80})/);
+        if (autorMatch && autorMatch[1]) {
+          result.autor = autorMatch[1].trim().replace(/\\s+/g, ' ').slice(0, 80);
+          var stop = result.autor.search(/[,\\n\\r]|  /);
+          if (stop > 0) result.autor = result.autor.slice(0, stop).trim();
+        }
       }
 
       // 6) Anrede aus Patient-Header: "Herr ..." / "Frau ..." vor dem Namen.
