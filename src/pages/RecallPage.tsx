@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useBrowser } from '../contexts/BrowserContext'
+import { useBrowser, type LirisExtract } from '../contexts/BrowserContext'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
@@ -524,6 +524,12 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [lirisMismatch, setLirisMismatch] = useState<{ patientId: string; doctor: string; vorname: string; pid: string; reason: string } | null>(null)
   // Bestätigung wenn Liris-letzteKons älter als bestehende
   const [lirisOlderKons, setLirisOlderKons] = useState<{ lirisDate: string; formDate: string } | null>(null)
+  // Inaktive/verstorbene Patienten: Daten sollen nicht leichtfertig durch eine
+  // neu erkannte Liris-Untersuchung überschrieben werden (Storno/Aufgebot
+  // würde sonst stillschweigend zurückgesetzt). Erst mit der aktuell
+  // ausgewählten Untersuchung abgleichen, bei Unstimmigkeit nachfragen.
+  const [inaktivKonsMismatch, setInaktivKonsMismatch] = useState<{ patient: RecallPatient; extract: LirisExtract } | null>(null)
+  const inaktivKonsConfirmedAtRef = useRef<number>(0)
   // Namensauswahl bei mehreren Vornamen aus Liris
   const [lirisNameChoice, setLirisNameChoice] = useState<{ options: string[] } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
@@ -1061,6 +1067,25 @@ const lirisExtractRef  = useRef(lirisExtract)
       })
       setLirisExtract(null)
       return
+    }
+
+    // Inaktive/verstorbene Patienten: nicht leichtfertig durch eine neu
+    // erkannte Liris-Untersuchung überschreiben lassen (siehe unten würde
+    // sonst z.B. Storno-Status/Aufgebot automatisch zurückgesetzt). Erst mit
+    // der aktuell ausgewählten Untersuchung abgleichen — bei Unstimmigkeit
+    // (abweichendes Untersuchungsdatum) für die Bearbeitung nachfragen,
+    // statt sie sofort anzuwenden.
+    {
+      const editPatient = editTarget as RecallPatient
+      const istGeschuetzterStatus = editPatient.patientenStatus === 'inaktiv' || editPatient.patientenStatus === 'verstorben'
+      if (istGeschuetzterStatus
+          && lirisExtract.letzteKons
+          && lirisExtract.letzteKons !== form.letzteKons
+          && inaktivKonsConfirmedAtRef.current !== lirisExtract.at) {
+        setInaktivKonsMismatch({ patient: editPatient, extract: lirisExtract })
+        setLirisExtract(null)
+        return
+      }
     }
 
     let filled = false
@@ -8751,6 +8776,53 @@ const lirisExtractRef  = useRef(lirisExtract)
                 }}
                 className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
                 Ja, übernehmen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inaktiver/verstorbener Patient: Untersuchungsdatum aus Liris weicht
+          vom gespeicherten Eintrag ab — vor der Übernahme nachfragen, damit
+          Daten inaktiver Patienten nicht leichtfertig geändert werden. */}
+      {inaktivKonsMismatch && (
+        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => setInaktivKonsMismatch(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <span className="font-bold text-gray-900">Inaktiver Patient — Unstimmigkeit</span>
+              </div>
+              <button onClick={() => setInaktivKonsMismatch(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              <p className="text-gray-700">
+                Dieser Patient ist als <strong>{inaktivKonsMismatch.patient.patientenStatus}</strong> markiert. Die aktuell in Liris ausgewählte Untersuchung
+                (<strong>{formatDate(inaktivKonsMismatch.extract.letzteKons || '')}</strong>) weicht vom gespeicherten Eintrag
+                (<strong>{inaktivKonsMismatch.patient.letzteKons ? formatDate(inaktivKonsMismatch.patient.letzteKons) : '—'}</strong>) ab.
+              </p>
+              <p className="text-gray-600">
+                Um versehentliche Änderungen an inaktiven Patienten zu vermeiden, wird nicht automatisch übernommen.
+                Soll dieser Eintrag jetzt trotzdem bearbeitet werden?
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+              <button onClick={() => setInaktivKonsMismatch(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Nein, unverändert lassen
+              </button>
+              <button
+                onClick={() => {
+                  inaktivKonsConfirmedAtRef.current = inaktivKonsMismatch.extract.at
+                  setLirisExtract(inaktivKonsMismatch.extract)
+                  setInaktivKonsMismatch(null)
+                }}
+                className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
+                Ja, bearbeiten
               </button>
             </div>
           </div>
