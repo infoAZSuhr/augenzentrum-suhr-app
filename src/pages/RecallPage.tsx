@@ -3539,6 +3539,17 @@ const lirisExtractRef  = useRef(lirisExtract)
     }
   }, [editTarget, form.grundStornierung, form.aufgebotFuer]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Umgekehrte Regel: Wird «RC zu erstellen ab» oder «…erstellt am» (aufgebotErstellt)
+  // befüllt, ist ein zuvor gesetzter Grund f. Stornierung/Terminverschiebung obsolet
+  // — der Patient bekommt ja wieder aktiv ein Aufgebot/RC-Datum. Grund + Storno-Status
+  // zurücksetzen.
+  useEffect(() => {
+    if (editTarget && form.grundStornierung && (form.aufgebotFuer || form.aufgebotErstellt)) {
+      setField('grundStornierung', '')
+      setField('storniert', '')
+    }
+  }, [editTarget, form.grundStornierung, form.aufgebotFuer, form.aufgebotErstellt]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /** Drop-Props für Datumsfelder: hineingezogener Text wird als Datum geparst.
    *  Verwendung: <input type="date" {...dateDrop('gebDatum')} … /> */
   function dateDrop(field: keyof EditForm) {
