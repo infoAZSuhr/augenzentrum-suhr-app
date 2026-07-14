@@ -7780,8 +7780,10 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <label className={labelCls}>RC zu erstellen ab</label>
                   <div className="relative">
                     <input type="date" value={form.aufgebotFuer} {...dateDrop('aufgebotFuer')}
+                      disabled={!!form.grundStornierung}
+                      title={form.grundStornierung ? 'Bei gesetztem Grund f. Stornierung/Terminverschiebung entfällt das RC-Datum.' : undefined}
                       onChange={e => setField('aufgebotFuer', e.target.value)}
-                      className={`${inputCls} pr-6${chCls('aufgebotFuer')}`} />
+                      className={`${inputCls} pr-6${chCls('aufgebotFuer')}${form.grundStornierung ? ' opacity-50 cursor-not-allowed bg-gray-50' : ''}`} />
                     <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                   </div>
                 </div>
