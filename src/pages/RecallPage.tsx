@@ -2950,7 +2950,13 @@ const lirisExtractRef  = useRef(lirisExtract)
       : hasTermin ? 'Terminvorschlag f&#252;r die Routine Augenkontrolle'
       : 'Einladung zur Augenkontrolle'
 
-    const salut = `<p class="salut">Sehr ${effAnredeAnrede} ${nachname}</p>`
+    // Firma/Institution als Empfänger: Anrede bewusst entfernt (weggeklickt) →
+    // Brief bekommt keine persönliche Anrede-Zeile statt eines "Damen und
+    // Herren"-Ersatzes. isMinor überschreibt form.anrede zwar meist schon auf
+    // 'Familie', wird hier zur Sicherheit trotzdem als Ausnahme behandelt.
+    const salut = (!form.anrede && !isMinor)
+      ? ''
+      : `<p class="salut">Sehr ${effAnredeAnrede} ${nachname}</p>`
 
     const terminBlock = hasTermin ? `
       <div class="termin-box-wrap">
@@ -3307,9 +3313,10 @@ const lirisExtractRef  = useRef(lirisExtract)
       return a
     })()
     const eMinor = eAge !== null && eAge >= 0 && eAge < 18
-    const salut  = `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
+    // Firma/Institution (Anrede weggeklickt): keine persönliche Anrede-Zeile.
+    const salut  = (!form.anrede && !eMinor) ? '' : `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
     const subject = briefSubjectFor(form)
-    const shortBody = `${salut}\n\nIm Anhang erhalten Sie unser Schreiben.${emailSignature()}`
+    const shortBody = `${salut ? `${salut}\n\n` : ''}Im Anhang erhalten Sie unser Schreiben.${emailSignature()}`
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const adressTrimmedLocal = form.adressBlock.trim()
@@ -4881,8 +4888,8 @@ const lirisExtractRef  = useRef(lirisExtract)
           af.art === 'Tel'
             ? !!af.notiz.trim()
             : af.art === 'Reminder'
-              ? !!af.adressBlock.trim() && !!af.versand && !!af.anrede
-              : !!af.adressBlock.trim() && !!af.versand && !!af.anrede && !!af.terminDatum && !!af.terminZeit
+              ? !!af.adressBlock.trim() && !!af.versand
+              : !!af.adressBlock.trim() && !!af.versand && !!af.terminDatum && !!af.terminZeit
         )
         const livePreviewHtml = (af.art === 'Brief' || af.art === 'Reminder') ? buildBriefHtml(p, af) : null
 
@@ -5391,15 +5398,18 @@ const lirisExtractRef  = useRef(lirisExtract)
 
                     {/* Anrede */}
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Anrede <span className="text-red-500">*</span></p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Anrede</p>
                       <div className="flex gap-2">
                         {(['Frau', 'Herr', 'Familie'] as const).map(a => (
-                          <button key={a} onClick={() => setAf({ anrede: a })}
+                          <button key={a} onClick={() => setAf({ anrede: af.anrede === a ? '' : a })}
                             className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
                               af.anrede === a ? 'border-gray-400 bg-gray-100 text-gray-800' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                             }`}>{a}</button>
                         ))}
                       </div>
+                      <p className="mt-1 text-[10px] text-gray-400">
+                        Bei Empfängern, die keine Einzelperson sind (z.&#8202;B. Firmen, Institutionen): ausgewählte Anrede erneut anklicken, um sie zu entfernen &#8212; der Brief wird dann ohne persönliche Anrede erstellt.
+                      </p>
                     </div>
 
                     {/* Nachname mehrdeutig (Name mit 3+ Wörtern) → MPA wählt den
