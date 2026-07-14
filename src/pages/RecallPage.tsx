@@ -2834,8 +2834,13 @@ const lirisExtractRef  = useRef(lirisExtract)
     const nameDisplay = titleCaseName(nameWords.length >= 2
       ? `${nameWords[nameWords.length - 1]} ${nameWords.slice(0, -1).join(' ')}`
       : nameLine)
-    // Kindname: immer aus Patientendaten, nicht aus adressBlock (der bei Minderjährigen die Eltern enthält)
-    const kindNameDisplay = titleCaseName(`${aufgebotTarget!.patient.vorname || ''} ${titleCaseName(form.nachnameOverride)}`.trim())
+    // Kindname: immer aus Patientendaten, nicht aus adressBlock (der bei Minderjährigen/
+    // Vertreterfällen den Namen des Kontakts/Vertreters bzw. der Institution enthält).
+    // patient.vorname enthält bereits den vollständigen Patientennamen (Liris-Feld
+    // "Vorname" + "Nachname" kombiniert) — nachnameOverride NICHT zusätzlich anhängen,
+    // sonst dupliziert/verfälscht sich der Name (z.B. mit dem Empfänger-Namen bei
+    // Vertreter-/Firmenadressen).
+    const kindNameDisplay = titleCaseName((aufgebotTarget!.patient.vorname || '').trim())
     const kindHinweis = isMinor
       ? `<p>Dieses Schreiben betrifft Ihr Kind <strong>${escLine(kindNameDisplay)}</strong>.</p>`
       : form.vertreterModus
@@ -5413,8 +5418,13 @@ const lirisExtractRef  = useRef(lirisExtract)
                     </div>
 
                     {/* Nachname mehrdeutig (Name mit 3+ Wörtern) → MPA wählt den
-                        Nachnamen für die Anrede. Erscheint nur im Zweifel. */}
-                    {(() => {
+                        Nachnamen für die Anrede. Erscheint nur im Zweifel.
+                        NICHT bei vertreterModus: dort ist die erste Zeile von
+                        adressBlock der Empfänger (Vertreter/Kontaktperson/Institution),
+                        nicht der Patient — nachnameOverride muss dort der
+                        Patienten-Nachname bleiben (siehe kindNameDisplay) und darf
+                        nicht durch Wörter aus dem Empfänger-Namen überschrieben werden. */}
+                    {!af.vertreterModus && (() => {
                       const nameLine = (af.adressBlock.trim().split('\n')[0] || '').trim()
                       const words = nameLine.split(/\s+/).filter(Boolean)
                       if (words.length < 3) return null
