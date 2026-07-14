@@ -3530,6 +3530,15 @@ const lirisExtractRef  = useRef(lirisExtract)
     }
   }, [editTarget, form.aufgebotErstellt, form.aufgebotFuer]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Regel: Ist ein «Grund f. Stornierung / Terminverschiebung» gesetzt, entfällt
+  // der Recall-Zyklus → «RC zu erstellen ab» wird laufend geleert, falls es
+  // trotzdem (wieder) befüllt wird.
+  useEffect(() => {
+    if (editTarget && form.grundStornierung && form.aufgebotFuer) {
+      setField('aufgebotFuer', '')
+    }
+  }, [editTarget, form.grundStornierung, form.aufgebotFuer]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /** Drop-Props für Datumsfelder: hineingezogener Text wird als Datum geparst.
    *  Verwendung: <input type="date" {...dateDrop('gebDatum')} … /> */
   function dateDrop(field: keyof EditForm) {
@@ -7780,10 +7789,8 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <label className={labelCls}>RC zu erstellen ab</label>
                   <div className="relative">
                     <input type="date" value={form.aufgebotFuer} {...dateDrop('aufgebotFuer')}
-                      disabled={!!form.grundStornierung}
-                      title={form.grundStornierung ? 'Bei gesetztem Grund f. Stornierung/Terminverschiebung entfällt das RC-Datum.' : undefined}
                       onChange={e => setField('aufgebotFuer', e.target.value)}
-                      className={`${inputCls} pr-6${chCls('aufgebotFuer')}${form.grundStornierung ? ' opacity-50 cursor-not-allowed bg-gray-50' : ''}`} />
+                      className={`${inputCls} pr-6${chCls('aufgebotFuer')}`} />
                     <ClearBtn show={!!form.aufgebotFuer} onClear={() => setField('aufgebotFuer', '')} />
                   </div>
                 </div>
