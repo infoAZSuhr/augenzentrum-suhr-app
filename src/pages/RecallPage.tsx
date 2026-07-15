@@ -530,6 +530,10 @@ const lirisExtractRef  = useRef(lirisExtract)
   // ausgewählten Untersuchung abgleichen, bei Unstimmigkeit nachfragen.
   const [inaktivKonsMismatch, setInaktivKonsMismatch] = useState<{ patient: RecallPatient; extract: LirisExtract } | null>(null)
   const inaktivKonsConfirmedAtRef = useRef<number>(0)
+  // Inaktive/verstorbene Patienten: vor dem Öffnen zur Bearbeitung IMMER
+  // nachfragen, damit Angaben nicht leichtfertig geändert werden können.
+  const [inaktivEditConfirmTarget, setInaktivEditConfirmTarget] = useState<RecallPatient | null>(null)
+  const inaktivEditSendToLirisRef = useRef(true)
   // Namensauswahl bei mehreren Vornamen aus Liris
   const [lirisNameChoice, setLirisNameChoice] = useState<{ options: string[] } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
@@ -3494,6 +3498,16 @@ const lirisExtractRef  = useRef(lirisExtract)
   // ── Edit modal ───────────────────────────────────────────────────────────────
   function resetVorgehen() { setVorgehenTelOpen(false); setVorgehenEmailOpen(false); setVorgehenReminderOpen(false); setVorgehenTelDatum(''); setVorgehenEmailDatum(''); setVorgehenReminderDatum(''); setVorgehenTelGrund(''); setVorgehenEmailGrund(''); setVorgehenReminderGrund('') }
   function openEdit(patient: RecallPatient, sendToLiris = true) {
+    // Inaktive/verstorbene Patienten: erst nachfragen, ob wirklich bearbeitet
+    // werden soll — verhindert leichtfertige Änderungen an ruhenden Akten.
+    if (patient.patientenStatus === 'inaktiv' || patient.patientenStatus === 'verstorben') {
+      setInaktivEditConfirmTarget(patient)
+      inaktivEditSendToLirisRef.current = sendToLiris
+      return
+    }
+    reallyOpenEdit(patient, sendToLiris)
+  }
+  function reallyOpenEdit(patient: RecallPatient, sendToLiris = true) {
     // Live-Snapshot waehrend Edit puffern -> verhindert Input-Reset beim Tippen.
     setModalBuffer(true)
     // Pflichtfelder die fehlen sofort als Fehler markieren — User sieht das
@@ -8821,6 +8835,50 @@ const lirisExtractRef  = useRef(lirisExtract)
                   inaktivKonsConfirmedAtRef.current = inaktivKonsMismatch.extract.at
                   setLirisExtract(inaktivKonsMismatch.extract)
                   setInaktivKonsMismatch(null)
+                }}
+                className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
+                Ja, bearbeiten
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inaktiver/verstorbener Patient: vor dem Öffnen der Akte nachfragen,
+          ob wirklich Änderungen vorgenommen werden sollen. */}
+      {inaktivEditConfirmTarget && (
+        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => setInaktivEditConfirmTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <span className="font-bold text-gray-900">
+                  {inaktivEditConfirmTarget.patientenStatus === 'verstorben' ? 'Verstorbener Patient' : 'Inaktiver Patient'}
+                </span>
+              </div>
+              <button onClick={() => setInaktivEditConfirmTarget(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              <p className="text-gray-700">
+                <strong>{titleCaseName(inaktivEditConfirmTarget.vorname || '') || '(ohne Name)'}</strong> ist als
+                «{inaktivEditConfirmTarget.patientenStatus}» markiert.
+              </p>
+              <p className="text-gray-600">Sollen an diesem Eintrag Änderungen vorgenommen werden?</p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+              <button onClick={() => setInaktivEditConfirmTarget(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Nein
+              </button>
+              <button
+                onClick={() => {
+                  const patient = inaktivEditConfirmTarget
+                  setInaktivEditConfirmTarget(null)
+                  reallyOpenEdit(patient, inaktivEditSendToLirisRef.current)
                 }}
                 className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
                 Ja, bearbeiten
