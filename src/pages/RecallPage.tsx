@@ -538,6 +538,10 @@ const lirisExtractRef  = useRef(lirisExtract)
   // nachfragen (statt still zu inaktivieren und den Grund erst beim
   // Speichern als Pflichtfeld-Fehler zu melden).
   const [inaktivOhneGrundConfirm, setInaktivOhneGrundConfirm] = useState<(() => void) | null>(null)
+  // Wird von applyStatusChange gesetzt, sobald sich der Status geändert hat —
+  // der Effect weiter unten (nach dem State-Commit, also mit aktuellem `form`)
+  // speichert dann automatisch, ohne dass der User extra "Speichern" drücken muss.
+  const autoSaveStatusPendingRef = useRef(false)
   // Namensauswahl bei mehreren Vornamen aus Liris
   const [lirisNameChoice, setLirisNameChoice] = useState<{ options: string[] } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
@@ -3599,6 +3603,9 @@ const lirisExtractRef  = useRef(lirisExtract)
       }
       if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
     }
+    // Statusänderung soll nicht erst beim manuellen "Speichern" persistiert
+    // werden — Effect unten (nach dem State-Commit) schreibt automatisch.
+    if (editTarget && editTarget !== 'new') autoSaveStatusPendingRef.current = true
   }
 
   function checkPid(raw: string) {
@@ -3992,6 +3999,36 @@ const lirisExtractRef  = useRef(lirisExtract)
     }
   }
 
+  // Auto-Save nach Statusänderung (siehe applyStatusChange): läuft NACH dem
+  // State-Commit (Effect-Deps = form), damit hier garantiert der aktuelle
+  // Stand geschrieben wird — kein manuelles "Speichern" nötig. Bewusst ohne
+  // Modal-Schliessen/Validierung (anders als handleSave), damit die Akte für
+  // weitere Eingaben offen bleibt.
+  useEffect(() => {
+    if (!autoSaveStatusPendingRef.current) return
+    autoSaveStatusPendingRef.current = false
+    if (!editTarget || editTarget === 'new') return
+    const target = editTarget
+    ;(async () => {
+      try {
+        await updateRecallPatient(target.id, {
+          patientenStatus:  form.patientenStatus  || null,
+          storniert:        form.storniert        || null,
+          grundStornierung: form.grundStornierung || null,
+          aufgebotFuer:     form.aufgebotFuer      || null,
+          aufgebotErstellt: form.aufgebotErstellt  || null,
+          aufgebotArt:      form.aufgebotArt       || null,
+          naechsteKons:     form.naechsteKons      || null,
+          letzteKons:       form.letzteKons        || null,
+          verlauf:          form.verlauf.length > 0 ? form.verlauf : null,
+        } as any, displayLabel)
+        pendingReload.current = true
+        toast.success('Status gespeichert.')
+      } catch {
+        toast.error('Status konnte nicht automatisch gespeichert werden.')
+      }
+    })()
+  }, [form, editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Inline toggle for aufgebotArt — optimistic update, Firestore write in background.
    *  Wenn ein Aufgebot NEU gesetzt wird (newValue != null), schreiben wir zusätzlich
@@ -8115,6 +8152,10 @@ const lirisExtractRef  = useRef(lirisExtract)
                         if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
                       }
                     }
+                    // Grund setzt i.d.R. auch den Status (inaktiv/verstorben/kein
+                    // Aufgebot) — soll wie jede andere Statusänderung automatisch
+                    // gespeichert werden, ohne dass "Speichern" gedrückt werden muss.
+                    if (editTarget && editTarget !== 'new') autoSaveStatusPendingRef.current = true
                   }
                   // Häufigste Gründe (aus den echten Erfassungsdaten ermittelt,
                   // 2026-07-12) als kompakte Schnellauswahl-Chips oberhalb des
@@ -8482,16 +8523,8 @@ const lirisExtractRef  = useRef(lirisExtract)
                   ) && (
                     <button type="button"
                       onClick={() => {
-                        const apply = () => {
-                          setField('patientenStatus', 'inaktiv')
-                          setField('aufgebotFuer', '')
-                          setField('aufgebotArt', '')
-                          setField('aufgebotErstellt', '')
-                          setField('naechsteKons', '')
-                          setField('keinTermin', false)
-                        }
-                        if (!form.grundStornierung?.trim()) setInaktivOhneGrundConfirm(() => apply)
-                        else apply()
+                        if (!form.grundStornierung?.trim()) setInaktivOhneGrundConfirm(() => () => applyStatusChange('inaktiv'))
+                        else applyStatusChange('inaktiv')
                       }}
                       className={`w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors ${
                         form.patientenStatus === 'inaktiv'
