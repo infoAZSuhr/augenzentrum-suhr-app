@@ -2812,25 +2812,14 @@ const lirisExtractRef  = useRef(lirisExtract)
     })
   }, [lirisExtract, aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialen des eingeloggten Benutzers (z.B. "Sarah Pasquale" -> "SP") —
-  // fuer Fusszeilen von Briefen/E-Mails, damit nachvollziehbar bleibt, wer
-  // den Versand ausgeloest hat.
-  function userInitials(): string {
-    const name = (profile?.displayName || profile?.username || '').trim()
-    if (!name) return ''
-    return name.split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 3)
-  }
-
   // Fusszeilen-Code fuer Briefe: rein numerisch statt "Pat.-Nr./Geb."
   // ausgeschrieben (Nutzerwunsch, unauffälliger/kryptischer) —
-  // Format "<PID>-<TTMMJJJJ>-<Initialen>", z.B. "259-19072004-SP".
-  // Initialen ergänzt (Nutzerwunsch), damit nachvollziehbar ist, wer den
-  // Brief erstellt/versendet hat.
+  // Format "<PID>-<TTMMJJJJ>", z.B. "259-19072004".
   function footerIdCode(patient: RecallPatient): string {
     const pid = normalizePid(patient.pid) || ''
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.gebDatum || ''))
     const geb = m ? `${m[3]}${m[2]}${m[1]}` : ''
-    return [pid, geb, userInitials()].filter(Boolean).join('-')
+    return [pid, geb].filter(Boolean).join('-')
   }
 
   function buildBriefHtml(patient: RecallPatient, form: AufgebotForm): string {
@@ -3314,12 +3303,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   // E-Mails. Funktion ist ein separates Profilfeld (siehe Benutzerverwaltung
   // / «Meine Angaben»), fällt auf die Rollen-Bezeichnung zurück, falls noch
   // nicht gepflegt.
-  // patientRef (optional): Patienten-Kennung ("Name #PID"), wird als kleine
-  // Referenzzeile ans Ende gehängt — beim gebündelten Versand über Outlook
-  // (PDF-Anhang statt direkt an den Patienten adressiert) ist sonst im
-  // Postausgang/Sent-Ordner nicht erkennbar, zu welchem Patienten die Mail
-  // gehört (Nutzerwunsch).
-  function emailSignature(patientRef?: string): string {
+  function emailSignature(): string {
     const name = profile?.displayName?.trim() || profile?.username?.trim() || ''
     if (!name) return ''
     return [
@@ -3333,7 +3317,6 @@ const lirisExtractRef  = useRef(lirisExtract)
       'Email: info@augenzentrum-suhr.ch',
       'HIN Mail: augenzentrum-suhr@hin.ch',
       'Tel.: 062 842 18 46',
-      ...(patientRef ? ['', `Ref.: ${patientRef}`] : []),
     ].join('\n')
   }
 
@@ -3375,9 +3358,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Firma/Institution (Anrede weggeklickt): keine persönliche Anrede-Zeile.
     const salut  = (!form.anrede && !eMinor) ? '' : `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
     const subject = briefSubjectFor(form)
-    const pidRef = normalizePid(patient.pid)
-    const patientRef = [titleCaseName(patient.vorname || '') || nachname, pidRef ? `#${pidRef}` : ''].filter(Boolean).join(' ')
-    const shortBody = `${salut ? `${salut}\n\n` : ''}Im Anhang erhalten Sie unser Schreiben.${emailSignature(patientRef)}`
+    const shortBody = `${salut ? `${salut}\n\n` : ''}Im Anhang erhalten Sie unser Schreiben.${emailSignature()}`
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const adressTrimmedLocal = form.adressBlock.trim()

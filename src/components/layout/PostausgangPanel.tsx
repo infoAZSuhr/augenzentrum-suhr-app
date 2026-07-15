@@ -249,12 +249,7 @@ export default function PostausgangPanel() {
 
   const mailOne = async (it: PostausgangItem) => {
     if (!it.tmpPath || !electronApi?.openMailWithAttachments) { setStatusMsg({ kind: 'err', text: 'Nur in der Electron-App verfügbar.' }); return }
-    // Patienten-Ref. im Fusszeilen-Bereich der Mail, nicht nur im Betreff —
-    // im Sent-Ordner ist sonst beim Ueberfliegen oft nicht erkennbar, zu
-    // welchem Patienten die Mail gehoert (Nutzerwunsch).
-    const ref = `${it.vorname || ''}${it.pid ? ' #' + it.pid : ''}`.trim()
-    const body = `Aufgebotsbrief im Anhang zum Drucken/Versenden.${ref ? `\n\nRef.: ${ref}` : ''}`
-    const res = await electronApi.openMailWithAttachments([it.tmpPath], `Aufgebotsbrief ${it.vorname}${it.pid ? ' #' + it.pid : ''}`, PRAXIS_EMAIL, body)
+    const res = await electronApi.openMailWithAttachments([it.tmpPath], `Aufgebotsbrief ${it.vorname}${it.pid ? ' #' + it.pid : ''}`, PRAXIS_EMAIL, 'Aufgebotsbrief im Anhang zum Drucken/Versenden.')
     if (res.ok) { markVersendet([it.id]); setStatusMsg({ kind: 'ok', text: `✓ E-Mail an ${PRAXIS_EMAIL} vorbereitet — bitte in Outlook senden.` }) }
     else setStatusMsg({ kind: 'err', text: 'E-Mail fehlgeschlagen: ' + (res.error || 'unbekannt') })
   }
@@ -286,10 +281,7 @@ export default function PostausgangPanel() {
       const today = new Date().toISOString().slice(0, 10)
       const tmp = await electronApi.writePdfTmp(out.buffer as ArrayBuffer, `Aufgebotsbriefe_${today}.pdf`)
       if (!tmp.ok || !tmp.path) { setStatusMsg({ kind: 'err', text: 'PDF-Buendelung fehlgeschlagen: ' + (tmp.error || 'unbekannt') }); return }
-      // Bei mehreren gebündelten Patienten in einer PDF ist sonst gar nicht
-      // erkennbar, wer alles dabei ist — Liste als Ref. anhängen.
-      const refs = offen.map(i => `${i.vorname || ''}${i.pid ? ' #' + i.pid : ''}`.trim()).filter(Boolean)
-      const body = `Beigefügt ${offen.length} Aufgebotsbrief(e) in einer PDF zum Ausdrucken und Versenden.${refs.length ? `\n\nEnthaltene Patienten:\n${refs.map(r => `- ${r}`).join('\n')}` : ''}`
+      const body = `Beigefügt ${offen.length} Aufgebotsbrief(e) in einer PDF zum Ausdrucken und Versenden.`
       const res = await electronApi.openMailWithAttachments([tmp.path], 'E-Mail zum Ausdrucken und Versenden', PRAXIS_EMAIL, body)
       if (res.ok) {
         markVersendet(offen.map(i => i.id))
