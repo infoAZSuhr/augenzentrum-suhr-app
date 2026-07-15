@@ -219,6 +219,15 @@ export default function PostausgangPanel() {
   // wo Briefe landen. Bei leerem Postausgang verkleinert sich der Button
   // und wirkt dezenter (kein Anzahl-Badge).
 
+  // Automatisch minimieren, sobald alle Briefe abgearbeitet sind (Postausgang
+  // leer) UND das Panel gerade offen ist — kurze Verzoegerung, damit der User
+  // den leeren Zustand noch kurz sieht, statt dass das Panel abrupt verschwindet.
+  useEffect(() => {
+    if (!open || visibleItems.length > 0) return
+    const t = setTimeout(() => setOpen(false), 1500)
+    return () => clearTimeout(t)
+  }, [open, visibleItems.length])
+
   const handleDragStart = (e: React.DragEvent, it: PostausgangItem) => {
     // Drag muss synchron initiiert werden — preventDefault() + IPC-send
     // moeglichst im selben Tick, sonst startDrag kommt zu spaet und der
