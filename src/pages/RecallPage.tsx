@@ -534,6 +534,10 @@ const lirisExtractRef  = useRef(lirisExtract)
   // nachfragen, damit Angaben nicht leichtfertig geändert werden können.
   const [inaktivEditConfirmTarget, setInaktivEditConfirmTarget] = useState<RecallPatient | null>(null)
   const inaktivEditSendToLirisRef = useRef(true)
+  // Inaktiv OHNE Grund f. Stornierung: vor dem Setzen des Status immer
+  // nachfragen (statt still zu inaktivieren und den Grund erst beim
+  // Speichern als Pflichtfeld-Fehler zu melden).
+  const [inaktivOhneGrundConfirm, setInaktivOhneGrundConfirm] = useState<(() => void) | null>(null)
   // Namensauswahl bei mehreren Vornamen aus Liris
   const [lirisNameChoice, setLirisNameChoice] = useState<{ options: string[] } | null>(null)
   // Arzt-nicht-in-Liste-Dialog (aus Liris extrahierter Arzt-Name).
@@ -3534,6 +3538,67 @@ const lirisExtractRef  = useRef(lirisExtract)
     if (!aufgebotTarget) setModalBuffer(false)
     setEditTarget(null)
     if (pendingReload.current) { pendingReload.current = false; loadAll() }
+  }
+  // Statuswechsel im Edit-Formular — ausgelagert, damit das Status-Dropdown
+  // den Wechsel auf "inaktiv" ohne Grund f. Stornierung erst per Bestätigung
+  // (siehe inaktivOhneGrundConfirm) anwenden kann statt sofort.
+  function applyStatusChange(v: string) {
+    const wasInaktiv = form.patientenStatus === 'inaktiv'
+    setField('patientenStatus', v)
+    if (v !== 'aktiv') {
+      setField('naechsteKons', '')
+      setField('keinTermin', false)
+    }
+    if (v === 'aktiv' && wasInaktiv) {
+      // Reaktivierung nach Inaktiv: die alte letzte Konsultation
+      // (und alles was davon abhaengt — RC-ab, Aufgebot erstellt/
+      // Art, Intervall) ist nach der inaktiven Phase veraltet.
+      // Nutzerwunsch: komplett zuruecksetzen, damit die MPA beim
+      // naechsten Kontakt frisch anhand von Liris neu erfasst,
+      // statt mit einem stehengebliebenen alten Stand weiterzuarbeiten.
+      setField('letzteKons', '')
+      setField('naechsteKons', '')
+      setField('keinTermin', false)
+      setField('aufgebotFuer', '')
+      setField('aufgebotErstellt', '')
+      setField('aufgebotArt', '')
+      setField('konsInterval', '')
+      // Danach automatisch die letzte Konsultation aus Liris
+      // nachziehen (Nutzerwunsch) — Akte erneut oeffnen, der
+      // bestehende lirisExtract-Effekt (oben) fuellt letzteKons
+      // + Intervall automatisch, sobald die Liris-Antwort kommt.
+      const reactivatePid = normalizePid(form.pid)
+      if (reactivatePid) {
+        toast.info('Letzte Konsultation wird aus Liris nachgezogen…')
+        openWithPid(reactivatePid)
+      }
+    }
+    if (v === 'kein Aufgebot' || v === 'inaktiv' || v === 'verstorben') {
+      // Self-Service / inaktiv / verstorben: keine Aufgebote/
+      // Recall-Planung mehr → "RC zu erstellen ab" (aufgebotFuer)
+      // und die restliche Aufgebots-Zeile aufräumen, damit kein
+      // Widerspruch (offenes RC bei inaktivem/verstorbenem
+      // Patient) bestehen bleibt.
+      setField('aufgebotFuer', '')
+      setField('aufgebotArt', '')
+      setField('aufgebotErstellt', '')
+    }
+    if (v === 'verstorben') {
+      // Status Verstorben → Storno-Grund automatisch mitsetzen,
+      // damit Filter/Auswertung nach Grund konsistent sind.
+      setField('storniert', 'ja')
+      setField('grundStornierung', 'Verstorben')
+    }
+    if ((v === 'inaktiv' || v === 'verstorben') && lastLirisAutor.current) {
+      const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
+      const words = cleaned.split(/\s+/)
+      let arztAktiv = false
+      for (let n = 1; n <= words.length; n++) {
+        const cand = words.slice(-n).join(' ').toLowerCase()
+        if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
+      }
+      if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
+    }
   }
 
   function checkPid(raw: string) {
@@ -8417,12 +8482,16 @@ const lirisExtractRef  = useRef(lirisExtract)
                   ) && (
                     <button type="button"
                       onClick={() => {
-                        setField('patientenStatus', 'inaktiv')
-                        setField('aufgebotFuer', '')
-                        setField('aufgebotArt', '')
-                        setField('aufgebotErstellt', '')
-                        setField('naechsteKons', '')
-                        setField('keinTermin', false)
+                        const apply = () => {
+                          setField('patientenStatus', 'inaktiv')
+                          setField('aufgebotFuer', '')
+                          setField('aufgebotArt', '')
+                          setField('aufgebotErstellt', '')
+                          setField('naechsteKons', '')
+                          setField('keinTermin', false)
+                        }
+                        if (!form.grundStornierung?.trim()) setInaktivOhneGrundConfirm(() => apply)
+                        else apply()
                       }}
                       className={`w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors ${
                         form.patientenStatus === 'inaktiv'
@@ -8442,62 +8511,11 @@ const lirisExtractRef  = useRef(lirisExtract)
                 <select value={form.patientenStatus}
                   onChange={e => {
                     const v = e.target.value
-                    const wasInaktiv = form.patientenStatus === 'inaktiv'
-                    setField('patientenStatus', v)
-                    if (v !== 'aktiv') {
-                      setField('naechsteKons', '')
-                      setField('keinTermin', false)
+                    if (v === 'inaktiv' && !form.grundStornierung?.trim()) {
+                      setInaktivOhneGrundConfirm(() => () => applyStatusChange(v))
+                      return
                     }
-                    if (v === 'aktiv' && wasInaktiv) {
-                      // Reaktivierung nach Inaktiv: die alte letzte Konsultation
-                      // (und alles was davon abhaengt — RC-ab, Aufgebot erstellt/
-                      // Art, Intervall) ist nach der inaktiven Phase veraltet.
-                      // Nutzerwunsch: komplett zuruecksetzen, damit die MPA beim
-                      // naechsten Kontakt frisch anhand von Liris neu erfasst,
-                      // statt mit einem stehengebliebenen alten Stand weiterzuarbeiten.
-                      setField('letzteKons', '')
-                      setField('naechsteKons', '')
-                      setField('keinTermin', false)
-                      setField('aufgebotFuer', '')
-                      setField('aufgebotErstellt', '')
-                      setField('aufgebotArt', '')
-                      setField('konsInterval', '')
-                      // Danach automatisch die letzte Konsultation aus Liris
-                      // nachziehen (Nutzerwunsch) — Akte erneut oeffnen, der
-                      // bestehende lirisExtract-Effekt (oben) fuellt letzteKons
-                      // + Intervall automatisch, sobald die Liris-Antwort kommt.
-                      const reactivatePid = normalizePid(form.pid)
-                      if (reactivatePid) {
-                        toast.info('Letzte Konsultation wird aus Liris nachgezogen…')
-                        openWithPid(reactivatePid)
-                      }
-                    }
-                    if (v === 'kein Aufgebot' || v === 'inaktiv' || v === 'verstorben') {
-                      // Self-Service / inaktiv / verstorben: keine Aufgebote/
-                      // Recall-Planung mehr → "RC zu erstellen ab" (aufgebotFuer)
-                      // und die restliche Aufgebots-Zeile aufräumen, damit kein
-                      // Widerspruch (offenes RC bei inaktivem/verstorbenem
-                      // Patient) bestehen bleibt.
-                      setField('aufgebotFuer', '')
-                      setField('aufgebotArt', '')
-                      setField('aufgebotErstellt', '')
-                    }
-                    if (v === 'verstorben') {
-                      // Status Verstorben → Storno-Grund automatisch mitsetzen,
-                      // damit Filter/Auswertung nach Grund konsistent sind.
-                      setField('storniert', 'ja')
-                      setField('grundStornierung', 'Verstorben')
-                    }
-                    if ((v === 'inaktiv' || v === 'verstorben') && lastLirisAutor.current) {
-                      const cleaned = lastLirisAutor.current.replace(/^(?:Dr|Prof|med)\.?\s+/i, '').trim()
-                      const words = cleaned.split(/\s+/)
-                      let arztAktiv = false
-                      for (let n = 1; n <= words.length; n++) {
-                        const cand = words.slice(-n).join(' ').toLowerCase()
-                        if (doctors.find(d => d.toLowerCase() === cand || d.toLowerCase().includes(cand))) { arztAktiv = true; break }
-                      }
-                      if (!arztAktiv) setAssignDoctor(lastLirisAutor.current)
-                    }
+                    applyStatusChange(v)
                   }}
                   className={inputCls + chCls('patientenStatus')}>
                   <option value="">—</option>
@@ -8882,6 +8900,45 @@ const lirisExtractRef  = useRef(lirisExtract)
                 }}
                 className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
                 Ja, bearbeiten
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status "Inaktiv" ohne Grund f. Stornierung: vor dem Setzen nachfragen. */}
+      {inaktivOhneGrundConfirm && (
+        <div className="fixed inset-0 z-[65] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => setInaktivOhneGrundConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <span className="font-bold text-gray-900">Kein Grund angegeben</span>
+              </div>
+              <button onClick={() => setInaktivOhneGrundConfirm(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              <p className="text-gray-700">
+                Für die Inaktivierung ist kein «Grund f. Stornierung / Terminverschiebung» hinterlegt.
+              </p>
+              <p className="text-gray-600">Trotzdem als inaktiv markieren?</p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end gap-2">
+              <button onClick={() => setInaktivOhneGrundConfirm(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  inaktivOhneGrundConfirm()
+                  setInaktivOhneGrundConfirm(null)
+                }}
+                className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
+                Ja, ohne Grund inaktivieren
               </button>
             </div>
           </div>
