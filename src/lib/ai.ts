@@ -50,3 +50,38 @@ Anliegen (Stichworte der MPA): ${anliegen.trim()}`
   if (!parsed.text?.trim()) throw new Error('KI-Antwort ohne Text')
   return { betreff: (parsed.betreff || '').trim(), text: parsed.text.trim() }
 }
+
+// KI-Zusammenfassung eines Arztberichts. DATENSCHUTZ: Es wird NUR der Text
+// zusammengefasst, den die MPA bewusst hier einfügt (z.B. ein Ausschnitt aus
+// einem Bericht) — anders als ein automatischer PDF-Upload entscheidet die
+// MPA selbst, was sie einfügt.
+const SYSTEM_ANWEISUNG_BERICHT = `Du fasst medizinische Arztberichte für eine augenärztliche Praxis in der Schweiz (Augenzentrum Suhr) für die MPA (medizinische Praxisassistentin) zusammen.
+
+Regeln:
+- Sprache: Deutsch (Schweiz), also "ss" statt "ß".
+- Fasse NUR das medizinisch Wesentliche zusammen: Diagnose(n), durchgeführte Behandlung/OP, Befund, weiteres Vorgehen/Empfehlung.
+- Erfinde NICHTS — wenn eine Information im Text fehlt, lass den entsprechenden Punkt einfach weg.
+- Kurz: maximal 5 Stichpunkte, je ein Satz.
+- Antworte ausschliesslich als JSON-Objekt: {"punkte": ["...", "..."]}`
+
+/**
+ * Fasst einen (von der MPA eingefügten) Berichtstext in Stichpunkten zusammen.
+ * Wirft bei Netzwerk-/API-Fehlern oder leerem Text — Aufrufer zeigt Toast.
+ */
+export async function summarizeBericht(text: string): Promise<string[]> {
+  const trimmed = text.trim()
+  if (!trimmed) throw new Error('Kein Text zum Zusammenfassen')
+
+  const prompt = `${SYSTEM_ANWEISUNG_BERICHT}
+
+Berichtstext:
+${trimmed}`
+
+  const result = await model().generateContent(prompt)
+  const raw = result.response.text()
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error('Unerwartete KI-Antwort')
+  const parsed = JSON.parse(match[0]) as { punkte?: string[] }
+  if (!parsed.punkte?.length) throw new Error('KI-Antwort ohne Stichpunkte')
+  return parsed.punkte.map(p => p.trim()).filter(Boolean)
+}

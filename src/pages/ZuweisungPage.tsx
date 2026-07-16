@@ -3,11 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, Filter, CheckCircle2, Clock, ExternalLink, Building2,
   Users, CalendarDays, StickyNote, ChevronDown, ChevronUp, FileText, Mail, Plus, Trash2, Search, X,
-  AlertTriangle, BarChart3, Download, Printer,
+  AlertTriangle, BarChart3, Download, Printer, Sparkles,
 } from 'lucide-react'
 import { RecallPatient, Zuweisung, subscribeZuweisungPatients, patientZuweisungen, saveZuweisungen, newZuweisung, updateRecallPatient } from '../lib/firestoreRecall'
 import { useAuth } from '../lib/AuthContext'
 import { useBrowser } from '../contexts/BrowserContext'
+import { useToast } from '../lib/ToastContext'
+import { summarizeBericht } from '../lib/ai'
 
 const isElectron = typeof window !== 'undefined' && !!(window as { electronApp?: unknown }).electronApp
 
@@ -113,7 +115,16 @@ export default function ZuweisungPage() {
   const displayFunktion = profile?.funktion?.trim()
     || (profile?.role === 'arzt' ? profile?.fachtitel?.trim() : '')
     || ROLE_FALLBACK[profile?.role ?? ''] || ''
+  const toast = useToast()
   const [search, setSearch] = useState('')
+
+  // KI-Zusammenfassung eines Berichts: die MPA fügt selbst einen Textausschnitt
+  // ein (bewusste, kontrollierte Eingabe — kein automatischer PDF-Upload) und
+  // erhält Stichpunkte zurück. `berichtSummaryOpen` = welcher Bericht (id) hat
+  // das Eingabefeld gerade offen, `berichtSummaryDraft` = eingefügter Text je id.
+  const [berichtSummaryOpen, setBerichtSummaryOpen] = useState<string | null>(null)
+  const [berichtSummaryDraft, setBerichtSummaryDraft] = useState<Record<string, string>>({})
+  const [berichtSummaryLoading, setBerichtSummaryLoading] = useState<string | null>(null)
 
   // Bericht-Mail, die auf den Namen aus der Liris-Akte wartet (für eine Zuweisung)
   const [pendingMail, setPendingMail] = useState<{ p: RecallPatient; z: Zuweisung & { id: string } } | null>(null)
@@ -161,7 +172,7 @@ export default function ZuweisungPage() {
   // beidseitiger Katarakt-OP), daher eindeutige id statt typ als Schluessel.
   // Legacy-Einzelfeld (berichtTyp/berichtDatum) wird beim ersten Zugriff
   // transparent migriert.
-  function berichtListe(z: Zuweisung): { id: string; typ: BerichtTyp; datum: string }[] {
+  function berichtListe(z: Zuweisung): { id: string; typ: BerichtTyp; datum: string; zusammenfassung?: string }[] {
     // Fehlende ids (Eintraege aus aelterer Version) DETERMINISTISCH per Index
     // ergaenzen — eine Zufalls-id waere bei jedem Aufruf anders, wodurch
     // remove/update den Eintrag nie wiederfinden wuerden. Beim naechsten
@@ -215,6 +226,26 @@ export default function ZuweisungPage() {
     const patch: Partial<Zuweisung> = { berichte: next }
     if (entry?.typ === 'abschluss') patch.erledigtAm = datum
     patchZuweisung(p, z.id, patch, `Datum von ${entry ? BERICHT_LABELS_FULL[entry.typ] : 'Bericht'} geändert auf ${formatDate(datum)}`)
+  }
+
+  async function runBerichtSummary(p: RecallPatient, z: Zuweisung & { id: string }, id: string) {
+    const text = (berichtSummaryDraft[id] || '').trim()
+    if (!text) { toast.error('Bitte zuerst einen Textausschnitt einfügen.'); return }
+    setBerichtSummaryLoading(id)
+    try {
+      const punkte = await summarizeBericht(text)
+      const cur = berichtListe(z)
+      const entry = cur.find(b => b.id === id)
+      const next = cur.map(b => b.id === id ? { ...b, zusammenfassung: punkte.join('\n') } : b)
+      await patchZuweisung(p, z.id, { berichte: next },
+        `${entry ? BERICHT_LABELS_FULL[entry.typ] : 'Bericht'} — KI-Zusammenfassung erstellt`)
+      setBerichtSummaryOpen(null)
+      setBerichtSummaryDraft(prev => { const n = { ...prev }; delete n[id]; return n })
+    } catch {
+      toast.error('KI-Zusammenfassung fehlgeschlagen — bitte erneut versuchen.')
+    } finally {
+      setBerichtSummaryLoading(null)
+    }
   }
 
   // Klick «Bericht anfragen»: Zuweisung als angefragt markieren; in der Desktop-
@@ -1052,6 +1083,60 @@ export default function ZuweisungPage() {
                   ) : (
                     <p className="text-xs text-gray-400 italic">Keine Notiz hinterlegt.</p>
                   )}
+
+                  {/* KI-Zusammenfassung je erfasstem Bericht: die MPA fügt selbst
+                      einen Textausschnitt ein (bewusste Eingabe, kein PDF-Upload)
+                      und erhält Stichpunkte zurück. */}
+                  {berichtListe(z).map(b => (
+                    <div key={b.id} className="rounded-lg border border-violet-200 bg-violet-50/40 p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-violet-700 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> {BERICHT_LABELS_FULL[b.typ]} — KI-Zusammenfassung
+                        </span>
+                        {berichtSummaryOpen !== b.id && (
+                          <button type="button"
+                            onClick={() => { setBerichtSummaryOpen(b.id); setBerichtSummaryDraft(prev => ({ ...prev, [b.id]: prev[b.id] || '' })) }}
+                            className="text-[11px] font-medium text-violet-600 hover:text-violet-800 hover:underline">
+                            {b.zusammenfassung ? 'Neu erstellen' : 'Text einfügen'}
+                          </button>
+                        )}
+                      </div>
+                      {b.zusammenfassung && berichtSummaryOpen !== b.id && (
+                        <ul className="mt-1.5 space-y-0.5 list-disc list-inside">
+                          {b.zusammenfassung.split('\n').filter(Boolean).map((punkt, i) => (
+                            <li key={i} className="text-xs text-gray-700">{punkt}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {berichtSummaryOpen === b.id && (
+                        <div className="mt-1.5 space-y-1.5">
+                          <p className="text-[10px] text-gray-500">
+                            Nur den gewünschten Berichtsausschnitt einfügen — dieser Text wird an die KI (Vertex AI) geschickt.
+                          </p>
+                          <textarea
+                            value={berichtSummaryDraft[b.id] || ''}
+                            onChange={e => setBerichtSummaryDraft(prev => ({ ...prev, [b.id]: e.target.value }))}
+                            placeholder="Berichtstext hier einfügen…"
+                            rows={4}
+                            className="w-full text-xs rounded-lg border border-violet-200 p-2 focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                          <div className="flex items-center gap-2 justify-end">
+                            <button type="button"
+                              onClick={() => { setBerichtSummaryOpen(null) }}
+                              className="px-2.5 py-1 text-[11px] text-gray-500 hover:bg-gray-100 rounded-lg">
+                              Abbrechen
+                            </button>
+                            <button type="button"
+                              disabled={berichtSummaryLoading === b.id}
+                              onClick={() => runBerichtSummary(p, z, b.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg">
+                              <Sparkles className="w-3 h-3" />
+                              {berichtSummaryLoading === b.id ? 'Wird zusammengefasst…' : 'Zusammenfassen'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
 
                   {/* Änderungsverlauf: wer, was, wann — auch nach «Erledigt» */}
                   {z.log && z.log.length > 0 && (
