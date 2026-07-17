@@ -50,12 +50,20 @@ export default function PostausgangPanel() {
     const offen = items.filter(i => !i.skipPrint && !i.printed && !i.versendet)
     if (offen.length === 0) return
     restoreReminded.current = true
+    // Nur Toast — Panel bleibt minimiert (Nutzerwunsch 2026-07-17: Postausgang
+    // immer minimiert anzeigen, ausser bei Fehlern).
     toast.warning(`📬 ${offen.length} Brief${offen.length === 1 ? '' : 'e'} im Postausgang warten noch auf den Druck!`, 12000)
-    setOpen(true)
   }, [restoredCount, items]) // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [statusMsg, setStatusMsg] = useState<{ kind: 'ok' | 'err'; text: string; log?: string[] } | null>(null)
+
+  // Fehlerfall: Panel automatisch aufklappen, damit der Fehler (und der
+  // haengende Brief) nicht unbemerkt bleibt — der einzige Fall, in dem sich
+  // das Panel von selbst oeffnet.
+  useEffect(() => {
+    if (statusMsg?.kind === 'err') setOpen(true)
+  }, [statusMsg])
   const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null)
   const [printPreviewTitle, setPrintPreviewTitle] = useState('Druckvorschau')
   const [printAuto, setPrintAuto] = useState(false)
