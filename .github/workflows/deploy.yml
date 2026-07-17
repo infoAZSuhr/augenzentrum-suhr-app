@@ -93,6 +93,20 @@ jobs:
             fi
           done
 
+      - name: Service-Worker-Cache-Version stempeln
+        # public/sw.js cached Assets "cache-first" — ohne Versionswechsel im
+        # CACHE-Namen erkennt der Service Worker bei Clients mit bereits
+        # aktivem SW nicht zuverlässig zeitnah, dass ein neuer Deploy da ist
+        # (führte dazu, dass die App auf manchen PCs "eingefroren" auf einem
+        # alten Stand blieb, siehe 2026-07-16/17). Jeder Deploy bekommt daher
+        # automatisch eine eindeutige CACHE-Version (Commit-SHA) — der
+        # Service Worker erkennt den geänderten Dateiinhalt beim nächsten
+        # Update-Check, aktiviert sich sofort (skipWaiting/clients.claim,
+        # bereits vorhanden) und verwirft den alten Cache-Namespace.
+        run: |
+          sed -i "s/const CACHE = '[^']*'/const CACHE = 'azs-${GITHUB_SHA::8}'/" public/sw.js
+          grep "const CACHE" public/sw.js
+
       - name: App bauen (tsc + vite)
         run: npm run build
 
