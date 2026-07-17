@@ -5494,7 +5494,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                           onChange={e => setAf({ terminZeit: e.target.value })}
                           className="input text-sm w-28">
                           <option value="">Uhrzeit</option>
-                          {Array.from({ length: 37 }, (_, i) => {
+                          {/* 08:00–18:00 in 15-Min-Schritten (41 Slots). Bis 2026-07-17
+                              endete die Auswahl bei 17:00 — Nutzerwunsch: bis 18 Uhr. */}
+                          {Array.from({ length: 41 }, (_, i) => {
                             const totalMin = 8 * 60 + i * 15
                             const h = String(Math.floor(totalMin / 60)).padStart(2, '0')
                             const m = String(totalMin % 60).padStart(2, '0')
