@@ -4845,11 +4845,19 @@ const lirisExtractRef  = useRef(lirisExtract)
                             return null
                           })()}
                           {isNachfassFaellig(row) && (
-                            <span
-                              title="Aufgeboten, aber seit über 1 Monat kein Termin gebucht — bitte nachfassen. Nach dem 1. Brief als nächste Stufe telefonisch nachfassen."
-                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 shrink-0 cursor-help">
+                            /* Ein-Klick-Nachfassen (Nutzerwunsch 2026-07-17): der Badge
+                               ist klickbar und öffnet direkt den passenden, vorbefüllten
+                               Dialog (Tel-Erfassung bzw. Brief mit Liris-Adress-Prefill) —
+                               statt Patient öffnen und die Aktion manuell zusammenzuklicken. */
+                            <button type="button"
+                              onClick={e => {
+                                e.stopPropagation()
+                                openAufgebotDialog({ patient: row }, nachfassNext(row.aufgebotArt))
+                              }}
+                              title="Aufgeboten, aber seit über 1 Monat kein Termin gebucht — bitte nachfassen. Klick öffnet direkt den passenden Dialog (nächster Schritt bereits vorgewählt)."
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 shrink-0 hover:bg-orange-200 hover:border-orange-400 transition-colors cursor-pointer">
                               ↻ Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
-                            </span>
+                            </button>
                           )}
                           {(() => {
                             const stufe = nachfassStufe(row)
