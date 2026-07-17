@@ -3280,6 +3280,7 @@ const lirisExtractRef  = useRef(lirisExtract)
             // Payload fuer automatisches 'aufgeboten markieren' nach
             // Verarbeitung (Liris-Upload oder Mail an Praxis).
             aufgebot: { patient, form },
+            footerRef: footerIdCode(patient),
           })
           toast.success(
             skipPrint
@@ -3375,8 +3376,9 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Firma/Institution (Anrede weggeklickt): keine persönliche Anrede-Zeile.
     const salut  = (!form.anrede && !eMinor) ? '' : `Sehr ${eMinor ? 'geehrte Familie' : anredeAnrede} ${nachname}`
     const subject = briefSubjectFor(form)
-    const pidRef = normalizePid(patient.pid)
-    const patientRef = [titleCaseName(patient.vorname || '') || nachname, pidRef ? `#${pidRef}` : ''].filter(Boolean).join(' ')
+    // Gleicher Code wie in der Brief-Fusszeile (kein Klartext-Name, nur
+    // PID-Geb.-Initialen) — Nutzerwunsch: einheitliches Format Brief/E-Mail.
+    const patientRef = footerIdCode(patient)
     const shortBody = `${salut ? `${salut}\n\n` : ''}Im Anhang erhalten Sie unser Schreiben.${emailSignature(patientRef)}`
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
