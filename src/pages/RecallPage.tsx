@@ -7521,19 +7521,30 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <label className="block text-xs font-semibold text-gray-600">
                     Zuweisung
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !form.zuweisungAktiv
-                      setField('zuweisungAktiv', next)
-                      if (next && form.letzteKons) {
-                        setField('zuweisungDatum', form.letzteKons)
-                      }
-                    }}
-                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.zuweisungAktiv ? 'bg-violet-500' : 'bg-gray-200'}`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${form.zuweisungAktiv ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {editTarget !== 'new' && form.pid && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/zuweisungen?pid=${normalizePid(form.pid)}`)}
+                        title="Diesen Patienten im ZW-Management öffnen"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:text-violet-800 hover:underline shrink-0">
+                        <ArrowRightLeft className="w-3 h-3" /> ZW-Management
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !form.zuweisungAktiv
+                        setField('zuweisungAktiv', next)
+                        if (next && form.letzteKons) {
+                          setField('zuweisungDatum', form.letzteKons)
+                        }
+                      }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.zuweisungAktiv ? 'bg-violet-500' : 'bg-gray-200'}`}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${form.zuweisungAktiv ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Schnell-Merker: Details noch offen, aber die Zuweisung darf

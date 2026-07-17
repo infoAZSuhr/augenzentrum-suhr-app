@@ -305,6 +305,18 @@ export default function ZuweisungPage() {
     }
   }, [location.search, navigate])
 
+  // Deep-Link von «Patient bearbeiten» (Recall): /zuweisungen?pid=<PID>
+  // filtert direkt auf den jeweiligen Patienten, statt dass die MPA ihn
+  // in der vollen ZW-Liste erst wieder suchen muss.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const pid = params.get('pid')
+    if (pid) {
+      setSearch(pid)
+      navigate('/zuweisungen', { replace: true })
+    }
+  }, [location.search, navigate])
+
   // Eine Zeile PRO Zuweisung (Patient kann mehrfach erscheinen).
   type Row = { p: RecallPatient; z: Zuweisung & { id: string }; key: string }
   const rows: Row[] = patients
