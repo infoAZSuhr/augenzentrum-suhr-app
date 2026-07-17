@@ -144,8 +144,11 @@ export default function PostausgangPanel() {
     const waitForAkte = async (): Promise<boolean> => {
       const wantPid = normalizePid(it.pid)
       const requestedAt = Date.now()
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 500))
+      // 300ms-Polling statt 500ms: die Bestaetigung wird im Normalfall
+      // frueher erkannt (Upload startet schneller); Gesamt-Timeout leicht
+      // erhoeht (50x300ms = 15s statt 10s) fuer langsame Liris-Antworten.
+      for (let i = 0; i < 50; i++) {
+        await new Promise(r => setTimeout(r, 300))
         const lx = lirisExtractRef.current
         if (lx && lx.at >= requestedAt && normalizePid(lx.pid) === wantPid && lx.pidMatchesLiris !== false) return true
       }

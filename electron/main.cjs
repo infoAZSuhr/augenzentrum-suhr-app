@@ -323,7 +323,19 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     wc = webContents.fromId(webContentsId)
     if (!wc) return fail('Liris-Webview nicht gefunden (id=' + webContentsId + ')')
     try { wc.debugger.attach('1.3'); attached = true; step('Debugger attached') }
-    catch (e) { return fail('Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e) + ')') }
+    catch (e) {
+      // "Debugger is already attached": haeufig ein Rest eines vorherigen
+      // (abgebrochenen) Versuchs — einmal detachen und neu attachen statt
+      // sofort aufzugeben (Fehlerbild aus error_log 2026-07-17).
+      if (String(e).indexOf('already attached') >= 0) {
+        try { wc.debugger.detach() } catch { /* no-op */ }
+        await sleep(200)
+        try { wc.debugger.attach('1.3'); attached = true; step('Debugger attached (nach Detach-Retry)') }
+        catch (e2) { return fail('Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e2) + ')') }
+      } else {
+        return fail('Debugger-Attach fehlgeschlagen — sind die DevTools im Liris offen? (' + String(e) + ')')
+      }
+    }
 
     const evalJs = async (expr) => {
       const r = await wc.debugger.sendCommand('Runtime.evaluate', { expression: expr, returnByValue: true })
@@ -555,8 +567,10 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet') return true; }
       return false;
     })()`)
+    // War 10x400ms=4s — reichte bei langsamem Seitenwechsel (v.a. nach
+    // manueller Arztauswahl) nicht immer, siehe error_log 2026-07-15/17.
     let mailVisible = false
-    for (let i = 0; i < 10 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
+    for (let i = 0; i < 25 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
     step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
     if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Arzt-Auswahl: ' + (arztWahlWeg || 'unbekannt') + '.')
     await sleep(1200)

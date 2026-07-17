@@ -517,6 +517,18 @@ export default function BrowserPanel() {
   const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest, lirisSuppressed, setLirisPanelWidth } = useBrowser()
   const toast = useToast()
 
+  // WebContents-ID beim Unmount zuruecksetzen. Das Panel ist nur auf
+  // /recall, /ivom und /zuweisung gemountet (siehe AppShell) — navigiert der
+  // User z.B. zum Dashboard, wird das Webview zerstoert, aber die ID blieb
+  // bisher stale im Context stehen. Der app-weite Postausgang startete dann
+  // Auto-Uploads gegen ein nicht mehr existierendes Webview: openWithPid
+  // lief ins Leere (kein Panel, keine PID-Injection) und der Upload scheiterte
+  // nach ~20s Wartezeit mit "Patientenakte konnte nicht geoeffnet werden" —
+  // die haeufigste Fehlerursache im error_log (Stand 2026-07-17). Mit
+  // genullter ID wartet die Auto-Upload-Queue stattdessen sauber, bis der
+  // User wieder auf einer Seite mit Liris-Panel ist.
+  useEffect(() => () => setLirisWebContentsId(null), [setLirisWebContentsId])
+
   // External reload-Trigger (z.B. nach 'Als aufgeboten markieren') —
   // laedt das Liris-Webview neu, damit neue Termine sichtbar werden.
   useEffect(() => {
