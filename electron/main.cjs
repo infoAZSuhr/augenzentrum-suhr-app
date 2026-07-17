@@ -470,7 +470,11 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     } else {
       const lnEsc = ln.replace(/[.*+?^${}()|[\]\\]/g, '')
       let res = null
-      for (let i = 0; i < 12 && res !== 'ok'; i++) {
+      // War 12x300ms (~4s): Liris rendert die Aerzteliste teils deutlich
+      // spaeter als den Dialog-Prompt — die Automatik gab dann auf, obwohl
+      // der Arzt Sekunden spaeter erschienen waere (Fall "Artemiev"/#1583,
+      // error_log 2026-07-17). Auf 24 Versuche (~8s) verlaengert.
+      for (let i = 0; i < 24 && res !== 'ok'; i++) {
         res = await evalJs(`(function(){
           var ln=${JSON.stringify(lnEsc.toLowerCase())};
           // \\b ist in JS rein ASCII (\\w = [A-Za-z0-9_]) — bei Nachnamen mit
@@ -572,24 +576,49 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     let mailVisible = false
     for (let i = 0; i < 25 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
     step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
-    if (!mailVisible) return fail('"Mail gesendet" nicht gefunden. Arzt-Auswahl: ' + (arztWahlWeg || 'unbekannt') + '.')
-    await sleep(1200)
-    // Klick mit Wiederholung: Liris kann die Seite zwischen Sichtbarkeits-
-    // Check und Klick neu rendern (Link dann kurzzeitig nicht mehr im DOM) —
-    // daher mehrere Versuche statt nur einem einzelnen Klick.
-    const clickMail = () => evalJs(`(function(){
-      var as=[].slice.call(document.querySelectorAll('a'));
-      for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
-      return false;
-    })()`)
-    let mailOk = false
-    for (let i = 0; i < 6 && !mailOk; i++) {
-      mailOk = await clickMail()
-      if (!mailOk) await sleep(400)
+    let skipMailKlick = false
+    if (!mailVisible) {
+      // Bedient die MPA den Dialog manuell weiter (z.B. Dokumenttyp selbst
+      // gewaehlt), ist "Mail gesendet" bereits vorbei und das Datei-Feld
+      // schon offen — dann NICHT abbrechen, sondern direkt zu Schritt 3
+      // (Fall "Artemiev"/#1583, error_log 2026-07-17: nach manueller
+      // Arztauswahl erschien "Mail gesendet" nie, der Upload brach ab,
+      // obwohl nur noch die Datei fehlte).
+      const { root: preRoot } = await wc.debugger.sendCommand('DOM.getDocument', { depth: -1, pierce: true })
+      const { nodeIds: preInputs } = await wc.debugger.sendCommand('DOM.querySelectorAll', { nodeId: preRoot.nodeId, selector: 'input[type="file"]' })
+      if (preInputs && preInputs.length) {
+        skipMailKlick = true
+        step('Schritt 2: uebersprungen — Datei-Feld bereits offen (Dokumenttyp manuell gewaehlt)')
+      } else {
+        // Diagnose: welche Links zeigt Liris stattdessen? (max. 400 Zeichen)
+        const links = await evalJs(`(function(){
+          var out=[]; var as=[].slice.call(document.querySelectorAll('a,button'));
+          for(var k=0;k<as.length;k++){ var t=(as[k].innerText||'').trim(); if(t&&t.length<60) out.push(t); }
+          return out.slice(0,25).join(' | ').slice(0,400);
+        })()`)
+        step('Schritt 2: sichtbare Links stattdessen: ' + links)
+        return fail('"Mail gesendet" nicht gefunden. Arzt-Auswahl: ' + (arztWahlWeg || 'unbekannt') + '.')
+      }
     }
-    step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
-    if (!mailOk) return fail('"Mail gesendet"-Klick fehlgeschlagen.')
-    await sleep(1800)
+    if (!skipMailKlick) {
+      await sleep(1200)
+      // Klick mit Wiederholung: Liris kann die Seite zwischen Sichtbarkeits-
+      // Check und Klick neu rendern (Link dann kurzzeitig nicht mehr im DOM) —
+      // daher mehrere Versuche statt nur einem einzelnen Klick.
+      const clickMail = () => evalJs(`(function(){
+        var as=[].slice.call(document.querySelectorAll('a'));
+        for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
+        return false;
+      })()`)
+      let mailOk = false
+      for (let i = 0; i < 6 && !mailOk; i++) {
+        mailOk = await clickMail()
+        if (!mailOk) await sleep(400)
+      }
+      step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
+      if (!mailOk) return fail('"Mail gesendet"-Klick fehlgeschlagen.')
+      await sleep(1800)
+    }
 
     // ── Schritt 3: Datei ins file-input ─────────────────────────────────────
     step('Schritt 3: file-input suchen…')
