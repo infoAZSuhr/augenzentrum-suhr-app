@@ -4862,6 +4862,13 @@ const lirisExtractRef  = useRef(lirisExtract)
                               </span>
                             )
                           })()}
+                          {isAwaitingZuweisungsBericht(row) && (
+                            <span
+                              title="Hängige Zuweisung: offen oder erledigt ohne erhaltenen Bericht"
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 shrink-0 cursor-help">
+                              ⏳ ZW
+                            </span>
+                          )}
                         </span>
                         {search.trim().length >= 2 && (
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 self-start leading-tight">{row.doctor}</span>
