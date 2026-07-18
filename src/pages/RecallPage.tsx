@@ -7428,6 +7428,38 @@ const lirisExtractRef  = useRef(lirisExtract)
                       return <p className="mt-1 text-[11px] text-red-400">ungültig</p>
                     return <p className="mt-1 text-[11px] text-gray-400">z.B. 1j, 6m, 2w, 30t</p>
                   })()}
+                  {/* Schnell-Aktualisierung (Nutzerwunsch 2026-07-17): Intervall ist
+                      erfasst, aber «RC zu erstellen ab» leer und KEINE Aufgebot-Art
+                      (Aufbieten/Tel./Praxis) gewählt — z.B. weil das Intervall schon
+                      vor der Datumskorrektur eingetragen war und der onChange-
+                      Automatismus deshalb nie lief. Ein Klick berechnet das RC-Datum
+                      aus Letzte Konst. + Intervall nach derselben Regel wie beim
+                      Intervall-Tippen (RC = 2 Monate vor dem Zieltermin, min. heute). */}
+                  {(() => {
+                    const computed = computeNextKons(form.letzteKons, form.konsInterval)
+                    if (!computed || form.aufgebotFuer || form.aufgebotArt) return null
+                    return (
+                      <button type="button"
+                        onClick={() => {
+                          setField('naechsteKons', '')
+                          setField('keinTermin', false)
+                          setField('storniert', '')
+                          setField('grundStornierung', '')
+                          const lk2 = new Date(form.letzteKons + 'T00:00:00Z')
+                          lk2.setUTCMonth(lk2.getUTCMonth() + 2)
+                          if (computed <= lk2.toISOString().slice(0, 10)) {
+                            setField('aufgebotFuer', new Date().toISOString().slice(0, 10))
+                          } else {
+                            const d = new Date(computed + 'T00:00:00Z')
+                            d.setUTCMonth(d.getUTCMonth() - 2)
+                            setField('aufgebotFuer', d.toISOString().slice(0, 10))
+                          }
+                        }}
+                        className="mt-1 w-full py-1 rounded-lg text-[11px] font-bold border transition-colors border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                        ↻ «RC zu erstellen ab» aus Intervall setzen
+                      </button>
+                    )
+                  })()}
                 </div>
 
                 {/* Arzt zuweisen (im oberen Grid - prominent platziert,
