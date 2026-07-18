@@ -4760,16 +4760,18 @@ const lirisExtractRef  = useRef(lirisExtract)
               <th onClick={e => handleSort('gebDatum', e.shiftKey)}     title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('gebDatum',     "text-left px-3 py-3 whitespace-nowrap")}>Geb. Datum{sortIcon('gebDatum')}</th>
               <th onClick={e => handleSort('letzteKons', e.shiftKey)}   title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('letzteKons',   "text-left px-3 py-3 whitespace-nowrap")}>Letzte Konst.{sortIcon('letzteKons')}</th>
               <th onClick={e => handleSort('naechsteKons', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('naechsteKons', "text-left px-3 py-3 whitespace-nowrap")}>Nächste Konst.{sortIcon('naechsteKons')}</th>
-              <th onClick={e => handleSort('aufgebotFuer', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotFuer', "text-left px-3 py-3 whitespace-nowrap")}>RC / Aufgebot{sortIcon('aufgebotFuer')}</th>
-              <th onClick={e => handleSort('storniert', e.shiftKey)}    title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('storniert',    "text-left px-3 py-3 whitespace-nowrap")}>Storniert{sortIcon('storniert')}</th>
-              <th className="px-2 py-3 w-[120px] text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Schnellaktionen</th>
+              {/* Nutzerwunsch 2026-07-18: RC und Aufgebot als getrennte Spalten;
+                  Storniert- und Schnellaktionen-Spalten ausgeblendet (Storno-Info
+                  bleibt über die rote Zeilen-Färbung + Filter sichtbar). */}
+              <th onClick={e => handleSort('aufgebotFuer', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aufgebotFuer', "text-left px-3 py-3 whitespace-nowrap")}>RC{sortIcon('aufgebotFuer')}</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">Aufgebot</th>
               <th onClick={e => handleSort('aktualisiert', e.shiftKey)} title="Klick: sortieren · Shift+Klick: Mehrfach-Sortierung" className={thSortCls('aktualisiert', "text-left px-3 py-3 whitespace-nowrap")}>Aktualisiert{sortIcon('aktualisiert')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={9} className="px-4 py-10 text-center text-gray-400">
                   Keine Einträge gefunden.
                 </td>
               </tr>
@@ -4784,7 +4786,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                 return (<Fragment key={row.id}>
                   {showGroupHeader && (
                     <tr className="bg-slate-100 border-t-2 border-slate-300">
-                      <td colSpan={10} className="px-4 py-2 text-sm font-bold text-slate-700">
+                      <td colSpan={9} className="px-4 py-2 text-sm font-bold text-slate-700">
                         {row.doctor === OFFEN_TAB ? 'Ohne Zuordnung' : row.doctor}
                         <span className="ml-2 text-xs font-normal text-slate-500">
                           ({pageRows.filter(r => r.doctor === row.doctor).length})
@@ -4910,10 +4912,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                         return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`
                       })()}
                     </td>
+                    {/* RC-Spalte (getrennt von Aufgebot, Nutzerwunsch 2026-07-18) */}
                     <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-2">
-                        {/* RC-Datum */}
-                        <div className="text-xs tabular-nums text-gray-500 min-w-[70px]">
+                      <div className="text-xs tabular-nums text-gray-500 min-w-[70px]">
                           {(() => {
                             const rcErstellt = !!(row.aufgebotArt && row.aufgebotErstellt)
                             if (row.aufgebotErstellt) {
@@ -4938,79 +4939,45 @@ const lirisExtractRef  = useRef(lirisExtract)
                             const isOverdue = !rcErstellt && !hatZukunftsTermin && !!lkInPast && !aufgebotInZukunft && row.patientenStatus !== 'kein Aufgebot'
                             return <span className="flex flex-col gap-0.5"><span>{label}</span>{isOverdue && <span className="text-[10px] font-semibold text-red-500">überfällig</span>}</span>
                           })()}
-                        </div>
-                        {/* Aufgebotsart-Icons */}
-                        <div className="flex items-center gap-0.5">
-                          {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => {
-                            const isActive = row.aufgebotArt === value
-                            return (
-                              <button
-                                key={value}
-                                title={label}
-                                onClick={e => { e.stopPropagation(); handleInlineAufgebotArt(row.id, row.doctor, value, row.aufgebotArt) }}
-                                className={`p-1 rounded transition-all ${
-                                  isActive
-                                    ? 'text-primary-600 bg-primary-50 border border-primary-200'
-                                    : 'text-gray-300 border border-transparent opacity-0 group-hover:opacity-100 hover:text-gray-600 hover:bg-gray-100'
-                                }`}
-                              >
-                                <Icon className="w-3.5 h-3.5" />
-                              </button>
-                            )
-                          })}
-                        </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {storniert ? (
-                        <span
-                          title={row.grundStornierung ? `Grund: ${row.grundStornierung}` : undefined}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 ${row.grundStornierung ? 'cursor-help' : ''}`}
-                        >
-                          ja
-                          {row.grundStornierung && <Info className="w-3 h-3 shrink-0" />}
-                        </span>
-                      ) : row.storniert === 'nein' ? (
-                        <span className="text-gray-400 text-xs">nein</span>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    {/* Aufgebot-Spalte (Art-Icons; Storno-Grund als Tooltip-Badge,
+                        da die Storniert-Spalte ausgeblendet wurde) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-0.5">
-                        {/* Excel-Abgleich Indikator – automatisch gesetzt beim Speichern */}
-                        {(row as any).excelAbgeglichen && (
-                          <span title="Mit Excel abgeglichen" className="p-1 text-green-600 shrink-0">
-                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                        {AUFGEBOT_OPTIONS.map(({ value, Icon, label }) => {
+                          const isActive = row.aufgebotArt === value
+                          return (
+                            <button
+                              key={value}
+                              title={label}
+                              onClick={e => { e.stopPropagation(); handleInlineAufgebotArt(row.id, row.doctor, value, row.aufgebotArt) }}
+                              className={`p-1 rounded transition-all ${
+                                isActive
+                                  ? 'text-primary-600 bg-primary-50 border border-primary-200'
+                                  : 'text-gray-300 border border-transparent opacity-0 group-hover:opacity-100 hover:text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                            </button>
+                          )
+                        })}
+                        {storniert && (
+                          <span
+                            title={row.grundStornierung ? `Storniert — Grund: ${row.grundStornierung}` : 'Storniert'}
+                            className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 cursor-help shrink-0">
+                            storniert
                           </span>
                         )}
-                        {/* Schnellaktionen – nur bei Hover */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            title="Tel: Erreicht"
-                            onClick={() => handleInlineVerlauf(row, 'Telefonanruf', 'Erreicht')}
-                            className="p-1 rounded text-gray-300 hover:text-green-600 hover:bg-green-50 transition-colors"
-                          ><PhoneCall className="w-3.5 h-3.5" /></button>
-                          <button
-                            title="Tel: Nicht erreicht"
-                            onClick={() => handleInlineVerlauf(row, 'Telefonanruf', 'Nicht erreicht')}
-                            className="p-1 rounded text-gray-300 hover:text-orange-500 hover:bg-orange-50 transition-colors"
-                          ><PhoneMissed className="w-3.5 h-3.5" /></button>
-                          <button
-                            title="Reminder in 1 Monat planen"
-                            onClick={() => { const d = new Date(); d.setMonth(d.getMonth() + 1); handleInlineVerlauf(row, 'Reminder', `Geplant: ${d.toISOString().slice(0, 10)}`) }}
-                            className="p-1 rounded text-gray-300 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                          ><Clock className="w-3.5 h-3.5" /></button>
-                          <button
-                            title="No Show – stornieren"
-                            onClick={() => handleInlineNoShow(row)}
-                            className="p-1 rounded text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          ><UserX className="w-3.5 h-3.5" /></button>
-                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-gray-400 text-xs whitespace-nowrap">
-                      {row.aktualisiert || row.erstellt || '—'}
+                      <span className="inline-flex items-center gap-1">
+                        {(row as any).excelAbgeglichen && (
+                          <span title="Mit Excel abgeglichen" className="shrink-0"><FileSpreadsheet className="w-3.5 h-3.5 text-green-600" /></span>
+                        )}
+                        {row.aktualisiert || row.erstellt || '—'}
+                      </span>
                     </td>
                   </tr>
                 </Fragment>)
