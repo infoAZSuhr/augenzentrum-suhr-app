@@ -8647,20 +8647,53 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <option value="Reminder">Reminder</option>
                   <option value="kein Aufgebot">kein Aufgebot - meldet sich b. Bedarf</option>
                 </select>
-                {/* Schnell-Button: Self-Service. Ein Klick setzt den Status und
-                    räumt alle Aufgebot-/Recall-Felder auf (bzw. zurück zu aktiv).
-                    Läuft über applyStatusChange, damit der Statuswechsel — wie
-                    beim Dropdown — automatisch gespeichert wird (Auto-Save). */}
-                <button type="button"
-                  onClick={() => applyStatusChange(form.patientenStatus === 'kein Aufgebot' ? 'aktiv' : 'kein Aufgebot')}
-                  className={`mt-2 w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors flex items-center justify-center gap-1.5 ${
-                    form.patientenStatus === 'kein Aufgebot'
-                      ? 'border-gray-400 bg-gray-200 text-gray-700'
-                      : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                  }`}>
-                  <BellOff className="w-3.5 h-3.5" />
-                  {form.patientenStatus === 'kein Aufgebot' ? '✓ Self-Service – meldet sich selbst' : 'Self-Service (kein Aufgebot)'}
-                </button>
+                {/* Status-Schnellbuttons: Self-Service / Inaktiv / Verstorben.
+                    Ein Klick setzt den Status (erneuter Klick: zurück zu aktiv)
+                    und räumt via applyStatusChange die Aufgebot-/Recall-Felder
+                    auf — inkl. Auto-Save wie beim Dropdown. Inaktiv nutzt
+                    dieselbe Grund-Nachfrage wie das Dropdown; Verstorben fragt
+                    wegen der Tragweite (Auto-Save!) einmal kurz nach. */}
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  <button type="button"
+                    onClick={() => applyStatusChange(form.patientenStatus === 'kein Aufgebot' ? 'aktiv' : 'kein Aufgebot')}
+                    title="Self-Service: kein Aufgebot — Patient meldet sich selbst"
+                    className={`py-2 rounded-lg text-[11px] font-bold border-2 transition-colors flex items-center justify-center gap-1 ${
+                      form.patientenStatus === 'kein Aufgebot'
+                        ? 'border-gray-400 bg-gray-200 text-gray-700'
+                        : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}>
+                    <BellOff className="w-3.5 h-3.5 shrink-0" />
+                    {form.patientenStatus === 'kein Aufgebot' ? '✓ Self-Service' : 'Self-Service'}
+                  </button>
+                  <button type="button"
+                    onClick={() => {
+                      if (form.patientenStatus === 'inaktiv') { applyStatusChange('aktiv'); return }
+                      if (!form.grundStornierung?.trim()) setInaktivOhneGrundConfirm(() => () => applyStatusChange('inaktiv'))
+                      else applyStatusChange('inaktiv')
+                    }}
+                    title="Patient inaktivieren (erneuter Klick: wieder aktivieren)"
+                    className={`py-2 rounded-lg text-[11px] font-bold border-2 transition-colors flex items-center justify-center gap-1 ${
+                      form.patientenStatus === 'inaktiv'
+                        ? 'border-gray-400 bg-gray-200 text-gray-700'
+                        : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                    }`}>
+                    <UserX className="w-3.5 h-3.5 shrink-0" />
+                    {form.patientenStatus === 'inaktiv' ? '✓ Inaktiv' : 'Inaktiv'}
+                  </button>
+                  <button type="button"
+                    onClick={() => {
+                      if (form.patientenStatus === 'verstorben') { applyStatusChange('aktiv'); return }
+                      if (window.confirm('Patient wirklich als verstorben markieren?\n\nDie Änderung wird sofort gespeichert.')) applyStatusChange('verstorben')
+                    }}
+                    title="Patient als verstorben markieren (erneuter Klick: wieder aktivieren)"
+                    className={`py-2 rounded-lg text-[11px] font-bold border-2 transition-colors flex items-center justify-center gap-1 ${
+                      form.patientenStatus === 'verstorben'
+                        ? 'border-gray-400 bg-gray-200 text-gray-700'
+                        : 'border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    }`}>
+                    † {form.patientenStatus === 'verstorben' ? '✓ Verstorben' : 'Verstorben'}
+                  </button>
+                </div>
               </div>
 
 
