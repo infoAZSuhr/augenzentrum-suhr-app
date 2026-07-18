@@ -26,7 +26,7 @@ const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
  *  Brief-PDFs mit Aktionen pro Eintrag: Drag&Drop ins Liris, per Mail
  *  versenden, loeschen. */
 export default function PostausgangPanel() {
-  const { items, restoredCount, remove, markUploaded, markUploadFailed, markPrinted, markVersendet } = usePostausgang()
+  const { items, restoredCount, remove, markUploaded, markUploadFailed, markPrinted, markVersendet, setUploadBusy } = usePostausgang()
   // Per E-Mail versendete Briefe (skipPrint) laufen nur als unsichtbarer
   // Liris-Upload-Job im Hintergrund mit — sie erscheinen NICHT in der Liste
   // und zaehlen nicht im Badge (Postausgang = nur zu druckende Briefe).
@@ -64,6 +64,14 @@ export default function PostausgangPanel() {
   useEffect(() => {
     if (statusMsg?.kind === 'err') setOpen(true)
   }, [statusMsg])
+
+  // Upload-Status in den Context spiegeln — RecallPage blockiert waehrenddessen
+  // "Patient bearbeiten" (wuerde per openWithPid die Liris-Akte wechseln und
+  // der laufende Upload landete beim falschen Patienten).
+  useEffect(() => {
+    setUploadBusy(!!uploadingId)
+    return () => setUploadBusy(false)
+  }, [uploadingId, setUploadBusy])
   const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null)
   const [printPreviewTitle, setPrintPreviewTitle] = useState('Druckvorschau')
   const [printAuto, setPrintAuto] = useState(false)

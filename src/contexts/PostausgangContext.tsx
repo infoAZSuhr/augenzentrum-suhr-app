@@ -39,6 +39,12 @@ interface PostausgangContextType {
   markPrinted: (ids: string[]) => void
   markVersendet: (ids: string[]) => void
   clear: () => void
+  // true solange ein Liris-Upload laeuft (gesetzt vom PostausgangPanel).
+  // Consumers (z.B. RecallPage) blockieren waehrenddessen Aktionen, die die
+  // offene Liris-Akte wechseln wuerden (Patient bearbeiten -> openWithPid) —
+  // sonst landet der Brief beim falschen Patienten.
+  uploadBusy: boolean
+  setUploadBusy: (busy: boolean) => void
 }
 
 const PostausgangContext = createContext<PostausgangContextType>({
@@ -51,6 +57,8 @@ const PostausgangContext = createContext<PostausgangContextType>({
   markPrinted: () => {},
   markVersendet: () => {},
   clear: () => {},
+  uploadBusy: false,
+  setUploadBusy: () => {},
 })
 
 interface ElectronPostausgangApi {
@@ -217,8 +225,10 @@ export function PostausgangProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('beforeunload', onUnload)
   }, [pendingCount, isElectron])
 
+  const [uploadBusy, setUploadBusy] = useState(false)
+
   return (
-    <PostausgangContext.Provider value={{ items, restoredCount, add, remove, markUploaded, markUploadFailed, markPrinted, markVersendet, clear }}>
+    <PostausgangContext.Provider value={{ items, restoredCount, add, remove, markUploaded, markUploadFailed, markPrinted, markVersendet, clear, uploadBusy, setUploadBusy }}>
       {children}
     </PostausgangContext.Provider>
   )

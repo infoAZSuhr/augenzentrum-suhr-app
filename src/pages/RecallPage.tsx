@@ -3527,6 +3527,13 @@ const lirisExtractRef  = useRef(lirisExtract)
   // ── Edit modal ───────────────────────────────────────────────────────────────
   function resetVorgehen() { setVorgehenTelOpen(false); setVorgehenEmailOpen(false); setVorgehenReminderOpen(false); setVorgehenTelDatum(''); setVorgehenEmailDatum(''); setVorgehenReminderDatum(''); setVorgehenTelGrund(''); setVorgehenEmailGrund(''); setVorgehenReminderGrund('') }
   function openEdit(patient: RecallPatient, sendToLiris = true) {
+    // Waehrend ein Brief-Upload ins Liris laeuft, KEINEN Patienten oeffnen —
+    // openEdit wuerde per openWithPid die offene Liris-Akte wechseln und der
+    // laufende Upload landete beim falschen Patienten (Nutzerwunsch 2026-07-18).
+    if (postausgang.uploadBusy) {
+      toast.warning('Brief-Upload ins Liris läuft gerade — bitte kurz warten, bis er abgeschlossen ist.')
+      return
+    }
     // Inaktive/verstorbene Patienten: erst nachfragen, ob wirklich bearbeitet
     // werden soll — verhindert leichtfertige Änderungen an ruhenden Akten.
     if (patient.patientenStatus === 'inaktiv' || patient.patientenStatus === 'verstorben') {
