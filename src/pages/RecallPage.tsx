@@ -187,20 +187,18 @@ function isAwaitingZuweisungsBericht(p: RecallPatient): boolean {
   return patientZuweisungen(p).some(z => z.status === 'pendent' || (z.status === 'erledigt' && !z.berichtErhalten))
 }
 
-/** True wenn ein Patient WIRKLICH offen ist (=> braucht Recall-Planung):
- *  kein nächster Termin, kein RC-Datum (aufgebotFuer), kein "kein-Termin"-Flag,
- *  Patient hat NICHT aktiv "kein Aufgebot" gewünscht, und wir warten NICHT
- *  noch auf den Abschlussbericht einer Zuweisung.
- *
- *  Patienten mit Status 'kein Aufgebot' wollen weder Reminder noch Aufgebote
- *  bekommen — die melden sich bei Bedarf selbst.
- *
- *  Patienten mit ausstehender Zuweisung sind auch nicht offen — das weitere
- *  Vorgehen kann ja erst nach Erhalt des Berichts bestimmt werden. */
+/** «Ohne RC» (Nutzerwunsch 2026-07-18): aktiver Patient OHNE geplantes
+ *  RC-Datum («RC zu erstellen ab» leer) — sofern auch kein Aufgebot erstellt
+ *  wurde und keine nächste Konsultation gebucht ist. Ergebnis: die Liste der
+ *  Patienten, bei denen die Recall-Planung wirklich noch fehlt (vorher
+ *  zählte jeder nie aufgebotene Patient dazu, auch mit Termin/RC-Datum). */
 function isOhneRC(p: RecallPatient): boolean {
   if (p.patientenStatus === 'kein Aufgebot') return false
   if (p.patientenStatus === 'inaktiv' || p.patientenStatus === 'verstorben') return false
-  return !p.aufgebotErstellt
+  if (p.aufgebotFuer) return false            // RC-Datum bereits geplant
+  if (p.aufgebotErstellt) return false        // Aufgebot bereits erstellt
+  if (hasScheduledNextKons(p)) return false   // nächste Konst. bereits gebucht
+  return true
 }
 
 function isOhneTermin(p: RecallPatient): boolean {
@@ -4468,7 +4466,7 @@ const lirisExtractRef  = useRef(lirisExtract)
           { key: 'ohneTermin' as FilterTermin, label: 'Ohne Termin', count: tabStats.ohneTermin, cls: 'bg-gray-200 text-gray-700 border-gray-300',
             title: 'Aktiver Patient ohne nächsten Termin und ohne geplantes RC-Datum — noch nicht erfasst, was als Nächstes ansteht.' },
           { key: 'ohneRC'     as FilterTermin, label: 'Ohne RC',     count: tabStats.ohneRC,     cls: 'bg-slate-200 text-slate-700 border-slate-300',
-            title: 'Aktiver Patient, für den noch nie ein Aufgebot oder Reminder erstellt wurde.' },
+            title: 'Aktiver Patient ohne «RC zu erstellen ab»-Datum — und ohne erstelltes Aufgebot oder gebuchte nächste Konsultation. Die Recall-Planung fehlt hier noch komplett.' },
         ]).map(chip => {
           const isActive = filterTermin === chip.key
           return (
