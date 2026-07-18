@@ -172,10 +172,12 @@ function isNieBeimArzt(p: RecallPatient): boolean {
  *     (Recall ist geplant aber noch nicht erstellt — angezeigt mit "RC")
  * Active-Filter (nicht storniert/inaktiv) wird vom Caller erwartet.
  */
+/** «Geplante Recalls»: RC-Datum («RC zu erstellen ab») ist gesetzt, aber das
+ *  Aufgebot wurde noch nicht erstellt. Das frühere Zusatz-Kriterium
+ *  «naechsteKons === 'kein Termin'» wurde entfernt (Nutzerwunsch 2026-07-18) —
+ *  das Flag allein sagt nichts über eine geplante Recall-Aktion aus. */
 function isInPlanung(p: RecallPatient): boolean {
-  if (p.naechsteKons === 'kein Termin') return true
-  if (p.aufgebotFuer && !p.aufgebotErstellt) return true
-  return false
+  return !!p.aufgebotFuer && !p.aufgebotErstellt
 }
 
 /** True wenn der Patient an einen externen oder internen Arzt/Klinik
