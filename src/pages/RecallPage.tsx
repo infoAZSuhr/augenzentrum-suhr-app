@@ -7455,8 +7455,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                             setField('aufgebotFuer', d.toISOString().slice(0, 10))
                           }
                         }}
-                        className="mt-1 w-full py-1 rounded-lg text-[11px] font-bold border transition-colors border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100">
-                        ↻ «RC zu erstellen ab» aus Intervall setzen
+                        title="«RC zu erstellen ab» aus Letzte Konst. + Intervall berechnen"
+                        className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                        ↻ RC-Datum setzen
                       </button>
                     )
                   })()}
