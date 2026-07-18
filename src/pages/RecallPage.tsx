@@ -8648,20 +8648,11 @@ const lirisExtractRef  = useRef(lirisExtract)
                   <option value="kein Aufgebot">kein Aufgebot - meldet sich b. Bedarf</option>
                 </select>
                 {/* Schnell-Button: Self-Service. Ein Klick setzt den Status und
-                    räumt alle Aufgebot-/Recall-Felder auf (bzw. zurück zu aktiv). */}
+                    räumt alle Aufgebot-/Recall-Felder auf (bzw. zurück zu aktiv).
+                    Läuft über applyStatusChange, damit der Statuswechsel — wie
+                    beim Dropdown — automatisch gespeichert wird (Auto-Save). */}
                 <button type="button"
-                  onClick={() => {
-                    if (form.patientenStatus === 'kein Aufgebot') {
-                      setField('patientenStatus', 'aktiv')
-                    } else {
-                      setField('patientenStatus', 'kein Aufgebot')
-                      setField('aufgebotFuer', '')
-                      setField('aufgebotArt', '')
-                      setField('aufgebotErstellt', '')
-                      setField('naechsteKons', '')
-                      setField('keinTermin', false)
-                    }
-                  }}
+                  onClick={() => applyStatusChange(form.patientenStatus === 'kein Aufgebot' ? 'aktiv' : 'kein Aufgebot')}
                   className={`mt-2 w-full py-2 rounded-lg text-xs font-bold border-2 transition-colors flex items-center justify-center gap-1.5 ${
                     form.patientenStatus === 'kein Aufgebot'
                       ? 'border-gray-400 bg-gray-200 text-gray-700'
