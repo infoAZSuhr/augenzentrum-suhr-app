@@ -35,7 +35,7 @@ export default function PostausgangPanel() {
   // zu sehen oder zu loeschen (Bug, der zu endlosen Retries ueber App-
   // Neustarts hinweg fuehrte, 2026-07-10 beim Fall "Blanc/PID 946" entdeckt).
   const visibleItems = items.filter(i => !i.skipPrint || (i.uploadFailCount ?? 0) > 0)
-  const { lirisWebContentsId, openWithPid, lirisExtract } = useBrowser()
+  const { lirisWebContentsId, openWithPid, lirisExtract, lirisPanelWidth } = useBrowser()
   const toast = useToast()
   // Immer aktueller lirisExtract-Wert fuer die Warteschleife in uploadToLiris
   // (async, darf keinen veralteten Closure-Stand lesen).
@@ -366,6 +366,29 @@ export default function PostausgangPanel() {
 
   return (
     <div className="fixed bottom-4 left-4 z-40">
+      {/* Upload-Sperre: waehrend ein Brief ins Liris hochgeladen wird, blockt
+          ein Overlay die App-Seite — sonst kann eine andere Patientenakte
+          geoeffnet werden und der Brief landet beim FALSCHEN Patienten
+          (Nutzerwunsch 2026-07-18). Der Liris-Bereich rechts bleibt bewusst
+          frei: dort muss die MPA im Ausnahmefall den Arzt manuell anklicken
+          koennen (Automatik wartet darauf, wenn der Match nicht eindeutig ist). */}
+      {uploadingId && (() => {
+        const it = items.find(i => i.id === uploadingId)
+        return (
+          <div className="fixed inset-y-0 left-0 z-[70] bg-black/30 backdrop-blur-[1px] flex items-center justify-center"
+               style={{ right: lirisPanelWidth }}>
+            <div className="bg-white rounded-2xl shadow-2xl border border-blue-200 px-6 py-5 max-w-sm text-center space-y-2">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+              <p className="text-sm font-bold text-gray-900">Brief wird ins Liris hochgeladen…</p>
+              {it && <p className="text-xs text-gray-600 truncate">{it.vorname || it.filename}{it.pid ? ` · #${it.pid}` : ''}</p>}
+              <p className="text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                Bitte jetzt <strong>keine andere Patientenakte öffnen</strong> — der Brief würde sonst beim falschen Patienten landen.
+              </p>
+              {statusMsg?.kind === 'ok' && <p className="text-[11px] text-gray-400">{statusMsg.text}</p>}
+            </div>
+          </div>
+        )
+      })()}
       {open ? (
         <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-[340px] max-h-[60vh] flex flex-col">
           <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
