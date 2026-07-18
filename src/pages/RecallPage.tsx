@@ -357,7 +357,7 @@ type EditForm = {
   zuweisungZiel: string
   zuweisungGrund: string
   zuweisungDatum: string
-  zuweisungStatus: 'pendent' | 'erledigt'
+  zuweisungStatus: 'pendent' | 'erledigt' | 'abgesagt'
   zuweisungErledigtAm: string
   zuweisungBerichtErhalten: boolean
   zuweisungNotiz: string
@@ -7822,6 +7822,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           {([
                             ['pendent',  'Pendent',  'Patient wird aufgeboten'],
                             ['erledigt', 'Erledigt', 'Patient war in der Praxis'],
+                            ['abgesagt', 'Abgesagt', 'Termin bei der Zielstelle wurde abgesagt'],
                           ] as const).map(([v, l, hint]) => (
                             <button key={v} type="button"
                               title={hint}
@@ -7835,7 +7836,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                                 form.zuweisungStatus === v
                                   ? v === 'pendent'
                                     ? 'border-amber-400 bg-amber-50 text-amber-700'
-                                    : 'border-green-400 bg-green-50 text-green-700'
+                                    : v === 'erledigt'
+                                    ? 'border-green-400 bg-green-50 text-green-700'
+                                    : 'border-red-400 bg-red-50 text-red-700'
                                   : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
                               }`}
                             >{l}</button>
@@ -7843,6 +7846,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                         </div>
                         {form.zuweisungStatus === 'pendent' && (
                           <p className="mt-1 text-[10px] text-gray-400">Patient wird aufgeboten</p>
+                        )}
+                        {form.zuweisungStatus === 'abgesagt' && (
+                          <p className="mt-1 text-[10px] text-red-500">Termin abgesagt — keine Bericht-Erwartung mehr für diese Zuweisung.</p>
                         )}
                         {form.zuweisungStatus === 'erledigt' && (
                           <div className="mt-1.5 space-y-1.5">

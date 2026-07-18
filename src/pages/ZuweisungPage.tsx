@@ -103,7 +103,7 @@ function sendBerichtNachfrage(p: RecallPatient, z: Zuweisung, opts: MailOpts = {
   try { window.open(url) } catch { window.location.href = url }
 }
 
-type FilterStatus = 'alle' | 'pendent' | 'erledigt'
+type FilterStatus = 'alle' | 'pendent' | 'erledigt' | 'abgesagt'
 type FilterTyp    = 'alle' | 'intern' | 'extern'
 
 export default function ZuweisungPage() {
@@ -366,6 +366,18 @@ export default function ZuweisungPage() {
     if (savingId) return
     setSavingId(`${p.id}:${z.id}`)
     try { await patchZuweisung(p, z.id, { status: 'pendent', erledigtAm: '' }, 'Wieder geöffnet (Nachbearbeitung)') }
+    finally { setSavingId(null) }
+  }
+
+  // Termin bei der Zielstelle wurde abgesagt: Zuweisung ist damit weder
+  // pendent (kein Bericht mehr zu erwarten) noch erledigt (Behandlung fand
+  // nicht statt) — eigener Status (Nutzerwunsch 2026-07-18).
+  async function markAbgesagt(p: RecallPatient, z: Zuweisung & { id: string }) {
+    if (savingId) return
+    setSavingId(`${p.id}:${z.id}`)
+    try {
+      await patchZuweisung(p, z.id, { status: 'abgesagt', erledigtAm: '' }, 'Termin abgesagt')
+    }
     finally { setSavingId(null) }
   }
 
@@ -689,17 +701,18 @@ export default function ZuweisungPage() {
         <div className="max-w-4xl mx-auto px-4 pb-3 flex flex-wrap gap-2">
           <div className="flex gap-1 items-center">
             <Filter className="w-3.5 h-3.5 text-gray-400" />
-            {(['pendent', 'erledigt', 'alle'] as FilterStatus[]).map(s => (
+            {(['pendent', 'erledigt', 'abgesagt', 'alle'] as FilterStatus[]).map(s => (
               <button key={s} onClick={() => setFilterStatus(s)}
                 className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
                   filterStatus === s
                     ? s === 'pendent'  ? 'bg-amber-100 text-amber-700 border border-amber-300'
                     : s === 'erledigt' ? 'bg-green-100 text-green-700 border border-green-300'
+                    : s === 'abgesagt' ? 'bg-red-100 text-red-700 border border-red-300'
                     :                    'bg-gray-200 text-gray-700 border border-gray-300'
                     : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-300'
                 }`}
               >
-                {s === 'alle' ? 'Alle' : s === 'pendent' ? 'Pendent' : 'Erledigt'}
+                {s === 'alle' ? 'Alle' : s === 'pendent' ? 'Pendent' : s === 'abgesagt' ? 'Abgesagt' : 'Erledigt'}
               </button>
             ))}
           </div>
@@ -853,12 +866,13 @@ export default function ZuweisungPage() {
         {rows.map(({ p, z, key }) => {
           const isExpanded = expandedId === key
           const isErledigt = normStatus(z.status) === 'erledigt'
+          const isAbgesagt = normStatus(z.status) === 'abgesagt'
           const isSaving   = savingId === key
 
           return (
             <div key={key}
               className={`bg-white rounded-xl border transition-all ${
-                isErledigt ? 'border-green-200 opacity-75' : 'border-gray-200 shadow-sm'
+                isErledigt ? 'border-green-200 opacity-75' : isAbgesagt ? 'border-red-200 opacity-75' : 'border-gray-200 shadow-sm'
               }`}
             >
               {/* Main row */}
@@ -866,10 +880,12 @@ export default function ZuweisungPage() {
                 <div className="flex items-start gap-3">
                   {/* Status icon */}
                   <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    isErledigt ? 'bg-green-100' : 'bg-amber-100'
+                    isErledigt ? 'bg-green-100' : isAbgesagt ? 'bg-red-100' : 'bg-amber-100'
                   }`}>
                     {isErledigt
                       ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      : isAbgesagt
+                      ? <X className="w-4 h-4 text-red-600" />
                       : <Clock className="w-4 h-4 text-amber-600" />
                     }
                   </div>
@@ -924,7 +940,13 @@ export default function ZuweisungPage() {
                         <CalendarDays className="w-3 h-3" />
                         Zugewiesen: {formatDate(z.datum)}
                       </span>
-                      {!isErledigt && (() => {
+                      {isAbgesagt && (
+                        <span className="text-red-600 font-medium flex items-center gap-1">
+                          <X className="w-3 h-3" />
+                          Termin abgesagt
+                        </span>
+                      )}
+                      {!isErledigt && !isAbgesagt && (() => {
                         const w = wochenSeit(z.datum)
                         if (w === null) return null
                         const cls = w >= 8 ? 'bg-red-50 text-red-700 border-red-200'
@@ -1013,9 +1035,10 @@ export default function ZuweisungPage() {
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
 
-                    {!isErledigt ? (() => {
+                    {(!isErledigt && !isAbgesagt) ? (() => {
                       const hasAbschluss = berichtListe(z).some(b => b.typ === 'abschluss')
                       return (
+                      <>
                       <button
                         onClick={() => markErledigt(p, z)}
                         disabled={isSaving}
@@ -1025,13 +1048,23 @@ export default function ZuweisungPage() {
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Erledigt
                       </button>
+                      <button
+                        onClick={() => { if (window.confirm('Termin bei der Zielstelle wurde abgesagt — Zuweisung als «abgesagt» markieren?')) markAbgesagt(p, z) }}
+                        disabled={isSaving}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-40"
+                        title="Termin wurde abgesagt — kein Bericht mehr zu erwarten"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Abgesagt
+                      </button>
+                      </>
                       )
                     })() : (
                       <button
                         onClick={() => reopen(p, z)}
                         disabled={isSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40"
-                        title="Wieder öffnen"
+                        title="Wieder öffnen (zurück auf pendent)"
                       >
                         <Clock className="w-3.5 h-3.5" />
                         Öffnen

@@ -56,7 +56,7 @@ export interface Zuweisung {
   ziel: string          // arzt (intern) or provider/clinic (extern)
   grund: string
   datum: string         // YYYY-MM-DD – when assigned
-  status: 'pendent' | 'erledigt'
+  status: 'pendent' | 'erledigt' | 'abgesagt'   // abgesagt = Termin bei der Zielstelle wurde abgesagt (2026-07-18)
   erledigtAm: string    // YYYY-MM-DD or ''
   berichtErhalten: boolean
   berichtAngefragt?: boolean    // true sobald eine Bericht-Nachfrage verschickt wurde
