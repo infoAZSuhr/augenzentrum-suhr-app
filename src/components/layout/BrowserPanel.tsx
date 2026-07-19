@@ -472,9 +472,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         if (/\\bGF\\b|Gesichtsfeld|Perimetrie/i.test(bpTxt))         kws.push('GF');
         if (/Biometrie|\\bBiom/i.test(bpTxt))                        kws.push('Biometrie');
         if (/Pachy/i.test(bpTxt))                                    kws.push('Pachymetrie');  // Pachy, Pachymetrie
-        if (/Hornhaut[- ]?Topographie|Topographie|\\bTopo/i.test(bpTxt)) kws.push('Topographie');
-        if (/Tr(?:ä|ae)nenfilm/i.test(bpTxt))                        kws.push('Traenenfilm');
-        if (/Funduskopie|\\bFundus/i.test(bpTxt))                    kws.push('Funduskopie');
+        if (/Hornhaut[- ]?Topographie|Topographie|\\bTopo|\\bHH[- ]?Topo/i.test(bpTxt)) kws.push('Topographie'); // inkl. Liris-Kuerzel 'HH-Topo'
+        if (/Tr(?:ä|ae)nenfilm|\\bSchirmer/i.test(bpTxt))            kws.push('Traenenfilm');  // Schirmer-Test = Traenenfilm-/Traenenproduktions-Analyse
+        if (/Funduskopie|\\bFundus|\\bff\\b/i.test(bpTxt))           kws.push('Funduskopie');  // 'ff' = Liris-Kuerzel fuer Fundus
         if (/Tonometrie|\\bTono\\b/i.test(bpTxt))                    kws.push('Tonometrie');
         if (/Zykloplegie|\\bZyklo/i.test(bpTxt))                     kws.push('Zykloplegie');
         result.bpKeywords = kws;
