@@ -245,10 +245,14 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
     const html = buildHtml()
     const eApp = (window as any).electronApp
 
-    if (eApp?.openPrintHtml) {
-      await eApp.openPrintHtml(html)
-    } else if (eApp?.printHtml) {
+    // printHtml zuerst: öffnet DIREKT den klassischen Systemdruckdialog
+    // (Nutzerwunsch 2026-07-19). openPrintHtml (Umweg über den Browser,
+    // User musste dort selbst Ctrl+P drücken) nur noch als Fallback für
+    // alte App-Versionen ohne printHtml.
+    if (eApp?.printHtml) {
       await eApp.printHtml(html)
+    } else if (eApp?.openPrintHtml) {
+      await eApp.openPrintHtml(html)
     } else {
       const iframe = document.createElement('iframe')
       iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;border:none;'
