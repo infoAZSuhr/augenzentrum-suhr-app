@@ -3182,7 +3182,23 @@ export default function EinsatzplanungPage(){
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Einsatzplanung Suhr</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Einsatzplanung Suhr</h1>
+            {/* Liris-Panel ein-/ausklappen (nur Desktop-App; Panel wird in
+                AppShell auch auf /planung gemountet). Bewusst neben dem Titel
+                mit relative/z-20 — in der Controls-Zeile rechts war der Button
+                auf manchen Setups nicht klickbar (überlagert). */}
+            {!!(window as any).electronApp && (
+              <button type="button"
+                onClick={()=>browserCtx.toggle()}
+                title="Liris-Ansicht ein-/ausblenden"
+                className={`relative z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                  browserCtx.isOpen ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}>
+                <Globe className="w-3.5 h-3.5" /> Liris
+              </button>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             {isReadOnly?'👁 Nur-Lese-Ansicht':isLoading?'Wird geladen…':isSaving?'☁️ Speichern…':'Zelle antippen zum Bearbeiten'}
           </p>
@@ -3191,18 +3207,6 @@ export default function EinsatzplanungPage(){
         {/* Controls row */}
         <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
 
-          {/* Liris-Panel ein-/ausklappen (nur Desktop-App; Panel wird in
-              AppShell auch auf /planung gemountet) */}
-          {!!(window as any).electronApp && (
-            <button
-              onClick={()=>browserCtx.toggle()}
-              title="Liris-Ansicht ein-/ausblenden"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                browserCtx.isOpen ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}>
-              <Globe className="w-3.5 h-3.5" /> Liris
-            </button>
-          )}
 
           {/* Year + add/delete */}
           <div className="flex items-center gap-1">
