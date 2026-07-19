@@ -2697,17 +2697,8 @@ const lirisExtractRef  = useRef(lirisExtract)
   }, [allData, wochenplanWeekOffset, wochenplanSort, wochenplanFilterArzt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Termin-anlegen-Flow (Liris) ───────────────────────────────────────────
-  // Klick auf 'Termin' im Aufgebot-Plan: NUR das Liris-Panel oeffnen und im
-  // Terminkalender die PID ins Patient-Feld tippen + den Vorschlag anklicken.
-  // KEINE Akte, KEINE Auslesung, KEIN Bearbeiten-Modal. Termin + Grund setzt
-  // der User manuell; die Termin-Infos zeigt Liris selbst (gelbe Box).
-  function startTerminFlow(p: RecallPatient) {
-    const pid = normalizePid(p.pid)
-    if (!pid) { toast.warning('Patient hat keine PID.'); return }
-    openBrowser()                 // nur Panel oeffnen (keine Akte)
-    requestTerminAnlegen(pid, '') // Terminkalender: Patient per PID auswaehlen
-    toast.info('Termin anlegen wird in Liris vorbereitet…')
-  }
+  // startTerminFlow entfernt (2026-07-19): der «Termin»-Button im Aufgebot-Plan
+  // war zu kompliziert — Termine werden direkt in Liris angelegt.
 
   function openAufgebotDialog(entry: WPEntry, presetArt?: AufgebotArt) {
     // Self-Service-Patienten ("kein Aufgebot") wollen bewusst nicht aufgeboten
@@ -5961,17 +5952,9 @@ const lirisExtractRef  = useRef(lirisExtract)
                   )}
                 </div>
               </button>
-              {/* Termin-anlegen steuert das Liris-Webview — nur in der Desktop-App möglich. */}
-              {isElectron && (
-                <button
-                  onClick={() => startTerminFlow(p)}
-                  title="Termin anlegen"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shrink-0"
-                >
-                  <CalendarClock className="w-3.5 h-3.5" />
-                  Termin
-                </button>
-              )}
+              {/* «Termin»-Button (Liris-Termin-anlegen-Automatik) entfernt —
+                  Nutzerwunsch 2026-07-19: zu kompliziert; Termine werden direkt
+                  in Liris angelegt. */}
               {p.patientenStatus === 'kein Aufgebot' ? (
                 <button
                   onClick={() => openAufgebotDialog(entry, 'Reminder')}
