@@ -100,6 +100,7 @@ const PRINT_STYLE = `
   .eye-od { color: #b45309; }
   .eye-os { color: #1d4ed8; }
   .changed { background: #fffbeb; }
+  .note-star { color: #b45309; font-weight: bold; }
 `
 
 export default function IVTIntervallblatt({ patient, treatments, onClose }: Props) {
@@ -148,7 +149,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
       return { text: prev.kontrolldatum ? fmt(prev.kontrolldatum) : '', date: prev.kontrolldatum ?? '' }
     }
 
-    function eyeRows(rows: Treatment[]) {
+    function eyeRows(rows: Treatment[], eye: 'OD' | 'OS') {
       const last = rows[rows.length - 1]
       const plannedDate = last?.nextAppointment ?? ''
       return Array.from({ length: ROWS }, (_, i) => {
@@ -158,11 +159,16 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
         const rowStyle = changed ? ' class="changed"' : isPlanned ? ' style="color:#999"' : ''
         const { text: nk, date: nkD } = nkForRow(rows, i, isPlanned)
         const nkColor = nkD && isPast(nkD) ? '' : ' style="color:#999"'
+        // Kleines Sternchen am OP-Termin, wenn zu dieser Behandlung ein Eintrag
+        // in der Automatischen Dokumentation existiert (Notiz, Medikamenten-/
+        // Statuswechsel) — so sieht man direkt in der Tabelle, dass unten etwas
+        // vermerkt ist (Nutzerwunsch 2026-07-19).
+        const hasEvent = !!t && autoEvents.some(e => e.eye === eye && e.date === t.treatmentDate)
         return `<tr${rowStyle}>
           <td class="nr-col">${i + 1}.</td>
           <td${nk ? nkColor : ''}>${nk}</td>
           <td${isPlanned ? ' style="color:#999;font-style:italic"' : ''}>${
-            t ? fmt(t.treatmentDate) : isPlanned ? fmt(plannedDate) : ''
+            t ? fmt(t.treatmentDate) + (hasEvent ? '<span class="note-star" title="siehe Automatische Dokumentation">&nbsp;*</span>' : '') : isPlanned ? fmt(plannedDate) : ''
           }</td>
           <td>${t?.nextIntervalWeeks ? t.nextIntervalWeeks + 'W' : ''}</td>
         </tr>`
@@ -210,7 +216,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
             <th>OP-Termin</th>
             <th>Intervall</th>
           </tr></thead>
-          <tbody>${eyeRows(odRows)}</tbody>
+          <tbody>${eyeRows(odRows, 'OD')}</tbody>
         </table>
       </div>
       <div class="eye-col">
@@ -223,13 +229,13 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
             <th>OP-Termin</th>
             <th>Intervall</th>
           </tr></thead>
-          <tbody>${eyeRows(osRows)}</tbody>
+          <tbody>${eyeRows(osRows, 'OS')}</tbody>
         </table>
       </div>
     </div>
 
     <div class="events">
-      <div class="events-title">Automatische Dokumentation</div>
+      <div class="events-title">Automatische Dokumentation <span style="font-weight:normal;color:#888;font-size:8pt">(* = in der Tabelle markiert)</span></div>
       ${eventsHtml}
     </div>
     </body></html>`
@@ -368,7 +374,16 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
                               {nk.text}
                             </td>
                             <td className={`border border-gray-300 px-1 py-0.5 whitespace-nowrap ${isPlanned ? 'text-gray-400 italic' : 'font-medium'}`}>
-                              {t ? fmt(t.treatmentDate) : isPlanned ? fmt(plannedDate) : ''}
+                              {t ? (
+                                <>
+                                  {fmt(t.treatmentDate)}
+                                  {/* Sternchen = zu dieser Behandlung existiert ein Eintrag in
+                                      der Automatischen Dokumentation (Notiz/Wechsel) */}
+                                  {autoEvents.some(e => e.eye === side && e.date === t.treatmentDate) && (
+                                    <span title="siehe Automatische Dokumentation" className="ml-0.5 font-bold text-amber-600 cursor-help">*</span>
+                                  )}
+                                </>
+                              ) : isPlanned ? fmt(plannedDate) : ''}
                             </td>
                             <td className="border border-gray-300 px-1 py-0.5">{t?.nextIntervalWeeks ? `${t.nextIntervalWeeks}W` : ''}</td>
                           </tr>
@@ -384,7 +399,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
           {/* Auto documentation */}
           <div className="border border-gray-300 rounded-lg overflow-hidden">
             <div className="bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 border-b border-gray-300">
-              Automatische Dokumentation
+              Automatische Dokumentation <span className="font-normal text-gray-400">(* = in der Tabelle markiert)</span>
             </div>
             {autoEvents.length === 0 ? (
               <p className="px-3 py-2 text-xs text-gray-400 italic">Keine Ereignisse</p>
