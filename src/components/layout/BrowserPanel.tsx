@@ -325,40 +325,9 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
         result.naechsterTerminZeit  = futA[4] + ':' + futA[5];
       }
 
-      // Pattern b (frueher c2): Liris-Such-Suggestion-Format
-      // "Fr. 12 Juni 2026, 07:15 (MPA)" - Wochentag + DD + deutscher
-      // Monatsname + YYYY + HH:MM. Sehr eindeutiges, sauberes Format —
-      // wird VOR der stoeranfaelligen ganzseitigen DD.MM.YYYY-Suche geprueft,
-      // da diese leicht falsche/unzusammenhaengende Datum+Zeit-Paare findet.
-      if (!result.naechsterTerminDatum) {
-        var monthsDe = { Januar:1, Februar:2, 'März':3, Maerz:3, April:4, Mai:5, Juni:6,
-                         Juli:7, August:8, September:9, Oktober:10, November:11, Dezember:12 };
-        var reSugg = /(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})\\.?\\s+(Januar|Februar|M(?:\\u00e4|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\s*,?\\s+(\\d{2}):(\\d{2})/gi;
-        var bestSuggMs = Infinity, bestSugg = null, m5;
-        while ((m5 = reSugg.exec(allText)) !== null) {
-          var key = m5[2].charAt(0).toUpperCase() + m5[2].slice(1).toLowerCase().replace('ae','ä');
-          var monIdx = monthsDe[key] || monthsDe[m5[2]];
-          if (!monIdx) continue;
-          if (!isFuture(+m5[3], monIdx, +m5[1])) continue;
-          var msSugg = new Date(+m5[3], monIdx-1, +m5[1], +m5[4], +m5[5]).getTime();
-          if (msSugg < bestSuggMs) { bestSuggMs = msSugg; bestSugg = { d: m5[1], mo: monIdx, y: m5[3], h: m5[4], min: m5[5] }; }
-        }
-        if (bestSugg) {
-          var bestSuggDayNum = +bestSugg.d;
-          var ddPad = (bestSuggDayNum < 10 ? '0' : '') + bestSuggDayNum;
-          var moPad = (bestSugg.mo < 10 ? '0' : '') + bestSugg.mo;
-          result.naechsterTerminDatum = bestSugg.y + '-' + moPad + '-' + ddPad;
-          result.naechsterTerminZeit  = bestSugg.h + ':' + bestSugg.min;
-        }
-      }
-
-      // Pattern c (frueher: unspezifische Ganzseiten-Suche nach IRGENDEINEM
-      // DD.MM.YYYY HH:MM im Text) wurde ENTFERNT — sie hat faelschlicherweise
-      // administrative Zeitstempel (z.B. "Aktualisiert am ...", "heute")
-      // erwischt statt eines echten Termins. Lieber gar kein Datum uebernehmen
-      // als ein falsches.
-
-      // Pattern c2 (Liris-Zeitleiste, oberster Eintrag): "5W [Kalender-Icon]
+      // Pattern b (Liris-Zeitleiste, oberster Eintrag — hat VORRANG vor der
+      // Such-Suggestion, Nutzerwunsch 2026-07-20: die Zeitleiste der Akte ist
+      // die verlaesslichere Quelle als das evtl. offene Suchfeld): "5W [Kalender-Icon]
       // 07.08.2026" bzw. "10T … 14.07.2026" — der oberste Zeitleisten-Eintrag
       // mit einem "<Zahl><Einheit>"-Badge (T=Tage, W=Wochen, M=Monate, J=Jahre
       // bis zum Termin) markiert eindeutig den naechsten kuenftigen Termin.
@@ -400,6 +369,39 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
           } catch (e) { /* Tooltip-Zeit optional — Datum reicht als Minimum */ }
         }
       }
+
+      // Pattern b2 (Fallback, frueher vor der Zeitleiste): Liris-Such-Suggestion-Format
+      // "Fr. 12 Juni 2026, 07:15 (MPA)" - Wochentag + DD + deutscher
+      // Monatsname + YYYY + HH:MM. Sehr eindeutiges, sauberes Format —
+      // wird VOR der stoeranfaelligen ganzseitigen DD.MM.YYYY-Suche geprueft,
+      // da diese leicht falsche/unzusammenhaengende Datum+Zeit-Paare findet.
+      if (!result.naechsterTerminDatum) {
+        var monthsDe = { Januar:1, Februar:2, 'März':3, Maerz:3, April:4, Mai:5, Juni:6,
+                         Juli:7, August:8, September:9, Oktober:10, November:11, Dezember:12 };
+        var reSugg = /(?:Mo|Di|Mi|Do|Fr|Sa|So)\\.?\\s+(\\d{1,2})\\.?\\s+(Januar|Februar|M(?:\\u00e4|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\s*,?\\s+(\\d{2}):(\\d{2})/gi;
+        var bestSuggMs = Infinity, bestSugg = null, m5;
+        while ((m5 = reSugg.exec(allText)) !== null) {
+          var key = m5[2].charAt(0).toUpperCase() + m5[2].slice(1).toLowerCase().replace('ae','ä');
+          var monIdx = monthsDe[key] || monthsDe[m5[2]];
+          if (!monIdx) continue;
+          if (!isFuture(+m5[3], monIdx, +m5[1])) continue;
+          var msSugg = new Date(+m5[3], monIdx-1, +m5[1], +m5[4], +m5[5]).getTime();
+          if (msSugg < bestSuggMs) { bestSuggMs = msSugg; bestSugg = { d: m5[1], mo: monIdx, y: m5[3], h: m5[4], min: m5[5] }; }
+        }
+        if (bestSugg) {
+          var bestSuggDayNum = +bestSugg.d;
+          var ddPad = (bestSuggDayNum < 10 ? '0' : '') + bestSuggDayNum;
+          var moPad = (bestSugg.mo < 10 ? '0' : '') + bestSugg.mo;
+          result.naechsterTerminDatum = bestSugg.y + '-' + moPad + '-' + ddPad;
+          result.naechsterTerminZeit  = bestSugg.h + ':' + bestSugg.min;
+        }
+      }
+
+      // Pattern c (frueher: unspezifische Ganzseiten-Suche nach IRGENDEINEM
+      // DD.MM.YYYY HH:MM im Text) wurde ENTFERNT — sie hat faelschlicherweise
+      // administrative Zeitstempel (z.B. "Aktualisiert am ...", "heute")
+      // erwischt statt eines echten Termins. Lieber gar kein Datum uebernehmen
+      // als ein falsches.
 
       // Pattern d (Liris-Timeline): blaues Kalender-Icon mit zukuenftigem
       // Datum im Text; Uhrzeit steht im title-Attribut eines benachbarten
