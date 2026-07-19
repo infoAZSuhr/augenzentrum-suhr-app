@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { Printer, X, ExternalLink, Check, Upload, FileText, Loader2 } from 'lucide-react'
+import { useDraggable } from '../../../hooks/useDraggable'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -195,6 +196,7 @@ async function buildCombinedCanvas(
 
 export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLiris, onClose }: Props) {
   const eyeSide = initialEye
+  const { style: dragStyle, onHeaderMouseDown } = useDraggable('ivi-overlay')
   const [lirisOpened, setLirisOpened]   = useState(false)
   const [lirisDataUrl, setLirisDataUrl] = useState<string | null>(null)
   const [lirisFileName, setLirisFileName] = useState<string | null>(null)
@@ -316,10 +318,10 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl flex flex-col overflow-hidden" style={{ maxHeight: '95vh' }}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl flex flex-col overflow-hidden" style={{ maxHeight: '95vh', ...dragStyle }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0 cursor-grab select-none" onMouseDown={onHeaderMouseDown}>
           <div>
             <h3 className="text-sm font-bold text-gray-900">Tropf-Overlay drucken</h3>
             {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}

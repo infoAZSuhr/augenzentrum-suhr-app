@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X, Mail, Printer, Loader2, Check, Bell, CalendarDays } from 'lucide-react'
+import { useDraggable } from '../../../hooks/useDraggable'
 import { useBrowser } from '../../../contexts/BrowserContext'
 import { usePostausgang } from '../../../contexts/PostausgangContext'
 import { buildPraxisBriefHtml, anredeForm, formatTerminLong } from '../../../lib/praxisBrief'
@@ -23,6 +24,7 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
   const arztNachname = (arztName || '').trim().split(/\s+/).pop() || ''
   const { lirisExtract } = useBrowser()
   const postausgang = usePostausgang()
+  const { style: dragStyle, onHeaderMouseDown } = useDraggable('ivi-aufbieten')
 
   const pid = (patient.patientNumber || '').replace(/\D/g, '').replace(/^0+(\d)/, '$1')
   const lx = lirisExtract && (lirisExtract.pid || '').replace(/\D/g, '').replace(/^0+(\d)/, '$1') === pid ? lirisExtract : null
@@ -129,8 +131,8 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto p-5" style={dragStyle} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 cursor-grab select-none" onMouseDown={onHeaderMouseDown}>
           <div>
             <h2 className="font-bold text-gray-900">IVI – Patient aufbieten</h2>
             <p className="text-xs text-gray-500">{patient.firstName} {patient.lastName}{pid ? ` · #${pid}` : ''}</p>

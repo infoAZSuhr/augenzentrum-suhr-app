@@ -1,4 +1,5 @@
 import { X, Printer } from 'lucide-react'
+import { useDraggable } from '../../../hooks/useDraggable'
 import type { Patient, Treatment } from '../../../types/ivom.types'
 
 interface Props {
@@ -102,6 +103,7 @@ const PRINT_STYLE = `
 `
 
 export default function IVTIntervallblatt({ patient, treatments, onClose }: Props) {
+  const { style: dragStyle, onHeaderMouseDown } = useDraggable('ivt-intervallblatt')
   const meds = detectMeds(treatments)
 
   const odRows = treatments
@@ -258,10 +260,10 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto py-6 px-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl" style={dragStyle}>
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 cursor-grab select-none" onMouseDown={onHeaderMouseDown}>
           <h2 className="font-semibold text-gray-800">Intervallblatt — {patient.firstName}</h2>
           <div className="flex items-center gap-2">
             <button
