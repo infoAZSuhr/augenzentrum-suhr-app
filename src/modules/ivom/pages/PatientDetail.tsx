@@ -169,9 +169,12 @@ export default function PatientDetail() {
         }
         actions={
           <>
-            {/* Zurück zur vorherigen Ansicht (z.B. Patientenliste oder Tagesplanung) */}
-            <button className="btn-secondary" onClick={() => navigate(-1)} title="Zurück zur vorherigen Ansicht">
-              <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Zurück</span>
+            {/* Zurück zur vorherigen Ansicht — bewusst klein/dezent (nur Icon) */}
+            <button
+              onClick={() => navigate(-1)}
+              title="Zurück zur vorherigen Ansicht"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors self-center">
+              <ArrowLeft className="w-4 h-4" />
             </button>
             <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
               <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
