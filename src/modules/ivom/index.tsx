@@ -1,4 +1,5 @@
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
+import { Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import PatientList from './pages/PatientList'
 import PatientDetail from './pages/PatientDetail'
 import IVOMCalendar from './pages/IVOMCalendar'
@@ -16,6 +17,7 @@ const NAV_TABS = [
 
 export default function IVOMModule() {
   const location = useLocation()
+  const navigate = useNavigate()
   const isDetail = /^\/ivom\/[^/]+$/.test(location.pathname) &&
     !location.pathname.includes('kalender') &&
     !location.pathname.includes('einstellungen') &&
@@ -27,6 +29,13 @@ export default function IVOMModule() {
       {!isDetail && (
         <div className="px-2 sm:px-6 pt-2 sm:pt-4 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Zurück zur vorherigen Ansicht — klein/dezent, nur Icon */}
+            <button
+              onClick={() => navigate(-1)}
+              title="Zurück zur vorherigen Ansicht"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0 mb-2 sm:mb-4">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
             <div className="w-px h-6 bg-gray-200 shrink-0 mb-2 sm:mb-4" />
             <nav className="flex gap-1 flex-1 overflow-x-auto">
               {NAV_TABS.map(tab => (
