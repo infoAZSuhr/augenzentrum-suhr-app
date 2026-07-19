@@ -3052,7 +3052,11 @@ const lirisExtractRef  = useRef(lirisExtract)
       ? (frueherArztTxt
           ? `<p>Da ${frueherArztTxt} nicht mehr in unserer Praxis t&#228;tig ist, wird Ihre augen&#228;rztliche Betreuung neu von ${arztArtikel}${arztName ? ` <strong>${arztName}</strong>` : ''} &#252;bernommen. Gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`
           : `<p>Ihre augen&#228;rztliche Betreuung in unserer Praxis liegt neu in guten H&#228;nden &#8211; gerne d&#252;rfen Sie sich f&#252;r einen Termin bei uns melden.</p>`)
-      : ''
+      // Standard-Reminder: behandelnden Arzt nennen (Nutzerwunsch 2026-07-20),
+      // damit der Patient weiss, bei wem die Untersuchung stattfindet.
+      : arztName
+        ? `<p>Die Untersuchung findet bei ${arztArtikel} <strong>${arztName}</strong> statt.</p>`
+        : ''
 
     // ── Body: mit Pupillenerweiterung ────────────────────────────────────────
     const bodyMit = `
