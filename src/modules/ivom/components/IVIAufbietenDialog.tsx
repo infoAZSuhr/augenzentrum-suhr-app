@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Mail, Printer, Loader2, Check, Bell, CalendarDays } from 'lucide-react'
+import { X, Mail, Printer, Loader2, Check, Bell, CalendarDays, Eye } from 'lucide-react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { useBrowser } from '../../../contexts/BrowserContext'
 import { usePostausgang } from '../../../contexts/PostausgangContext'
@@ -40,6 +40,7 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
   const [terminDatum, setTerminDatum] = useState<string>(patient.nextAppointmentDate || '')
   const [terminZeit, setTerminZeit] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   const nachname = titleCase(patient.lastName || (adressBlock.split('\n')[0] || '').split(/\s+/).slice(-1)[0] || '')
@@ -88,19 +89,24 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
       'Wir danken Ihnen für Ihr Vertrauen.', sig].join('\n')
   }
 
+  // Kompletter Brief (Briefkopf + Body) — für PDF-Erzeugung UND Vorschau.
+  const buildLetterHtml = (): string => {
+    const title = art === 'Brief' ? 'Terminreservation &#8211; intravitreale Therapie' : 'Erinnerung &#8211; intravitreale Therapie'
+    return buildPraxisBriefHtml({
+      anrede, nameDisplay,
+      addressLine2: adressLines[1] || '',
+      addressLine3: adressLines[2] || '',
+      title, bodyHtml: buildBody(),
+    })
+  }
+
   const generate = async (versand: 'Post' | 'Email') => {
     const ea = (window as unknown as { electronApp?: ElectronBriefApi }).electronApp
     if (!ea?.renderBriefPdf) { setMsg({ kind: 'err', text: 'Nur in der Desktop-App verfügbar.' }); return }
     setSaving(true)
     setMsg(null)
     try {
-      const title = art === 'Brief' ? 'Terminreservation &#8211; intravitreale Therapie' : 'Erinnerung &#8211; intravitreale Therapie'
-      const html = buildPraxisBriefHtml({
-        anrede, nameDisplay,
-        addressLine2: adressLines[1] || '',
-        addressLine3: adressLines[2] || '',
-        title, bodyHtml: buildBody(),
-      })
+      const html = buildLetterHtml()
       const res = await ea.renderBriefPdf(html)
       if (!res.ok || !res.buffer) { setMsg({ kind: 'err', text: `PDF-Fehler: ${res.error || 'unbekannt'}` }); return }
       const blob = new Blob([res.buffer], { type: 'application/pdf' })
@@ -183,6 +189,11 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
 
         <div className="flex items-center justify-end gap-2 flex-wrap">
           <button onClick={onClose} className="btn btn-secondary text-sm mr-auto">Abbrechen</button>
+          <button onClick={() => setShowPreview(true)} disabled={!canSave}
+            title="Brief-Vorschau anzeigen (wie er gedruckt wird)"
+            className="btn btn-secondary text-sm disabled:opacity-40">
+            <Eye className="w-4 h-4" /> Vorschau
+          </button>
           <button onClick={() => generate('Email')} disabled={!canSave || saving || !hasEmail}
             title={hasEmail ? `Per E-Mail an ${patientEmail}` : 'Keine E-Mail in Liris hinterlegt'}
             className="btn btn-secondary text-sm disabled:opacity-40">
@@ -195,6 +206,21 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
         </div>
         <p className="mt-2 text-[10px] text-gray-400 flex items-center gap-1"><Printer className="w-3 h-3" /> Der Brief landet immer im Postausgang (Druck / Liris-Ablage). «Per E-Mail» öffnet zusätzlich Outlook an den Patienten.</p>
       </div>
+
+      {/* Brief-Vorschau (A4-Seite als iframe, wie sie gedruckt wird) */}
+      {showPreview && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 shrink-0">
+              <span className="text-sm font-bold text-gray-800">Brief-Vorschau</span>
+              <button onClick={() => setShowPreview(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <iframe title="Brief-Vorschau" srcDoc={buildLetterHtml()} className="flex-1 w-full bg-gray-100" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
