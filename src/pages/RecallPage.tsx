@@ -4869,9 +4869,17 @@ const lirisExtractRef  = useRef(lirisExtract)
                             <button type="button"
                               onClick={e => {
                                 e.stopPropagation()
+                                // Auch die Liris-Akte öffnen (Nutzerwunsch 2026-07-20):
+                                // beim Tel-Nachfassen braucht die MPA die Telefonnummer
+                                // aus der Akte. openAufgebotDialog öffnet sie selbst nur
+                                // für Brief/Reminder (Adress-Prefill) — hier immer.
+                                if (isElectron) {
+                                  const pidNf = normalizePid(row.pid)
+                                  if (pidNf) openWithPid(pidNf)
+                                }
                                 openAufgebotDialog({ patient: row }, nachfassNext(row.aufgebotArt))
                               }}
-                              title="Aufgeboten, aber seit über 1 Monat kein Termin gebucht — bitte nachfassen. Klick öffnet direkt den passenden Dialog (nächster Schritt bereits vorgewählt)."
+                              title="Aufgeboten, aber seit über 1 Monat kein Termin gebucht — bitte nachfassen. Klick öffnet direkt den passenden Dialog (nächster Schritt bereits vorgewählt) und die Patientenakte in Liris."
                               className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 shrink-0 hover:bg-orange-200 hover:border-orange-400 transition-colors cursor-pointer">
                               ↻ Nachfassen → {nachfassNext(row.aufgebotArt) === 'Tel' ? 'Tel.' : 'Brief'}
                             </button>
