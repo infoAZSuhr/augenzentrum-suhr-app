@@ -863,6 +863,23 @@ const lirisExtractRef  = useRef(lirisExtract)
     e.preventDefault()
   }
 
+  // Gespeicherte Modal-Position beim Öffnen in den sichtbaren Bereich klemmen:
+  // wurde das Fenster inzwischen verkleinert (oder auf einem anderen Bildschirm
+  // geöffnet), läge das Modal sonst teilweise/ganz ausserhalb — und wirkt wie
+  // "Position vergessen". Die Position selbst bleibt erhalten, nur sichtbar
+  // gemacht. (editTarget-abhängig, damit der Check bei jedem Öffnen läuft.)
+  useEffect(() => {
+    if (!editTarget || !modalPos) return
+    const raf = requestAnimationFrame(() => {
+      const w = modalRef.current?.offsetWidth  ?? 448
+      const h = modalRef.current?.offsetHeight ?? 300
+      const x = Math.max(0, Math.min(window.innerWidth  - w, modalPos.x))
+      const y = Math.max(0, Math.min(window.innerHeight - h, modalPos.y))
+      if (x !== modalPos.x || y !== modalPos.y) saveModalPos({ x, y })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [editTarget]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Initial load: doctors from Einsatzplanung, then recall data ─────────────
   // Load doctor fachtitel from user profiles
   // Indexed by last name from displayName (matches recall doctor keys like "Artemiev")
@@ -7057,10 +7074,11 @@ const lirisExtractRef  = useRef(lirisExtract)
           <div
             ref={modalRef}
             style={modalPos
-              ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))' }
+              // Etwas schmaler (28rem statt 32rem) und kompakter — Nutzerwunsch 2026-07-18.
+              ? { position: 'fixed', left: modalPos.x, top: modalPos.y, zIndex: 56, width: 'min(28rem, calc(100vw - 2rem))' }
               // Standardposition: in der Mitte des SICHTBAREN App-Bereichs (links
               // vom Liris-Panel), damit der Dialog nicht von Liris überdeckt wird.
-              : { position: 'fixed', left: `calc(50% - ${lirisPanelWidth / 2}px)`, top: '50%', zIndex: 56, width: 'min(32rem, calc(100vw - 2rem))', transform: 'translate(-50%,-50%)' }
+              : { position: 'fixed', left: `calc(50% - ${lirisPanelWidth / 2}px)`, top: '50%', zIndex: 56, width: 'min(28rem, calc(100vw - 2rem))', transform: 'translate(-50%,-50%)' }
             }
             className="bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col"
           >
@@ -7069,8 +7087,8 @@ const lirisExtractRef  = useRef(lirisExtract)
               onMouseDown={onModalDragStart}
               className={`flex flex-col gap-0 border-b border-gray-200 shrink-0 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
             >
-              <div className="flex items-center justify-between px-6 py-4">
-                <h2 className="font-bold text-gray-900 pointer-events-none flex items-center gap-2">
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <h2 className="font-bold text-gray-900 pointer-events-none flex items-center gap-2 text-sm">
                   {editTarget === 'new' ? 'Neuer Patient' : 'Patient bearbeiten'}
                   <MinorBadge gebDatum={form.gebDatum} />
                 </h2>
@@ -7109,7 +7127,7 @@ const lirisExtractRef  = useRef(lirisExtract)
               )}
             </div>
 
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+            <div className="overflow-y-auto flex-1 px-4 py-3.5 space-y-3">
 
               {/* ── Quick-paste parser — nur bei Neuerfassung ── */}
               {editTarget === 'new' && !isElectron && <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
@@ -8684,7 +8702,7 @@ const lirisExtractRef  = useRef(lirisExtract)
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-t border-gray-200 shrink-0">
               {editTarget !== 'new' ? (
                 <button
                   onClick={handleDelete}
