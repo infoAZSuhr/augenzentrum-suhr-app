@@ -382,8 +382,17 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
               var tipC2 = (elC2.getAttribute('title') || '').trim();
               var tmC2 = tipC2.match(/(\\d{2}):(\\d{2})/);
               if (!tmC2) continue;
-              var txtC2 = (elC2.textContent || '');
-              if (txtC2.indexOf(deDate) !== -1 || tipC2.indexOf(deDate) !== -1) {
+              // Datum kann im Element selbst stehen — oder (Liris-Zeitleiste:
+              // Tooltip "14:45, Tschopp" sitzt auf dem Kalender-Icon, das Datum
+              // daneben im selben Container) in einem der Eltern-Elemente.
+              // Daher bis zu 3 Ebenen nach oben mitpruefen (2026-07-20).
+              var hitC2 = tipC2.indexOf(deDate) !== -1;
+              var scanC2 = elC2;
+              for (var up = 0; up < 4 && !hitC2 && scanC2; up++) {
+                if ((scanC2.textContent || '').indexOf(deDate) !== -1) hitC2 = true;
+                scanC2 = scanC2.parentElement;
+              }
+              if (hitC2) {
                 result.naechsterTerminZeit = tmC2[1] + ':' + tmC2[2];
                 break;
               }
