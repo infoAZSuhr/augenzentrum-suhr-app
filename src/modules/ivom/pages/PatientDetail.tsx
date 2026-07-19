@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check, Bell } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, FileText, Copy, Check, Bell, ArrowLeft } from 'lucide-react'
 import IVTIntervallblatt from '../components/IVTIntervallblatt'
 import {
   getPatient, getPatientTreatments, createTreatment,
@@ -169,6 +169,10 @@ export default function PatientDetail() {
         }
         actions={
           <>
+            {/* Zurück zur vorherigen Ansicht (z.B. Patientenliste oder Tagesplanung) */}
+            <button className="btn-secondary" onClick={() => navigate(-1)} title="Zurück zur vorherigen Ansicht">
+              <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Zurück</span>
+            </button>
             <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
               <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
             </button>
