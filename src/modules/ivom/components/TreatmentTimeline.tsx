@@ -1,19 +1,20 @@
 import { formatDate } from '../../../utils/dateUtils'
 import type { Treatment } from '../../../types/ivom.types'
 
-interface Props { treatments: Treatment[] }
+interface Props { treatments: Treatment[]; onSelect?: (t: Treatment) => void }
 
 function weeksBetween(dateA: string, dateB: string): number {
   const diff = new Date(dateB).getTime() - new Date(dateA).getTime()
   return Math.round(diff / (7 * 24 * 60 * 60 * 1000))
 }
 
-function EyeTimeline({ items, color, label, ringColor, bgColor }: {
+function EyeTimeline({ items, color, label, ringColor, bgColor, onSelect }: {
   items: Treatment[]
   color: string
   label: string
   ringColor: string
   bgColor: string
+  onSelect?: (t: Treatment) => void
 }) {
   if (items.length === 0) return null
 
@@ -43,10 +44,14 @@ function EyeTimeline({ items, color, label, ringColor, bgColor }: {
                   </div>
                 )}
 
-                {/* Behandlungspunkt */}
+                {/* Behandlungspunkt — Klick öffnet die Behandlung direkt
+                    (Nutzerwunsch 2026-07-19) */}
                 <div className="group relative flex flex-col items-center">
                   {/* Dot */}
-                  <div className={`w-4 h-4 rounded-full border-2 border-white ring-2 cursor-pointer transition-transform group-hover:scale-125 ${ringColor} ${bgColor}`} />
+                  <button type="button"
+                    onClick={() => onSelect?.(t)}
+                    title="Behandlung öffnen"
+                    className={`w-4 h-4 rounded-full border-2 border-white ring-2 cursor-pointer transition-transform group-hover:scale-125 ${ringColor} ${bgColor}`} />
 
                   {/* Datum darunter */}
                   <span className="text-xs text-gray-500 mt-1 whitespace-nowrap">
@@ -92,7 +97,7 @@ function EyeTimeline({ items, color, label, ringColor, bgColor }: {
   )
 }
 
-export default function TreatmentTimeline({ treatments }: Props) {
+export default function TreatmentTimeline({ treatments, onSelect }: Props) {
   const sorted = [...treatments].sort((a, b) => a.treatmentDate.localeCompare(b.treatmentDate))
   const od = sorted.filter(t => t.eyeSide === 'OD')
   const os = sorted.filter(t => t.eyeSide === 'OS')
@@ -103,8 +108,8 @@ export default function TreatmentTimeline({ treatments }: Props) {
 
   return (
     <div className="space-y-5">
-      <EyeTimeline items={od} color="text-orange-600" label="OD" ringColor="ring-orange-400" bgColor="bg-orange-400" />
-      <EyeTimeline items={os} color="text-blue-600" label="OS" ringColor="ring-blue-400" bgColor="bg-blue-400" />
+      <EyeTimeline items={od} color="text-orange-600" label="OD" ringColor="ring-orange-400" bgColor="bg-orange-400" onSelect={onSelect} />
+      <EyeTimeline items={os} color="text-blue-600" label="OS" ringColor="ring-blue-400" bgColor="bg-blue-400" onSelect={onSelect} />
     </div>
   )
 }

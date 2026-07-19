@@ -256,7 +256,7 @@ export default function PatientDetail() {
         {treatments.length > 0 && (
           <div className="card p-5">
             <h2 className="font-semibold text-gray-800 mb-4">Behandlungsverlauf</h2>
-            <TreatmentTimeline treatments={treatments} />
+            <TreatmentTimeline treatments={treatments} onSelect={t => setEditTreatment(t)} />
           </div>
         )}
 
