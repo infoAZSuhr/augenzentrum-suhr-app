@@ -1439,13 +1439,12 @@ export default function AppShell() {
         <main className="flex-1 overflow-auto min-w-0">
           <Outlet />
         </main>
-        {/* Liris-Webview-Panel nur in der Electron-App UND nur auf der Recall-
-            Seite — der Liris-Browser ist ausschliesslich fuer das Recall-
-            Sekretariats-Workflow gedacht. Im Browser blockiert CORS jede
-            Interaktion, daher auch hier hidden. */}
+        {/* Liris-Webview-Panel nur in der Electron-App und nur auf Seiten mit
+            Liris-Bezug (Recall, IVI, ZW-Management, Einsatzplanung). Im
+            Browser blockiert CORS jede Interaktion, daher auch hier hidden. */}
         {typeof window !== 'undefined'
           && (window as any).electronApp
-          && (location.pathname.startsWith('/recall') || location.pathname.startsWith('/ivom') || location.pathname.startsWith('/zuweisung'))
+          && (location.pathname.startsWith('/recall') || location.pathname.startsWith('/ivom') || location.pathname.startsWith('/zuweisung') || location.pathname.startsWith('/planung'))
           && <BrowserPanel />}
       </div>
 
