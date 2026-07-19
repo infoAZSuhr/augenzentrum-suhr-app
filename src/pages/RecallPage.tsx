@@ -5473,8 +5473,25 @@ const lirisExtractRef  = useRef(lirisExtract)
 
                     {/* Termindatum & Uhrzeit */}
                     <div>
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">
-                        Termindatum &amp; Uhrzeit <span className="text-red-500">*</span>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-2">
+                        <span>Termindatum &amp; Uhrzeit <span className="text-red-500">*</span></span>
+                        {/* Nachträglich in Liris angelegter Termin: die Auto-Übernahme
+                            läuft nur beim Aktenaufruf — dieser Knopf liest die Akte
+                            neu aus (Felder werden geleert und frisch befüllt). */}
+                        {isElectron && (
+                          <button type="button"
+                            onClick={() => {
+                              const pidR = normalizePid(p.pid)
+                              if (!pidR) { toast.warning('Patient hat keine PID.'); return }
+                              setAf({ terminDatum: '', terminZeit: '' })
+                              openWithPid(pidR)
+                              toast.info('Termin wird aus Liris neu ausgelesen…')
+                            }}
+                            title="Termin neu aus Liris übernehmen (z.B. wenn er erst nachträglich angelegt wurde)"
+                            className="normal-case tracking-normal inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors">
+                            ↻ aus Liris
+                          </button>
+                        )}
                       </label>
                       <div className="flex gap-2 items-center">
                         <input type="date" value={af.terminDatum}
