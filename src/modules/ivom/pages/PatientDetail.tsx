@@ -167,50 +167,57 @@ export default function PatientDetail() {
             )}
           </span>
         }
-        actions={
+        actions={(() => {
+          // Kompakte, dezente Toolbar (Nutzerwunsch 2026-07-19): kleine Buttons
+          // statt grosser Kacheln, damit die Leiste einzeilig und ruhig bleibt.
+          const btnSm = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors'
+          return (
           <>
-            {/* Zurück zur vorherigen Ansicht — bewusst klein/dezent (nur Icon) */}
+            {/* Zurück zur vorherigen Ansicht — nur Icon */}
             <button
               onClick={() => navigate(-1)}
               title="Zurück zur vorherigen Ansicht"
-              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors self-center">
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors self-center">
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <button className="btn-secondary" onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
-              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Intervallblatt</span>
+            <button className={btnSm} onClick={() => setShowIntervallblatt(true)} title="Intervallblatt">
+              <FileText className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Intervallblatt</span>
             </button>
             <button
               className={patient?.aufzubieten
-                ? 'px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium text-amber-700 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-colors flex items-center gap-2'
-                : 'btn-secondary'}
+                ? 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-colors'
+                : btnSm}
               onClick={() => toggleAufbietenMut.mutate()}
               disabled={toggleAufbietenMut.isPending}
               title="Markieren, dass dieser Patient aufgeboten werden muss"
             >
-              <Bell className="w-4 h-4" /> <span className="hidden sm:inline">{patient?.aufzubieten ? '✓ Aufzubieten' : 'Aufzubieten'}</span>
+              <Bell className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{patient?.aufzubieten ? '✓ Aufzubieten' : 'Aufzubieten'}</span>
             </button>
             <button
-              className="btn-secondary"
+              className={btnSm}
               onClick={() => setShowAufbieten(true)}
               title="Aufgebots-/Reminder-Brief für den nächsten IVI-Termin erstellen (mit Liris-Ablage)"
             >
-              <FileText className="w-4 h-4" /> <span className="hidden sm:inline">Aufbieten</span>
+              <FileText className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Aufbieten</span>
             </button>
-            <button className="btn-secondary" onClick={() => setShowEditPatient(true)} title="Bearbeiten">
-              <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Bearbeiten</span>
+            <button className={btnSm} onClick={() => setShowEditPatient(true)} title="Bearbeiten">
+              <Pencil className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Bearbeiten</span>
             </button>
             <button
-              className="px-2.5 sm:px-4 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors flex items-center gap-2"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
               onClick={() => setConfirmDeletePatient(true)}
               title="Patient löschen"
             >
-              <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Patient löschen</span>
+              <Trash2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Löschen</span>
             </button>
-            <button className="btn-primary" onClick={() => setShowForm(true)} title="Neue Behandlung">
-              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Neue Behandlung</span>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+              onClick={() => setShowForm(true)} title="Neue Behandlung">
+              <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Neue Behandlung</span>
             </button>
           </>
-        }
+          )
+        })()}
       />
 
       <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
