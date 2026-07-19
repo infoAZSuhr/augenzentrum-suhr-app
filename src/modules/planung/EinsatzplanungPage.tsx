@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, UserProfile } from '../../lib/AuthContext'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, Check, X, Printer, Calendar, CalendarDays, User, ArrowLeftRight, UserX, GripVertical } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, Check, X, Printer, Calendar, CalendarDays, User, ArrowLeftRight, UserX, GripVertical, Globe } from 'lucide-react'
 import { SCHEDULE as SCHEDULE_2026, SECTIONS as SECTIONS_2026, type Code } from './data/schedule2026'
 import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestore, saveYearListFirestore, type PlanungData } from '../../lib/firestorePlanung'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { manageFerienPlan, writePlanEntry, removePlanEntry } from '../../lib/firestorePlanung'
 import { useToast } from '../../lib/ToastContext'
+import { useBrowser } from '../../contexts/BrowserContext'
 
 const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
 const MONTHS_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']
@@ -2793,6 +2794,7 @@ export default function EinsatzplanungPage(){
   const { canEditPlanung, profile, isAdmin, isArzt, isGeschaeftsleitung, isGuest } = useAuth()
   const isReadOnly = !canEditPlanung
   const toast = useToast()
+  const browserCtx = useBrowser()
   const today=new Date()
   const [yearList,setYearListRaw]=useState<number[]>(loadYearListLocal)
   const setYearList=(list:number[])=>{setYearListRaw(list);saveYearListFirestore(list)}
@@ -3188,6 +3190,19 @@ export default function EinsatzplanungPage(){
 
         {/* Controls row */}
         <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
+
+          {/* Liris-Panel ein-/ausklappen (nur Desktop-App; Panel wird in
+              AppShell auch auf /planung gemountet) */}
+          {!!(window as any).electronApp && (
+            <button
+              onClick={()=>browserCtx.toggle()}
+              title="Liris-Ansicht ein-/ausblenden"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                browserCtx.isOpen ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}>
+              <Globe className="w-3.5 h-3.5" /> Liris
+            </button>
+          )}
 
           {/* Year + add/delete */}
           <div className="flex items-center gap-1">
