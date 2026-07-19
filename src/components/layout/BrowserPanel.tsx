@@ -440,6 +440,20 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
       // eines echten Termins. Ohne Uhrzeit-Bezug war das nicht verlaesslich
       // von echten Terminen zu unterscheiden.
 
+      // Zeit-Nachschlag (2026-07-19): Datum wurde gefunden, aber ohne Uhrzeit
+      // (z.B. Zeitleisten-Badge ohne Tooltip-Zeit) — im Seitentext gezielt
+      // nach GENAU diesem Datum gefolgt von einer Uhrzeit suchen. Der feste
+      // Datums-Bezug verhindert die Fehlgriffe des alten Pattern e.
+      if (result.naechsterTerminDatum && !result.naechsterTerminZeit) {
+        var ntdParts = result.naechsterTerminDatum.split('-');
+        var deDateNZ = ntdParts[2] + '\\\\.' + ntdParts[1] + '\\\\.' + ntdParts[0];
+        var tAfter = allText.match(new RegExp(deDateNZ + '[\\\\s,]{0,5}(\\\\d{1,2}):(\\\\d{2})'));
+        if (tAfter) {
+          var hNZ = tAfter[1].length < 2 ? '0' + tAfter[1] : tAfter[1];
+          result.naechsterTerminZeit = hNZ + ':' + tAfter[2];
+        }
+      }
+
       // 9) Beurteilung-und-Prozedere Keywords: 'Myd' -> Pupillenerweiterung,
       //    'OCT' -> OCT, etc. Wird vom Aufbieten-Formular konsumiert.
       var bpStart2 = allText.search(/Beurteilung\\s+und\\s+Prozedere/i);

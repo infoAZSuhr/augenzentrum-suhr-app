@@ -5484,6 +5484,14 @@ const lirisExtractRef  = useRef(lirisExtract)
                           onChange={e => setAf({ terminZeit: e.target.value })}
                           className="input text-sm w-28">
                           <option value="">Uhrzeit</option>
+                          {/* Aus Liris übernommene Zeit ausserhalb des 15-Min-Rasters
+                              (z.B. 09:40) als eigene Option anzeigen — sonst bliebe
+                              das Feld trotz automatischer Übernahme scheinbar leer. */}
+                          {af.terminZeit && (() => {
+                            const [h, m] = af.terminZeit.split(':').map(Number)
+                            const inRaster = h >= 8 && (h < 18 || (h === 18 && m === 0)) && m % 15 === 0
+                            return inRaster ? null : <option value={af.terminZeit}>{af.terminZeit}</option>
+                          })()}
                           {/* 08:00–18:00 in 15-Min-Schritten (41 Slots). Bis 2026-07-17
                               endete die Auswahl bei 17:00 — Nutzerwunsch: bis 18 Uhr. */}
                           {Array.from({ length: 41 }, (_, i) => {
