@@ -8235,9 +8235,11 @@ const lirisExtractRef  = useRef(lirisExtract)
                     setField('naechsteKons', '')
                     setField('keinTermin', false)
                     if (v === 'WV bei Bedarf' || v === 'Notfall - einmalige Konst.' || v === 'Zweitmeinung - einmalige Konst.') setField('patientenStatus', 'kein Aufgebot')
-                    if (v === 'Wegzug' || v === 'Arztwechsel') setField('patientenStatus', 'inaktiv')
+                    // «nicht erreichbar» = Fall-Abschluss im Nachfass-Schema →
+                    // ebenfalls inaktiv setzen (Nutzerwunsch 2026-07-20).
+                    if (v === 'Wegzug' || v === 'Arztwechsel' || v === 'nicht erreichbar') setField('patientenStatus', 'inaktiv')
                     if (v === 'Verstorben') setField('patientenStatus', 'verstorben')
-                    if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug') {
+                    if (v === 'Verstorben' || v === 'Arztwechsel' || v === 'Wegzug' || v === 'nicht erreichbar') {
                       setField('verlauf', form.verlauf.map(ve =>
                         ve.ergebnis === 'noch zu erledigen' ? { ...ve, ergebnis: 'abgebrochen' } : ve
                       ))
