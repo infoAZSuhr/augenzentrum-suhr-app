@@ -3292,12 +3292,8 @@ export default function EinsatzplanungPage(){
           </button>}
 
 
-          {/* Liris — deaktiviert */}
-          {!isReadOnly&&<button disabled title="Liris-Funktion momentan nicht verfügbar"
-            className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-gray-50 text-xs sm:text-sm text-gray-400 cursor-not-allowed font-medium opacity-50">
-            <span className="w-4 h-4 rounded bg-gray-400 flex items-center justify-center text-white text-[9px] font-bold shrink-0">L</span>
-            <span className="hidden sm:inline">Liris</span>
-          </button>}
+          {/* Alter deaktivierter Liris-Platzhalter entfernt (2026-07-19) — das
+              funktionierende Liris-Panel öffnet der Button neben dem Titel. */}
 
           {/* Print */}
           <button onClick={()=>setPrintMenu(v=>!v)}
