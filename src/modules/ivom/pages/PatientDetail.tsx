@@ -146,7 +146,17 @@ export default function PatientDetail() {
   return (
     <div>
       <PageHeader
-        title={patient.firstName}
+        title={
+          patient.patientNumber ? (
+            <button
+              onClick={() => openWithPid(patient.patientNumber!)}
+              className="hover:text-primary-600 hover:underline decoration-1 underline-offset-2 cursor-pointer transition-colors"
+              title="Patientenakte in Liris öffnen"
+            >
+              {patient.firstName}
+            </button>
+          ) : patient.firstName
+        }
         subtitle={
           <span className="flex items-center gap-2 text-sm text-gray-500 mt-0.5">
             <span>Geb. {formatDate(patient.dateOfBirth)}</span>

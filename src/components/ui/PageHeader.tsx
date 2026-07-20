@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 
 interface Props {
-  title: string
+  title: string | ReactNode
   subtitle?: string | ReactNode
   actions?: ReactNode
   /** Optionales Element (z.B. <BackButton/>) vor dem Titel, in derselben Zeile. */
