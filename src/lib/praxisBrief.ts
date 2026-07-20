@@ -13,6 +13,13 @@ export interface PraxisBriefOpts {
   addressLine3?: string   // PLZ Ort
   title: string           // Betreff
   bodyHtml: string        // innerer Brief-Body inkl. Anrede-Absatz
+  footerCode?: string     // Fusszeilen-Code «PID-TTMMJJJJ-Initialen» (wie Recall-Brief)
+  logoDataUrl?: string    // Logo-Override (dynamisch geladenes /logo-azs.png); Fallback = LOGO_AZS_BASE64
+}
+
+/** Minimales HTML-Escaping für in den Brief eingesetzte Klartext-Werte. */
+function esc(s: string): string {
+  return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 }
 
 /** Anrede-Höflichkeitsform für «Sehr geehrte…» */
@@ -26,7 +33,7 @@ export function anredeForm(anrede: string): string {
 export function buildPraxisBriefHtml(opts: PraxisBriefOpts): string {
   const today = new Date()
   const dateStr = `${today.getDate()}. ${GERMAN_MONTHS[today.getMonth()]} ${today.getFullYear()}`
-  const logoDataUrl = LOGO_AZS_BASE64
+  const logoDataUrl = opts.logoDataUrl || LOGO_AZS_BASE64
   const adressHtml = [opts.anrede, opts.nameDisplay, opts.addressLine2 ?? '', opts.addressLine3 ?? '']
     .map(l => (l || '').trim()).filter(Boolean).join('<br>')
 
@@ -35,7 +42,8 @@ export function buildPraxisBriefHtml(opts: PraxisBriefOpts): string {
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;background:#fff}
-  .page{width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
+  .page{position:relative;width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
+  .footer-id{position:absolute;left:2.5cm;right:2.2cm;bottom:.7cm;font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:.15cm;white-space:nowrap}
   .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.1cm}
   .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;max-width:7.5cm}
   .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm;margin-left:-.37cm}
@@ -93,7 +101,7 @@ export function buildPraxisBriefHtml(opts: PraxisBriefOpts): string {
     <p class="gruss">Freundliche Gr&#252;sse</p>
     <p>Augenzentrum Suhr Team</p>
   </div></div>
-
+${opts.footerCode ? `\n  <div class="footer-id">${esc(opts.footerCode)}</div>` : ''}
 </div>
 </body></html>`
 }

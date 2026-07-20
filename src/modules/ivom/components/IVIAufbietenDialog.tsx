@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Mail, Printer, Loader2, Check, Bell, CalendarDays, Eye } from 'lucide-react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { useBrowser } from '../../../contexts/BrowserContext'
 import { usePostausgang } from '../../../contexts/PostausgangContext'
+import { useAuth } from '../../../lib/AuthContext'
 import { buildPraxisBriefHtml, anredeForm, formatTerminLong } from '../../../lib/praxisBrief'
 import type { Patient } from '../../../types/ivom.types'
 
@@ -24,10 +25,42 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
   const arztNachname = (arztName || '').trim().split(/\s+/).pop() || ''
   const { lirisExtract } = useBrowser()
   const postausgang = usePostausgang()
+  const { profile } = useAuth()
   const { style: dragStyle, onHeaderMouseDown } = useDraggable('ivi-aufbieten')
 
   const pid = (patient.patientNumber || '').replace(/\D/g, '').replace(/^0+(\d)/, '$1')
   const lx = lirisExtract && (lirisExtract.pid || '').replace(/\D/g, '').replace(/^0+(\d)/, '$1') === pid ? lirisExtract : null
+
+  // Logo als Base64-DataURL — gleiche Quelle wie der Recall-Aufgebotsbrief
+  // (/logo-azs.png), damit der Briefkopf identisch aussieht. Inline nötig,
+  // damit Electron-printToPDF (file://) das Bild ohne Internet darstellt.
+  const [logoDataUrl, setLogoDataUrl] = useState<string>('')
+  useEffect(() => {
+    let aborted = false
+    fetch('/logo-azs.png')
+      .then(r => r.blob())
+      .then(b => new Promise<string>((res, rej) => {
+        const fr = new FileReader()
+        fr.onload = () => res(String(fr.result))
+        fr.onerror = () => rej(fr.error)
+        fr.readAsDataURL(b)
+      }))
+      .then(url => { if (!aborted) setLogoDataUrl(url) })
+      .catch(err => console.warn('[IVI-Brief] Logo konnte nicht geladen werden', err))
+    return () => { aborted = true }
+  }, [])
+
+  // Fusszeilen-Code «PID-TTMMJJJJ-Initialen» — identisch zum Recall-Brief,
+  // damit nachvollziehbar bleibt, welcher Patient/welche/r Mitarbeiter/in.
+  const userInitials = (): string => {
+    const name = (profile?.displayName || profile?.username || '').trim()
+    return name ? name.split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 3) : ''
+  }
+  const footerCode = (): string => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(patient.dateOfBirth || lx?.gebDatum || ''))
+    const geb = m ? `${m[3]}${m[2]}${m[1]}` : ''
+    return [pid, geb, userInitials()].filter(Boolean).join('-')
+  }
 
   const [art, setArt] = useState<Art>('Brief')
   const [anrede, setAnrede] = useState<'Frau' | 'Herr' | 'Familie' | ''>(
@@ -97,6 +130,8 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
       addressLine2: adressLines[1] || '',
       addressLine3: adressLines[2] || '',
       title, bodyHtml: buildBody(),
+      footerCode: footerCode(),
+      logoDataUrl: logoDataUrl || undefined,
     })
   }
 
