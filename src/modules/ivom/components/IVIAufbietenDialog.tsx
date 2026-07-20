@@ -7,7 +7,10 @@ import { useAuth } from '../../../lib/AuthContext'
 import { buildPraxisBriefHtml, anredeForm, formatTerminLong } from '../../../lib/praxisBrief'
 import type { Patient } from '../../../types/ivom.types'
 
-type Art = 'Bestaetigung' | 'Reminder'
+// Aufgebot   = Praxis legt Termin fest, Patient erfährt ihn erst mit diesem Brief.
+// Bestaetigung = Termin besteht bereits, wird schriftlich bestätigt.
+// Reminder    = noch kein Termin — Patient soll einen vereinbaren (ohne Datum).
+type Art = 'Aufgebot' | 'Bestaetigung' | 'Reminder'
 
 interface ElectronBriefApi {
   renderBriefPdf?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
@@ -18,8 +21,8 @@ function titleCase(s: string): string {
   return (s || '').replace(/\p{L}+/gu, w => (w.length > 1 && w === w.toUpperCase() ? w.charAt(0) + w.slice(1).toLowerCase() : w))
 }
 
-/** IVI-Aufbieten: Terminbestätigung (mit Datum) oder Reminder-Schreiben für den
- *  nächsten IVOM-Termin erstellen und in den Postausgang legen (→ Liris-Ablage). */
+/** IVI-Aufbieten: Aufgebot / Terminbestätigung (mit Datum) oder Reminder-Schreiben
+ *  für den nächsten IVOM-Termin erstellen und in den Postausgang legen (→ Liris). */
 export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arztName }: { patient: Patient; onClose: () => void; onAufgeboten?: () => void; arztName?: string }) {
   // Nachname des behandelnden Arztes (für die Liris-Ablage / Auto-Import).
   const arztNachname = (arztName || '').trim().split(/\s+/).pop() || ''
@@ -62,7 +65,7 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
     return [pid, geb, userInitials()].filter(Boolean).join('-')
   }
 
-  const [art, setArt] = useState<Art>('Bestaetigung')
+  const [art, setArt] = useState<Art>('Aufgebot')
   const [anrede, setAnrede] = useState<'Frau' | 'Herr' | 'Familie' | ''>(
     (lx?.anrede as any) || (patient.gender === 'M' ? 'Herr' : patient.gender === 'W' ? 'Frau' : '')
   )
@@ -86,11 +89,15 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
 
   const buildBody = (): string => {
     const salut = `<p class="salut">Sehr ${anredeForm(anrede)} ${nachname}</p>`
-    if (art === 'Bestaetigung') {
+    if (art === 'Aufgebot' || art === 'Bestaetigung') {
       const terminZeile = formatTerminLong(terminDatum, terminZeit)
+      const intro = art === 'Aufgebot'
+        ? 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir haben f&#252;r Sie folgenden Termin <strong>reserviert</strong>:'
+        : 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir best&#228;tigen Ihnen gerne folgenden Termin:'
+      const boxLabel = art === 'Aufgebot' ? 'Reservierter Termin' : 'Best&#228;tigter Termin'
       return `${salut}
-        <p>Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir best&#228;tigen Ihnen gerne folgenden Termin:</p>
-        <div class="termin-box-wrap"><div class="termin-box"><div class="termin-box-label">Best&#228;tigter Termin</div><div class="termin-box-date">${terminZeile}</div></div></div>
+        <p>${intro}</p>
+        <div class="termin-box-wrap"><div class="termin-box"><div class="termin-box-label">${boxLabel}</div><div class="termin-box-date">${terminZeile}</div></div></div>
         <p>Sollten Sie diesen Termin nicht wahrnehmen k&#246;nnen, bitten wir Sie um eine R&#252;ckmeldung bis sp&#228;testens 24 Stunden vorher per Tel. <strong>062 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a>.</p>
         <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>`
     }
@@ -108,9 +115,11 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
   const buildPlainBody = (): string => {
     const salut = `Sehr ${anredeForm(anrede)} ${nachname}`
     const sig = ['', '─────────────────────────────────', 'Freundliche Grüsse', 'Augenzentrum Suhr Team', '', '  Tel.  +41 62 842 18 46', '  Mail  info@augenzentrum-suhr.ch', '  Web   www.augenzentrum-suhr.ch'].join('\n')
-    if (art === 'Bestaetigung') {
-      return [salut, '',
-        'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir bestätigen Ihnen gerne folgenden Termin:',
+    if (art === 'Aufgebot' || art === 'Bestaetigung') {
+      const intro = art === 'Aufgebot'
+        ? 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir haben für Sie folgenden Termin reserviert:'
+        : 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir bestätigen Ihnen gerne folgenden Termin:'
+      return [salut, '', intro,
         '', `  ${formatTerminLong(terminDatum, terminZeit)}`, '',
         'Sollten Sie diesen Termin nicht wahrnehmen können, bitten wir Sie um eine Rückmeldung bis spätestens 24 Stunden vorher per Tel. 062 842 18 46 oder info@augenzentrum-suhr.ch.',
         'Wir danken Ihnen für Ihr Vertrauen.', sig].join('\n')
@@ -124,7 +133,9 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
 
   // Kompletter Brief (Briefkopf + Body) — für PDF-Erzeugung UND Vorschau.
   const buildLetterHtml = (): string => {
-    const title = art === 'Bestaetigung' ? 'Terminbest&#228;tigung &#8211; intravitreale Therapie' : 'Erinnerung &#8211; intravitreale Therapie'
+    const title = art === 'Aufgebot' ? 'Terminaufgebot &#8211; intravitreale Therapie'
+      : art === 'Bestaetigung' ? 'Terminbest&#228;tigung &#8211; intravitreale Therapie'
+      : 'Erinnerung &#8211; intravitreale Therapie'
     return buildPraxisBriefHtml({
       anrede, nameDisplay,
       addressLine2: adressLines[1] || '',
@@ -156,7 +167,9 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
       // Brief erstellt -> «Aufzubieten»-Markierung entfernen.
       onAufgeboten?.()
       if (versand === 'Email') {
-        const subject = art === 'Bestaetigung' ? 'Terminbestätigung – intravitreale Therapie' : 'Erinnerung – intravitreale Therapie'
+        const subject = art === 'Aufgebot' ? 'Terminaufgebot – intravitreale Therapie'
+          : art === 'Bestaetigung' ? 'Terminbestätigung – intravitreale Therapie'
+          : 'Erinnerung – intravitreale Therapie'
         window.location.href = `mailto:${encodeURIComponent(patientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainBody())}`
         setMsg({ kind: 'ok', text: '✓ E-Mail in Outlook geöffnet · Brief im Postausgang (für Liris-Ablage).' })
       } else {
@@ -183,7 +196,7 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
 
         {/* Art */}
         <div className="flex gap-2 mb-3">
-          {([['Bestaetigung', 'Terminbestätigung', CalendarDays], ['Reminder', 'Reminder', Bell]] as const).map(([v, label, Icon]) => (
+          {([['Aufgebot', 'Aufgebot', CalendarDays], ['Bestaetigung', 'Bestätigung', Check], ['Reminder', 'Reminder', Bell]] as const).map(([v, label, Icon]) => (
             <button key={v} type="button" onClick={() => setArt(v)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
                 art === v ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
@@ -202,10 +215,10 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
           ))}
         </div>
 
-        {/* Termin (nur Terminbestätigung) */}
-        {art === 'Bestaetigung' && (
+        {/* Termin (bei Aufgebot + Bestätigung) */}
+        {art !== 'Reminder' && (
           <div className="mb-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bestätigter Termin</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{art === 'Aufgebot' ? 'Reservierter Termin' : 'Bestätigter Termin'}</p>
             <div className="flex gap-2">
               <input type="date" value={terminDatum} onChange={e => setTerminDatum(e.target.value)} className="input text-sm flex-1" />
               <input type="time" value={terminZeit} onChange={e => setTerminZeit(e.target.value)} className="input text-sm w-32" />
