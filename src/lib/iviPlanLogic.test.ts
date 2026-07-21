@@ -6,11 +6,9 @@ import {
   pickLatestPerPatientEye,
   IVI_DOCTORS_MATCH,
   IVI_WORKING,
-  weekStart,
-  addWeeks,
-  daysBetween,
-  forecastSlot,
-  buildForecast,
+  overlapWindow,
+  buildArztVerfuegbarkeit,
+  IVI_INJECTOR_MATCH,
   type PlanLike,
 } from './iviPlanLogic'
 
@@ -171,96 +169,103 @@ describe('pickLatestPerPatientEye', () => {
   })
 })
 
-// ─── Terminprognose ──────────────────────────────────────────────────────────
+// ─── Arzt-Verfügbarkeit ──────────────────────────────────────────────────────
 
-describe('weekStart / addWeeks / daysBetween', () => {
-  it('weekStart liefert den Montag der Woche', () => {
-    expect(weekStart('2026-08-03')).toBe('2026-08-03') // Mo selbst
-    expect(weekStart('2026-08-06')).toBe('2026-08-03') // Do -> Mo
-    expect(weekStart('2026-08-09')).toBe('2026-08-03') // So -> Mo derselben Woche
-    expect(weekStart('2026-08-10')).toBe('2026-08-10') // naechster Mo
-  })
+const PLAN = (schedule: Record<string, Record<string, string>>): PlanLike => ({
+  sections: [{ persons: ['Dmitri Artemiev', 'Markus Tschopp', 'Stefan Trachsler', 'Svetlana Malinina'] }],
+  schedule,
+})
 
-  it('addWeeks rechnet in ganzen Wochen', () => {
-    expect(addWeeks('2026-08-03', 4)).toBe('2026-08-31')
-    expect(addWeeks('2026-08-03', 0)).toBe('2026-08-03')
-  })
-
-  it('daysBetween ist vorzeichenbehaftet', () => {
-    expect(daysBetween('2026-08-03', '2026-08-06')).toBe(3)
-    expect(daysBetween('2026-08-06', '2026-08-03')).toBe(-3)
+describe('IVI_INJECTOR_MATCH', () => {
+  it('enthält den injizierenden Arzt', () => {
+    expect(IVI_INJECTOR_MATCH).toEqual(['artemiev'])
   })
 })
 
-describe('forecastSlot', () => {
-  it('exakt wenn das Soll-Datum selbst ein IVI-Tag ist', () => {
-    const r = forecastSlot('2026-08-03', ['2026-08-03', '2026-08-17'])
-    expect(r).toEqual({ vorschlag: '2026-08-03', status: 'exakt', abweichungTage: 0 })
-  })
-
-  it('weicht auf Do/Fr DERSELBEN Woche aus wenn der Montag fehlt (Feiertag)', () => {
-    // Mo 03.08. ist kein IVI-Tag (Feiertag -> kein Arzt), aber Do 06.08.
-    const r = forecastSlot('2026-08-03', ['2026-08-06', '2026-08-17'])
-    expect(r.vorschlag).toBe('2026-08-06')
-    expect(r.status).toBe('ausweich')
-    expect(r.abweichungTage).toBe(3)
-  })
-
-  it('verschiebt NICHT um Wochen wenn die Woche gar keinen IVI-Tag hat', () => {
-    // Naechster IVI-Tag waere erst die Folgewoche -> darf NICHT vorgeschlagen werden
-    const r = forecastSlot('2026-08-03', ['2026-08-10', '2026-08-17'])
-    expect(r).toEqual({ vorschlag: null, status: 'kein-tag', abweichungTage: 0 })
-  })
-
-  it('waehlt den naechstliegenden Tag derselben Woche', () => {
-    const r = forecastSlot('2026-08-05', ['2026-08-03', '2026-08-06'])
-    expect(r.vorschlag).toBe('2026-08-06') // 1 Tag statt 2
-  })
-
-  it('bevorzugt bei Gleichstand den spaeteren Tag', () => {
-    const r = forecastSlot('2026-08-05', ['2026-08-04', '2026-08-06'])
-    expect(r.vorschlag).toBe('2026-08-06')
-  })
-
-  it('ignoriert IVI-Tage anderer Wochen komplett', () => {
-    expect(forecastSlot('2026-08-03', []).status).toBe('kein-tag')
-  })
+describe('overlapWindow', () => {
+  it('GT + GT = ganzer Tag', () => expect(overlapWindow('GT', 'GT')).toBe('ganzer Tag'))
+  it('GT + NM = Nachmittag', () => expect(overlapWindow('GT', 'NM')).toBe('Nachmittag'))
+  it('GT + VM = Vormittag', () => expect(overlapWindow('GT', 'VM')).toBe('Vormittag'))
+  it('VM + NM = keine Überlappung', () => expect(overlapWindow('VM', 'NM')).toBeNull())
+  it('NM + VM = keine Überlappung', () => expect(overlapWindow('NM', 'VM')).toBeNull())
+  it('VM + VM = Vormittag', () => expect(overlapWindow('VM', 'VM')).toBe('Vormittag'))
 })
 
-describe('buildForecast', () => {
-  const iviDays = ['2026-08-03', '2026-08-20', '2026-08-31']
-
-  it('rechnet Soll-Datum aus letzter Behandlung + Intervall', () => {
-    const r = buildForecast([
-      { patientId: 'P1', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 4 },
-    ], iviDays)
-    expect(r[0].sollDatum).toBe('2026-08-03')
-    expect(r[0].status).toBe('exakt')
+describe('buildArztVerfuegbarkeit', () => {
+  it('markiert Tag als passend wenn Injektor + Partner überlappen', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Dmitri Artemiev': { '2026-08-03': 'GT' },
+      'Markus Tschopp':  { '2026-08-03': 'NM' },
+    })], '2026-08-01')
+    expect(r).toHaveLength(1)
+    expect(r[0].passend).toBe(true)
+    expect(r[0].fenster).toBe('Nachmittag')
+    expect(r[0].anwesend.map(a => a.name)).toEqual(['Dmitri Artemiev', 'Markus Tschopp'])
   })
 
-  it('filtert Kandidaten ohne Intervall oder ohne Datum', () => {
-    const r = buildForecast([
-      { patientId: 'P1', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 0 },
-      { patientId: 'P2', eyeSide: 'OS', lastTreatmentDate: '', intervalWeeks: 4 },
-    ], iviDays)
+  it('nicht passend wenn Injektor VM und Partner NM', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Dmitri Artemiev': { '2026-08-03': 'VM' },
+      'Markus Tschopp':  { '2026-08-03': 'NM' },
+    })], '2026-08-01')
+    expect(r[0].passend).toBe(false)
+    expect(r[0].fenster).toBeNull()
+  })
+
+  it('nicht passend wenn der Injektor fehlt', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Markus Tschopp': { '2026-08-03': 'GT' },
+    })], '2026-08-01')
+    expect(r[0].passend).toBe(false)
+    expect(r[0].anwesend).toHaveLength(1)
+  })
+
+  it('nicht passend wenn nur der Injektor da ist', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Dmitri Artemiev': { '2026-08-03': 'GT' },
+    })], '2026-08-01')
+    expect(r[0].passend).toBe(false)
+  })
+
+  it('listet den Injektor zuerst', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Markus Tschopp':  { '2026-08-03': 'GT' },
+      'Dmitri Artemiev': { '2026-08-03': 'GT' },
+    })], '2026-08-01')
+    expect(r[0].anwesend[0].name).toBe('Dmitri Artemiev')
+    expect(r[0].anwesend[0].injector).toBe(true)
+  })
+
+  it('ignoriert Tage vor today und Nicht-Working-Codes', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Dmitri Artemiev': { '2026-07-01': 'GT', '2026-08-03': 'Fer', '2026-08-10': 'GT' },
+      'Markus Tschopp':  { '2026-08-10': 'GT' },
+    })], '2026-08-01')
+    expect(r.map(x => x.date)).toEqual(['2026-08-10'])
+  })
+
+  it('ignoriert nicht-relevante Ärzte komplett', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Svetlana Malinina': { '2026-08-03': 'GT' },
+    })], '2026-08-01')
     expect(r).toEqual([])
   })
 
-  it('sortiert nach Soll-Datum', () => {
-    const r = buildForecast([
-      { patientId: 'spaet', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 8 },
-      { patientId: 'frueh', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 4 },
-    ], iviDays)
-    expect(r.map(x => x.patientId)).toEqual(['frueh', 'spaet'])
+  it('vereint mehrere Jahres-Pläne und sortiert nach Datum', () => {
+    const r = buildArztVerfuegbarkeit([
+      PLAN({ 'Dmitri Artemiev': { '2026-12-28': 'GT' }, 'Markus Tschopp': { '2026-12-28': 'GT' } }),
+      PLAN({ 'Dmitri Artemiev': { '2027-01-04': 'GT' }, 'Stefan Trachsler': { '2027-01-04': 'GT' } }),
+    ], '2026-08-01')
+    expect(r.map(x => x.date)).toEqual(['2026-12-28', '2027-01-04'])
+    expect(r.every(x => x.passend)).toBe(true)
   })
 
-  it('meldet kein-tag statt das Intervall zu strecken', () => {
-    // Soll 10.08. — in dieser Woche gibt es keinen IVI-Tag (naechster erst 20.08.)
-    const r = buildForecast([
-      { patientId: 'P1', eyeSide: 'OD', lastTreatmentDate: '2026-07-13', intervalWeeks: 4 },
-    ], iviDays)
-    expect(r[0].sollDatum).toBe('2026-08-10')
-    expect(r[0].status).toBe('kein-tag')
-    expect(r[0].vorschlag).toBeNull()
+  it('waehlt das beste Fenster wenn mehrere Partner da sind', () => {
+    const r = buildArztVerfuegbarkeit([PLAN({
+      'Dmitri Artemiev':  { '2026-08-03': 'GT' },
+      'Markus Tschopp':   { '2026-08-03': 'VM' },
+      'Stefan Trachsler': { '2026-08-03': 'GT' },
+    })], '2026-08-01')
+    expect(r[0].fenster).toBe('ganzer Tag')
   })
 })

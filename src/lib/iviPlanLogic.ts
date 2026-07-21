@@ -93,87 +93,97 @@ export function pickLatestPerPatientEye<T extends TreatmentLike>(treatments: T[]
   return out
 }
 
-// ─── Terminprognose ──────────────────────────────────────────────────────────
+// ─── Arzt-Verfügbarkeit für die IVI-Tagesplanung ─────────────────────────────
+//
+// Frage, die das beantwortet: «An welchen kommenden Tagen könnten wir IVI
+// machen — wer wäre da?»
+//
+// Ein IVI-Tag braucht den injizierenden Arzt UND mindestens einen der
+// Partner-Ärzte, und zwar mit ZEITLICHER ÜBERLAPPUNG: ist der eine nur VM
+// und der andere nur NM da, nützt das nichts.
 
-/** Montag (ISO) der Woche, in der `iso` liegt. Wochenbeginn = Montag. */
-export function weekStart(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z')
-  const dow = (d.getUTCDay() + 6) % 7          // Mo=0 … So=6
-  d.setUTCDate(d.getUTCDate() - dow)
-  return d.toISOString().slice(0, 10)
+/** Injiziert — ohne ihn kein IVI-Tag. */
+export const IVI_INJECTOR_MATCH = ['artemiev'] as const
+
+/** Codes die Anwesenheit in der Praxis bedeuten. */
+const VM_COVER = new Set(['GT', 'VM'])
+const NM_COVER = new Set(['GT', 'NM'])
+
+export interface AnwesenderArzt {
+  name: string
+  code: string
+  /** true = injizierender Arzt, false = Partner */
+  injector: boolean
 }
 
-/** `iso` plus n Wochen (ISO-Datum zurück). */
-export function addWeeks(iso: string, weeks: number): string {
-  const d = new Date(iso + 'T00:00:00Z')
-  d.setUTCDate(d.getUTCDate() + weeks * 7)
-  return d.toISOString().slice(0, 10)
+export interface ArztTag {
+  date: string
+  anwesend: AnwesenderArzt[]
+  /** Injektor + mind. ein Partner mit zeitlicher Überlappung */
+  passend: boolean
+  /** Halbtag(e) in denen sich Injektor und Partner überschneiden */
+  fenster: 'Vormittag' | 'Nachmittag' | 'ganzer Tag' | null
 }
 
-/** Differenz in Tagen (b − a); negativ wenn b vor a liegt. */
-export function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86_400_000)
-}
-
-/** exakt = Soll-Datum ist selbst IVI-Tag · ausweich = anderer Tag DERSELBEN
- *  Woche (z.B. Do/Fr weil Montag Feiertag) · kein-tag = in dieser Woche gibt
- *  es keinen IVI-Tag → muss manuell geklärt werden. */
-export type ForecastStatus = 'exakt' | 'ausweich' | 'kein-tag'
-
-export interface ForecastSlot {
-  vorschlag: string | null
-  status: ForecastStatus
-  abweichungTage: number
+/** Überschneiden sich zwei Codes zeitlich? Liefert das gemeinsame Fenster. */
+export function overlapWindow(a: string, b: string): ArztTag['fenster'] {
+  const vm = VM_COVER.has(a) && VM_COVER.has(b)
+  const nm = NM_COVER.has(a) && NM_COVER.has(b)
+  if (vm && nm) return 'ganzer Tag'
+  if (vm) return 'Vormittag'
+  if (nm) return 'Nachmittag'
+  return null
 }
 
 /**
- * Sucht den IVI-Tag für ein Soll-Datum — bewusst NUR innerhalb DERSELBEN
- * Kalenderwoche.
- *
- * Hintergrund: IVI-Tage werden aus der Einsatzplanung abgeleitet. An einem
- * Feiertag ist kein Arzt eingeteilt, der Montag ist dann also gar kein
- * IVI-Tag — die Prognose weicht dadurch automatisch auf Do/Fr derselben
- * Woche aus. Das Intervall darf dabei NICHT um ganze Wochen verschoben
- * werden: gibt es in der Woche überhaupt keinen IVI-Tag, wird das als
- * 'kein-tag' gemeldet statt still auf eine andere Woche zu rutschen.
+ * Listet ab `today` alle Tage, an denen mindestens einer der relevanten
+ * Ärzte da ist — mit Codes und der Info, ob eine IVI-Konstellation zustande
+ * käme. Sortiert nach Datum.
  */
-export function forecastSlot(sollDatum: string, iviDays: readonly string[]): ForecastSlot {
-  const ws = weekStart(sollDatum)
-  const inWeek = iviDays.filter(d => weekStart(d) === ws)
-  if (inWeek.length === 0) return { vorschlag: null, status: 'kein-tag', abweichungTage: 0 }
-  if (inWeek.includes(sollDatum)) return { vorschlag: sollDatum, status: 'exakt', abweichungTage: 0 }
-  // nächstliegender Tag derselben Woche; bei Gleichstand der spätere
-  let best = inWeek[0]
-  for (const d of inWeek) {
-    const cur = Math.abs(daysBetween(sollDatum, d))
-    const bst = Math.abs(daysBetween(sollDatum, best))
-    if (cur < bst || (cur === bst && d > best)) best = d
+export function buildArztVerfuegbarkeit(
+  plans: ReadonlyArray<PlanLike | null | undefined>,
+  today: string,
+  injectorPatterns: readonly string[] = IVI_INJECTOR_MATCH,
+  partnerPatterns: readonly string[] = IVI_DOCTORS_MATCH,
+  workingCodes: ReadonlySet<string> = IVI_WORKING,
+): ArztTag[] {
+  const byDate = new Map<string, AnwesenderArzt[]>()
+
+  for (const plan of plans) {
+    if (!plan) continue
+    const persons = plan.sections?.flatMap(s => s.persons) ?? []
+    const injectors = filterIviDoctors(persons, injectorPatterns)
+    const partners = filterIviDoctors(persons, partnerPatterns)
+
+    for (const [name, injector] of [
+      ...injectors.map(n => [n, true] as const),
+      ...partners.map(n => [n, false] as const),
+    ]) {
+      const schedule = plan.schedule?.[name] ?? {}
+      for (const [date, code] of Object.entries(schedule)) {
+        if (date < today || !workingCodes.has(code)) continue
+        const list = byDate.get(date) ?? []
+        if (!list.some(a => a.name === name)) list.push({ name, code, injector })
+        byDate.set(date, list)
+      }
+    }
   }
-  return { vorschlag: best, status: 'ausweich', abweichungTage: daysBetween(sollDatum, best) }
-}
 
-export interface ForecastCandidate {
-  patientId: string
-  eyeSide: string
-  lastTreatmentDate: string
-  intervalWeeks: number
-}
-
-export interface ForecastEntry extends ForecastCandidate, ForecastSlot {
-  sollDatum: string
-}
-
-/** Baut die Terminprognose: Soll-Datum = letzte Behandlung + Intervall,
- *  danach passenden IVI-Tag derselben Woche suchen. Sortiert nach Soll-Datum. */
-export function buildForecast(
-  candidates: readonly ForecastCandidate[],
-  iviDays: readonly string[],
-): ForecastEntry[] {
-  return candidates
-    .filter(c => !!c.lastTreatmentDate && c.intervalWeeks > 0)
-    .map(c => {
-      const sollDatum = addWeeks(c.lastTreatmentDate, c.intervalWeeks)
-      return { ...c, sollDatum, ...forecastSlot(sollDatum, iviDays) }
+  return [...byDate.entries()]
+    .map(([date, anwesend]) => {
+      anwesend.sort((a, b) => Number(b.injector) - Number(a.injector) || a.name.localeCompare(b.name, 'de'))
+      const inj = anwesend.filter(a => a.injector)
+      const par = anwesend.filter(a => !a.injector)
+      let fenster: ArztTag['fenster'] = null
+      for (const i of inj) {
+        for (const p of par) {
+          const w = overlapWindow(i.code, p.code)
+          if (w === 'ganzer Tag') { fenster = w; break }
+          if (w && !fenster) fenster = w
+        }
+        if (fenster === 'ganzer Tag') break
+      }
+      return { date, anwesend, passend: fenster !== null, fenster }
     })
-    .sort((a, b) => a.sollDatum.localeCompare(b.sollDatum))
+    .sort((a, b) => a.date.localeCompare(b.date))
 }

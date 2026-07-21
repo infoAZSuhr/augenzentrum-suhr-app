@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Syringe, Package, AlertTriangle, Stethoscope, Plus, Printer, ShieldAlert, Search, Pencil, CalendarClock, Check } from 'lucide-react'
-import { getIviDayPlan, getIviForecast, createTreatment, getPatient } from '../../../lib/firestorePatients'
+import { Syringe, Package, AlertTriangle, Stethoscope, Plus, Printer, ShieldAlert, Search, Pencil, CalendarClock, Check, X } from 'lucide-react'
+import { getIviDayPlan, createTreatment, getPatient } from '../../../lib/firestorePatients'
 import { getArticleStocks, getArticleUnits } from '../../../lib/firestoreLager'
 import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
+import { buildArztVerfuegbarkeit } from '../../../lib/iviPlanLogic'
 import type { IviDayPlanEntry, IviDayPlan } from '../../../lib/firestorePatients'
 import TreatmentForm, { type TreatmentFormValues } from '../components/TreatmentForm'
 import PatientForm from '../components/PatientForm'
@@ -12,7 +13,7 @@ import IVIOverlayModal from '../components/IVIOverlayModal'
 import type { Treatment, Patient } from '../../../types/ivom.types'
 import { useToast } from '../../../lib/ToastContext'
 import { useBrowser } from '../../../contexts/BrowserContext'
-import { updatePatient, updateTreatment } from '../../../lib/firestorePatients'
+import { updatePatient } from '../../../lib/firestorePatients'
 
 const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'W', 'NFD'])
 const CODE_LABEL: Record<string, string> = {
@@ -86,18 +87,25 @@ export default function IVOMTagesplanung() {
     if ((window as any).electronApp) openLiris()
   }, [])
 
+  const [planungNext, setPlanungNext] = useState<PlanungData | null>(null)
   useEffect(() => {
     const unsub1 = subscribePlanung(year, data => {
       setPlanung(data)
       qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
-      qc.invalidateQueries({ queryKey: ['ivi-forecast'] })
     })
-    const unsub2 = subscribePlanung(year + 1, () => {
+    const unsub2 = subscribePlanung(year + 1, data => {
+      setPlanungNext(data)
       qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
-      qc.invalidateQueries({ queryKey: ['ivi-forecast'] })
     })
     return () => { unsub1(); unsub2() }
   }, [year])
+
+  // «Wer wäre da?» — Arzt-Verfügbarkeit für die Planung kommender IVI-Tage.
+  const [showVerfuegbar, setShowVerfuegbar] = useState(false)
+  const verfuegbarkeit = useMemo(
+    () => buildArztVerfuegbarkeit([planung, planungNext], new Date().toISOString().slice(0, 10)),
+    [planung, planungNext],
+  )
 
   const createMut = useMutation({
     mutationFn: async (data: TreatmentFormValues) => {
@@ -105,7 +113,6 @@ export default function IVOMTagesplanung() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
-      qc.invalidateQueries({ queryKey: ['ivi-forecast'] })
       qc.invalidateQueries({ queryKey: ['patients'] })
       setFormEntry(null)
     },
@@ -115,24 +122,6 @@ export default function IVOMTagesplanung() {
   const { data: iviPlan = [], isLoading: planLoading } = useQuery({
     queryKey: ['ivi-day-plan'],
     queryFn: getIviDayPlan,
-  })
-
-  // Terminprognose: noch nicht geplant, aber anhand des Intervalls planbar.
-  const { data: forecast = [] } = useQuery({
-    queryKey: ['ivi-forecast'],
-    queryFn: getIviForecast,
-  })
-
-  // «Termin übernehmen»: Vorschlag als Folgetermin auf dem Treatment setzen.
-  const uebernehmenMut = useMutation({
-    mutationFn: ({ treatmentId, datum }: { treatmentId: string; datum: string }) =>
-      updateTreatment(treatmentId, { nextAppointment: datum }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
-      qc.invalidateQueries({ queryKey: ['ivi-forecast'] })
-      toast.success('Termin übernommen')
-    },
-    onError: (err: any) => toast.error('Fehler: ' + err.message),
   })
 
   const allArticleIds = useMemo(() => {
@@ -205,123 +194,16 @@ export default function IVOMTagesplanung() {
   return (
     <div className="p-3 sm:p-6 space-y-4">
 
-      {/* ── Terminprognose ─────────────────────────────────────────────────
-          Patienten ohne gesetzten Folgetermin, deren Intervall aber bekannt
-          ist. Der Vorschlag bleibt bewusst in DERSELBEN Woche wie das
-          Soll-Datum (Ausweichen auf Do/Fr wenn der Montag ausfaellt) — das
-          Intervall wird nie um ganze Wochen gestreckt. */}
-      <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3 flex-wrap">
-            <CalendarClock className="w-4 h-4 text-gray-400" />
-            <span className="text-base font-bold text-gray-900">Terminprognose</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">
-              {forecast.length} offen
-            </span>
-            <span className="text-xs text-gray-500">noch nicht geplant, aber planbar</span>
-          </div>
-
-          {forecast.length === 0 && (
-            <div className="px-4 py-6 text-center">
-              <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
-              <p className="text-sm text-gray-400">Alle aktiven Patienten haben einen Folgetermin.</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Sobald bei jemandem der Folgetermin fehlt, erscheint hier der nächste passende IVI-Tag.
-              </p>
-            </div>
-          )}
-
-          {forecast.length > 0 && (
-          <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                  <th className="px-4 py-2 font-semibold">Patient</th>
-                  <th className="px-2 py-2 font-semibold">Auge</th>
-                  <th className="px-2 py-2 font-semibold">Medikament</th>
-                  <th className="px-2 py-2 font-semibold">Letzte / Intervall</th>
-                  <th className="px-2 py-2 font-semibold">Fällig</th>
-                  <th className="px-2 py-2 font-semibold">Vorschlag</th>
-                  <th className="px-4 py-2 font-semibold"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {forecast.map(f => {
-                  const d = (s: string) => `${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
-                  const wd = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'short' })
-                  const todayStr = new Date().toISOString().slice(0, 10)
-                  const ueberfaellig = f.sollDatum < todayStr
-                  return (
-                    <tr key={`${f.patientId}:${f.eyeSide}`} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60">
-                      <td className="px-4 py-2">
-                        <Link to={`/ivom/patient/${f.patientId}`} className="font-medium text-gray-900 hover:text-primary-600">
-                          {f.name}
-                        </Link>
-                        {f.patientNumber && <span className="text-xs text-gray-400 ml-1.5">#{f.patientNumber}</span>}
-                      </td>
-                      <td className="px-2 py-2 font-medium text-gray-600">{f.eyeSide}</td>
-                      <td className="px-2 py-2 text-gray-600">{f.medicationName}</td>
-                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap">
-                        {d(f.lastTreatmentDate)} <span className="text-gray-400">+{f.intervalWeeks} Wo.</span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className={ueberfaellig ? 'font-bold text-amber-700' : 'text-gray-700'}>
-                          {wd(f.sollDatum)} {d(f.sollDatum)}
-                        </span>
-                        {ueberfaellig && (
-                          <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                            überfällig
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        {f.status === 'exakt' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200">
-                            {wd(f.vorschlag!)} {d(f.vorschlag!)}
-                          </span>
-                        )}
-                        {f.status === 'ausweich' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200"
-                            title={`Montag fällt aus — Ausweichtag in derselben Woche (${f.abweichungTage > 0 ? '+' : ''}${f.abweichungTage} Tage)`}>
-                            {wd(f.vorschlag!)} {d(f.vorschlag!)}
-                            <span className="font-normal opacity-75">
-                              ({f.abweichungTage > 0 ? '+' : ''}{f.abweichungTage} T)
-                            </span>
-                          </span>
-                        )}
-                        {f.status === 'kein-tag' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200"
-                            title="In dieser Woche ist kein IVI-Tag geplant. Das Intervall darf nicht um Wochen verschoben werden — bitte einen IVI-Tag in dieser Woche einplanen.">
-                            <AlertTriangle className="w-3 h-3" /> kein IVI-Tag in dieser Woche
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-right">
-                        {f.vorschlag && (
-                          <button
-                            onClick={() => uebernehmenMut.mutate({ treatmentId: f.treatmentId, datum: f.vorschlag! })}
-                            disabled={uebernehmenMut.isPending}
-                            title={`${d(f.vorschlag)} als Folgetermin setzen`}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-medium"
-                          >
-                            <Check className="w-3 h-3" /> Übernehmen
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/60 text-[11px] text-gray-500 leading-relaxed">
-            Vorschläge bleiben immer in derselben Kalenderwoche wie das Soll-Datum — fällt der Montag aus
-            (z.&nbsp;B. Feiertag), wird auf Do/Fr derselben Woche ausgewichen. Das Intervall wird nie um ganze
-            Wochen verschoben; fehlt in der Woche ein IVI-Tag, wird das rot gemeldet.
-          </div>
-          </>
-          )}
+      {/* Planungshilfe: an welchen Tagen käme eine IVI-Konstellation zustande? */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowVerfuegbar(true)}
+          title="Zeigt kommende Tage mit den IVI-Ärzten — Grundlage für die Planung neuer IVI-Tage"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-primary-700 hover:border-primary-200 transition-colors shadow-sm"
+        >
+          <CalendarClock className="w-3.5 h-3.5" />
+          Wer wäre da?
+        </button>
       </div>
 
       {iviPlan.map(({ date, entries }) => {
@@ -572,12 +454,81 @@ export default function IVOMTagesplanung() {
           onSubmit={async (data) => {
             await updatePatient(editPatientData.id, data)
             qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
-      qc.invalidateQueries({ queryKey: ['ivi-forecast'] })
             qc.invalidateQueries({ queryKey: ['patients'] })
             setEditPatientData(null)
             toast.success('Patient gespeichert')
           }}
         />
+      )}
+
+      {showVerfuegbar && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowVerfuegbar(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Wer wäre da?</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Kommende Tage mit Artemiev, Tschopp und Trachsler — Grundlage für neue IVI-Tage
+                </p>
+              </div>
+              <button onClick={() => setShowVerfuegbar(false)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto">
+              {verfuegbarkeit.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-gray-400">
+                  Keine kommenden Einsätze dieser Ärzte in der Einsatzplanung.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-50">
+                  {verfuegbarkeit.map(t => {
+                    const wd = new Date(t.date + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'short' })
+                    const dl = `${t.date.slice(8,10)}.${t.date.slice(5,7)}.${t.date.slice(0,4)}`
+                    const geplant = iviPlan.some(d => d.date === t.date)
+                    return (
+                      <li key={t.date} className={`px-5 py-2.5 flex items-start gap-3 ${t.passend ? '' : 'opacity-60'}`}>
+                        <div className="w-24 shrink-0">
+                          <span className="text-xs font-bold text-gray-400 uppercase mr-1.5">{wd}</span>
+                          <span className="text-sm font-semibold text-gray-800">{dl}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap gap-1.5">
+                            {t.anwesend.map(a => (
+                              <span key={a.name}
+                                className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${
+                                  a.injector ? 'bg-primary-50 text-primary-700 font-semibold' : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                {a.name.split(' ').slice(-1)[0]}
+                                <span className="opacity-60">{a.code}</span>
+                              </span>
+                            ))}
+                          </div>
+                          {t.passend
+                            ? <p className="text-[11px] text-green-700 mt-1">IVI möglich · {t.fenster}</p>
+                            : <p className="text-[11px] text-gray-400 mt-1">
+                                {t.anwesend.some(a => a.injector) ? 'kein Partner mit Überlappung' : 'Artemiev fehlt'}
+                              </p>}
+                        </div>
+                        {geplant && (
+                          <span className="shrink-0 text-[10px] font-bold text-primary-700 bg-primary-50 border border-primary-100 px-1.5 py-0.5 rounded-full">
+                            geplant
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/60 text-[11px] text-gray-500">
+              «IVI möglich» heisst: Artemiev und mindestens einer der beiden Partner sind gleichzeitig da.
+              Ist der eine nur vormittags und der andere nur nachmittags, zählt der Tag nicht.
+            </div>
+          </div>
+        </div>
       )}
 
       {showOverlay && (

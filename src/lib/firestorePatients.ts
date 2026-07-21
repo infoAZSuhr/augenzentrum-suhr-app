@@ -175,10 +175,7 @@ export interface IviDayPlan {
 // Doctors whose working days define IVI days (partial lowercase name match)
 // IVI-Logik (Doctor-Filter, Working-Codes, latest-per-patient-eye) ist
 // in src/lib/iviPlanLogic.ts extrahiert — pure & getestet.
-import {
-  extractIviDaysFromPlans, pickLatestPerPatientEye, buildForecast,
-  type ForecastStatus,
-} from './iviPlanLogic'
+import { extractIviDaysFromPlans, pickLatestPerPatientEye } from './iviPlanLogic'
 
 /** Returns all future dates where Markus Tschopp or Stefan Trachsler are working */
 export async function getIviDaysFromPlanung(): Promise<string[]> {
@@ -264,77 +261,6 @@ export async function getIviDayPlan(): Promise<IviDayPlan[]> {
       entries: entries.sort((a, b) => a.name.localeCompare(b.name, 'de')),
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
-}
-
-export interface IviForecastEntry {
-  /** Treatment, auf dem der Folgetermin gesetzt wird («Termin übernehmen») */
-  treatmentId: string
-  patientId: string
-  name: string
-  patientNumber?: string
-  eyeSide: string
-  medicationName: string
-  lastTreatmentDate: string
-  intervalWeeks: number
-  /** rechnerisch fällig: letzte Behandlung + Intervall */
-  sollDatum: string
-  /** passender IVI-Tag DERSELBEN Woche — null wenn es keinen gibt */
-  vorschlag: string | null
-  status: ForecastStatus
-  abweichungTage: number
-}
-
-/**
- * Terminprognose: aktive Patienten, für die (pro Auge) noch KEIN Folgetermin
- * gesetzt ist, deren Intervall aber bekannt ist — also "noch nicht geplant,
- * aber planbar". Siehe buildForecast/forecastSlot in iviPlanLogic für die
- * Wochen-Regel (kein Verschieben um ganze Wochen).
- */
-export async function getIviForecast(): Promise<IviForecastEntry[]> {
-  const [snap, planDays] = await Promise.all([
-    getDocs(col('treatments')),
-    getIviDaysFromPlanung(),
-  ])
-  const treatments = snap.docs.map(d => fromDoc<Treatment>(d))
-
-  // Pro Patient+Auge das neueste Treatment; davon nur die OHNE Folgetermin.
-  const offen = [...pickLatestPerPatientEye(treatments).values()]
-    .filter(t => !t.nextAppointment && Number(t.nextIntervalWeeks) > 0)
-  if (offen.length === 0) return []
-
-  // Nur aktive Patienten (Namen + Nummer dazu laden)
-  const patientIds = [...new Set(offen.map(t => t.patientId))]
-  const info = new Map<string, { name: string; nr?: string }>()
-  await Promise.all(patientIds.map(async id => {
-    const pSnap = await getDoc(doc(db, 'patients', id))
-    if (pSnap.exists() && pSnap.data().status === 'aktiv') {
-      const p = pSnap.data()
-      info.set(id, { name: `${p.firstName}`, nr: p.patientNumber })
-    }
-  }))
-
-  const aktive = offen.filter(t => info.has(t.patientId))
-  const byKey = new Map(aktive.map(t => [`${t.patientId}:${t.eyeSide}`, t]))
-
-  return buildForecast(
-    aktive.map(t => ({
-      patientId: t.patientId,
-      eyeSide: t.eyeSide,
-      lastTreatmentDate: t.treatmentDate,
-      intervalWeeks: Number(t.nextIntervalWeeks),
-    })),
-    planDays,
-  ).map(f => {
-    const t = byKey.get(`${f.patientId}:${f.eyeSide}`)!
-    const i = info.get(f.patientId)!
-    return {
-      ...f,
-      treatmentId: t.id,
-      name: i.name,
-      patientNumber: i.nr,
-      medicationName: t.medicationName,
-    }
-  })
 }
 
 export async function getPatientTreatments(patientId: string): Promise<Treatment[]> {
