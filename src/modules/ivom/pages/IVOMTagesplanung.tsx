@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Syringe, Package, AlertTriangle, Stethoscope, Plus, Printer, ShieldAlert, Search, Pencil, CalendarClock } from 'lucide-react'
+import { Syringe, Package, AlertTriangle, Stethoscope, Plus, Printer, ShieldAlert, Search, Pencil, CalendarClock, Check } from 'lucide-react'
 import { getIviDayPlan, getIviForecast, createTreatment, getPatient } from '../../../lib/firestorePatients'
 import { getArticleStocks, getArticleUnits } from '../../../lib/firestoreLager'
 import { subscribePlanung, type PlanungData } from '../../../lib/firestorePlanung'
@@ -12,7 +12,7 @@ import IVIOverlayModal from '../components/IVIOverlayModal'
 import type { Treatment, Patient } from '../../../types/ivom.types'
 import { useToast } from '../../../lib/ToastContext'
 import { useBrowser } from '../../../contexts/BrowserContext'
-import { updatePatient } from '../../../lib/firestorePatients'
+import { updatePatient, updateTreatment } from '../../../lib/firestorePatients'
 
 const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'W', 'NFD'])
 const CODE_LABEL: Record<string, string> = {
@@ -121,6 +121,18 @@ export default function IVOMTagesplanung() {
   const { data: forecast = [] } = useQuery({
     queryKey: ['ivi-forecast'],
     queryFn: getIviForecast,
+  })
+
+  // «Termin übernehmen»: Vorschlag als Folgetermin auf dem Treatment setzen.
+  const uebernehmenMut = useMutation({
+    mutationFn: ({ treatmentId, datum }: { treatmentId: string; datum: string }) =>
+      updateTreatment(treatmentId, { nextAppointment: datum }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
+      qc.invalidateQueries({ queryKey: ['ivi-forecast'] })
+      toast.success('Termin übernommen')
+    },
+    onError: (err: any) => toast.error('Fehler: ' + err.message),
   })
 
   const allArticleIds = useMemo(() => {
@@ -436,7 +448,8 @@ export default function IVOMTagesplanung() {
                   <th className="px-2 py-2 font-semibold">Medikament</th>
                   <th className="px-2 py-2 font-semibold">Letzte / Intervall</th>
                   <th className="px-2 py-2 font-semibold">Fällig</th>
-                  <th className="px-4 py-2 font-semibold">Vorschlag</th>
+                  <th className="px-2 py-2 font-semibold">Vorschlag</th>
+                  <th className="px-4 py-2 font-semibold"></th>
                 </tr>
               </thead>
               <tbody>
@@ -468,7 +481,7 @@ export default function IVOMTagesplanung() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 whitespace-nowrap">
+                      <td className="px-2 py-2 whitespace-nowrap">
                         {f.status === 'exakt' && (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200">
                             {wd(f.vorschlag!)} {d(f.vorschlag!)}
@@ -488,6 +501,18 @@ export default function IVOMTagesplanung() {
                             title="In dieser Woche ist kein IVI-Tag geplant. Das Intervall darf nicht um Wochen verschoben werden — bitte einen IVI-Tag in dieser Woche einplanen.">
                             <AlertTriangle className="w-3 h-3" /> kein IVI-Tag in dieser Woche
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap text-right">
+                        {f.vorschlag && (
+                          <button
+                            onClick={() => uebernehmenMut.mutate({ treatmentId: f.treatmentId, datum: f.vorschlag! })}
+                            disabled={uebernehmenMut.isPending}
+                            title={`${d(f.vorschlag)} als Folgetermin setzen`}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-medium"
+                          >
+                            <Check className="w-3 h-3" /> Übernehmen
+                          </button>
                         )}
                       </td>
                     </tr>

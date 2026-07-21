@@ -267,6 +267,8 @@ export async function getIviDayPlan(): Promise<IviDayPlan[]> {
 }
 
 export interface IviForecastEntry {
+  /** Treatment, auf dem der Folgetermin gesetzt wird («Termin übernehmen») */
+  treatmentId: string
   patientId: string
   name: string
   patientNumber?: string
@@ -327,6 +329,7 @@ export async function getIviForecast(): Promise<IviForecastEntry[]> {
     const i = info.get(f.patientId)!
     return {
       ...f,
+      treatmentId: t.id,
       name: i.name,
       patientNumber: i.nr,
       medicationName: t.medicationName,

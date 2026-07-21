@@ -4,6 +4,7 @@ import { useAuth, UserProfile } from '../../lib/AuthContext'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, Check, X, Printer, Calendar, CalendarDays, User, ArrowLeftRight, UserX, GripVertical, Globe } from 'lucide-react'
 import { SCHEDULE as SCHEDULE_2026, SECTIONS as SECTIONS_2026, type Code } from './data/schedule2026'
 import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestore, saveYearListFirestore, type PlanungData } from '../../lib/firestorePlanung'
+import { planAutoFill, autoFillUpdates } from '../../lib/planungAutoFill'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { manageFerienPlan, writePlanEntry, removePlanEntry } from '../../lib/firestorePlanung'
@@ -453,8 +454,8 @@ function getOpenHalfDays(data:PlanungData,yearDays:DayInfo[]):OpenHalfDay[]{
 
 // ── Doctor detail modal ───────────────────────────────────────────────────────
 
-function DoctorDetailModal({person,data,yearDays,onClose}:{
-  person:string;data:PlanungData;yearDays:DayInfo[];onClose:()=>void
+function DoctorDetailModal({person,data,yearDays,year,onClose}:{
+  person:string;data:PlanungData;yearDays:DayInfo[];year:number;onClose:()=>void
 }){
   const ps=data.schedule[person]??{}
   type Entry={day:DayInfo;code:string}
@@ -495,7 +496,178 @@ function DoctorDetailModal({person,data,yearDays,onClose}:{
             </div>
           ))}
           {total===0&&<p className="text-center text-gray-400 py-6">Keine Arbeitstage geplant</p>}
+
+          <AutoFillSection person={person} data={data} yearDays={yearDays} year={year}/>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Arbeitstage automatisch eintragen ─────────────────────────────────────────
+// Wochenrhythmus (welche Wochentage, welcher Code) + Intervall (jede Woche,
+// alle 2 Wochen …) auf einen Monat oder das ganze Jahr anwenden.
+// Feiertage werden immer uebersprungen; bestehende Eintraege (Ferien, Krank …)
+// bleiben stehen, sofern nicht explizit ueberschrieben wird.
+
+const AUTOFILL_CODES:Code[]=['GT','VM','NM']
+const AUTOFILL_DOWS:{dow:number;label:string}[]=[
+  {dow:1,label:'Mo'},{dow:2,label:'Di'},{dow:3,label:'Mi'},
+  {dow:4,label:'Do'},{dow:5,label:'Fr'},{dow:6,label:'Sa'},
+]
+
+function AutoFillSection({person,data,yearDays,year}:{
+  person:string;data:PlanungData;yearDays:DayInfo[];year:number
+}){
+  const [open,setOpen]=useState(false)
+  const [weekdayCodes,setWeekdayCodes]=useState<Record<number,string>>({})
+  const [intervalWeeks,setIntervalWeeks]=useState(1)
+  const todayIso=new Date().toISOString().slice(0,10)
+  const [startDate,setStartDate]=useState(
+    todayIso.slice(0,4)===String(year)?todayIso:`${year}-01-01`
+  )
+  const [scope,setScope]=useState<'jahr'|'monat'>('monat')
+  const [monthIdx,setMonthIdx]=useState(new Date().getMonth())
+  const [overwrite,setOverwrite]=useState(false)
+  const [saving,setSaving]=useState(false)
+  const [done,setDone]=useState<string|null>(null)
+
+  const existing=data.schedule[person]??{}
+  const plan=useMemo(()=>planAutoFill(
+    yearDays.map(d=>({key:d.key,dow:d.dow,monthIdx:d.monthIdx,ftName:d.ftName})),
+    existing,
+    {weekdayCodes,intervalWeeks,startDate,monthIdx:scope==='jahr'?null:monthIdx,overwrite},
+  ),[yearDays,existing,weekdayCodes,intervalWeeks,startDate,scope,monthIdx,overwrite])
+
+  const anyDay=Object.keys(weekdayCodes).length>0
+
+  const apply=async()=>{
+    if(plan.toWrite.length===0)return
+    setSaving(true);setDone(null)
+    try{
+      await updateDoc(doc(db,'planung',String(year)),autoFillUpdates(person,plan))
+      setDone(`${plan.toWrite.length} Tage eingetragen`)
+      setWeekdayCodes({})
+    }catch(e){
+      console.error(e);setDone('Fehler beim Speichern')
+    }finally{setSaving(false)}
+  }
+
+  if(!open){
+    return(
+      <button onClick={()=>setOpen(true)}
+        className="w-full mt-2 py-2 rounded-lg border-2 border-dashed border-gray-200 text-sm font-medium text-gray-500 hover:border-primary-300 hover:text-primary-600 transition-colors">
+        + Arbeitstage automatisch eintragen
+      </button>
+    )
+  }
+
+  return(
+    <div className="mt-2 rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+        <span className="text-xs font-bold text-gray-700">Arbeitstage automatisch eintragen</span>
+        <button onClick={()=>setOpen(false)} className="p-0.5 rounded hover:bg-gray-200"><X className="w-4 h-4 text-gray-400"/></button>
+      </div>
+      <div className="p-3 space-y-3">
+
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Wochentage</div>
+          <div className="grid grid-cols-6 gap-1">
+            {AUTOFILL_DOWS.map(({dow,label})=>(
+              <div key={dow} className="text-center">
+                <div className="text-[11px] font-semibold text-gray-500 mb-0.5">{label}</div>
+                <select value={weekdayCodes[dow]??''} onChange={e=>{
+                  const v=e.target.value
+                  setWeekdayCodes(prev=>{
+                    const next={...prev}
+                    if(v)next[dow]=v; else delete next[dow]
+                    return next
+                  })
+                }} className="w-full text-xs border border-gray-200 rounded px-0.5 py-1 bg-white">
+                  <option value="">–</option>
+                  {AUTOFILL_CODES.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Intervall</div>
+            <select value={intervalWeeks} onChange={e=>setIntervalWeeks(Number(e.target.value))}
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white">
+              <option value={1}>jede Woche</option>
+              <option value={2}>alle 2 Wochen</option>
+              <option value={3}>alle 3 Wochen</option>
+              <option value={4}>alle 4 Wochen</option>
+            </select>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Ab Datum</div>
+            <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
+              min={`${year}-01-01`} max={`${year}-12-31`}
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white"/>
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Zeitraum</div>
+          <div className="flex gap-2">
+            <button onClick={()=>setScope('monat')}
+              className={`flex-1 text-xs py-1.5 rounded border-2 font-medium ${scope==='monat'?'border-primary-400 bg-primary-50 text-primary-700':'border-gray-200 text-gray-500'}`}>
+              Nur Monat
+            </button>
+            <button onClick={()=>setScope('jahr')}
+              className={`flex-1 text-xs py-1.5 rounded border-2 font-medium ${scope==='jahr'?'border-primary-400 bg-primary-50 text-primary-700':'border-gray-200 text-gray-500'}`}>
+              Ganzes Jahr {year}
+            </button>
+          </div>
+          {scope==='monat'&&(
+            <select value={monthIdx} onChange={e=>setMonthIdx(Number(e.target.value))}
+              className="w-full mt-1.5 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white">
+              {MONTHS.map((m,i)=><option key={m} value={i}>{m}</option>)}
+            </select>
+          )}
+        </div>
+
+        <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+          <input type="checkbox" checked={overwrite} onChange={e=>setOverwrite(e.target.checked)} className="mt-0.5"/>
+          <span>
+            Bestehende Einträge überschreiben
+            <span className="block text-[10px] text-amber-700">
+              Achtung: ersetzt auch Ferien / Krank / Abwesend. Feiertage bleiben immer unangetastet.
+            </span>
+          </span>
+        </label>
+
+        {anyDay&&(
+          <div className="rounded-lg bg-gray-50 border border-gray-200 px-2.5 py-2 text-xs space-y-0.5">
+            <div className="font-bold text-gray-700">{plan.toWrite.length} Tage werden eingetragen</div>
+            {plan.skippedExisting.length>0&&(
+              <div className="text-gray-500">{plan.skippedExisting.length} bleiben unverändert (bestehender Eintrag)</div>
+            )}
+            {plan.skippedHoliday.length>0&&(
+              <div className="text-gray-500">{plan.skippedHoliday.length} Feiertage übersprungen</div>
+            )}
+            {plan.toWrite.length>0&&(
+              <div className="text-gray-400 pt-0.5">
+                {plan.toWrite.slice(0,4).map(w=>w.key.slice(8,10)+'.'+w.key.slice(5,7)+'.').join(', ')}
+                {plan.toWrite.length>4?` … +${plan.toWrite.length-4}`:''}
+              </div>
+            )}
+          </div>
+        )}
+
+        {done&&<div className="text-xs font-medium text-green-700 bg-green-50 rounded-lg px-2.5 py-1.5">{done}</div>}
+
+        <button onClick={apply} disabled={saving||plan.toWrite.length===0}
+          className="w-full py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-sm font-semibold">
+          {saving?'Wird eingetragen…':`${plan.toWrite.length} Tage eintragen`}
+        </button>
+        <p className="text-[10px] text-gray-400 leading-relaxed">
+          Ausnahmen wie Ferien, Weiterbildung oder Notfalldienst danach von Hand umstellen.
+        </p>
       </div>
     </div>
   )
@@ -3516,6 +3688,7 @@ export default function EinsatzplanungPage(){
           person={doctorDetail}
           data={data}
           yearDays={yearDays}
+          year={year}
           onClose={()=>setDoctorDetail(null)}
         />
       )}
