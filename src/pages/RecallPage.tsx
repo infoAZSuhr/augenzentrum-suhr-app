@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'rea
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useBrowser, type LirisExtract } from '../contexts/BrowserContext'
 import { RECHNUNG_KONTO, parseBetragFromBeleg, generateQrDataUrl, buildZahlteilHtml } from '../lib/qrRechnung'
+import { PDFDocument } from 'pdf-lib'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
@@ -663,6 +664,29 @@ const lirisExtractRef  = useRef(lirisExtract)
   // QR-Rechnung: Data-URL des QR-Codes (asynchron erzeugt, sobald Betrag +
   // Adresse vorliegen) — buildBriefHtml ist synchron und liest diesen State.
   const [rechnungQrUrl, setRechnungQrUrl] = useState('')
+  // Hochgeladener Rückforderungsbeleg: wird nicht nur ausgelesen, sondern der
+  // Rechnung als weitere Seiten angehängt (Nutzerwunsch 2026-07-20) — der
+  // Patient erhält Rechnung + Beleg in EINEM PDF.
+  const rechnungBelegBytesRef = useRef<ArrayBuffer | null>(null)
+  const [rechnungBelegName, setRechnungBelegName] = useState('')
+
+  /** Rechnung + Rückforderungsbeleg zu einem PDF zusammenführen. */
+  async function mergeBelegIntoPdf(briefBuffer: ArrayBuffer, form: AufgebotForm): Promise<ArrayBuffer> {
+    if (form.briefVariante !== 'rechnung' || !rechnungBelegBytesRef.current) return briefBuffer
+    try {
+      const merged = await PDFDocument.create()
+      const brief = await PDFDocument.load(briefBuffer)
+      const beleg = await PDFDocument.load(rechnungBelegBytesRef.current)
+      for (const pg of await merged.copyPages(brief, brief.getPageIndices())) merged.addPage(pg)
+      for (const pg of await merged.copyPages(beleg, beleg.getPageIndices())) merged.addPage(pg)
+      const out = await merged.save()
+      return out.buffer as ArrayBuffer
+    } catch (e) {
+      console.warn('[Rechnung] Beleg-Merge fehlgeschlagen — sende nur die Rechnung', e)
+      toast.warning('Beleg konnte nicht angehängt werden — es wird nur die Rechnung versendet.')
+      return briefBuffer
+    }
+  }
   useEffect(() => {
     const f = aufgebotForm
     if (!aufgebotTarget || f.briefVariante !== 'rechnung') { setRechnungQrUrl(''); return }
@@ -2734,6 +2758,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       fachtitel: doctorFachtitelMap[doctor] ?? '',
     })
     setAufgebotPdfCreated(false)
+    rechnungBelegBytesRef.current = null
+    setRechnungBelegName('')
     // Bei vorgewählter Art (Brief/Reminder) gleich die Liris-Akte öffnen,
     // damit Anrede/Adresse via lirisExtract ins Formular gefüllt werden.
     if ((presetArt === 'Brief' || presetArt === 'Reminder')) {
@@ -3347,7 +3373,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       toast.info('PDF wird vorbereitet…')
       ea.renderBriefPdf(html).then(async res => {
         if (!res.ok || !res.buffer) { toast.error(`PDF-Fehler: ${res.error}`); return }
-        const blob = new Blob([res.buffer], { type: 'application/pdf' })
+        const finalBuffer = await mergeBelegIntoPdf(res.buffer, form)
+        const blob = new Blob([finalBuffer], { type: 'application/pdf' })
         try {
           await postausgang.add({
             pid:      pid || null,
@@ -3473,10 +3500,11 @@ const lirisExtractRef  = useRef(lirisExtract)
       const html = buildBriefHtml(patient, form)
       const pdfRes = await ea.renderBriefPdf(html)
       if (!pdfRes.ok || !pdfRes.buffer) { toast.error(`PDF-Fehler: ${pdfRes.error}`); return }
+      const finalMailBuffer = await mergeBelegIntoPdf(pdfRes.buffer, form)
       const pid = normalizePid(patient.pid)
       const geb = patient.gebDatum || ''
       const filename = `${compactFilenamePart(subject)}_${pid || 'keinePID'}_${geb || 'keinGebDatum'}.pdf`
-      const tmpRes = await ea.writePdfTmp(pdfRes.buffer, filename)
+      const tmpRes = await ea.writePdfTmp(finalMailBuffer, filename)
       if (!tmpRes.ok || !tmpRes.path) { toast.error(`PDF konnte nicht gespeichert werden: ${tmpRes.error}`); return }
       const mailRes = await ea.openMailWithAttachments([tmpRes.path], subject, to, shortBody)
       if (!mailRes.ok) { toast.error(`E-Mail konnte nicht geöffnet werden: ${mailRes.error}`); return }
@@ -5311,12 +5339,16 @@ const lirisExtractRef  = useRef(lirisExtract)
                         const tc = await page.getTextContent()
                         text += tc.items.map((it: any) => it.str).join(' ') + '\n'
                       }
+                      // Beleg fuer den Versand aufbewahren (wird der Rechnung
+                      // als weitere Seiten angehaengt).
+                      rechnungBelegBytesRef.current = buf
+                      setRechnungBelegName(file.name)
                       const betrag = parseBetragFromBeleg(text)
                       if (betrag) {
                         setAf({ rechnungBetrag: betrag.toFixed(2) })
-                        toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — bitte prüfen.`)
+                        toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — Beleg wird mitgesendet.`)
                       } else {
-                        toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen.')
+                        toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen. Beleg wird mitgesendet.')
                       }
                     } catch (err) {
                       console.warn('[Rechnung] Beleg-Parsing fehlgeschlagen', err)
@@ -5350,7 +5382,16 @@ const lirisExtractRef  = useRef(lirisExtract)
                           placeholder="z.B. 245.50"
                           className="input text-sm w-40" />
                       </div>
-                      <p className="text-[10px] text-gray-500">Patient/Adresse für den Zahlteil kommen aus dem Adressfeld unten. Der Rückforderungsbeleg wird dem Patienten separat abgegeben/beigelegt.</p>
+                      {rechnungBelegName && (
+                        <div className="flex items-center gap-2 text-[11px] text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-lg px-2 py-1">
+                          <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate flex-1">Beleg wird mitgesendet: {rechnungBelegName}</span>
+                          <button type="button" title="Beleg entfernen (nur Rechnung senden)"
+                            onClick={() => { rechnungBelegBytesRef.current = null; setRechnungBelegName('') }}
+                            className="p-0.5 rounded text-emerald-600 hover:text-red-600"><X className="w-3 h-3" /></button>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-gray-500">Patient/Adresse für den Zahlteil kommen aus dem Adressfeld unten. Der hochgeladene Rückforderungsbeleg wird der Rechnung als weitere Seiten angehängt.</p>
                     </div>
                   </div>
                   )
