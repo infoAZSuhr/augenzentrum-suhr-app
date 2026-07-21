@@ -197,20 +197,13 @@ export default function IVOMTagesplanung() {
     )
   }
 
+  // «Aktueller» IVI-Tag = der erste nicht vergangene; nur dort sitzt der
+  // Overlay-Button in der Kopfzeile.
+  const heute = new Date().toISOString().slice(0, 10)
+  const aktuellerTag = iviPlan.find(d => d.date >= heute)?.date ?? iviPlan[iviPlan.length - 1]?.date
+
   return (
     <div className="p-3 sm:p-6 space-y-4">
-
-      {/* Toolbar */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => setShowOverlay(true)}
-          title="Overlay drucken"
-          className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-primary-700 hover:border-primary-200 transition-colors shadow-sm"
-        >
-          <Printer className="w-4 h-4" />
-          <span className="hidden sm:inline">Overlay drucken</span>
-        </button>
-      </div>
 
       {iviPlan.map(({ date, entries }) => {
         const weekday = new Date(date + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'long' })
@@ -262,6 +255,17 @@ export default function IVOMTagesplanung() {
                   </span>
                 )}
               </div>
+
+              {date === aktuellerTag && (
+                <button
+                  onClick={() => setShowOverlay(true)}
+                  title="Overlay drucken"
+                  className="shrink-0 inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-primary-700 hover:border-primary-200 transition-colors shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="hidden sm:inline">Overlay drucken</span>
+                </button>
+              )}
             </div>
 
             <div className="p-4 space-y-4">
@@ -428,8 +432,7 @@ export default function IVOMTagesplanung() {
           ist. Der Vorschlag bleibt bewusst in DERSELBEN Woche wie das
           Soll-Datum (Ausweichen auf Do/Fr wenn der Montag ausfaellt) — das
           Intervall wird nie um ganze Wochen gestreckt. */}
-      {forecast.length > 0 && (
-        <div className="card overflow-hidden">
+      <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3 flex-wrap">
             <CalendarClock className="w-4 h-4 text-gray-400" />
             <span className="text-base font-bold text-gray-900">Terminprognose</span>
@@ -439,6 +442,18 @@ export default function IVOMTagesplanung() {
             <span className="text-xs text-gray-500">noch nicht geplant, aber planbar</span>
           </div>
 
+          {forecast.length === 0 && (
+            <div className="px-4 py-6 text-center">
+              <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
+              <p className="text-sm text-gray-400">Alle aktiven Patienten haben einen Folgetermin.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Sobald bei jemandem der Folgetermin fehlt, erscheint hier der nächste passende IVI-Tag.
+              </p>
+            </div>
+          )}
+
+          {forecast.length > 0 && (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -527,8 +542,9 @@ export default function IVOMTagesplanung() {
             (z.&nbsp;B. Feiertag), wird auf Do/Fr derselben Woche ausgewichen. Das Intervall wird nie um ganze
             Wochen verschoben; fehlt in der Woche ein IVI-Tag, wird das rot gemeldet.
           </div>
-        </div>
-      )}
+          </>
+          )}
+      </div>
 
       {formEntry && (
         <TreatmentForm
