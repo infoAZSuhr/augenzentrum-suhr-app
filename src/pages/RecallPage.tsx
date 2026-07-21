@@ -2996,18 +2996,30 @@ const lirisExtractRef  = useRef(lirisExtract)
         </div>`
       : `<p>Die Kontrolle umfasst Autorefraktometrie, Visus und Tensio sowie je nach Befund OCT-Makula oder Funduskopie.</p>`
 
-    // Zykloplegie-Hinweis: fuer Kinder ein eigener Text. «Bitte kein Fahrzeug
-    // lenken» ergibt dort keinen Sinn — relevant sind Schule, Lesen und
-    // Lichtschutz. Dauer ist in beiden Faellen dieselbe (12-24 Std.).
-    const zykloHinweis = isMinor
-      ? `<p>Bitte beachten Sie: Die Sehleistung Ihres Kindes kann nach der Zykloplegie-Untersuchung f&#252;r <strong>12&#8211;24 Stunden</strong> beeintr&#228;chtigt bleiben. <strong>Nahsehen und Lesen fallen in dieser Zeit schwer</strong> &#8211; bitte planen Sie Schule, Hausaufgaben und Sport entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen. Bitte begleiten Sie Ihr Kind nach dem Termin.</p>`
-      : `<p>Bitte beachten Sie: Die Sehleistung kann nach der Zykloplegie-Untersuchung f&#252;r <strong>12&#8211;24 Stunden</strong> beeintr&#228;chtigt bleiben. <strong>Bitte kein Fahrzeug lenken</strong> und planen Sie den Tag entsprechend. Sonnenbrille empfohlen.</p>`
+    // Sehleistungshinweise — je nach Tropfen UND je nach Alter.
+    //
+    // Zykloplegie: Wirkung laesst in der Regel nach ca. 12 Std. nach, kann
+    // aber 24 Std. oder laenger anhalten (Angabe der Praxis). Bewusst keine
+    // starre Spanne «12-24 Std.», weil das den Normalfall zu lang und den
+    // Ausreisser zu kurz darstellt.
+    // Mydriatikum (reine Pupillenerweiterung): 4-6 Std.
+    //
+    // Bei Kindern ergibt «kein Fahrzeug lenken» keinen Sinn — dort zaehlen
+    // Nahsehen/Lesen (Schule) und Lichtschutz.
+    const ZYKLO_DAUER = 'Die Wirkung l&#228;sst in der Regel nach etwa <strong>12 Stunden</strong> nach, sie kann aber <strong>bis zu 24 Stunden oder l&#228;nger</strong> anhalten.'
 
-    // Sehleistungshinweis je nach Situation
+    const zykloHinweis = isMinor
+      ? `<p>Bitte beachten Sie: Nach der Zykloplegie-Untersuchung ist die Sehleistung Ihres Kindes beeintr&#228;chtigt. ${ZYKLO_DAUER} <strong>Nahsehen und Lesen fallen in dieser Zeit schwer</strong> &#8211; bitte planen Sie Schule, Hausaufgaben und Sport entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen. Bitte begleiten Sie Ihr Kind nach dem Termin.</p>`
+      : `<p>Bitte beachten Sie: Nach der Zykloplegie-Untersuchung ist die Sehleistung beeintr&#228;chtigt. ${ZYKLO_DAUER} Solange die Sicht eingeschr&#228;nkt ist, <strong>bitte kein Fahrzeug lenken</strong> und den Tag entsprechend planen. Sonnenbrille empfohlen.</p>`
+
+    const pupilleHinweis = isMinor
+      ? `<p>Die Pupillen Ihres Kindes werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>Nahsehen und Lesen fallen schwer</strong>, bitte planen Sie Schule und Hausaufgaben entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen.</p>`
+      : `<p>Die Pupillen werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>bitte kein Fahrzeug lenken</strong>. Sonnenbrille empfohlen.</p>`
+
     const sehHinweis = hasZykloplegie
       ? zykloHinweis
       : form.pupille
-        ? `<p>Die Pupillen werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>bitte kein Fahrzeug lenken</strong>. Sonnenbrille empfohlen.</p>`
+        ? pupilleHinweis
         : ``
 
     const title = form.briefVariante === 'terminVerpasst' ? 'Ihr verpasster Termin &#8211; Bitte um kurze R&#252;ckmeldung'
