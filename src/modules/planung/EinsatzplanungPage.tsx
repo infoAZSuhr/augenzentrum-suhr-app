@@ -5,6 +5,10 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, Check, X, Printer, Cal
 import { SCHEDULE as SCHEDULE_2026, SECTIONS as SECTIONS_2026, type Code } from './data/schedule2026'
 import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestore, saveYearListFirestore, type PlanungData } from '../../lib/firestorePlanung'
 import { planAutoFill, autoFillUpdates, summarizeCodes } from '../../lib/planungAutoFill'
+import {
+  buildArztVerfuegbarkeit, buildIviVorschlaege, extractIviDaysFromPlans,
+  filterIviDoctors, IVI_DOCTORS_MATCH, IVI_WORKING, type IviVorschlag,
+} from '../../lib/iviPlanLogic'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
@@ -698,6 +702,180 @@ function AutoFillSection({person,data,yearDays,year}:{
           }
           onConfirm={()=>void write()}
           onCancel={()=>setConfirmOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── IVI-Tage vorschlagen ──────────────────────────────────────────────────────
+// Schlaegt im 14-Tage-Montagsraster IVI-Tage vor (Feiertag/Abwesenheit ->
+// Ausweich auf Do/Fr DERSELBEN Woche) und zeigt, was pro Tag noch fehlt.
+// Eintragen darf: Admin/GL direkt, Tschopp/Trachsler fuer sich selbst per
+// Anfrage — analog OpenDaysModal.
+
+const VORSCHLAG_STYLE: Record<string, { bg: string; label: string }> = {
+  bereit:           { bg: 'bg-green-50 border-green-200',   label: 'IVI möglich' },
+  partner_fehlt:    { bg: 'bg-amber-50 border-amber-200',   label: 'Partner fehlt' },
+  halbtag_konflikt: { bg: 'bg-blue-50 border-blue-200',     label: 'Halbtag-Konflikt' },
+  kein_tag:         { bg: 'bg-gray-50 border-gray-200',     label: 'Artemiev abwesend' },
+}
+
+function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
+  data:PlanungData;yearDays:DayInfo[];year:number
+  feiertage:Record<string,string>
+  onClose:()=>void
+  onAssign:(person:string,days:string[],code:Code)=>void
+}){
+  const {isAdmin,isGeschaeftsleitung,profile}=useAuth()
+  const canDirect=isAdmin||isGeschaeftsleitung
+  const allPersons=data.sections.flatMap(s=>s.persons)
+  const partners=filterIviDoctors(allPersons,IVI_DOCTORS_MATCH)
+  const eigenerName=allPersons.find(p=>p===profile?.displayName)||allPersons.find(p=>p===profile?.username)||''
+  const istPartner=partners.includes(eigenerName)
+
+  // Bisherige IVI-Einsaetze je Partner — Entscheidungshilfe bei der Auswahl.
+  const einsaetze=useMemo(()=>{
+    const m:Record<string,number>={}
+    partners.forEach(p=>{
+      m[p]=Object.entries(data.schedule[p]??{}).filter(([d,c])=>d>=TODAY&&IVI_WORKING.has(c)).length
+    })
+    return m
+  },[data,partners.join()]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vorschlaege=useMemo(()=>{
+    const verf=buildArztVerfuegbarkeit([data],TODAY)
+    const best=extractIviDaysFromPlans([data],TODAY)
+    return buildIviVorschlaege(verf,TODAY,`${year}-12-31`,feiertage,best)
+  },[data,year,feiertage])
+
+  // Pro Vorschlagstag der gewaehlte Partner (Default: der mit weniger Einsaetzen)
+  const defaultPartner=[...partners].sort((a,b)=>(einsaetze[a]??0)-(einsaetze[b]??0))[0]??''
+  const [wahl,setWahl]=useState<Record<string,string>>({})
+  const [busy,setBusy]=useState<string|null>(null)
+  const [fehler,setFehler]=useState<string|null>(null)
+  const [confirmTag,setConfirmTag]=useState<IviVorschlag|null>(null)
+
+  const partnerFuer=(v:IviVorschlag)=>wahl[v.date]??(istPartner&&!canDirect?eigenerName:defaultPartner)
+
+  async function uebernehmen(v:IviVorschlag){
+    const person=partnerFuer(v)
+    const code=(v.empfohlenerPartnerCode??'NM') as Code
+    if(!person)return
+    setBusy(v.date);setFehler(null)
+    try{
+      if(canDirect){
+        onAssign(person,[v.date],code)
+      }else{
+        // Nicht-Admin: nur fuer sich selbst, als Anfrage (wie OpenDaysModal)
+        if(!profile||person!==eigenerName){setFehler('Nur Admin/Geschäftsleitung dürfen andere eintragen.');return}
+        await addDoc(collection(db,'planungRequests'),{
+          type:'eintrag',uid:profile.uid,username:eigenerName,
+          dates:[v.date],code,section:data.sections[0]?.label??'',
+          status:'pending',createdAt:serverTimestamp(),
+        })
+        await writePlanEntry(eigenerName,[v.date],code,'warten auf Freigabe')
+      }
+    }catch(e){console.error(e);setFehler('Fehler beim Speichern.')}
+    finally{setBusy(null);setConfirmTag(null)}
+  }
+
+  const fmtD=(s:string)=>`${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
+  const fmtWd=(s:string)=>WEEKDAY_SHORT[new Date(s+'T12:00:00').getDay()]
+  const offen=vorschlaege.filter(v=>v.status==='partner_fehlt').length
+
+  return(
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col" onClick={e=>e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">IVI-Tage vorschlagen</h2>
+            <p className="text-sm text-gray-500">
+              Jeder 2. Montag · {vorschlaege.length} Vorschläge{offen>0?` · ${offen} noch offen`:''}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400"/></button>
+        </div>
+
+        {fehler&&<div className="mx-5 mt-3 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{fehler}</div>}
+
+        <div className="overflow-y-auto p-5 space-y-2">
+          {vorschlaege.length===0&&<p className="text-center text-gray-400 py-6">Keine Vorschläge — Einsatzplanung prüfen.</p>}
+          {vorschlaege.map(v=>{
+            const st=VORSCHLAG_STYLE[v.status]
+            const kannEintragen=v.status==='partner_fehlt'&&(canDirect||istPartner)
+            return(
+              <div key={v.rasterMontag} className={`rounded-xl border p-3 ${st.bg}`}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold uppercase text-gray-400">{fmtWd(v.date)}</span>
+                      <span className="text-sm font-bold text-gray-900">{fmtD(v.date)}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/70 text-gray-600">{st.label}</span>
+                      {v.ausweich&&(
+                        <span className="text-[10px] text-gray-500">
+                          statt Mo {fmtD(v.rasterMontag)} — {v.ausweichGrund}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {v.anwesend.length===0
+                        ?<span className="text-xs text-gray-400">niemand eingeteilt</span>
+                        :v.anwesend.map(a=>(
+                          <span key={a.name} className={`text-xs px-1.5 py-0.5 rounded ${a.injector?'bg-white text-gray-800 font-semibold':'bg-white/70 text-gray-600'}`}>
+                            {a.name.split(' ').slice(-1)[0]} <span className="opacity-60">{a.code}</span>
+                          </span>
+                        ))}
+                    </div>
+                    {v.status==='halbtag_konflikt'&&(
+                      <p className="text-[11px] text-blue-800 mt-1.5">
+                        Beide sind da, treffen sich aber nicht — ein Halbtag müsste von VM auf NM
+                        (oder umgekehrt) gewechselt werden. Das bitte von Hand entscheiden.
+                      </p>
+                    )}
+                    {v.status==='bereit'&&<p className="text-[11px] text-green-800 mt-1.5">Nichts zu tun · {v.fenster}</p>}
+                  </div>
+
+                  {kannEintragen&&(
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {canDirect
+                        ?<select value={partnerFuer(v)} onChange={e=>setWahl(w=>({...w,[v.date]:e.target.value}))}
+                          className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white">
+                          {partners.map(p=><option key={p} value={p}>{p.split(' ').slice(-1)[0]} ({einsaetze[p]??0})</option>)}
+                        </select>
+                        :<span className="text-xs text-gray-600">{eigenerName.split(' ').slice(-1)[0]}</span>}
+                      <button onClick={()=>setConfirmTag(v)} disabled={busy===v.date}
+                        className="px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-semibold whitespace-nowrap">
+                        {busy===v.date?'…':`als ${v.empfohlenerPartnerCode}`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/60 text-[11px] text-gray-500">
+          Raster: jeder 2. Montag — die Intervalle 4/6/8/10 Wochen sind alle Vielfache von zwei Wochen.
+          Fällt der Montag aus, wird auf Do/Fr <strong>derselben</strong> Woche ausgewichen, nie in eine andere.
+          {!canDirect&&istPartner&&<> Deine Einträge gehen als Anfrage zur Freigabe.</>}
+        </div>
+      </div>
+
+      {confirmTag&&(
+        <ConfirmDialog
+          title="Tag eintragen?"
+          danger={false}
+          confirmLabel="Eintragen"
+          isLoading={busy===confirmTag.date}
+          message={
+            `${fmtWd(confirmTag.date)} ${fmtD(confirmTag.date)}\n`
+            +`${partnerFuer(confirmTag)} wird als «${confirmTag.empfohlenerPartnerCode}» eingetragen.\n\n`
+            +(canDirect?'Der Eintrag wird direkt gespeichert.':'Der Eintrag geht als Anfrage zur Freigabe.')
+          }
+          onConfirm={()=>void uebernehmen(confirmTag)}
+          onCancel={()=>setConfirmTag(null)}
         />
       )}
     </div>
@@ -3046,6 +3224,7 @@ export default function EinsatzplanungPage(){
   const [doctorDetail,setDoctorDetail]=useState<string|null>(null)
   const location = useLocation()
   const [showOpenDays,setShowOpenDays]=useState(false)
+  const [showIviVorschlag,setShowIviVorschlag]=useState(false)
   const [openDaysEditRequest,setOpenDaysEditRequest]=useState<EditRequest|undefined>(undefined)
   const [personalBereichEditFerien,setPersonalBereichEditFerien]=useState<EditFerienRequest|undefined>(undefined)
   const [personalBereichInitialTab,setPersonalBereichInitialTab]=useState<'ferien'|'einsaetze'|'abwesenheiten'|'antraege'|undefined>(undefined)
@@ -3487,6 +3666,14 @@ export default function EinsatzplanungPage(){
             <span className="hidden sm:inline">Offene Tage</span>
           </button>}
 
+          {/* IVI-Tage vorschlagen — nur für Ärzte und Admins */}
+          {(isAdmin||isArzt||isGeschaeftsleitung)&&<button onClick={()=>setShowIviVorschlag(true)}
+            title="Schlägt im 14-Tage-Raster IVI-Tage vor und zeigt, was noch fehlt"
+            className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-teal-200 bg-teal-50 text-xs sm:text-sm text-teal-700 hover:bg-teal-100 transition-colors font-medium">
+            <Calendar className="w-4 h-4 shrink-0"/>
+            <span className="hidden sm:inline">IVI-Tage</span>
+          </button>}
+
           {/* Mein Bereich */}
           {profile&&!isGuest&&<button onClick={()=>setShowPersonalBereich(true)}
             className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-purple-200 bg-purple-50 text-xs sm:text-sm text-purple-700 hover:bg-purple-100 transition-colors font-medium">
@@ -3732,6 +3919,16 @@ export default function EinsatzplanungPage(){
           onClose={()=>{setShowOpenDays(false);setOpenDaysEditRequest(undefined)}}
           onAssign={assignDays}
           editRequest={openDaysEditRequest}
+        />
+      )}
+      {showIviVorschlag&&(
+        <IviVorschlagModal
+          data={data}
+          yearDays={yearDays}
+          year={year}
+          feiertage={feiertage}
+          onClose={()=>setShowIviVorschlag(false)}
+          onAssign={assignDays}
         />
       )}
       {showLiris&&(

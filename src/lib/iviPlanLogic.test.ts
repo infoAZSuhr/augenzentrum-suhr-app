@@ -8,6 +8,8 @@ import {
   IVI_WORKING,
   overlapWindow,
   buildArztVerfuegbarkeit,
+  buildIviVorschlaege,
+  passenderPartnerCode,
   IVI_INJECTOR_MATCH,
   type PlanLike,
 } from './iviPlanLogic'
@@ -267,5 +269,127 @@ describe('buildArztVerfuegbarkeit', () => {
       'Stefan Trachsler': { '2026-08-03': 'GT' },
     })], '2026-08-01')
     expect(r[0].fenster).toBe('ganzer Tag')
+  })
+})
+
+// ─── IVI-Tag-Vorschläge ──────────────────────────────────────────────────────
+
+/** Kurz-Helfer: baut Verfügbarkeit aus einem Schedule-Objekt. */
+const verf = (schedule: Record<string, Record<string, string>>, today = '2026-08-01') =>
+  buildArztVerfuegbarkeit([PLAN(schedule)], today)
+
+describe('passenderPartnerCode', () => {
+  it('GT -> NM (Nachmittag ist das uebliche IVI-Fenster)', () => {
+    expect(passenderPartnerCode('GT')).toBe('NM')
+  })
+  it('VM -> VM, NM -> NM', () => {
+    expect(passenderPartnerCode('VM')).toBe('VM')
+    expect(passenderPartnerCode('NM')).toBe('NM')
+  })
+  it('unbekannter Code -> null', () => {
+    expect(passenderPartnerCode('Fer')).toBeNull()
+  })
+})
+
+describe('buildIviVorschlaege — Raster', () => {
+  it('schlaegt jeden 2. Montag vor', () => {
+    const v = verf({
+      'Dmitri Artemiev': {
+        '2026-08-03': 'GT', '2026-08-17': 'GT', '2026-08-31': 'GT', '2026-09-14': 'GT',
+      },
+    })
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-09-20')
+    expect(r.map(x => x.date)).toEqual(['2026-08-03', '2026-08-17', '2026-08-31', '2026-09-14'])
+  })
+
+  it('verankert am bestehenden IVI-Montag statt am naechsten Montag', () => {
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT', '2026-08-24': 'GT' } })
+    // naechster Montag waere 03.08., bestehender IVI-Tag ist aber der 10.08.
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-31', {}, ['2026-08-10'])
+    expect(r.map(x => x.rasterMontag)).toEqual(['2026-08-10', '2026-08-24'])
+  })
+})
+
+describe('buildIviVorschlaege — Feiertags-Ausweich', () => {
+  it('weicht bei Feiertag am Montag auf Donnerstag DERSELBEN Woche aus', () => {
+    const v = verf({
+      'Dmitri Artemiev': { '2026-08-03': 'GT', '2026-08-06': 'GT' },
+      'Markus Tschopp':  { '2026-08-06': 'NM' },
+    })
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-10', { '2026-08-03': 'Testfeiertag' })
+    expect(r[0].date).toBe('2026-08-06')          // Do derselben Woche
+    expect(r[0].rasterMontag).toBe('2026-08-03')
+    expect(r[0].ausweich).toBe(true)
+    expect(r[0].ausweichGrund).toContain('Feiertag')
+    expect(r[0].status).toBe('bereit')
+  })
+
+  it('nimmt Freitag wenn auch der Donnerstag nicht geht', () => {
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-07': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-10', { '2026-08-03': 'Feiertag' })
+    expect(r[0].date).toBe('2026-08-07')          // Fr
+    expect(r[0].ausweich).toBe(true)
+  })
+
+  it('weicht auch aus wenn der Injektor am Montag abwesend ist', () => {
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-06': 'GT' } })  // Mo fehlt
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-10')
+    expect(r[0].date).toBe('2026-08-06')
+    expect(r[0].ausweichGrund).toBe('Artemiev abwesend')
+  })
+
+  it('springt NIE in eine andere Woche', () => {
+    // In der ganzen Woche vom 03.08. ist niemand da -> kein_tag, nicht 10.08.
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05')
+    expect(r[0].status).toBe('kein_tag')
+    expect(r[0].date).toBe('2026-08-03')
+  })
+})
+
+describe('buildIviVorschlaege — Status', () => {
+  const range = ['2026-08-01', '2026-08-05'] as const
+
+  it('bereit wenn Injektor + Partner ueberlappen', () => {
+    const v = verf({
+      'Dmitri Artemiev': { '2026-08-03': 'GT' },
+      'Markus Tschopp':  { '2026-08-03': 'NM' },
+    })
+    const r = buildIviVorschlaege(v, ...range)
+    expect(r[0].status).toBe('bereit')
+    expect(r[0].fenster).toBe('Nachmittag')
+    expect(r[0].empfohlenerPartnerCode).toBeNull()
+  })
+
+  it('partner_fehlt wenn nur der Injektor da ist — mit empfohlenem Code', () => {
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-03': 'GT' } })
+    const r = buildIviVorschlaege(v, ...range)
+    expect(r[0].status).toBe('partner_fehlt')
+    expect(r[0].empfohlenerPartnerCode).toBe('NM')
+  })
+
+  it('halbtag_konflikt wenn beide da sind aber VM gegen NM', () => {
+    const v = verf({
+      'Dmitri Artemiev': { '2026-08-03': 'VM' },
+      'Markus Tschopp':  { '2026-08-03': 'NM' },
+    })
+    const r = buildIviVorschlaege(v, ...range)
+    expect(r[0].status).toBe('halbtag_konflikt')
+    expect(r[0].fenster).toBeNull()
+    // Kein Auto-Eintrag: fremden Halbtag umhaengen ist Personalentscheidung
+    expect(r[0].empfohlenerPartnerCode).toBeNull()
+  })
+
+  it('kein_tag wenn der Injektor die ganze Woche fehlt', () => {
+    const v = verf({ 'Markus Tschopp': { '2026-08-03': 'GT' } })
+    const r = buildIviVorschlaege(v, ...range)
+    expect(r[0].status).toBe('kein_tag')
+  })
+
+  it('empfiehlt VM wenn der Injektor nur vormittags da ist', () => {
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-03': 'VM' } })
+    const r = buildIviVorschlaege(v, ...range)
+    expect(r[0].status).toBe('partner_fehlt')
+    expect(r[0].empfohlenerPartnerCode).toBe('VM')
   })
 })

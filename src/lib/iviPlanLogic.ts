@@ -187,3 +187,133 @@ export function buildArztVerfuegbarkeit(
     })
     .sort((a, b) => a.date.localeCompare(b.date))
 }
+
+// ─── Intelligente IVI-Tag-Vorschläge ─────────────────────────────────────────
+//
+// Raster: jeder 2. Montag. Grund (aus der Bedarfsanalyse): die vorkommenden
+// Behandlungsintervalle 4/6/8/10 Wochen sind alle Vielfache von zwei Wochen —
+// im 14-Tage-Raster fällt jeder Patient exakt auf einen IVI-Tag. Montag ist
+// zudem der dominierende Spritztag.
+//
+// Fällt der Montag aus (Feiertag oder Injektor abwesend), wird auf Do bzw. Fr
+// DERSELBEN Woche ausgewichen — nie in eine andere Woche, sonst reisst das
+// Intervall.
+
+export type VorschlagStatus =
+  | 'bereit'            // Injektor + Partner mit Überlappung — nichts zu tun
+  | 'partner_fehlt'     // Injektor da, kein Partner — eintragbar
+  | 'halbtag_konflikt'  // beide da, aber VM gegen NM — nur melden
+  | 'kein_tag'          // Injektor auch am Ausweichtag weg
+
+export interface IviVorschlag {
+  /** Tag des Rasters, auf den sich der Vorschlag bezieht (immer ein Montag) */
+  rasterMontag: string
+  /** tatsächlich vorgeschlagener Tag (= Montag oder Do/Fr-Ausweich) */
+  date: string
+  /** true wenn wegen Feiertag/Abwesenheit ausgewichen wurde */
+  ausweich: boolean
+  /** Grund des Ausweichens, für die Anzeige */
+  ausweichGrund: string | null
+  status: VorschlagStatus
+  anwesend: AnwesenderArzt[]
+  fenster: ArztTag['fenster']
+  /** Code den ein neuer Partner bekommen müsste, damit er überlappt */
+  empfohlenerPartnerCode: string | null
+}
+
+const MS_TAG = 86_400_000
+const isoAdd = (iso: string, tage: number) =>
+  new Date(Date.parse(iso + 'T00:00:00Z') + tage * MS_TAG).toISOString().slice(0, 10)
+
+/** Montag der Woche von `iso`. */
+function montagVon(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  return isoAdd(iso, -((d.getUTCDay() + 6) % 7))
+}
+
+/** Nächster Montag ab `iso` (inkl. `iso` selbst wenn Montag). */
+function naechsterMontag(iso: string): string {
+  const dow = new Date(iso + 'T00:00:00Z').getUTCDay()
+  return dow === 1 ? iso : isoAdd(montagVon(iso), 7)
+}
+
+/** Partner-Code der mit dem Injektor-Code überlappt. GT → NM (Nachmittag ist
+ *  in der Praxis das übliche IVI-Fenster), VM → VM, NM → NM. */
+export function passenderPartnerCode(injektorCode: string): string | null {
+  if (injektorCode === 'GT') return 'NM'
+  if (injektorCode === 'VM') return 'VM'
+  if (injektorCode === 'NM') return 'NM'
+  return null
+}
+
+/**
+ * Baut die Vorschlagsliste.
+ *
+ * @param verfuegbar  Ergebnis von buildArztVerfuegbarkeit()
+ * @param today       ISO-Datum ab dem vorgeschlagen wird
+ * @param bisDatum    ISO-Datum bis zu dem vorgeschlagen wird
+ * @param feiertage   Datum → Name
+ * @param bestehende  bereits geplante IVI-Tage (zum Verankern des Rhythmus)
+ */
+export function buildIviVorschlaege(
+  verfuegbar: readonly ArztTag[],
+  today: string,
+  bisDatum: string,
+  feiertage: Readonly<Record<string, string>> = {},
+  bestehende: readonly string[] = [],
+): IviVorschlag[] {
+  const byDate = new Map(verfuegbar.map(t => [t.date, t]))
+
+  // Anker: erster bestehender IVI-Montag ab heute, sonst nächster Montag.
+  const ankerKandidat = bestehende
+    .filter(d => d >= today && new Date(d + 'T00:00:00Z').getUTCDay() === 1)
+    .sort()[0]
+  const anker = ankerKandidat ?? naechsterMontag(today)
+
+  const out: IviVorschlag[] = []
+  for (let mo = anker; mo <= bisDatum; mo = isoAdd(mo, 14)) {
+    // Kandidaten in DERSELBEN Woche: Montag, sonst Do, sonst Fr.
+    const kandidaten = [mo, isoAdd(mo, 3), isoAdd(mo, 4)]
+    let gewaehlt: string | null = null
+    let grund: string | null = null
+
+    for (const k of kandidaten) {
+      const ft = feiertage[k]
+      const tag = byDate.get(k)
+      const injektorDa = !!tag?.anwesend.some(a => a.injector)
+      if (ft) { if (k === mo) grund = `Feiertag (${ft})`; continue }
+      if (!injektorDa) { if (k === mo && !grund) grund = 'Artemiev abwesend'; continue }
+      gewaehlt = k
+      break
+    }
+
+    if (!gewaehlt) {
+      out.push({
+        rasterMontag: mo, date: mo, ausweich: false,
+        ausweichGrund: grund, status: 'kein_tag',
+        anwesend: byDate.get(mo)?.anwesend ?? [], fenster: null,
+        empfohlenerPartnerCode: null,
+      })
+      continue
+    }
+
+    const tag = byDate.get(gewaehlt)!
+    const injektor = tag.anwesend.find(a => a.injector)!
+    const hatPartner = tag.anwesend.some(a => !a.injector)
+
+    const status: VorschlagStatus =
+      tag.passend ? 'bereit' : hatPartner ? 'halbtag_konflikt' : 'partner_fehlt'
+
+    out.push({
+      rasterMontag: mo,
+      date: gewaehlt,
+      ausweich: gewaehlt !== mo,
+      ausweichGrund: gewaehlt !== mo ? grund : null,
+      status,
+      anwesend: tag.anwesend,
+      fenster: tag.fenster,
+      empfohlenerPartnerCode: status === 'partner_fehlt' ? passenderPartnerCode(injektor.code) : null,
+    })
+  }
+  return out
+}
