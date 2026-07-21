@@ -6,6 +6,11 @@ import {
   pickLatestPerPatientEye,
   IVI_DOCTORS_MATCH,
   IVI_WORKING,
+  weekStart,
+  addWeeks,
+  daysBetween,
+  forecastSlot,
+  buildForecast,
   type PlanLike,
 } from './iviPlanLogic'
 
@@ -163,5 +168,99 @@ describe('pickLatestPerPatientEye', () => {
       { patientId: 'P1', eyeSide: 'OD', treatmentDate: '2026-02-01', extra: 'neu' },
     ])
     expect(result.get('P1:OD')?.extra).toBe('neu')
+  })
+})
+
+// ─── Terminprognose ──────────────────────────────────────────────────────────
+
+describe('weekStart / addWeeks / daysBetween', () => {
+  it('weekStart liefert den Montag der Woche', () => {
+    expect(weekStart('2026-08-03')).toBe('2026-08-03') // Mo selbst
+    expect(weekStart('2026-08-06')).toBe('2026-08-03') // Do -> Mo
+    expect(weekStart('2026-08-09')).toBe('2026-08-03') // So -> Mo derselben Woche
+    expect(weekStart('2026-08-10')).toBe('2026-08-10') // naechster Mo
+  })
+
+  it('addWeeks rechnet in ganzen Wochen', () => {
+    expect(addWeeks('2026-08-03', 4)).toBe('2026-08-31')
+    expect(addWeeks('2026-08-03', 0)).toBe('2026-08-03')
+  })
+
+  it('daysBetween ist vorzeichenbehaftet', () => {
+    expect(daysBetween('2026-08-03', '2026-08-06')).toBe(3)
+    expect(daysBetween('2026-08-06', '2026-08-03')).toBe(-3)
+  })
+})
+
+describe('forecastSlot', () => {
+  it('exakt wenn das Soll-Datum selbst ein IVI-Tag ist', () => {
+    const r = forecastSlot('2026-08-03', ['2026-08-03', '2026-08-17'])
+    expect(r).toEqual({ vorschlag: '2026-08-03', status: 'exakt', abweichungTage: 0 })
+  })
+
+  it('weicht auf Do/Fr DERSELBEN Woche aus wenn der Montag fehlt (Feiertag)', () => {
+    // Mo 03.08. ist kein IVI-Tag (Feiertag -> kein Arzt), aber Do 06.08.
+    const r = forecastSlot('2026-08-03', ['2026-08-06', '2026-08-17'])
+    expect(r.vorschlag).toBe('2026-08-06')
+    expect(r.status).toBe('ausweich')
+    expect(r.abweichungTage).toBe(3)
+  })
+
+  it('verschiebt NICHT um Wochen wenn die Woche gar keinen IVI-Tag hat', () => {
+    // Naechster IVI-Tag waere erst die Folgewoche -> darf NICHT vorgeschlagen werden
+    const r = forecastSlot('2026-08-03', ['2026-08-10', '2026-08-17'])
+    expect(r).toEqual({ vorschlag: null, status: 'kein-tag', abweichungTage: 0 })
+  })
+
+  it('waehlt den naechstliegenden Tag derselben Woche', () => {
+    const r = forecastSlot('2026-08-05', ['2026-08-03', '2026-08-06'])
+    expect(r.vorschlag).toBe('2026-08-06') // 1 Tag statt 2
+  })
+
+  it('bevorzugt bei Gleichstand den spaeteren Tag', () => {
+    const r = forecastSlot('2026-08-05', ['2026-08-04', '2026-08-06'])
+    expect(r.vorschlag).toBe('2026-08-06')
+  })
+
+  it('ignoriert IVI-Tage anderer Wochen komplett', () => {
+    expect(forecastSlot('2026-08-03', []).status).toBe('kein-tag')
+  })
+})
+
+describe('buildForecast', () => {
+  const iviDays = ['2026-08-03', '2026-08-20', '2026-08-31']
+
+  it('rechnet Soll-Datum aus letzter Behandlung + Intervall', () => {
+    const r = buildForecast([
+      { patientId: 'P1', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 4 },
+    ], iviDays)
+    expect(r[0].sollDatum).toBe('2026-08-03')
+    expect(r[0].status).toBe('exakt')
+  })
+
+  it('filtert Kandidaten ohne Intervall oder ohne Datum', () => {
+    const r = buildForecast([
+      { patientId: 'P1', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 0 },
+      { patientId: 'P2', eyeSide: 'OS', lastTreatmentDate: '', intervalWeeks: 4 },
+    ], iviDays)
+    expect(r).toEqual([])
+  })
+
+  it('sortiert nach Soll-Datum', () => {
+    const r = buildForecast([
+      { patientId: 'spaet', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 8 },
+      { patientId: 'frueh', eyeSide: 'OD', lastTreatmentDate: '2026-07-06', intervalWeeks: 4 },
+    ], iviDays)
+    expect(r.map(x => x.patientId)).toEqual(['frueh', 'spaet'])
+  })
+
+  it('meldet kein-tag statt das Intervall zu strecken', () => {
+    // Soll 10.08. — in dieser Woche gibt es keinen IVI-Tag (naechster erst 20.08.)
+    const r = buildForecast([
+      { patientId: 'P1', eyeSide: 'OD', lastTreatmentDate: '2026-07-13', intervalWeeks: 4 },
+    ], iviDays)
+    expect(r[0].sollDatum).toBe('2026-08-10')
+    expect(r[0].status).toBe('kein-tag')
+    expect(r[0].vorschlag).toBeNull()
   })
 })
