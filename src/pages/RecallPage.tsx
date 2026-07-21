@@ -3019,10 +3019,13 @@ const lirisExtractRef  = useRef(lirisExtract)
       ? `<p>Die Pupillen Ihres Kindes werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>Nahsehen und Lesen fallen schwer</strong>, bitte planen Sie Schule und Hausaufgaben entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen.</p>`
       : `<p>Die Pupillen werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>bitte kein Fahrzeug lenken</strong>. Sonnenbrille empfohlen.</p>`
 
+    // Deutlich hervorgehobene Warn-Box (Nutzerwunsch 2026-07-20) — die
+    // Verhaltenshinweise nach Zykloplegie/Mydriase gehen sonst im Fliesstext
+    // unter.
     const sehHinweis = hasZykloplegie
-      ? zykloHinweis
+      ? `<div class="hinweis-box">${zykloHinweis}</div>`
       : form.pupille
-        ? pupilleHinweis
+        ? `<div class="hinweis-box">${pupilleHinweis}</div>`
         : ``
 
     const title = form.briefVariante === 'terminVerpasst' ? 'Ihr verpasster Termin &#8211; Bitte um kurze R&#252;ckmeldung'
@@ -3088,7 +3091,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       ${terminBlock}
       ${vuBlock}
       ${sehHinweis}
-      <div class="info-section">
+      <div class="info-section mitbringen-box">
         <p><strong>Bitte mitbringen:</strong> Brille/Kontaktlinsen (KL vor Termin entfernen), Medikamentenliste, Krankenkassenausweis, Sonnenbrille.</p>
       </div>
     `
@@ -3101,7 +3104,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       ${terminBlock}
       ${vuBlock}
       <p>Nach der Untersuchung k&#246;nnen Sie Ihren Alltag wie gewohnt fortsetzen.</p>
-      <div class="info-section">
+      <div class="info-section mitbringen-box">
         <p><strong>Bitte mitbringen:</strong> Brille/Kontaktlinsen (KL vor Termin entfernen), Medikamentenliste, Krankenkassenausweis.</p>
       </div>
     `
@@ -3196,6 +3199,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   .info-section>p{margin-bottom:.1cm !important}
   .info-section ul{list-style:none;padding:0}
   .info-section ul li{margin-bottom:.08cm;line-height:1.25;padding-left:.1cm}
+  .hinweis-box{border:1px solid #d97706;border-left:5px solid #d97706;background:#fff7ed;border-radius:4px;padding:.25cm .35cm;margin:.3cm 0}
+  .hinweis-box p{margin-bottom:0 !important}
+  .mitbringen-box{border:1px solid #94a3b8;border-left:5px solid #64748b;background:#f4f6f8;border-radius:4px;padding:.2cm .35cm}
   .vu-dauer{font-size:9pt;color:#1a3a6e;font-weight:normal}
   .vu-total{font-size:9.5pt;color:#1a3a6e;margin-top:.2cm !important}
   .body a{color:#111;text-decoration:none;font-weight:bold}
