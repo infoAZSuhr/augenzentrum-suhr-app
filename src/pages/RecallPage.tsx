@@ -3083,6 +3083,13 @@ const lirisExtractRef  = useRef(lirisExtract)
         ? `<p>Die Untersuchung findet bei ${arztArtikel} <strong>${arztName}</strong> statt.</p>`
         : ''
 
+    // «Bitte mitbringen» passt sich der Untersuchung an (Nutzerwunsch
+    // 2026-07-20): Sonnenbrille nur, wenn Pupillenerweiterung oder
+    // Zykloplegie geplant ist.
+    const mitbringenBox = `<div class="info-section mitbringen-box">
+        <p><strong>Bitte mitbringen:</strong> Brille/Kontaktlinsen (KL vor Termin entfernen), Medikamentenliste, Krankenkassenausweis${(form.pupille || hasZykloplegie) ? ', Sonnenbrille' : ''}.</p>
+      </div>`
+
     // ── Body: mit Pupillenerweiterung ────────────────────────────────────────
     const bodyMit = `
       ${salut}
@@ -3091,9 +3098,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       ${terminBlock}
       ${vuBlock}
       ${sehHinweis}
-      <div class="info-section mitbringen-box">
-        <p><strong>Bitte mitbringen:</strong> Brille/Kontaktlinsen (KL vor Termin entfernen), Medikamentenliste, Krankenkassenausweis, Sonnenbrille.</p>
-      </div>
+      ${mitbringenBox}
     `
 
     // ── Body: ohne Pupillenerweiterung ───────────────────────────────────────
@@ -3103,10 +3108,8 @@ const lirisExtractRef  = useRef(lirisExtract)
       ${introPara}
       ${terminBlock}
       ${vuBlock}
-      <p>Nach der Untersuchung k&#246;nnen Sie Ihren Alltag wie gewohnt fortsetzen.</p>
-      <div class="info-section mitbringen-box">
-        <p><strong>Bitte mitbringen:</strong> Brille/Kontaktlinsen (KL vor Termin entfernen), Medikamentenliste, Krankenkassenausweis.</p>
-      </div>
+      ${hasZykloplegie ? sehHinweis : '<p>Nach der Untersuchung k&#246;nnen Sie Ihren Alltag wie gewohnt fortsetzen.</p>'}
+      ${mitbringenBox}
     `
 
     // ── Body: Reminder ───────────────────────────────────────────────────────
