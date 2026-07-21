@@ -7,7 +7,7 @@ import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestor
 import { planAutoFill, autoFillUpdates, summarizeCodes } from '../../lib/planungAutoFill'
 import {
   buildArztVerfuegbarkeit, buildIviVorschlaege, extractIviDaysFromPlans,
-  filterIviDoctors, IVI_DOCTORS_MATCH, IVI_WORKING, type IviVorschlag,
+  filterIviDoctors, IVI_DOCTORS_MATCH, IVI_INJECTOR_MATCH, IVI_WORKING, type IviVorschlag,
 } from '../../lib/iviPlanLogic'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
@@ -746,7 +746,10 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
   const vorschlaege=useMemo(()=>{
     const verf=buildArztVerfuegbarkeit([data],TODAY)
     const best=extractIviDaysFromPlans([data],TODAY)
-    return buildIviVorschlaege(verf,TODAY,`${year}-12-31`,feiertage,best)
+    // Roh-Schedule des Injektors mitgeben, damit «Fer»/«W» als Grund erscheint
+    const injName=filterIviDoctors(allPersons,IVI_INJECTOR_MATCH)[0]
+    const injSched=injName?(data.schedule[injName]??{}):{}
+    return buildIviVorschlaege(verf,TODAY,`${year}-12-31`,feiertage,best,injSched)
   },[data,year,feiertage])
 
   // Pro Vorschlagstag der gewaehlte Partner (Default: der mit weniger Einsaetzen)
@@ -809,6 +812,7 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold text-gray-500 bg-white/80 border border-gray-200 rounded px-1.5 py-0.5">KW {v.kw}</span>
                       <span className="text-xs font-bold uppercase text-gray-400">{fmtWd(v.date)}</span>
                       <span className="text-sm font-bold text-gray-900">{fmtD(v.date)}</span>
                       <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/70 text-gray-600">{st.label}</span>
@@ -833,7 +837,13 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
                         (oder umgekehrt) gewechselt werden. Das bitte von Hand entscheiden.
                       </p>
                     )}
-                    {v.status==='bereit'&&<p className="text-[11px] text-green-800 mt-1.5">Nichts zu tun · {v.fenster}</p>}
+                    {v.status==='kein_tag'&&v.geprueft.length>0&&(
+                      <p className="text-[11px] text-gray-500 mt-1.5">
+                        Geprüft: {v.geprueft.map(g=>`${fmtWd(g.date)} ${g.grund}`).join(' · ')}
+                        {v.geprueft.length>1?' — keine Alternative in dieser Woche':''}
+                      </p>
+                    )}
+                    {v.status==='bereit'&&<p className="text-[11px] text-green-800 mt-1.5">Termin fixiert · {v.fenster}</p>}
                   </div>
 
                   {kannEintragen&&(

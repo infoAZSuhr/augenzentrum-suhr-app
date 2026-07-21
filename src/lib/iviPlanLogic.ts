@@ -205,9 +205,19 @@ export type VorschlagStatus =
   | 'halbtag_konflikt'  // beide da, aber VM gegen NM — nur melden
   | 'kein_tag'          // Injektor auch am Ausweichtag weg
 
+/** Ein geprüfter Kandidat (Mo/Do/Fr) samt Grund, warum er ausfiel. */
+export interface GeprueferTag {
+  date: string
+  grund: string
+}
+
 export interface IviVorschlag {
   /** Tag des Rasters, auf den sich der Vorschlag bezieht (immer ein Montag) */
   rasterMontag: string
+  /** ISO-Kalenderwoche des Vorschlags */
+  kw: number
+  /** Mo/Do/Fr die geprüft und verworfen wurden — macht den Ausweich sichtbar */
+  geprueft: GeprueferTag[]
   /** tatsächlich vorgeschlagener Tag (= Montag oder Do/Fr-Ausweich) */
   date: string
   /** true wenn wegen Feiertag/Abwesenheit ausgewichen wurde */
@@ -224,6 +234,16 @@ export interface IviVorschlag {
 const MS_TAG = 86_400_000
 const isoAdd = (iso: string, tage: number) =>
   new Date(Date.parse(iso + 'T00:00:00Z') + tage * MS_TAG).toISOString().slice(0, 10)
+
+/** ISO-Kalenderwoche (Woche mit dem ersten Donnerstag des Jahres = KW 1). */
+export function isoKalenderwoche(iso: string): number {
+  const d = new Date(Date.parse(iso + 'T00:00:00Z'))
+  // auf den Donnerstag derselben ISO-Woche schieben
+  d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7))
+  const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4))
+  const tage = (d.getTime() - jan4.getTime()) / MS_TAG
+  return 1 + Math.round((tage - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7)
+}
 
 /** Montag der Woche von `iso`. */
 function montagVon(iso: string): string {
@@ -261,6 +281,9 @@ export function buildIviVorschlaege(
   bisDatum: string,
   feiertage: Readonly<Record<string, string>> = {},
   bestehende: readonly string[] = [],
+  /** Roh-Schedule des Injektors (Datum → Code) — nur für die Begründung,
+   *  damit «Fer»/«W» statt nur «abwesend» angezeigt werden kann. */
+  injektorSchedule: Readonly<Record<string, string>> = {},
 ): IviVorschlag[] {
   const byDate = new Map(verfuegbar.map(t => [t.date, t]))
 
@@ -275,22 +298,26 @@ export function buildIviVorschlaege(
     // Kandidaten in DERSELBEN Woche: Montag, sonst Do, sonst Fr.
     const kandidaten = [mo, isoAdd(mo, 3), isoAdd(mo, 4)]
     let gewaehlt: string | null = null
-    let grund: string | null = null
+    const geprueft: GeprueferTag[] = []
 
     for (const k of kandidaten) {
       const ft = feiertage[k]
-      const tag = byDate.get(k)
-      const injektorDa = !!tag?.anwesend.some(a => a.injector)
-      if (ft) { if (k === mo) grund = `Feiertag (${ft})`; continue }
-      if (!injektorDa) { if (k === mo && !grund) grund = 'Artemiev abwesend'; continue }
+      if (ft) { geprueft.push({ date: k, grund: `Feiertag (${ft})` }); continue }
+      const injektorDa = !!byDate.get(k)?.anwesend.some(a => a.injector)
+      if (!injektorDa) {
+        const code = injektorSchedule[k]
+        geprueft.push({ date: k, grund: code ? `Artemiev ${code}` : 'Artemiev nicht eingeteilt' })
+        continue
+      }
       gewaehlt = k
       break
     }
 
     if (!gewaehlt) {
       out.push({
-        rasterMontag: mo, date: mo, ausweich: false,
-        ausweichGrund: grund, status: 'kein_tag',
+        rasterMontag: mo, kw: isoKalenderwoche(mo), geprueft,
+        date: mo, ausweich: false,
+        ausweichGrund: geprueft[0]?.grund ?? null, status: 'kein_tag',
         anwesend: byDate.get(mo)?.anwesend ?? [], fenster: null,
         empfohlenerPartnerCode: null,
       })
@@ -306,9 +333,11 @@ export function buildIviVorschlaege(
 
     out.push({
       rasterMontag: mo,
+      kw: isoKalenderwoche(gewaehlt),
+      geprueft,
       date: gewaehlt,
       ausweich: gewaehlt !== mo,
-      ausweichGrund: gewaehlt !== mo ? grund : null,
+      ausweichGrund: gewaehlt !== mo ? (geprueft[0]?.grund ?? null) : null,
       status,
       anwesend: tag.anwesend,
       fenster: tag.fenster,
