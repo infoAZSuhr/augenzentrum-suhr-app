@@ -205,6 +205,125 @@ export default function IVOMTagesplanung() {
   return (
     <div className="p-3 sm:p-6 space-y-4">
 
+      {/* ── Terminprognose ─────────────────────────────────────────────────
+          Patienten ohne gesetzten Folgetermin, deren Intervall aber bekannt
+          ist. Der Vorschlag bleibt bewusst in DERSELBEN Woche wie das
+          Soll-Datum (Ausweichen auf Do/Fr wenn der Montag ausfaellt) — das
+          Intervall wird nie um ganze Wochen gestreckt. */}
+      <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3 flex-wrap">
+            <CalendarClock className="w-4 h-4 text-gray-400" />
+            <span className="text-base font-bold text-gray-900">Terminprognose</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">
+              {forecast.length} offen
+            </span>
+            <span className="text-xs text-gray-500">noch nicht geplant, aber planbar</span>
+          </div>
+
+          {forecast.length === 0 && (
+            <div className="px-4 py-6 text-center">
+              <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
+              <p className="text-sm text-gray-400">Alle aktiven Patienten haben einen Folgetermin.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Sobald bei jemandem der Folgetermin fehlt, erscheint hier der nächste passende IVI-Tag.
+              </p>
+            </div>
+          )}
+
+          {forecast.length > 0 && (
+          <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                  <th className="px-4 py-2 font-semibold">Patient</th>
+                  <th className="px-2 py-2 font-semibold">Auge</th>
+                  <th className="px-2 py-2 font-semibold">Medikament</th>
+                  <th className="px-2 py-2 font-semibold">Letzte / Intervall</th>
+                  <th className="px-2 py-2 font-semibold">Fällig</th>
+                  <th className="px-2 py-2 font-semibold">Vorschlag</th>
+                  <th className="px-4 py-2 font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.map(f => {
+                  const d = (s: string) => `${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
+                  const wd = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'short' })
+                  const todayStr = new Date().toISOString().slice(0, 10)
+                  const ueberfaellig = f.sollDatum < todayStr
+                  return (
+                    <tr key={`${f.patientId}:${f.eyeSide}`} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60">
+                      <td className="px-4 py-2">
+                        <Link to={`/ivom/patient/${f.patientId}`} className="font-medium text-gray-900 hover:text-primary-600">
+                          {f.name}
+                        </Link>
+                        {f.patientNumber && <span className="text-xs text-gray-400 ml-1.5">#{f.patientNumber}</span>}
+                      </td>
+                      <td className="px-2 py-2 font-medium text-gray-600">{f.eyeSide}</td>
+                      <td className="px-2 py-2 text-gray-600">{f.medicationName}</td>
+                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap">
+                        {d(f.lastTreatmentDate)} <span className="text-gray-400">+{f.intervalWeeks} Wo.</span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <span className={ueberfaellig ? 'font-bold text-amber-700' : 'text-gray-700'}>
+                          {wd(f.sollDatum)} {d(f.sollDatum)}
+                        </span>
+                        {ueberfaellig && (
+                          <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                            überfällig
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        {f.status === 'exakt' && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200">
+                            {wd(f.vorschlag!)} {d(f.vorschlag!)}
+                          </span>
+                        )}
+                        {f.status === 'ausweich' && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200"
+                            title={`Montag fällt aus — Ausweichtag in derselben Woche (${f.abweichungTage > 0 ? '+' : ''}${f.abweichungTage} Tage)`}>
+                            {wd(f.vorschlag!)} {d(f.vorschlag!)}
+                            <span className="font-normal opacity-75">
+                              ({f.abweichungTage > 0 ? '+' : ''}{f.abweichungTage} T)
+                            </span>
+                          </span>
+                        )}
+                        {f.status === 'kein-tag' && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200"
+                            title="In dieser Woche ist kein IVI-Tag geplant. Das Intervall darf nicht um Wochen verschoben werden — bitte einen IVI-Tag in dieser Woche einplanen.">
+                            <AlertTriangle className="w-3 h-3" /> kein IVI-Tag in dieser Woche
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap text-right">
+                        {f.vorschlag && (
+                          <button
+                            onClick={() => uebernehmenMut.mutate({ treatmentId: f.treatmentId, datum: f.vorschlag! })}
+                            disabled={uebernehmenMut.isPending}
+                            title={`${d(f.vorschlag)} als Folgetermin setzen`}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-medium"
+                          >
+                            <Check className="w-3 h-3" /> Übernehmen
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/60 text-[11px] text-gray-500 leading-relaxed">
+            Vorschläge bleiben immer in derselben Kalenderwoche wie das Soll-Datum — fällt der Montag aus
+            (z.&nbsp;B. Feiertag), wird auf Do/Fr derselben Woche ausgewichen. Das Intervall wird nie um ganze
+            Wochen verschoben; fehlt in der Woche ein IVI-Tag, wird das rot gemeldet.
+          </div>
+          </>
+          )}
+      </div>
+
       {iviPlan.map(({ date, entries }) => {
         const weekday = new Date(date + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'long' })
         const dateLabel = `${date.slice(8,10)}.${date.slice(5,7)}.${date.slice(0,4)}`
@@ -427,125 +546,6 @@ export default function IVOMTagesplanung() {
           </div>
         )
       })}
-
-      {/* ── Terminprognose ─────────────────────────────────────────────────
-          Patienten ohne gesetzten Folgetermin, deren Intervall aber bekannt
-          ist. Der Vorschlag bleibt bewusst in DERSELBEN Woche wie das
-          Soll-Datum (Ausweichen auf Do/Fr wenn der Montag ausfaellt) — das
-          Intervall wird nie um ganze Wochen gestreckt. */}
-      <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3 flex-wrap">
-            <CalendarClock className="w-4 h-4 text-gray-400" />
-            <span className="text-base font-bold text-gray-900">Terminprognose</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">
-              {forecast.length} offen
-            </span>
-            <span className="text-xs text-gray-500">noch nicht geplant, aber planbar</span>
-          </div>
-
-          {forecast.length === 0 && (
-            <div className="px-4 py-6 text-center">
-              <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
-              <p className="text-sm text-gray-400">Alle aktiven Patienten haben einen Folgetermin.</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Sobald bei jemandem der Folgetermin fehlt, erscheint hier der nächste passende IVI-Tag.
-              </p>
-            </div>
-          )}
-
-          {forecast.length > 0 && (
-          <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                  <th className="px-4 py-2 font-semibold">Patient</th>
-                  <th className="px-2 py-2 font-semibold">Auge</th>
-                  <th className="px-2 py-2 font-semibold">Medikament</th>
-                  <th className="px-2 py-2 font-semibold">Letzte / Intervall</th>
-                  <th className="px-2 py-2 font-semibold">Fällig</th>
-                  <th className="px-2 py-2 font-semibold">Vorschlag</th>
-                  <th className="px-4 py-2 font-semibold"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {forecast.map(f => {
-                  const d = (s: string) => `${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
-                  const wd = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'short' })
-                  const todayStr = new Date().toISOString().slice(0, 10)
-                  const ueberfaellig = f.sollDatum < todayStr
-                  return (
-                    <tr key={`${f.patientId}:${f.eyeSide}`} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60">
-                      <td className="px-4 py-2">
-                        <Link to={`/ivom/patient/${f.patientId}`} className="font-medium text-gray-900 hover:text-primary-600">
-                          {f.name}
-                        </Link>
-                        {f.patientNumber && <span className="text-xs text-gray-400 ml-1.5">#{f.patientNumber}</span>}
-                      </td>
-                      <td className="px-2 py-2 font-medium text-gray-600">{f.eyeSide}</td>
-                      <td className="px-2 py-2 text-gray-600">{f.medicationName}</td>
-                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap">
-                        {d(f.lastTreatmentDate)} <span className="text-gray-400">+{f.intervalWeeks} Wo.</span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span className={ueberfaellig ? 'font-bold text-amber-700' : 'text-gray-700'}>
-                          {wd(f.sollDatum)} {d(f.sollDatum)}
-                        </span>
-                        {ueberfaellig && (
-                          <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                            überfällig
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        {f.status === 'exakt' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200">
-                            {wd(f.vorschlag!)} {d(f.vorschlag!)}
-                          </span>
-                        )}
-                        {f.status === 'ausweich' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200"
-                            title={`Montag fällt aus — Ausweichtag in derselben Woche (${f.abweichungTage > 0 ? '+' : ''}${f.abweichungTage} Tage)`}>
-                            {wd(f.vorschlag!)} {d(f.vorschlag!)}
-                            <span className="font-normal opacity-75">
-                              ({f.abweichungTage > 0 ? '+' : ''}{f.abweichungTage} T)
-                            </span>
-                          </span>
-                        )}
-                        {f.status === 'kein-tag' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200"
-                            title="In dieser Woche ist kein IVI-Tag geplant. Das Intervall darf nicht um Wochen verschoben werden — bitte einen IVI-Tag in dieser Woche einplanen.">
-                            <AlertTriangle className="w-3 h-3" /> kein IVI-Tag in dieser Woche
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-right">
-                        {f.vorschlag && (
-                          <button
-                            onClick={() => uebernehmenMut.mutate({ treatmentId: f.treatmentId, datum: f.vorschlag! })}
-                            disabled={uebernehmenMut.isPending}
-                            title={`${d(f.vorschlag)} als Folgetermin setzen`}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-medium"
-                          >
-                            <Check className="w-3 h-3" /> Übernehmen
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/60 text-[11px] text-gray-500 leading-relaxed">
-            Vorschläge bleiben immer in derselben Kalenderwoche wie das Soll-Datum — fällt der Montag aus
-            (z.&nbsp;B. Feiertag), wird auf Do/Fr derselben Woche ausgewichen. Das Intervall wird nie um ganze
-            Wochen verschoben; fehlt in der Woche ein IVI-Tag, wird das rot gemeldet.
-          </div>
-          </>
-          )}
-      </div>
 
       {formEntry && (
         <TreatmentForm
