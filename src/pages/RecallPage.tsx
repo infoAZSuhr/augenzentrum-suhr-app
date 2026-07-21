@@ -709,6 +709,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   // eingeklappt, damit das Modal nicht mit selten genutzten Optionen
   // vollgestopft wirkt — auf Klick ausklappbar.
   const [allgBriefOpen, setAllgBriefOpen] = useState(false)
+  // Dialog gezielt mit aufgeklapptem «Allgemeine Briefe»-Bereich öffnen
+  // (Button in Patient-bearbeiten, Nutzerwunsch 2026-07-20).
+  const openAllgemeinRef = useRef(false)
   const [zwAddOpen, setZwAddOpen] = useState(false)
   const [zwAddDraft, setZwAddDraft] = useState<{ typ: 'intern' | 'extern'; ziel: string; grund: string; datum: string }>({ typ: 'extern', ziel: '', grund: '', datum: new Date().toISOString().slice(0, 10) })
   // Primäre Zuweisung: volle Bearbeitungsansicht nur solange sie noch
@@ -725,7 +728,8 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Aufgebot-Dialogs bereits eine solche Variante aktiv ist (z.B. beim
   // Bearbeiten eines bestehenden freien Briefs) — sonst eingeklappt.
   useEffect(() => {
-    setAllgBriefOpen(aufgebotForm.briefVariante === 'terminBestaetigung' || aufgebotForm.briefVariante === 'freierBrief' || aufgebotForm.briefVariante === 'rechnung')
+    setAllgBriefOpen(openAllgemeinRef.current || aufgebotForm.briefVariante === 'terminBestaetigung' || aufgebotForm.briefVariante === 'freierBrief' || aufgebotForm.briefVariante === 'rechnung')
+    openAllgemeinRef.current = false
   }, [aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
   // Bearbeitungsansicht der primären Zuweisung: automatisch ausgeklappt
   // solange sie pendent ist (aktive Aufgabe), sonst eingeklappt.
@@ -8209,6 +8213,26 @@ const lirisExtractRef  = useRef(lirisExtract)
                   >
                     <Mail className="w-4 h-4" />
                     Aufbieten/Reminder/Verschiebung
+                  </button>
+                  {/* Allgemeine Briefe (Terminbestätigung, Freier Brief,
+                      Rechnung QR) — bewusst getrennt vom Aufgebots-Button:
+                      öffnet denselben Dialog, aber direkt mit aufgeklapptem
+                      «Allgemeine Briefe»-Bereich. */}
+                  <button
+                    type="button"
+                    disabled={!editTarget || editTarget === 'new'}
+                    onClick={() => {
+                      if (editTarget && editTarget !== 'new') {
+                        openAllgemeinRef.current = true
+                        openAufgebotDialog({ patient: editTarget })
+                        setEditTarget(null)
+                      }
+                    }}
+                    title={editTarget === 'new' ? 'Erst nach dem Anlegen des Patienten verfügbar' : 'Allgemeine Briefe: Terminbestätigung, Freier Brief, Rechnung (QR) — kein Aufgebot'}
+                    className="flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors disabled:opacity-40 border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Allg. Briefe
                   </button>
                   {AUFGEBOT_OPTIONS.filter(o => o.value === 'Tel' || o.value === 'Praxis').map(({ value, Icon, label }) => (
                     <button
