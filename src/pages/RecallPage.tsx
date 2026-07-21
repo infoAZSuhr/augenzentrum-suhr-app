@@ -2752,7 +2752,10 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Self-Service-Patienten ("kein Aufgebot") wollen bewusst nicht aufgeboten
     // werden -> warnen, aber Fortfahren erlauben. Ein bewusst gewählter Reminder
     // ist für sie OK (sie melden sich selbst) -> dann keine Warnung.
-    if (entry.patient.patientenStatus === 'kein Aufgebot' && presetArt !== 'Reminder') {
+    // Ebenfalls KEINE Warnung beim Öffnen für «Allgemeine Briefe»
+    // (openAllgemeinRef) — Terminbestätigung/Freier Brief/Rechnung sind kein
+    // Aufgebot (Nutzerwunsch 2026-07-20).
+    if (entry.patient.patientenStatus === 'kein Aufgebot' && presetArt !== 'Reminder' && !openAllgemeinRef.current) {
       if (!window.confirm('Patient wünscht kein Aufgebot.\n\nTrotzdem aufbieten?')) return
     }
     setAufgebotTarget(entry)
