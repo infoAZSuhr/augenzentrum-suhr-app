@@ -310,7 +310,7 @@ ipcMain.handle('upload-pdf-to-liris', async (_event, webContentsId, filePath) =>
 //   2. Dokumenttyp 'Mail gesendet'-Link klicken
 //   3. file-input via DOM.setFileInputFiles befuellen
 // Bricht bei Mehrdeutigkeit/fehlendem Element kontrolliert ab (Akten-Sicherheit).
-ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, doctorLastName) => {
+ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, doctorLastName, docType) => {
   const { webContents } = require('electron')
   let wc = null, attached = false
   const sleep = (ms) => new Promise(r => setTimeout(r, ms))
@@ -318,7 +318,8 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
   const step = (msg) => { log.push(msg); console.log('[auto-import] ' + msg) }
   const fail = (error) => ({ ok: false, error, log })
   try {
-    step('Start. doctor="' + (doctorLastName || '') + '" file=' + filePath)
+    const zielTyp = docType === 'andere' ? 'andere' : 'mail gesendet'
+    step('Start. doctor="' + (doctorLastName || '') + '" docType=' + zielTyp + ' file=' + filePath)
     if (!filePath || !fs.existsSync(filePath)) return fail('Datei nicht gefunden: ' + filePath)
     wc = webContents.fromId(webContentsId)
     if (!wc) return fail('Liris-Webview nicht gefunden (id=' + webContentsId + ')')
@@ -565,17 +566,17 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
     // ── Schritt 2: Dokumenttyp 'Mail gesendet' ──────────────────────────────
     // Erst warten bis der Link EXISTIERT (ohne Klick), dann Settle-Pause,
     // dann klicken — sonst trifft der Klick einen noch nicht gebundenen Link.
-    step('Schritt 2: "Mail gesendet" suchen…')
+    step('Schritt 2: Dokumenttyp "' + zielTyp + '" suchen…')
     const mailLinkDa = () => evalJs(`(function(){
       var as=[].slice.call(document.querySelectorAll('a'));
-      for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet') return true; }
+      for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()===${JSON.stringify(zielTyp)}) return true; }
       return false;
     })()`)
     // War 10x400ms=4s — reichte bei langsamem Seitenwechsel (v.a. nach
     // manueller Arztauswahl) nicht immer, siehe error_log 2026-07-15/17.
     let mailVisible = false
     for (let i = 0; i < 25 && !mailVisible; i++) { mailVisible = await mailLinkDa(); if (!mailVisible) await sleep(400) }
-    step('Schritt 2: "Mail gesendet"-Link sichtbar? ' + mailVisible)
+    step('Schritt 2: Dokumenttyp-Link "' + zielTyp + '" sichtbar? ' + mailVisible)
     let skipMailKlick = false
     if (!mailVisible) {
       // Bedient die MPA den Dialog manuell weiter (z.B. Dokumenttyp selbst
@@ -597,7 +598,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
           return out.slice(0,25).join(' | ').slice(0,400);
         })()`)
         step('Schritt 2: sichtbare Links stattdessen: ' + links)
-        return fail('"Mail gesendet" nicht gefunden. Arzt-Auswahl: ' + (arztWahlWeg || 'unbekannt') + '.')
+        return fail('Dokumenttyp "' + zielTyp + '" nicht gefunden. Arzt-Auswahl: ' + (arztWahlWeg || 'unbekannt') + '.')
       }
     }
     if (!skipMailKlick) {
@@ -607,7 +608,7 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
       // daher mehrere Versuche statt nur einem einzelnen Klick.
       const clickMail = () => evalJs(`(function(){
         var as=[].slice.call(document.querySelectorAll('a'));
-        for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()==='mail gesendet'){ as[k].click(); return true; } }
+        for(var k=0;k<as.length;k++){ if((as[k].innerText||'').trim().toLowerCase()===${JSON.stringify(zielTyp)}){ as[k].click(); return true; } }
         return false;
       })()`)
       let mailOk = false
@@ -615,8 +616,8 @@ ipcMain.handle('auto-import-to-liris', async (_event, webContentsId, filePath, d
         mailOk = await clickMail()
         if (!mailOk) await sleep(400)
       }
-      step('Schritt 2: "Mail gesendet" geklickt? ' + mailOk)
-      if (!mailOk) return fail('"Mail gesendet"-Klick fehlgeschlagen.')
+      step('Schritt 2: Dokumenttyp "' + zielTyp + '" geklickt? ' + mailOk)
+      if (!mailOk) return fail('Dokumenttyp-Klick ("' + zielTyp + '") fehlgeschlagen.')
       await sleep(1800)
     }
 

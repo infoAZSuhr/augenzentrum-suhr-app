@@ -17,7 +17,7 @@ interface ElectronPostausgangApi {
   openMailWithAttachments?: (filePaths: string[], subject: string, recipient?: string, bodyText?: string) => Promise<{ ok: boolean; error?: string }>
   writePdfTmp?: (buf: ArrayBuffer, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
   uploadPdfToLiris?: (webContentsId: number, filePath: string) => Promise<{ ok: boolean; error?: string }>
-  autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string) => Promise<{ ok: boolean; error?: string; log?: string[] }>
+  autoImportToLiris?: (webContentsId: number, filePath: string, doctorLastName: string, docType?: 'mail' | 'andere') => Promise<{ ok: boolean; error?: string; log?: string[] }>
 }
 
 const PRAXIS_EMAIL = 'info@augenzentrum-suhr.ch'
@@ -191,7 +191,7 @@ export default function PostausgangPanel() {
     }
     setStatusMsg({ kind: 'ok', text: 'Auto-Import läuft…' })
     try {
-      const res = await electronApi.autoImportToLiris(lirisWebContentsId, it.tmpPath, it.arzt || '')
+      const res = await electronApi.autoImportToLiris(lirisWebContentsId, it.tmpPath, it.arzt || '', it.lirisDocType || 'mail')
       if (res.log) { console.log('%c[Auto-Import] Ablauf:', 'color:#16a34a;font-weight:bold'); res.log.forEach(l => console.log('  ' + l)) }
       if (res.ok) {
         setStatusMsg({ kind: 'ok', text: '✓ Ins Liris hochgeladen' })

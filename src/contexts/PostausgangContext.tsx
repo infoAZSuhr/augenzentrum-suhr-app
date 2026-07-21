@@ -18,6 +18,7 @@ export interface PostausgangItem {
   lastUploadError?: string    // Text des letzten Fehlers (fuer die Anzeige haengender Items)
   skipPrint?: boolean         // true → Brief wurde per E-Mail versendet, muss NICHT gedruckt werden (nur Liris-Upload)
   versendet?:  boolean        // true sobald gebuendelt per E-Mail an die Praxis versandt
+  lirisDocType?: 'mail' | 'andere'  // Liris-Dokumenttyp beim Auto-Import: Rechnungen -> «Andere», sonst «Mail gesendet»
   footerRef?:  string         // gleicher Code wie in der Brief-Fusszeile (PID-Geb.-Initialen,
                                // z.B. "298-19072004-SP") — fuer die "Ref."-Zeile in der E-Mail,
                                // damit sie identisch wie im Brief aussieht (kein Klartext-Name)

@@ -671,6 +671,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Patient erhält Rechnung + Beleg in EINEM PDF.
   const rechnungBelegBytesRef = useRef<ArrayBuffer | null>(null)
   const [rechnungBelegName, setRechnungBelegName] = useState('')
+  // Beleg-Seiten als Bilder (fuer die Brief-Vorschau — die Gesamtdatei
+  // inkl. Beleg wird ja so ins Liris abgelegt und soll pruefbar sein).
+  const [rechnungBelegPreview, setRechnungBelegPreview] = useState<string[]>([])
 
   /** Rechnung + Rückforderungsbeleg zu einem PDF zusammenführen. */
   async function mergeBelegIntoPdf(briefBuffer: ArrayBuffer, form: AufgebotForm): Promise<ArrayBuffer> {
@@ -2769,6 +2772,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     setAufgebotPdfCreated(false)
     rechnungBelegBytesRef.current = null
     setRechnungBelegName('')
+    setRechnungBelegPreview([])
     // Bei vorgewählter Art (Brief/Reminder) gleich die Liris-Akte öffnen,
     // damit Anrede/Adresse via lirisExtract ins Formular gefüllt werden.
     if ((presetArt === 'Brief' || presetArt === 'Reminder')) {
@@ -2894,7 +2898,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     return [pid, geb, userInitials()].filter(Boolean).join('-')
   }
 
-  function buildBriefHtml(patient: RecallPatient, form: AufgebotForm): string {
+  function buildBriefHtml(patient: RecallPatient, form: AufgebotForm, opts?: { includeBelegPreview?: boolean }): string {
     const GERMAN_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
     const GERMAN_DAYS   = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
     const FEMALE_DOCTORS = new Set(['Malinina','Papazoglou'])
@@ -3332,6 +3336,9 @@ const lirisExtractRef  = useRef(lirisExtract)
   ${form.briefVariante === 'rechnung' ? zahlteilHtml : `<div class="footer-id">${escLine(footerIdCode(patient))}</div>`}
 
 </div>
+${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBelegPreview.length
+  ? rechnungBelegPreview.map(img => `<div class="page" style="padding:0"><img src="${img}" style="width:100%;height:100%;object-fit:contain"></div>`).join('')
+  : ''}
 </body></html>`
 
     return html
@@ -3408,6 +3415,9 @@ const lirisExtractRef  = useRef(lirisExtract)
             // Verarbeitung (Liris-Upload oder Mail an Praxis).
             aufgebot: { patient, form },
             footerRef: footerIdCode(patient),
+            // Rechnungen werden im Liris unter «Andere» abgelegt (Nutzerwunsch
+            // 2026-07-20), alle uebrigen Briefe wie bisher unter «Mail gesendet».
+            lirisDocType: form.briefVariante === 'rechnung' ? 'andere' : 'mail',
           })
           toast.success(
             skipPrint
@@ -5183,7 +5193,7 @@ const lirisExtractRef  = useRef(lirisExtract)
               ? !!af.adressBlock.trim() && !!af.versand
               : !!af.adressBlock.trim() && !!af.versand && !!af.terminDatum && !!af.terminZeit
         )
-        const livePreviewHtml = (af.art === 'Brief' || af.art === 'Reminder') ? buildBriefHtml(p, af) : null
+        const livePreviewHtml = (af.art === 'Brief' || af.art === 'Reminder') ? buildBriefHtml(p, af, { includeBelegPreview: true }) : null
 
         // Terminverschiebung ist technisch ein Briefaufgebot mit der Variante
         // 'terminVerschoben' — als eigene Karte, damit der Ablauf gleich
@@ -5396,6 +5406,26 @@ const lirisExtractRef  = useRef(lirisExtract)
                           toast.error('Texterkennung fehlgeschlagen — Betrag/Datum/Nr. bitte manuell eintragen. Beleg wird trotzdem mitgesendet.', 8000)
                         }
                       }
+                      // Beleg-Seiten als Bilder fuer die Brief-Vorschau rendern
+                      // (max. 5 Seiten, moderate Aufloesung).
+                      try {
+                        const imgs: string[] = []
+                        const maxPrev = Math.min(doc.numPages, 5)
+                        for (let pg = 1; pg <= maxPrev; pg++) {
+                          const page = await doc.getPage(pg)
+                          const viewport = page.getViewport({ scale: 1.4 })
+                          const canvas = document.createElement('canvas')
+                          canvas.width = viewport.width
+                          canvas.height = viewport.height
+                          const ctx = canvas.getContext('2d')!
+                          await page.render({ canvasContext: ctx, viewport } as any).promise
+                          imgs.push(canvas.toDataURL('image/jpeg', 0.82))
+                        }
+                        setRechnungBelegPreview(imgs)
+                      } catch (prevErr) {
+                        console.warn('[Rechnung] Beleg-Vorschau-Rendering fehlgeschlagen', prevErr)
+                        setRechnungBelegPreview([])
+                      }
                       const betrag = parseBetragFromBeleg(text)
                       // Rechnungsdatum/-Nr. vom Beleg uebernehmen ("Rech.-Datum/-Nr. 21.07.2026 / 15513")
                       const dn = parseRechnungDatumNrFromBeleg(text)
@@ -5462,7 +5492,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                           <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate flex-1">Beleg wird mitgesendet: {rechnungBelegName}</span>
                           <button type="button" title="Beleg entfernen (nur Rechnung senden)"
-                            onClick={() => { rechnungBelegBytesRef.current = null; setRechnungBelegName('') }}
+                            onClick={() => { rechnungBelegBytesRef.current = null; setRechnungBelegName(''); setRechnungBelegPreview([]) }}
                             className="p-0.5 rounded text-emerald-600 hover:text-red-600"><X className="w-3 h-3" /></button>
                         </div>
                       )}

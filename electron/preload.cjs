@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld('electronApp', {
   // PDF via CDP direkt ins Liris-Webview-Upload-Feld setzen
   uploadPdfToLiris: (webContentsId, filePath) => ipcRenderer.invoke('upload-pdf-to-liris', webContentsId, filePath),
   // Voll-Automatik: Arzt waehlen + 'Mail gesendet' + Datei setzen
-  autoImportToLiris: (webContentsId, filePath, doctorLastName) => ipcRenderer.invoke('auto-import-to-liris', webContentsId, filePath, doctorLastName),
+  autoImportToLiris: (webContentsId, filePath, doctorLastName, docType) => ipcRenderer.invoke('auto-import-to-liris', webContentsId, filePath, doctorLastName, docType),
   // HTML direkt drucken (Overlay, Intervallblatt etc.)
   printHtml: (html, opts) => ipcRenderer.invoke('print-html', html, opts),
   // HTML im Standard-Browser oeffnen (Fallback zum Drucken)
