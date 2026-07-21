@@ -5346,7 +5346,12 @@ const lirisExtractRef  = useRef(lirisExtract)
                     }
                     try {
                       const pdfjs = await import('pdfjs-dist')
+                      if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+                        pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href
+                      }
                       const buf = await file.arrayBuffer()
+                      // pdfjs "detached" den ArrayBuffer — Kopie fuer den Versand behalten.
+                      const bufCopy = buf.slice(0)
                       const doc = await pdfjs.getDocument({ data: buf }).promise
                       let text = ''
                       for (let pg = 1; pg <= doc.numPages; pg++) {
@@ -5356,29 +5361,50 @@ const lirisExtractRef  = useRef(lirisExtract)
                       }
                       // Beleg fuer den Versand aufbewahren (wird der Rechnung
                       // als weitere Seiten angehaengt).
-                      rechnungBelegBytesRef.current = buf
+                      rechnungBelegBytesRef.current = bufCopy
                       setRechnungBelegName(file.name)
-                      // Liris-Belege betten Schriften ohne Text-Zuordnung ein —
-                      // die Extraktion liefert dann nur Zeichensalat. Erkennen
-                      // (Anteil lesbarer Buchstaben/Ziffern) und ehrlich melden,
-                      // statt still keinen Betrag zu finden.
+                      // Liris-Belege betten Schriften ohne Text-Zuordnung ein
+                      // (Type3-Font ohne ToUnicode) — die Extraktion liefert dann
+                      // nur Zeichensalat. In dem Fall: OCR-Fallback (tesseract.js,
+                      // Seiten als Bild rendern und Text erkennen).
                       const lesbar = (text.match(/[A-Za-zÄÖÜäöü0-9]/g) || []).length / Math.max(1, text.replace(/\s/g, '').length)
-                      const betrag = lesbar >= 0.5 ? parseBetragFromBeleg(text) : null
-                      if (lesbar >= 0.5) {
-                        // Rechnungsdatum/-Nr. vom Beleg uebernehmen ("Rech.-Datum/-Nr. 21.07.2026 / 15513")
-                        const dn = parseRechnungDatumNrFromBeleg(text)
-                        const patch2: Partial<AufgebotForm> = {}
-                        if (dn.datum) patch2.rechnungDatum = dn.datum
-                        if (dn.nr) patch2.rechnungNr = dn.nr
-                        if (Object.keys(patch2).length) setAf(patch2)
+                      let usedOcr = false
+                      if (lesbar < 0.5) {
+                        toast.info('Beleg ohne lesbaren Text — Texterkennung (OCR) läuft, das kann beim ersten Mal etwas dauern…', 10000)
+                        try {
+                          const { default: Tesseract } = await import('tesseract.js')
+                          let ocrText = ''
+                          const maxPages = Math.min(doc.numPages, 3)
+                          for (let pg = 1; pg <= maxPages; pg++) {
+                            const page = await doc.getPage(pg)
+                            const viewport = page.getViewport({ scale: 2 })
+                            const canvas = document.createElement('canvas')
+                            canvas.width = viewport.width
+                            canvas.height = viewport.height
+                            const ctx = canvas.getContext('2d')!
+                            await page.render({ canvasContext: ctx, viewport } as any).promise
+                            const res = await Tesseract.recognize(canvas, 'deu')
+                            ocrText += res.data.text + '\n'
+                          }
+                          text = ocrText
+                          usedOcr = true
+                        } catch (ocrErr) {
+                          console.warn('[Rechnung] OCR fehlgeschlagen', ocrErr)
+                          toast.error('Texterkennung fehlgeschlagen — Betrag/Datum/Nr. bitte manuell eintragen. Beleg wird trotzdem mitgesendet.', 8000)
+                        }
                       }
+                      const betrag = parseBetragFromBeleg(text)
+                      // Rechnungsdatum/-Nr. vom Beleg uebernehmen ("Rech.-Datum/-Nr. 21.07.2026 / 15513")
+                      const dn = parseRechnungDatumNrFromBeleg(text)
+                      const patch2: Partial<AufgebotForm> = {}
+                      if (dn.datum) patch2.rechnungDatum = dn.datum
+                      if (dn.nr) patch2.rechnungNr = dn.nr
+                      if (betrag) patch2.rechnungBetrag = betrag.toFixed(2)
+                      if (Object.keys(patch2).length) setAf(patch2)
                       if (betrag) {
-                        setAf({ rechnungBetrag: betrag.toFixed(2) })
-                        toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — Beleg wird mitgesendet.`)
-                      } else if (lesbar < 0.5) {
-                        toast.warning('Der Beleg enthält keinen lesbaren Text (Scan/Liris-Druck) — Betrag bitte manuell eintragen. Beleg wird trotzdem mitgesendet.', 8000)
+                        toast.success(`${usedOcr ? 'Per OCR erkannt' : 'Aus Beleg übernommen'}: CHF ${betrag.toFixed(2)}${dn.nr ? ` · Rechnungs-Nr. ${dn.nr}` : ''}${dn.datum ? ` · ${dn.datum}` : ''} — bitte prüfen. Beleg wird mitgesendet.`, 8000)
                       } else {
-                        toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen. Beleg wird mitgesendet.')
+                        toast.warning(`Kein Betrag ${usedOcr ? 'per OCR ' : ''}gefunden — bitte manuell eintragen. Beleg wird mitgesendet.`)
                       }
                     } catch (err) {
                       console.warn('[Rechnung] Beleg-Parsing fehlgeschlagen', err)
