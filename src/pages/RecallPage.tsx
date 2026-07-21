@@ -5296,39 +5296,51 @@ const lirisExtractRef  = useRef(lirisExtract)
                     hochladen → Betrag wird automatisch übernommen; die
                     QR-Rechnung (Zahlteil unten auf der Seite) zahlt auf das
                     Konto der KIMENDA AG ein (siehe lib/qrRechnung.ts). */}
-                {af.briefVariante === 'rechnung' && (
+                {af.briefVariante === 'rechnung' && (() => {
+                  const handleBelegFile = async (file: File) => {
+                    if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) {
+                      toast.error('Bitte eine PDF-Datei verwenden.'); return
+                    }
+                    try {
+                      const pdfjs = await import('pdfjs-dist')
+                      const buf = await file.arrayBuffer()
+                      const doc = await pdfjs.getDocument({ data: buf }).promise
+                      let text = ''
+                      for (let pg = 1; pg <= doc.numPages; pg++) {
+                        const page = await doc.getPage(pg)
+                        const tc = await page.getTextContent()
+                        text += tc.items.map((it: any) => it.str).join(' ') + '\n'
+                      }
+                      const betrag = parseBetragFromBeleg(text)
+                      if (betrag) {
+                        setAf({ rechnungBetrag: betrag.toFixed(2) })
+                        toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — bitte prüfen.`)
+                      } else {
+                        toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen.')
+                      }
+                    } catch (err) {
+                      console.warn('[Rechnung] Beleg-Parsing fehlgeschlagen', err)
+                      toast.error('Beleg konnte nicht gelesen werden — Betrag bitte manuell eintragen.')
+                    }
+                  }
+                  return (
                   <div className="space-y-2">
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
                       <p className="text-xs font-semibold text-emerald-800">Rechnung mit Schweizer QR-Zahlteil</p>
                       <p className="text-[11px] text-emerald-700">Zahlbar an: {RECHNUNG_KONTO.name} · {RECHNUNG_KONTO.iban}</p>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Rückforderungsbeleg (PDF) hochladen</label>
+                      {/* Dropzone: Beleg-PDF direkt hineinziehen ODER per Klick wählen */}
+                      <div
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                          e.preventDefault()
+                          const file = e.dataTransfer.files?.[0]
+                          if (file) handleBelegFile(file)
+                        }}
+                        className="rounded-lg border-2 border-dashed border-emerald-300 bg-white/60 p-3 text-center">
+                        <p className="text-xs font-semibold text-emerald-700 mb-1">Rückforderungsbeleg (PDF) hier hineinziehen</p>
+                        <p className="text-[10px] text-gray-400 mb-1.5">oder Datei wählen:</p>
                         <input type="file" accept="application/pdf"
-                          onChange={async e => {
-                            const file = e.target.files?.[0]
-                            if (!file) return
-                            try {
-                              const pdfjs = await import('pdfjs-dist')
-                              const buf = await file.arrayBuffer()
-                              const doc = await pdfjs.getDocument({ data: buf }).promise
-                              let text = ''
-                              for (let pg = 1; pg <= doc.numPages; pg++) {
-                                const page = await doc.getPage(pg)
-                                const tc = await page.getTextContent()
-                                text += tc.items.map((it: any) => it.str).join(' ') + '\n'
-                              }
-                              const betrag = parseBetragFromBeleg(text)
-                              if (betrag) {
-                                setAf({ rechnungBetrag: betrag.toFixed(2) })
-                                toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — bitte prüfen.`)
-                              } else {
-                                toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen.')
-                              }
-                            } catch (err) {
-                              console.warn('[Rechnung] Beleg-Parsing fehlgeschlagen', err)
-                              toast.error('Beleg konnte nicht gelesen werden — Betrag bitte manuell eintragen.')
-                            }
-                          }}
+                          onChange={e => { const file = e.target.files?.[0]; if (file) handleBelegFile(file) }}
                           className="text-xs w-full" />
                       </div>
                       <div>
@@ -5341,7 +5353,8 @@ const lirisExtractRef  = useRef(lirisExtract)
                       <p className="text-[10px] text-gray-500">Patient/Adresse für den Zahlteil kommen aus dem Adressfeld unten. Der Rückforderungsbeleg wird dem Patienten separat abgegeben/beigelegt.</p>
                     </div>
                   </div>
-                )}
+                  )
+                })()}
 
                 {/* Freier Brief: Betreff + Text (mit Vorlagen) */}
                 {af.briefVariante === 'freierBrief' && (
