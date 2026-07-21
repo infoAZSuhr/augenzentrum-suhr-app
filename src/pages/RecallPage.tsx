@@ -2996,9 +2996,16 @@ const lirisExtractRef  = useRef(lirisExtract)
         </div>`
       : `<p>Die Kontrolle umfasst Autorefraktometrie, Visus und Tensio sowie je nach Befund OCT-Makula oder Funduskopie.</p>`
 
+    // Zykloplegie-Hinweis: fuer Kinder ein eigener Text. «Bitte kein Fahrzeug
+    // lenken» ergibt dort keinen Sinn — relevant sind Schule, Lesen und
+    // Lichtschutz. Dauer ist in beiden Faellen dieselbe (12-24 Std.).
+    const zykloHinweis = isMinor
+      ? `<p>Bitte beachten Sie: Die Sehleistung Ihres Kindes kann nach der Zykloplegie-Untersuchung f&#252;r <strong>12&#8211;24 Stunden</strong> beeintr&#228;chtigt bleiben. <strong>Nahsehen und Lesen fallen in dieser Zeit schwer</strong> &#8211; bitte planen Sie Schule, Hausaufgaben und Sport entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen. Bitte begleiten Sie Ihr Kind nach dem Termin.</p>`
+      : `<p>Bitte beachten Sie: Die Sehleistung kann nach der Zykloplegie-Untersuchung f&#252;r <strong>12&#8211;24 Stunden</strong> beeintr&#228;chtigt bleiben. <strong>Bitte kein Fahrzeug lenken</strong> und planen Sie den Tag entsprechend. Sonnenbrille empfohlen.</p>`
+
     // Sehleistungshinweis je nach Situation
     const sehHinweis = hasZykloplegie
-      ? `<p>Bitte beachten Sie: Die Sehleistung kann nach der Zykloplegie-Untersuchung f&#252;r <strong>12&#8211;24 Stunden</strong> beeintr&#228;chtigt bleiben. <strong>Bitte kein Fahrzeug lenken</strong> und planen Sie den Tag entsprechend. Sonnenbrille empfohlen.</p>`
+      ? zykloHinweis
       : form.pupille
         ? `<p>Die Pupillen werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>bitte kein Fahrzeug lenken</strong>. Sonnenbrille empfohlen.</p>`
         : ``
