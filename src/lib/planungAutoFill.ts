@@ -58,6 +58,19 @@ export interface AutoFillPlan {
   skippedExisting: { key: string; code: string }[]
   /** übersprungen weil Feiertag */
   skippedHoliday: { key: string; ftName: string }[]
+  /** Teilmenge von toWrite: ersetzt einen bestehenden, abweichenden Eintrag
+   *  (nur bei overwrite). Basis für die Bestätigungsabfrage. */
+  overwritten: { key: string; oldCode: string; newCode: string }[]
+}
+
+/** Zählt Codes für eine lesbare Zusammenfassung, z.B. "2× Fer, 1× K". */
+export function summarizeCodes(items: readonly { oldCode: string }[]): string {
+  const counts = new Map<string, number>()
+  for (const i of items) counts.set(i.oldCode, (counts.get(i.oldCode) ?? 0) + 1)
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([code, n]) => `${n}× ${code}`)
+    .join(', ')
 }
 
 /**
@@ -69,7 +82,7 @@ export function planAutoFill(
   existing: Readonly<Record<string, string>>,
   opts: AutoFillOptions,
 ): AutoFillPlan {
-  const plan: AutoFillPlan = { toWrite: [], skippedExisting: [], skippedHoliday: [] }
+  const plan: AutoFillPlan = { toWrite: [], skippedExisting: [], skippedHoliday: [], overwritten: [] }
   const interval = Math.max(1, Math.floor(opts.intervalWeeks) || 1)
   const anchorWeek = weekStartIso(opts.startDate)
 
@@ -92,6 +105,7 @@ export function planAutoFill(
     }
     if (vorhanden === code) continue                           // schon korrekt — nichts zu tun
 
+    if (vorhanden) plan.overwritten.push({ key: day.key, oldCode: vorhanden, newCode: code })
     plan.toWrite.push({ key: day.key, code })
   }
   return plan

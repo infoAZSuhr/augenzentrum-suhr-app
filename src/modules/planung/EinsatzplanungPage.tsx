@@ -4,7 +4,8 @@ import { useAuth, UserProfile } from '../../lib/AuthContext'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Pencil, Check, X, Printer, Calendar, CalendarDays, User, ArrowLeftRight, UserX, GripVertical, Globe } from 'lucide-react'
 import { SCHEDULE as SCHEDULE_2026, SECTIONS as SECTIONS_2026, type Code } from './data/schedule2026'
 import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestore, saveYearListFirestore, type PlanungData } from '../../lib/firestorePlanung'
-import { planAutoFill, autoFillUpdates } from '../../lib/planungAutoFill'
+import { planAutoFill, autoFillUpdates, summarizeCodes } from '../../lib/planungAutoFill'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { manageFerienPlan, writePlanEntry, removePlanEntry } from '../../lib/firestorePlanung'
@@ -531,6 +532,7 @@ function AutoFillSection({person,data,yearDays,year}:{
   const [overwrite,setOverwrite]=useState(false)
   const [saving,setSaving]=useState(false)
   const [done,setDone]=useState<string|null>(null)
+  const [confirmOpen,setConfirmOpen]=useState(false)
 
   const existing=data.schedule[person]??{}
   const plan=useMemo(()=>planAutoFill(
@@ -541,8 +543,7 @@ function AutoFillSection({person,data,yearDays,year}:{
 
   const anyDay=Object.keys(weekdayCodes).length>0
 
-  const apply=async()=>{
-    if(plan.toWrite.length===0)return
+  const write=async()=>{
     setSaving(true);setDone(null)
     try{
       await updateDoc(doc(db,'planung',String(year)),autoFillUpdates(person,plan))
@@ -550,7 +551,14 @@ function AutoFillSection({person,data,yearDays,year}:{
       setWeekdayCodes({})
     }catch(e){
       console.error(e);setDone('Fehler beim Speichern')
-    }finally{setSaving(false)}
+    }finally{setSaving(false);setConfirmOpen(false)}
+  }
+
+  // Bestehende Eintraege werden nur nach ausdruecklicher Bestaetigung ersetzt.
+  const apply=()=>{
+    if(plan.toWrite.length===0)return
+    if(plan.overwritten.length>0){setConfirmOpen(true);return}
+    void write()
   }
 
   if(!open){
@@ -650,6 +658,11 @@ function AutoFillSection({person,data,yearDays,year}:{
             {plan.skippedHoliday.length>0&&(
               <div className="text-gray-500">{plan.skippedHoliday.length} Feiertage übersprungen</div>
             )}
+            {plan.overwritten.length>0&&(
+              <div className="font-semibold text-red-700">
+                davon {plan.overwritten.length} bestehende ersetzt ({summarizeCodes(plan.overwritten)})
+              </div>
+            )}
             {plan.toWrite.length>0&&(
               <div className="text-gray-400 pt-0.5">
                 {plan.toWrite.slice(0,4).map(w=>w.key.slice(8,10)+'.'+w.key.slice(5,7)+'.').join(', ')}
@@ -669,6 +682,24 @@ function AutoFillSection({person,data,yearDays,year}:{
           Ausnahmen wie Ferien, Weiterbildung oder Notfalldienst danach von Hand umstellen.
         </p>
       </div>
+
+      {confirmOpen&&(
+        <ConfirmDialog
+          title="Bestehende Einträge überschreiben?"
+          confirmLabel={`${plan.overwritten.length} überschreiben`}
+          danger
+          isLoading={saving}
+          message={
+            `Bei ${person} werden ${plan.overwritten.length} bestehende Einträge ersetzt: `
+            +`${summarizeCodes(plan.overwritten)}.\n\n`
+            +plan.overwritten.slice(0,8).map(o=>`${o.key.slice(8,10)}.${o.key.slice(5,7)}.  ${o.oldCode} → ${o.newCode}`).join('\n')
+            +(plan.overwritten.length>8?`\n… und ${plan.overwritten.length-8} weitere`:'')
+            +`\n\nDas kann nicht rückgängig gemacht werden. Feiertage bleiben unangetastet.`
+          }
+          onConfirm={()=>void write()}
+          onCancel={()=>setConfirmOpen(false)}
+        />
+      )}
     </div>
   )
 }

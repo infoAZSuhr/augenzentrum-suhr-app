@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planAutoFill, autoFillUpdates, type AutoFillDay, type AutoFillOptions } from './planungAutoFill'
+import { planAutoFill, autoFillUpdates, summarizeCodes, type AutoFillDay, type AutoFillOptions } from './planungAutoFill'
 
 /** Baut Tage für einen Zeitraum (ISO von..bis inkl.). */
 function days(von: string, bis: string, feiertage: Record<string, string> = {}): AutoFillDay[] {
@@ -119,13 +119,50 @@ describe('planAutoFill – Schutzregeln', () => {
 
 describe('autoFillUpdates', () => {
   it('baut Dot-Notation-Pfade', () => {
-    const plan = { toWrite: [{ key: '2026-08-03', code: 'GT' }], skippedExisting: [], skippedHoliday: [] }
+    const plan = { toWrite: [{ key: '2026-08-03', code: 'GT' }], skippedExisting: [], skippedHoliday: [], overwritten: [] }
     expect(autoFillUpdates('Dmitri Artemiev', plan)).toEqual({
       'schedule.Dmitri Artemiev.2026-08-03': 'GT',
     })
   })
 
   it('leerer Plan -> leeres Update', () => {
-    expect(autoFillUpdates('X', { toWrite: [], skippedExisting: [], skippedHoliday: [] })).toEqual({})
+    expect(autoFillUpdates('X', { toWrite: [], skippedExisting: [], skippedHoliday: [], overwritten: [] })).toEqual({})
+  })
+})
+
+describe('overwritten – Grundlage der Bestaetigungsabfrage', () => {
+  it('ist leer ohne overwrite', () => {
+    const p = planAutoFill(days('2026-08-01', '2026-08-31'), { '2026-08-10': 'Fer' }, base)
+    expect(p.overwritten).toEqual([])
+  })
+
+  it('listet ersetzte Eintraege mit altem und neuem Code', () => {
+    const existing = { '2026-08-10': 'Fer', '2026-08-17': 'K' }
+    const p = planAutoFill(days('2026-08-01', '2026-08-31'), existing, { ...base, overwrite: true })
+    expect(p.overwritten).toEqual([
+      { key: '2026-08-10', oldCode: 'Fer', newCode: 'GT' },
+      { key: '2026-08-17', oldCode: 'K', newCode: 'GT' },
+    ])
+  })
+
+  it('zaehlt Tage ohne bestehenden Eintrag NICHT als ueberschrieben', () => {
+    const p = planAutoFill(days('2026-08-01', '2026-08-31'), {}, { ...base, overwrite: true })
+    expect(p.toWrite.length).toBe(5)
+    expect(p.overwritten).toEqual([])
+  })
+
+  it('zaehlt unveraenderte Codes nicht als ueberschrieben', () => {
+    const p = planAutoFill(days('2026-08-01', '2026-08-31'), { '2026-08-03': 'GT' }, { ...base, overwrite: true })
+    expect(p.overwritten.map(o => o.key)).not.toContain('2026-08-03')
+  })
+})
+
+describe('summarizeCodes', () => {
+  it('fasst nach Code zusammen, haeufigste zuerst', () => {
+    expect(summarizeCodes([{ oldCode: 'Fer' }, { oldCode: 'K' }, { oldCode: 'Fer' }])).toBe('2× Fer, 1× K')
+  })
+
+  it('leere Liste -> leerer String', () => {
+    expect(summarizeCodes([])).toBe('')
   })
 })
