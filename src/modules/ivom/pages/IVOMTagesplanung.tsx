@@ -260,9 +260,10 @@ export default function IVOMTagesplanung() {
                 <button
                   onClick={() => setShowOverlay(true)}
                   title="Overlay drucken"
-                  className="shrink-0 inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-primary-700 hover:border-primary-200 transition-colors shadow-sm"
+                  aria-label="Overlay drucken"
+                  className="shrink-0 inline-flex items-center justify-center sm:gap-2 p-2 sm:px-3 sm:py-1.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-primary-700 hover:border-primary-200 transition-colors shadow-sm"
                 >
-                  <Printer className="w-4 h-4" />
+                  <Printer className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Overlay drucken</span>
                 </button>
               )}
