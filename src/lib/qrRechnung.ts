@@ -79,6 +79,18 @@ export function parseBetragFromBeleg(text: string): number | null {
   return Math.max(...nums)
 }
 
+/** Rechnungsdatum + Rechnungs-Nr. aus dem Beleg lesen. Liris-Format:
+ *  "Rech.-Datum/-Nr.   21.07.2026 / 15513" — Label und Wert koennen durch
+ *  Layout-Spalten getrennt sein, daher grosszuegige Luecke erlaubt. */
+export function parseRechnungDatumNrFromBeleg(text: string): { datum: string | null; nr: string | null } {
+  const m = text.match(/Rech\.?\s*-?\s*Datum\s*\/?\s*-?\s*Nr\.?[^\d]{0,40}(\d{2}\.\d{2}\.\d{4})\s*\/\s*([A-Za-z0-9-]+)/i)
+  if (m) return { datum: m[1], nr: m[2] }
+  // Fallback: getrennte Felder ("Rechnungsdatum: ..." / "Rechnungs-Nr.: ...")
+  const d = text.match(/Rechnungs?-?\s*[Dd]atum[^\d]{0,20}(\d{2}\.\d{2}\.\d{4})/)
+  const n = text.match(/Rechnungs?-?\s*(?:Nr|Nummer)\.?[^\dA-Za-z]{0,20}([A-Za-z0-9-]{3,})/)
+  return { datum: d ? d[1] : null, nr: n ? n[1] : null }
+}
+
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
 
 /** Zahlteil + Empfangsschein als HTML (unten auf der A4-Rechnungsseite).

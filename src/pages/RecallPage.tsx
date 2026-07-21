@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useBrowser, type LirisExtract } from '../contexts/BrowserContext'
-import { RECHNUNG_KONTO, parseBetragFromBeleg, generateQrDataUrl, buildZahlteilHtml } from '../lib/qrRechnung'
+import { RECHNUNG_KONTO, parseBetragFromBeleg, parseRechnungDatumNrFromBeleg, generateQrDataUrl, buildZahlteilHtml } from '../lib/qrRechnung'
 import { PDFDocument } from 'pdf-lib'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
@@ -640,6 +640,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben' | 'terminBestaetigung' | 'freierBrief' | 'rechnung'   // Brief-Textvariante ('' = Standard); terminBestaetigung/freierBrief/rechnung = Allgemeine Briefe (kein Aufgebot)
     rechnungBetrag: string            // Rechnung (QR): Betrag in CHF, z.B. "245.50"
     rechnungNr: string                // Rechnung (QR): Rechnungs-Nr. (leer = automatisch R-<PID>-<JJJJMMTT>)
+    rechnungDatum: string             // Rechnung (QR): Rechnungsdatum DD.MM.YYYY (leer = heute)
     freiBetreff: string               // Freier Brief: Betreffzeile
     freiText: string                  // Freier Brief: Fliesstext (Absaetze durch Leerzeile)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
@@ -653,7 +654,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
-    nachnameOverride: '', briefVariante: '', frueherArzt: '', rechnungBetrag: '', rechnungNr: '',
+    nachnameOverride: '', briefVariante: '', frueherArzt: '', rechnungBetrag: '', rechnungNr: '', rechnungDatum: '',
     freiBetreff: '', freiText: '',
     verschiebungDurch: 'patient',
     vertreterModus: false,
@@ -3220,7 +3221,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const bodyRechnung = `
       ${salut}
       ${kindHinweis}
-      <p style="margin-bottom:.15cm"><strong>Rechnungs-Nr.:</strong> ${escLine(form.rechnungNr.trim() || rechnungAutoNr(patient))} &nbsp;&#183;&nbsp; <strong>Rechnungsdatum:</strong> ${dateStr}</p>
+      <p style="margin-bottom:.15cm"><strong>Rechnungs-Nr.:</strong> ${escLine(form.rechnungNr.trim() || rechnungAutoNr(patient))} &nbsp;&#183;&nbsp; <strong>Rechnungsdatum:</strong> ${escLine(form.rechnungDatum.trim()) || dateStr}</p>
       <p>F&#252;r die in unserer Praxis erbrachten augen&#228;rztlichen Leistungen stellen wir Ihnen folgenden Betrag in Rechnung:</p>
       <p style="font-size:13pt;font-weight:bold;margin:.4cm 0">CHF ${isFinite(rechnungBetragNum) ? rechnungBetragNum.toFixed(2) : '—'}</p>
       <p>Bitte begleichen Sie den Betrag innert <strong>30 Tagen</strong> mit dem untenstehenden Zahlteil (QR-Rechnung). Der detaillierte R&#252;ckforderungsbeleg liegt diesem Schreiben bei bzw. wurde Ihnen abgegeben.</p>
@@ -5363,6 +5364,14 @@ const lirisExtractRef  = useRef(lirisExtract)
                       // statt still keinen Betrag zu finden.
                       const lesbar = (text.match(/[A-Za-zÄÖÜäöü0-9]/g) || []).length / Math.max(1, text.replace(/\s/g, '').length)
                       const betrag = lesbar >= 0.5 ? parseBetragFromBeleg(text) : null
+                      if (lesbar >= 0.5) {
+                        // Rechnungsdatum/-Nr. vom Beleg uebernehmen ("Rech.-Datum/-Nr. 21.07.2026 / 15513")
+                        const dn = parseRechnungDatumNrFromBeleg(text)
+                        const patch2: Partial<AufgebotForm> = {}
+                        if (dn.datum) patch2.rechnungDatum = dn.datum
+                        if (dn.nr) patch2.rechnungNr = dn.nr
+                        if (Object.keys(patch2).length) setAf(patch2)
+                      }
                       if (betrag) {
                         setAf({ rechnungBetrag: betrag.toFixed(2) })
                         toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — Beleg wird mitgesendet.`)
@@ -5403,6 +5412,13 @@ const lirisExtractRef  = useRef(lirisExtract)
                             onChange={e => setAf({ rechnungBetrag: e.target.value })}
                             placeholder="z.B. 245.50"
                             className="input text-sm w-40" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Rechnungsdatum</label>
+                          <input type="text" value={af.rechnungDatum}
+                            onChange={e => setAf({ rechnungDatum: e.target.value })}
+                            placeholder="heute"
+                            className="input text-sm w-32" />
                         </div>
                         <div className="flex-1 min-w-[160px]">
                           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Rechnungs-Nr.</label>
