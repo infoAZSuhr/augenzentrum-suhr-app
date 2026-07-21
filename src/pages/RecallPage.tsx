@@ -639,6 +639,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
     briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben' | 'terminBestaetigung' | 'freierBrief' | 'rechnung'   // Brief-Textvariante ('' = Standard); terminBestaetigung/freierBrief/rechnung = Allgemeine Briefe (kein Aufgebot)
     rechnungBetrag: string            // Rechnung (QR): Betrag in CHF, z.B. "245.50"
+    rechnungNr: string                // Rechnung (QR): Rechnungs-Nr. (leer = automatisch R-<PID>-<JJJJMMTT>)
     freiBetreff: string               // Freier Brief: Betreffzeile
     freiText: string                  // Freier Brief: Fliesstext (Absaetze durch Leerzeile)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
@@ -652,7 +653,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
-    nachnameOverride: '', briefVariante: '', frueherArzt: '', rechnungBetrag: '',
+    nachnameOverride: '', briefVariante: '', frueherArzt: '', rechnungBetrag: '', rechnungNr: '',
     freiBetreff: '', freiText: '',
     verschiebungDurch: 'patient',
     vertreterModus: false,
@@ -695,11 +696,11 @@ const lirisExtractRef  = useRef(lirisExtract)
     const lines = f.adressBlock.split('\n').map(l => l.trim()).filter(Boolean)
     const debtor = { name: lines[0] || '', strasse: lines[1] || '', plzOrt: lines[2] || '' }
     let cancelled = false
-    generateQrDataUrl(betrag, debtor, `Rechnung Augenzentrum Suhr${aufgebotTarget.patient.pid ? ' / Pat. ' + normalizePid(aufgebotTarget.patient.pid) : ''}`)
+    generateQrDataUrl(betrag, debtor, `Rechnung ${f.rechnungNr.trim() || rechnungAutoNr(aufgebotTarget.patient)} Augenzentrum Suhr`)
       .then(url => { if (!cancelled) setRechnungQrUrl(url) })
       .catch(() => { if (!cancelled) setRechnungQrUrl('') })
     return () => { cancelled = true }
-  }, [aufgebotTarget, aufgebotForm.briefVariante, aufgebotForm.rechnungBetrag, aufgebotForm.adressBlock]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aufgebotTarget, aufgebotForm.briefVariante, aufgebotForm.rechnungBetrag, aufgebotForm.rechnungNr, aufgebotForm.adressBlock]) // eslint-disable-line react-hooks/exhaustive-deps
   // KI-Formulierung im Freien Brief (Gemini via Firebase AI Logic, gratis, ohne Patientendaten)
   const [kiAnliegen, setKiAnliegen] = useState('')
   const [kiLoading, setKiLoading] = useState(false)
@@ -3215,6 +3216,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const bodyRechnung = `
       ${salut}
       ${kindHinweis}
+      <p style="margin-bottom:.15cm"><strong>Rechnungs-Nr.:</strong> ${escLine(form.rechnungNr.trim() || rechnungAutoNr(patient))} &nbsp;&#183;&nbsp; <strong>Rechnungsdatum:</strong> ${dateStr}</p>
       <p>F&#252;r die in unserer Praxis erbrachten augen&#228;rztlichen Leistungen stellen wir Ihnen folgenden Betrag in Rechnung:</p>
       <p style="font-size:13pt;font-weight:bold;margin:.4cm 0">CHF ${isFinite(rechnungBetragNum) ? rechnungBetragNum.toFixed(2) : '—'}</p>
       <p>Bitte begleichen Sie den Betrag innert <strong>30 Tagen</strong> mit dem untenstehenden Zahlteil (QR-Rechnung). Der detaillierte R&#252;ckforderungsbeleg liegt diesem Schreiben bei bzw. wurde Ihnen abgegeben.</p>
@@ -3353,6 +3355,14 @@ const lirisExtractRef  = useRef(lirisExtract)
       .replace(/[^a-zA-Z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '')
     return cleaned.length > maxLen ? cleaned.slice(0, maxLen).replace(/_+$/, '') : cleaned
+  }
+
+  /** Automatische Rechnungs-Nr.: R-<PID>-<JJJJMMTT> (deterministisch pro Tag,
+   *  in UI, Brief und QR-Mitteilung identisch). */
+  function rechnungAutoNr(patient: RecallPatient): string {
+    const d = new Date()
+    const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+    return `R-${normalizePid(patient.pid) || 'XXXX'}-${ymd}`
   }
 
   function generateBriefPDF(patient: RecallPatient, form: AufgebotForm, skipPrint = false) {
@@ -5343,10 +5353,17 @@ const lirisExtractRef  = useRef(lirisExtract)
                       // als weitere Seiten angehaengt).
                       rechnungBelegBytesRef.current = buf
                       setRechnungBelegName(file.name)
-                      const betrag = parseBetragFromBeleg(text)
+                      // Liris-Belege betten Schriften ohne Text-Zuordnung ein —
+                      // die Extraktion liefert dann nur Zeichensalat. Erkennen
+                      // (Anteil lesbarer Buchstaben/Ziffern) und ehrlich melden,
+                      // statt still keinen Betrag zu finden.
+                      const lesbar = (text.match(/[A-Za-zÄÖÜäöü0-9]/g) || []).length / Math.max(1, text.replace(/\s/g, '').length)
+                      const betrag = lesbar >= 0.5 ? parseBetragFromBeleg(text) : null
                       if (betrag) {
                         setAf({ rechnungBetrag: betrag.toFixed(2) })
                         toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — Beleg wird mitgesendet.`)
+                      } else if (lesbar < 0.5) {
+                        toast.warning('Der Beleg enthält keinen lesbaren Text (Scan/Liris-Druck) — Betrag bitte manuell eintragen. Beleg wird trotzdem mitgesendet.', 8000)
                       } else {
                         toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen. Beleg wird mitgesendet.')
                       }
@@ -5375,12 +5392,21 @@ const lirisExtractRef  = useRef(lirisExtract)
                           onChange={e => { const file = e.target.files?.[0]; if (file) handleBelegFile(file) }}
                           className="text-xs w-full" />
                       </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Betrag (CHF) <span className="text-red-500">*</span></label>
-                        <input type="number" step="0.05" min="0" value={af.rechnungBetrag}
-                          onChange={e => setAf({ rechnungBetrag: e.target.value })}
-                          placeholder="z.B. 245.50"
-                          className="input text-sm w-40" />
+                      <div className="flex gap-3 flex-wrap">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Betrag (CHF) <span className="text-red-500">*</span></label>
+                          <input type="number" step="0.05" min="0" value={af.rechnungBetrag}
+                            onChange={e => setAf({ rechnungBetrag: e.target.value })}
+                            placeholder="z.B. 245.50"
+                            className="input text-sm w-40" />
+                        </div>
+                        <div className="flex-1 min-w-[160px]">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Rechnungs-Nr.</label>
+                          <input type="text" value={af.rechnungNr || rechnungAutoNr(p)}
+                            onChange={e => setAf({ rechnungNr: e.target.value })}
+                            className="input text-sm w-full" />
+                          <p className="mt-0.5 text-[10px] text-gray-400">Automatisch vorbefüllt — anpassbar.</p>
+                        </div>
                       </div>
                       {rechnungBelegName && (
                         <div className="flex items-center gap-2 text-[11px] text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-lg px-2 py-1">
