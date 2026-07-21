@@ -8467,6 +8467,29 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
                       setField('keinTermin', false)
                     }} />
                   </div>
+                  {/* Termin eingetragen, aber KEINE Aufgebot-Art gewählt: nachfragen,
+                      wie der Termin zustande kam (Nutzerwunsch 2026-07-21) — sonst
+                      fehlt in der Auswertung, über welchen Kanal aufgeboten wurde. */}
+                  {form.naechsteKons && !form.aufgebotArt && (
+                    <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2">
+                      <p className="text-[11px] font-semibold text-amber-800 mb-1.5">Wie kam dieser Termin zustande?</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {([['Praxis', 'in der Praxis vereinbart'], ['Tel', 'telefonisch vereinbart'], ['Brief', 'nach Briefaufgebot'], ['Reminder', 'Patient hat sich nach Reminder gemeldet']] as const).map(([art, hint]) => (
+                          <button key={art} type="button" title={hint}
+                            onClick={() => {
+                              setField('aufgebotArt', art)
+                              const defaultDate = (art === 'Praxis' && form.letzteKons)
+                                ? form.letzteKons
+                                : new Date().toISOString().slice(0, 10)
+                              setField('aufgebotErstellt', defaultDate)
+                            }}
+                            className="px-2 py-1 rounded-full text-[11px] font-semibold border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 transition-colors">
+                            {art === 'Tel' ? 'Tel.' : art}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {form.naechsteKons && (
                     <div className="flex justify-end mt-1.5">
                       <button
