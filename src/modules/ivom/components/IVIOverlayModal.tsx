@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import { Printer, X, ExternalLink, Check, Upload, FileText, Loader2 } from 'lucide-react'
+import { Printer, X, Upload, FileText, Loader2, Eye, ChevronLeft } from 'lucide-react'
 import { useDraggable } from '../../../hooks/useDraggable'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -197,7 +197,6 @@ async function buildCombinedCanvas(
 export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLiris, onClose }: Props) {
   const eyeSide = initialEye
   const { style: dragStyle, onHeaderMouseDown } = useDraggable('ivi-overlay')
-  const [lirisOpened, setLirisOpened]   = useState(false)
   const [lirisDataUrl, setLirisDataUrl] = useState<string | null>(null)
   const [lirisFileName, setLirisFileName] = useState<string | null>(null)
   const [lirisLoading, setLirisLoading] = useState(false)
@@ -206,6 +205,9 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
   const [thumbnails, setThumbnails]     = useState<Partial<Record<TemplateKey, string>>>({})
   const [detectedFades, setDetectedFades] = useState<Partial<Record<TemplateKey, { odFade: Rect; osFade: Rect }>>>({})
   const [printing, setPrinting]         = useState(false)
+  // Vorschau ist standardmässig zugeklappt — sie wird erst gebaut, wenn man
+  // sie aufklappt. Der Druck baut sein eigenes Canvas und ist davon unabhängig.
+  const [previewOpen, setPreviewOpen]   = useState(false)
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null)
   const [previewBuilding, setPreviewBuilding] = useState(false)
   const fileInputRef  = useRef<HTMLInputElement>(null)
@@ -252,14 +254,10 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
   }
 
   useEffect(() => {
+    if (!previewOpen) return
     triggerPreview(selectedTmpl, lirisDataUrl)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTmpl, lirisDataUrl, detectedFades])
-
-  function openLiris() {
-    window.open('https://vip.liris.ch', 'liris_ivom', 'width=1400,height=900')
-    setLirisOpened(true)
-  }
+  }, [previewOpen, selectedTmpl, lirisDataUrl, detectedFades])
 
   function removeLiris() {
     setLirisDataUrl(null); setLirisFileName(null)
@@ -318,7 +316,7 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl flex flex-col overflow-hidden" style={{ maxHeight: '95vh', ...dragStyle }}>
+      <div className={`bg-white rounded-2xl shadow-xl w-full flex flex-col overflow-hidden transition-[max-width] ${previewOpen ? 'max-w-4xl' : 'max-w-md'}`} style={{ maxHeight: '95vh', ...dragStyle }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0 cursor-grab select-none" onMouseDown={onHeaderMouseDown}>
@@ -335,28 +333,12 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
         <div className="flex flex-1 overflow-hidden min-h-0">
 
           {/* Left: Controls */}
-          <div className="w-72 flex-shrink-0 overflow-y-auto p-5 space-y-5 border-r border-gray-100">
-
-            {withLiris && (
-              <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-blue-100 bg-blue-50">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${lirisOpened ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'}`}>
-                  {lirisOpened ? <Check className="w-3.5 h-3.5" /> : '1'}
-                </div>
-                <p className="text-xs text-gray-700 flex-1">
-                  Liris → Patient → <span className="font-semibold">PDF speichern</span>
-                </p>
-                <button onClick={openLiris}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${lirisOpened ? 'text-green-700 bg-green-100 hover:bg-green-200' : 'text-white bg-blue-600 hover:bg-blue-700'}`}>
-                  <ExternalLink className="w-3 h-3" />
-                  {lirisOpened ? 'Nochmals' : 'Öffnen'}
-                </button>
-              </div>
-            )}
+          <div className={`overflow-y-auto p-5 space-y-5 ${previewOpen ? 'w-72 flex-shrink-0 border-r border-gray-100' : 'flex-1'}`}>
 
             {/* Template selection */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                {withLiris ? '2 · ' : ''}Vorlage
+                {withLiris ? '1 · ' : ''}Vorlage
               </p>
               <div className="flex gap-2">
                 {(Object.keys(TEMPLATES) as TemplateKey[]).map(key => {
@@ -383,7 +365,7 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
             {/* Liris PDF upload */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                {withLiris ? '3 · ' : ''}Liris-Dokument (optional)
+                {withLiris ? '2 · ' : ''}Liris-Dokument (optional)
               </p>
               {!lirisDataUrl ? (
                 <div
@@ -410,7 +392,8 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
 
           </div>
 
-          {/* Right: Live preview */}
+          {/* Right: Live preview — nur wenn aufgeklappt */}
+          {previewOpen && (
           <div className="flex-1 overflow-auto bg-gray-100 flex items-start justify-center p-5">
             {previewUrl ? (
               <div className="relative">
@@ -430,6 +413,7 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -438,6 +422,12 @@ export default function IVIOverlayModal({ eyeSide: initialEye, subtitle, withLir
             className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             {printing ? 'Wird aufbereitet…' : 'Drucken'}
+          </button>
+          <button onClick={() => setPreviewOpen(o => !o)}
+            title={previewOpen ? 'Vorschau ausblenden' : 'Vorschau anzeigen'}
+            className="flex items-center gap-1.5 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap">
+            {previewOpen ? <ChevronLeft className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            Vorschau
           </button>
           <button onClick={onClose}
             className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
