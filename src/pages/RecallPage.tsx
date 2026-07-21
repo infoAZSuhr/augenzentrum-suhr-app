@@ -3008,9 +3008,12 @@ const lirisExtractRef  = useRef(lirisExtract)
     // Nahsehen/Lesen (Schule) und Lichtschutz.
     const ZYKLO_DAUER = 'Die Wirkung l&#228;sst in der Regel nach etwa <strong>12 Stunden</strong> nach, sie kann aber <strong>bis zu 24 Stunden oder l&#228;nger</strong> anhalten.'
 
+    // Formulierung 2026-07-20 (Nutzerwunsch): Erwachsene wie Kinder — keine
+    // Teilnahme am Strassenverkehr, sportliche Aktivitäten vorübergehend
+    // einschränken; bei Kindern zusätzlich explizit kein Velo/Trottinett.
     const zykloHinweis = isMinor
-      ? `<p>Bitte beachten Sie: Nach der Zykloplegie-Untersuchung ist die Sehleistung Ihres Kindes beeintr&#228;chtigt. ${ZYKLO_DAUER} <strong>Nahsehen und Lesen fallen in dieser Zeit schwer</strong> &#8211; bitte planen Sie Schule, Hausaufgaben und Sport entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen. Bitte begleiten Sie Ihr Kind nach dem Termin.</p>`
-      : `<p>Bitte beachten Sie: Nach der Zykloplegie-Untersuchung ist die Sehleistung beeintr&#228;chtigt. ${ZYKLO_DAUER} Solange die Sicht eingeschr&#228;nkt ist, <strong>bitte kein Fahrzeug lenken</strong> und den Tag entsprechend planen. Sonnenbrille empfohlen.</p>`
+      ? `<p>Bitte beachten Sie: Nach der Zykloplegie-Untersuchung ist die Sehleistung Ihres Kindes beeintr&#228;chtigt. ${ZYKLO_DAUER} In dieser Zeit ist auf die <strong>Teilnahme am Strassenverkehr zu verzichten</strong> &#8211; bei Kindern insbesondere auch auf das <strong>Fahren von Velo oder Trottinett</strong> &#8211; und <strong>sportliche Aktivit&#228;ten sind vor&#252;bergehend einzuschr&#228;nken</strong>. Nahsehen und Lesen fallen schwer; bitte planen Sie Schule und Hausaufgaben entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen. Bitte begleiten Sie Ihr Kind nach dem Termin.</p>`
+      : `<p>Bitte beachten Sie: Nach der Zykloplegie-Untersuchung ist die Sehleistung beeintr&#228;chtigt. ${ZYKLO_DAUER} Solange die Sicht eingeschr&#228;nkt ist, ist auf die <strong>Teilnahme am Strassenverkehr zu verzichten</strong> (kein Fahrzeug lenken) und <strong>sportliche Aktivit&#228;ten sind vor&#252;bergehend einzuschr&#228;nken</strong> &#8211; bitte planen Sie den Tag entsprechend. Sonnenbrille empfohlen.</p>`
 
     const pupilleHinweis = isMinor
       ? `<p>Die Pupillen Ihres Kindes werden mit Augentropfen erweitert. Die Sehleistung ist danach f&#252;r <strong>4&#8211;6 Stunden</strong> eingeschr&#228;nkt &#8211; <strong>Nahsehen und Lesen fallen schwer</strong>, bitte planen Sie Schule und Hausaufgaben entsprechend ein. Die Augen sind lichtempfindlich; eine Sonnenbrille oder M&#252;tze ist empfohlen.</p>`
