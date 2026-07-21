@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useBrowser, type LirisExtract } from '../contexts/BrowserContext'
+import { RECHNUNG_KONTO, parseBetragFromBeleg, generateQrDataUrl, buildZahlteilHtml } from '../lib/qrRechnung'
 import { usePostausgang } from '../contexts/PostausgangContext'
 import * as XLSX from 'xlsx'
 import { LOGO_AZS_BASE64 } from '../lib/logoBase64'
@@ -635,7 +636,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     telFollowup: 'erneutAnrufen' | 'briefVersenden' | 'reminderSetzen' | ''
     telFollowupDatum: string          // YYYY-MM-DD — Datum für erneuten Anruf / Reminder
     nachnameOverride: string          // vom User gewählter Nachname für die Anrede (bei mehrdeutigem Namen)
-    briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben' | 'terminBestaetigung' | 'freierBrief'   // Brief-Textvariante ('' = Standard); terminBestaetigung/freierBrief = Allgemeine Briefe (kein Aufgebot)
+    briefVariante: '' | 'neuerArzt' | 'terminVerpasst' | 'terminVerschoben' | 'terminBestaetigung' | 'freierBrief' | 'rechnung'   // Brief-Textvariante ('' = Standard); terminBestaetigung/freierBrief/rechnung = Allgemeine Briefe (kein Aufgebot)
+    rechnungBetrag: string            // Rechnung (QR): Betrag in CHF, z.B. "245.50"
     freiBetreff: string               // Freier Brief: Betreffzeile
     freiText: string                  // Freier Brief: Fliesstext (Absaetze durch Leerzeile)
     frueherArzt: string               // früherer Arzt (für Variante 'neuerArzt')
@@ -649,7 +651,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     arztName: '', notiz: '', versand: '', terminFixiert: '',
     voruntersuchungen: [], voruntersuchungenSonstige: '', fachtitel: '',
     telResult: '', telFollowup: '', telFollowupDatum: '',
-    nachnameOverride: '', briefVariante: '', frueherArzt: '',
+    nachnameOverride: '', briefVariante: '', frueherArzt: '', rechnungBetrag: '',
     freiBetreff: '', freiText: '',
     verschiebungDurch: 'patient',
     vertreterModus: false,
@@ -658,6 +660,22 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [aufgebotTarget, setAufgebotTarget] = useState<WPEntry | null>(null)
   const [aufgebotForm, setAufgebotForm] = useState<AufgebotForm>(emptyAufgebotForm())
   const [aufgebotPdfCreated, setAufgebotPdfCreated] = useState(false)
+  // QR-Rechnung: Data-URL des QR-Codes (asynchron erzeugt, sobald Betrag +
+  // Adresse vorliegen) — buildBriefHtml ist synchron und liest diesen State.
+  const [rechnungQrUrl, setRechnungQrUrl] = useState('')
+  useEffect(() => {
+    const f = aufgebotForm
+    if (!aufgebotTarget || f.briefVariante !== 'rechnung') { setRechnungQrUrl(''); return }
+    const betrag = parseFloat(f.rechnungBetrag)
+    if (!(betrag > 0)) { setRechnungQrUrl(''); return }
+    const lines = f.adressBlock.split('\n').map(l => l.trim()).filter(Boolean)
+    const debtor = { name: lines[0] || '', strasse: lines[1] || '', plzOrt: lines[2] || '' }
+    let cancelled = false
+    generateQrDataUrl(betrag, debtor, `Rechnung Augenzentrum Suhr${aufgebotTarget.patient.pid ? ' / Pat. ' + normalizePid(aufgebotTarget.patient.pid) : ''}`)
+      .then(url => { if (!cancelled) setRechnungQrUrl(url) })
+      .catch(() => { if (!cancelled) setRechnungQrUrl('') })
+    return () => { cancelled = true }
+  }, [aufgebotTarget, aufgebotForm.briefVariante, aufgebotForm.rechnungBetrag, aufgebotForm.adressBlock]) // eslint-disable-line react-hooks/exhaustive-deps
   // KI-Formulierung im Freien Brief (Gemini via Firebase AI Logic, gratis, ohne Patientendaten)
   const [kiAnliegen, setKiAnliegen] = useState('')
   const [kiLoading, setKiLoading] = useState(false)
@@ -682,7 +700,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Aufgebot-Dialogs bereits eine solche Variante aktiv ist (z.B. beim
   // Bearbeiten eines bestehenden freien Briefs) — sonst eingeklappt.
   useEffect(() => {
-    setAllgBriefOpen(aufgebotForm.briefVariante === 'terminBestaetigung' || aufgebotForm.briefVariante === 'freierBrief')
+    setAllgBriefOpen(aufgebotForm.briefVariante === 'terminBestaetigung' || aufgebotForm.briefVariante === 'freierBrief' || aufgebotForm.briefVariante === 'rechnung')
   }, [aufgebotTarget]) // eslint-disable-line react-hooks/exhaustive-deps
   // Bearbeitungsansicht der primären Zuweisung: automatisch ausgeklappt
   // solange sie pendent ist (aktive Aufgabe), sonst eingeklappt.
@@ -2914,7 +2932,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const today   = new Date()
     const dateStr = `${today.getDate()}. ${GERMAN_MONTHS[today.getMonth()]} ${today.getFullYear()}`
 
-    const isAllgemein = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const isAllgemein = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief' || form.briefVariante === 'rechnung'
     const isReminder = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemein)
     const arztName   = form.arztName || doctorFullName(patient.doctor)
     const isFemale    = FEMALE_DOCTORS.has(patient.doctor)
@@ -3031,6 +3049,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const title = form.briefVariante === 'terminVerpasst' ? 'Ihr verpasster Termin &#8211; Bitte um kurze R&#252;ckmeldung'
       : form.briefVariante === 'terminBestaetigung' ? 'Terminbest&#228;tigung'
       : form.briefVariante === 'freierBrief' ? escLine(form.freiBetreff.trim() || 'Mitteilung')
+      : form.briefVariante === 'rechnung' ? 'Rechnung'
       : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung &#8211; Best&#228;tigung Ihres neuen Termins'
       : isReminder ? 'Erinnerung &#8211; Augenkontrolle'
       : hasTermin ? 'Terminvorschlag f&#252;r die Routine Augenkontrolle'
@@ -3165,7 +3184,26 @@ const lirisExtractRef  = useRef(lirisExtract)
       ${kindHinweisFrei}
       ${form.freiText.split(/\n{2,}/).map(abs => `<p>${escLine(abs.trim()).replace(/\n/g, '<br>')}</p>`).join('')}
     `
-    const bodyHtml = form.briefVariante === 'freierBrief' ? bodyFrei : isTerminVerpasst ? bodyTerminVerpasst : isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
+    // ── Body: Rechnung (QR) ─────────────────────────────────────────────────
+    const rechnungBetragNum = parseFloat(form.rechnungBetrag)
+    const bodyRechnung = `
+      ${salut}
+      ${kindHinweis}
+      <p>F&#252;r die in unserer Praxis erbrachten augen&#228;rztlichen Leistungen stellen wir Ihnen folgenden Betrag in Rechnung:</p>
+      <p style="font-size:13pt;font-weight:bold;margin:.4cm 0">CHF ${isFinite(rechnungBetragNum) ? rechnungBetragNum.toFixed(2) : '—'}</p>
+      <p>Bitte begleichen Sie den Betrag innert <strong>30 Tagen</strong> mit dem untenstehenden Zahlteil (QR-Rechnung). Der detaillierte R&#252;ckforderungsbeleg liegt diesem Schreiben bei bzw. wurde Ihnen abgegeben.</p>
+      <p>Bei Fragen zur Rechnung erreichen Sie uns unter Tel. <strong>+41 62 842 18 46</strong> oder <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a>.</p>
+      <p>Besten Dank.</p>
+    `
+    const zahlteilHtml = (form.briefVariante === 'rechnung' && rechnungQrUrl && isFinite(rechnungBetragNum) && rechnungBetragNum > 0)
+      ? buildZahlteilHtml(rechnungQrUrl, rechnungBetragNum, {
+          name: nameDisplay,
+          strasse: adressLines[1] ?? '',
+          plzOrt: adressLines[2] ?? '',
+        })
+      : ''
+
+    const bodyHtml = form.briefVariante === 'rechnung' ? bodyRechnung : form.briefVariante === 'freierBrief' ? bodyFrei : isTerminVerpasst ? bodyTerminVerpasst : isReminder ? bodyReminder : form.pupille ? bodyMit : bodyOhne
 
     const html = `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><title>Brief</title>
@@ -3255,7 +3293,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     <p>Augenzentrum Suhr Team</p>
   </div></div>
 
-  <div class="footer-id">${escLine(footerIdCode(patient))}</div>
+  ${form.briefVariante === 'rechnung' ? zahlteilHtml : `<div class="footer-id">${escLine(footerIdCode(patient))}</div>`}
 
 </div>
 </body></html>`
@@ -3266,12 +3304,13 @@ const lirisExtractRef  = useRef(lirisExtract)
   // Betreff einer Aufgebot-/Brief-Variante — gemeinsam fuer E-Mail-Betreff
   // UND Anhang-Dateinamen genutzt, damit beide zusammenpassen.
   function briefSubjectFor(form: AufgebotForm): string {
-    const isAllgemeinS = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief'
+    const isAllgemeinS = form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief' || form.briefVariante === 'rechnung'
     const isReminderS  = form.art === 'Reminder' || (form.art === 'Brief' && !form.terminDatum.trim() && !isAllgemeinS)
     return isReminderS
       ? 'Erinnerung – Augenkontrolle'
       : form.briefVariante === 'terminBestaetigung' ? 'Terminbestätigung – Augenzentrum Suhr'
       : form.briefVariante === 'freierBrief' ? (form.freiBetreff.trim() || 'Mitteilung – Augenzentrum Suhr')
+      : form.briefVariante === 'rechnung' ? 'Rechnung – Augenzentrum Suhr'
       : form.briefVariante === 'terminVerschoben' ? 'Terminverschiebung – Bestätigung Ihres neuen Termins'
       : form.terminDatum ? 'Terminvorschlag für die Routine Augenkontrolle' : 'Einladung zur Augenkontrolle'
   }
@@ -3457,7 +3496,7 @@ const lirisExtractRef  = useRef(lirisExtract)
     const existingVerlauf: VerlaufEntry[] = patient.verlauf ?? []
     // Allgemeine Briefe (Terminbestaetigung, Freier Brief) sind KEIN
     // Aufgebot: nur ein Verlaufseintrag, keine Aufgebots-Felder anfassen.
-    if (form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief') {
+    if (form.briefVariante === 'terminBestaetigung' || form.briefVariante === 'freierBrief' || form.briefVariante === 'rechnung') {
       const label = form.briefVariante === 'terminBestaetigung'
         ? 'Terminbestätigung'
         : `Brief «${form.freiBetreff.trim() || 'Allgemein'}»`
@@ -5155,7 +5194,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                     gewaehlt ist (Normal/neuerArzt/terminVerpasst laufen
                     ueber die Varianten-Buttons darunter). */}
                 {(() => {
-                  const SONDER = ['terminVerschoben', 'terminBestaetigung', 'freierBrief']
+                  const SONDER = ['terminVerschoben', 'terminBestaetigung', 'freierBrief', 'rechnung']
                   const renderCard = ({ art, variante, Icon, label, sub, color, fullWidth }: { art: AufgebotArt; variante?: string; Icon: React.ComponentType<{className?:string}>; label: string; sub: string; color: string; fullWidth?: boolean }) => {
                     const isActive = variante
                       ? af.art === art && af.briefVariante === variante
@@ -5202,6 +5241,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                       <div className="grid grid-cols-2 gap-2">
                         {renderCard({ art: 'Brief', variante: 'terminBestaetigung', Icon: CalendarClock, label: 'Terminbestätigung', sub: 'Bestätigung des vereinbarten Termins', color: 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100' })}
                         {renderCard({ art: 'Brief', variante: 'freierBrief', Icon: Pencil, label: 'Freier Brief', sub: 'Eigener Betreff & Text auf Briefkopf', color: 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100' })}
+                        {renderCard({ art: 'Brief', variante: 'rechnung', Icon: FileSpreadsheet, label: 'Rechnung (QR)', sub: 'Selbstzahler / ausländische Patienten', color: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' })}
                         {/* Direkt-Aktion (kein Brief-Flow): vorbereitete E-Mail an das
                             Berichtesekretariat der KSA-Augenklinik oeffnen + Verlauf. */}
                         <button
@@ -5250,6 +5290,58 @@ const lirisExtractRef  = useRef(lirisExtract)
                     </div>
                   )
                 })()}
+
+                {/* Rechnung (QR): Betrag + Rückforderungsbeleg-Upload. Für
+                    Selbstzahler (ausländische Patienten / Barzahler): Beleg
+                    hochladen → Betrag wird automatisch übernommen; die
+                    QR-Rechnung (Zahlteil unten auf der Seite) zahlt auf das
+                    Konto der KIMENDA AG ein (siehe lib/qrRechnung.ts). */}
+                {af.briefVariante === 'rechnung' && (
+                  <div className="space-y-2">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-emerald-800">Rechnung mit Schweizer QR-Zahlteil</p>
+                      <p className="text-[11px] text-emerald-700">Zahlbar an: {RECHNUNG_KONTO.name} · {RECHNUNG_KONTO.iban}</p>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Rückforderungsbeleg (PDF) hochladen</label>
+                        <input type="file" accept="application/pdf"
+                          onChange={async e => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            try {
+                              const pdfjs = await import('pdfjs-dist')
+                              const buf = await file.arrayBuffer()
+                              const doc = await pdfjs.getDocument({ data: buf }).promise
+                              let text = ''
+                              for (let pg = 1; pg <= doc.numPages; pg++) {
+                                const page = await doc.getPage(pg)
+                                const tc = await page.getTextContent()
+                                text += tc.items.map((it: any) => it.str).join(' ') + '\n'
+                              }
+                              const betrag = parseBetragFromBeleg(text)
+                              if (betrag) {
+                                setAf({ rechnungBetrag: betrag.toFixed(2) })
+                                toast.success(`Betrag aus Beleg übernommen: CHF ${betrag.toFixed(2)} — bitte prüfen.`)
+                              } else {
+                                toast.warning('Kein Betrag im Beleg gefunden — bitte manuell eintragen.')
+                              }
+                            } catch (err) {
+                              console.warn('[Rechnung] Beleg-Parsing fehlgeschlagen', err)
+                              toast.error('Beleg konnte nicht gelesen werden — Betrag bitte manuell eintragen.')
+                            }
+                          }}
+                          className="text-xs w-full" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Betrag (CHF) <span className="text-red-500">*</span></label>
+                        <input type="number" step="0.05" min="0" value={af.rechnungBetrag}
+                          onChange={e => setAf({ rechnungBetrag: e.target.value })}
+                          placeholder="z.B. 245.50"
+                          className="input text-sm w-40" />
+                      </div>
+                      <p className="text-[10px] text-gray-500">Patient/Adresse für den Zahlteil kommen aus dem Adressfeld unten. Der Rückforderungsbeleg wird dem Patienten separat abgegeben/beigelegt.</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Freier Brief: Betreff + Text (mit Vorlagen) */}
                 {af.briefVariante === 'freierBrief' && (
@@ -5367,7 +5459,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                     {/* Variante — gilt für Briefaufgebot UND Reminder.
                         Terminverschiebung hat eine eigene Art-Karte oben und
                         blendet die Varianten-Auswahl aus. */}
-                    {!['terminVerschoben', 'terminBestaetigung', 'freierBrief'].includes(af.briefVariante) && (
+                    {!['terminVerschoben', 'terminBestaetigung', 'freierBrief', 'rechnung'].includes(af.briefVariante) && (
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Variante</p>
                       <div className="flex gap-2">
@@ -5426,7 +5518,7 @@ const lirisExtractRef  = useRef(lirisExtract)
                     )}
 
                     {/* Termin-spezifische Felder NUR für Briefaufgebot — Reminder hat keinen festen Termin */}
-                    {af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && af.briefVariante !== 'freierBrief' && (<>
+                    {af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && af.briefVariante !== 'freierBrief' && af.briefVariante !== 'rechnung' && (<>
                     {/* Pupillenerweiterung */}
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Untersuchungsart</p>
@@ -5713,10 +5805,11 @@ const lirisExtractRef  = useRef(lirisExtract)
                         // Termin im Brief — ohne Datum UND Zeit darf nicht versendet
                         // werden (der Brief enthielte einen leeren Termin). Reminder
                         // und «Termin verpasst» haben keinen festen Termin.
-                        const terminFehlt = af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && af.briefVariante !== 'freierBrief' && (!af.terminDatum || !af.terminZeit)
+                        const terminFehlt = af.art === 'Brief' && af.briefVariante !== 'terminVerpasst' && af.briefVariante !== 'freierBrief' && af.briefVariante !== 'rechnung' && (!af.terminDatum || !af.terminZeit)
                         const freiFehlt = af.briefVariante === 'freierBrief' && (!af.freiBetreff.trim() || !af.freiText.trim())
-                        const terminHinweis = freiFehlt ? 'Bitte zuerst Betreff und Text erfassen' : 'Bitte zuerst Termin-Datum und -Zeit erfassen'
-                        const sendGesperrt = terminFehlt || freiFehlt
+                        const betragFehlt = af.briefVariante === 'rechnung' && !(parseFloat(af.rechnungBetrag) > 0)
+                        const terminHinweis = freiFehlt ? 'Bitte zuerst Betreff und Text erfassen' : betragFehlt ? 'Bitte zuerst den Rechnungsbetrag erfassen' : 'Bitte zuerst Termin-Datum und -Zeit erfassen'
+                        const sendGesperrt = terminFehlt || freiFehlt || betragFehlt
                         return (
                           <>
                           {emailVerdaechtig && (
