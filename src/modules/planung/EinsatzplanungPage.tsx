@@ -3567,7 +3567,11 @@ export default function EinsatzplanungPage(){
     setMultiSel(new Set())
   }
 
-  const ftThisMonth=monthDays.filter(d=>d.ftName)
+  // Nur Feiertage des AKTUELLEN Monats — monthDays enthält auch Randtage aus
+  // dem Vor-/Folgemonat (Wochen-Auffüllung). Ohne isCurrentMonth-Filter zeigte
+  // die Fusszeile z.B. in der Juli-Ansicht den 1. August (Nat) fälschlich als
+  // "1. Jul" an (Tageszahl 1 + Ansichtsmonat).
+  const ftThisMonth=monthDays.filter(d=>d.ftName&&d.isCurrentMonth)
 
   return(
     <div className={`flex flex-col p-3 sm:p-4 gap-3 ${view==='month'?'h-full overflow-hidden':'min-h-full'}`} data-view={view}>
