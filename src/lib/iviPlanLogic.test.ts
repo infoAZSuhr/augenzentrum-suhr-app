@@ -324,40 +324,48 @@ describe('buildIviVorschlaege — Raster', () => {
     expect(r[0].status).toBe('bereit')
   })
 
-  it('verankert am bestehenden IVI-Montag statt am naechsten Montag (auch gerade KW bleibt)', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-17': 'GT', '2026-08-31': 'GT' } })
-    // bestehender IVI-Tag ist der 17.08. (KW 34, gerade) — bereits fixiert,
-    // bleibt so; der neue-Rhythmus-Ungerade-KW-Regel greift NICHT.
+  it('verankert am bestehenden IVI-Montag NUR wenn ungerade KW', () => {
+    // bestehender IVI-Tag 10.08. (KW 33, ungerade) verankert den Rhythmus.
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT', '2026-08-24': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-31', {}, ['2026-08-10'])
+    expect(r.map(x => x.rasterMontag)).toEqual(['2026-08-10', '2026-08-24'])
+  })
+
+  it('ignoriert einen bestehenden Anker in gerader KW (gerade = manuelle Ausnahme)', () => {
+    // bestehender IVI-Tag 17.08. (KW 34, gerade) darf den Automatik-Rhythmus
+    // NICHT auf gerade Wochen ziehen — Start rutscht auf ungerade KW.
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT', '2026-08-24': 'GT' } })
     const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-31', {}, ['2026-08-17'])
-    expect(r.map(x => x.rasterMontag)).toEqual(['2026-08-17', '2026-08-31'])
+    expect(r[0].rasterMontag).toBe('2026-08-10')
+    expect(isoKalenderwoche(r[0].rasterMontag) % 2).toBe(1)
   })
 })
 
 describe('buildIviVorschlaege — Feiertags-Ausweich', () => {
   it('weicht bei Feiertag am Montag auf Donnerstag DERSELBEN Woche aus', () => {
     const v = verf({
-      'Dmitri Artemiev': { '2026-08-03': 'GT', '2026-08-06': 'GT' },
-      'Markus Tschopp':  { '2026-08-06': 'NM' },
+      'Dmitri Artemiev': { '2026-08-10': 'GT', '2026-08-13': 'GT' },
+      'Markus Tschopp':  { '2026-08-13': 'NM' },
     })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-10', { '2026-08-03': 'Testfeiertag' })
-    expect(r[0].date).toBe('2026-08-06')          // Do derselben Woche
-    expect(r[0].rasterMontag).toBe('2026-08-03')
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-17', { '2026-08-10': 'Testfeiertag' })
+    expect(r[0].date).toBe('2026-08-13')          // Do derselben Woche
+    expect(r[0].rasterMontag).toBe('2026-08-10')
     expect(r[0].ausweich).toBe(true)
     expect(r[0].ausweichGrund).toContain('Feiertag')
     expect(r[0].status).toBe('bereit')
   })
 
   it('nimmt Freitag wenn auch der Donnerstag nicht geht', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-07': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-10', { '2026-08-03': 'Feiertag' })
-    expect(r[0].date).toBe('2026-08-07')          // Fr
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-14': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-17', { '2026-08-10': 'Feiertag' })
+    expect(r[0].date).toBe('2026-08-14')          // Fr
     expect(r[0].ausweich).toBe(true)
   })
 
   it('weicht auch aus wenn der Injektor am Montag abwesend ist', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-06': 'GT' } })  // Mo fehlt
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-10')
-    expect(r[0].date).toBe('2026-08-06')
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-13': 'GT' } })  // Mo fehlt
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-17')
+    expect(r[0].date).toBe('2026-08-13')
     expect(r[0].ausweichGrund).toBe('Artemiev nicht eingeteilt')
   })
 
@@ -365,10 +373,10 @@ describe('buildIviVorschlaege — Feiertags-Ausweich', () => {
     // In der ganzen Woche vom 03.08. ist niemand da -> kein_tag, nicht 10.08.
     // Anker über bestehende[] fixiert (03.08.), damit die Ungerade-KW-Regel
     // hier nicht greift — getestet wird das NICHT-Springen der Raster-Woche.
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05', {}, ['2026-08-03'])
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-24': 'GT' } })  // erst KW35
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-14')   // nur KW33 im Bereich
     expect(r[0].status).toBe('kein_tag')
-    expect(r[0].date).toBe('2026-08-03')
+    expect(r[0].date).toBe('2026-08-10')
   })
 })
 

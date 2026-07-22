@@ -287,64 +287,48 @@ export function buildIviVorschlaege(
 ): IviVorschlag[] {
   const byDate = new Map(verfuegbar.map(t => [t.date, t]))
 
-  // Anker: erster bestehender IVI-Montag ab heute (bereits fixierter Rhythmus
-  // bleibt so), sonst wird der Startpunkt klug gewählt (siehe unten).
+  // Rhythmus grundsätzlich in UNGERADEN Kalenderwochen (Nutzerwunsch
+  // 2026-07-22): «immer ungerade Woche nehmen, ausser Ausnahmen — die werden
+  // manuell fixiert». Anker = erster bestehender IVI-Montag in einer
+  // ungeraden KW ab heute (verankert am realen Einsatz von Artemiev), sonst
+  // der nächste Montag einer ungeraden KW. Gerade-KW-Tage werden vom
+  // Automatik-Vorschlag bewusst NICHT angeboten (manuelle Ausnahmen).
   const ankerKandidat = bestehende
-    .filter(d => d >= today && new Date(d + 'T00:00:00Z').getUTCDay() === 1)
+    .filter(d => d >= today
+      && new Date(d + 'T00:00:00Z').getUTCDay() === 1
+      && isoKalenderwoche(d) % 2 === 1)
     .sort()[0]
   let anker = ankerKandidat ?? naechsterMontag(today)
-
-  // Frischer Rhythmus (kein fixierter Anker): den Startpunkt so wählen, dass
-  // er möglichst auf einer Woche liegt, in der BEIDE Ärzte (Injektor + Partner)
-  // schon eingeteilt sind, und eine UNGERADE KW ist (Nutzerwunsch 2026-07-22).
-  // Der 14-Tage-Takt ab dort trifft dann weiter ungerade KW.
-  if (!ankerKandidat) {
-    const kandTage = (mo: string) => [mo, isoAdd(mo, 3), isoAdd(mo, 4)].filter(k => !feiertage[k])
-    const injektorDaIn = (mo: string) =>
-      kandTage(mo).some(k => byDate.get(k)?.anwesend.some(a => a.injector))
-    const zweiAerzteIn = (mo: string) =>
-      kandTage(mo).some(k => {
-        const a = byDate.get(k)?.anwesend ?? []
-        return a.some(x => x.injector) && a.some(x => !x.injector)
-      })
-    // Nächste 4 Wochen ab dem regulären Start scannen (deckt ≥1 ungerade + ≥1
-    // gerade KW ab) und nach Priorität wählen:
-    //   1. ungerade KW + 2 Ärzte  → ideal
-    //   2. ungerade KW + Injektor  → wenigstens ungerade KW nutzbar
-    //   3. irgendeine + 2 Ärzte    → lieber voll besetzt als leer
-    //   4. irgendeine + Injektor
-    //   5. sonst: regulärer nächster Montag (unverändert)
-    const wochen = Array.from({ length: 4 }, (_, i) => {
-      const mo = isoAdd(anker, 7 * i)
-      return { mo, ungerade: isoKalenderwoche(mo) % 2 === 1, injektor: injektorDaIn(mo), zwei: zweiAerzteIn(mo) }
-    })
-    const pick =
-      wochen.find(w => w.ungerade && w.zwei) ??
-      wochen.find(w => w.ungerade && w.injektor) ??
-      wochen.find(w => w.zwei) ??
-      wochen.find(w => w.injektor)
-    if (pick) anker = pick.mo
-  }
+  if (!ankerKandidat && isoKalenderwoche(anker) % 2 === 0) anker = isoAdd(anker, 7)
 
   const out: IviVorschlag[] = []
   for (let mo = anker; mo <= bisDatum; mo = isoAdd(mo, 14)) {
     // Kandidaten in DERSELBEN Woche: Montag, sonst Do, sonst Fr.
     const kandidaten = [mo, isoAdd(mo, 3), isoAdd(mo, 4)]
-    let gewaehlt: string | null = null
     const geprueft: GeprueferTag[] = []
 
+    // Ein Durchgang: nicht nutzbare Tage (Feiertag / Injektor abwesend) ins
+    // Protokoll, die restlichen als «nutzbar» sammeln. Aus den nutzbaren wird
+    // ein Tag mit ZWEI Ärzten (Injektor + Partner) bevorzugt — egal Vor-/
+    // Nachmittag, Tschopp oder Trachsler (Nutzerwunsch 2026-07-22); sonst der
+    // erste nutzbare Tag (Partner wird dann angefragt → «partner_fehlt»).
+    const nutzbar: { date: string; zwei: boolean }[] = []
     for (const k of kandidaten) {
       const ft = feiertage[k]
       if (ft) { geprueft.push({ date: k, grund: `Feiertag (${ft})` }); continue }
-      const injektorDa = !!byDate.get(k)?.anwesend.some(a => a.injector)
-      if (!injektorDa) {
+      const a = byDate.get(k)?.anwesend ?? []
+      if (!a.some(x => x.injector)) {
         const code = injektorSchedule[k]
         geprueft.push({ date: k, grund: code ? `Artemiev ${code}` : 'Artemiev nicht eingeteilt' })
         continue
       }
-      gewaehlt = k
-      break
+      nutzbar.push({ date: k, zwei: a.some(x => !x.injector) })
     }
+    const gewaehlt: string | null = (nutzbar.find(x => x.zwei) ?? nutzbar[0])?.date ?? null
+
+    // Für die Anzeige nur die Tage protokollieren, die VOR dem gewählten Tag
+    // liegen (echte Ausweich-Gründe) — spätere geprüfte Tage sind irrelevant.
+    const geprueftAnzeige = gewaehlt ? geprueft.filter(g => g.date < gewaehlt) : geprueft
 
     if (!gewaehlt) {
       out.push({
@@ -367,10 +351,10 @@ export function buildIviVorschlaege(
     out.push({
       rasterMontag: mo,
       kw: isoKalenderwoche(gewaehlt),
-      geprueft,
+      geprueft: geprueftAnzeige,
       date: gewaehlt,
       ausweich: gewaehlt !== mo,
-      ausweichGrund: gewaehlt !== mo ? (geprueft[0]?.grund ?? null) : null,
+      ausweichGrund: gewaehlt !== mo ? (geprueftAnzeige[0]?.grund ?? 'Tag mit 2 Ärzten in der Woche bevorzugt') : null,
       status,
       anwesend: tag.anwesend,
       fenster: tag.fenster,

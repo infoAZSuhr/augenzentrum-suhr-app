@@ -867,8 +867,10 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
         </div>
 
         <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/60 text-[11px] text-gray-500">
-          Raster: jeder 2. Montag — die Intervalle 4/6/8/10 Wochen sind alle Vielfache von zwei Wochen.
+          Raster: jeder 2. Montag in <strong>ungeraden KW</strong> — bevorzugt Tage, an denen schon 2 Ärzte
+          eingeteilt sind (egal VM/NM, Tschopp oder Trachsler). Ist nur Artemiev da, wird der Partner angefragt.
           Fällt der Montag aus, wird auf Do/Fr <strong>derselben</strong> Woche ausgewichen, nie in eine andere.
+          Gerade KW sind manuelle Ausnahmen.
           {!canDirect&&istPartner&&<> Deine Einträge gehen als Anfrage zur Freigabe.</>}
         </div>
       </div>
