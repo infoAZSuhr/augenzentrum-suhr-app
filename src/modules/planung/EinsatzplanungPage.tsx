@@ -833,6 +833,60 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
 
   const fmtD=(s:string)=>`${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
   const fmtWd=(s:string)=>WEEKDAY_SHORT[new Date(s+'T12:00:00').getDay()]
+
+  // Druckansicht der IVI-Tage-Planung (geplante + moegliche Tage) als PDF —
+  // nutzt dasselbe Hidden-Iframe wie die uebrigen Druckfunktionen der Seite.
+  function druckeIviPlanung(){
+    const esc=(t:string)=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    const aerzte=(list:{name:string;code:string}[])=>
+      list.map(a=>`${esc(a.name)} <b>${esc(CODE_LABELS[a.code]??a.code)}</b>`).join(' · ')
+    const geplantRows=geplant.map(t=>`
+      <tr>
+        <td class="wd">${fmtWd(t.date)}</td>
+        <td class="dt">${fmtD(t.date)}</td>
+        <td class="kw">KW ${isoKalenderwoche(t.date)}</td>
+        <td>${aerzte(t.anwesend)}</td>
+      </tr>`).join('')
+    const moeglichRows=moegliche.map(v=>`
+      <tr>
+        <td class="wd">${fmtWd(v.date)}</td>
+        <td class="dt">${fmtD(v.date)}</td>
+        <td class="kw">KW ${v.kw}</td>
+        <td>${v.anwesend.length?aerzte(v.anwesend):'<i>niemand eingeteilt</i>'}</td>
+        <td class="st">${esc(VORSCHLAG_STYLE[v.status].label)}</td>
+      </tr>`).join('')
+    const html=`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">
+      <title>IVI-Tage Planung</title>
+      <style>
+        @page{size:A4 portrait;margin:12mm}
+        body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111}
+        h1{font-size:15px;margin:0 0 2px}
+        .sub{font-size:9px;color:#666;margin-bottom:10px}
+        h2{font-size:11px;margin:12px 0 4px}
+        table{width:100%;border-collapse:collapse}
+        th,td{text-align:left;padding:3px 4px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+        th{font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;border-bottom:1px solid #9ca3af}
+        td.wd{width:22px;color:#6b7280;font-weight:bold}
+        td.dt{width:64px;font-weight:bold;white-space:nowrap}
+        td.kw{width:48px;color:#6b7280;white-space:nowrap}
+        td.st{width:96px;font-size:8px;text-transform:uppercase;color:#374151;white-space:nowrap}
+        .empty{color:#9ca3af;font-style:italic;padding:4px 0}
+      </style></head><body>
+      <h1>IVI-Tage Planung</h1>
+      <div class="sub">Augenzentrum Suhr · Stand ${fmtD(TODAY)} · ${geplant.length} geplant · ${moegliche.length} mögliche Tage</div>
+
+      <h2>Geplante IVI-Tage</h2>
+      ${geplant.length
+        ?`<table><thead><tr><th></th><th>Datum</th><th>KW</th><th>Ärzte</th></tr></thead><tbody>${geplantRows}</tbody></table>`
+        :'<p class="empty">Keine geplanten Tage.</p>'}
+
+      <h2>Mögliche Tage</h2>
+      ${moegliche.length
+        ?`<table><thead><tr><th></th><th>Datum</th><th>KW</th><th>Ärzte</th><th>Status</th></tr></thead><tbody>${moeglichRows}</tbody></table>`
+        :'<p class="empty">Keine offenen Tage.</p>'}
+      </body></html>`
+    printViaIframe(html)
+  }
   const offen=vorschlaege.filter(v=>v.status==='partner_fehlt').length
   // Oben die bereits stehenden IVI-Tage (siehe `geplant`), darunter die noch
   // offenen Moeglichkeiten — bereits geplante Tage dort nicht doppelt zeigen.
@@ -849,7 +903,13 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
               {geplant.length} geplant · {moegliche.length} mögliche Tage{offen>0?` · ${offen} noch offen`:''}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400"/></button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={druckeIviPlanung} title="Ansicht als PDF drucken"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100">
+              <Printer className="w-4 h-4"/>
+            </button>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400"/></button>
+          </div>
         </div>
 
         {fehler&&<div className="mx-5 mt-3 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{fehler}</div>}
