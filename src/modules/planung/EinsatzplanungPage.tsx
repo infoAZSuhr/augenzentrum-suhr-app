@@ -7,7 +7,7 @@ import { loadPlanung, savePlanung, loadWorkHoursFirestore, saveWorkHoursFirestor
 import { planAutoFill, autoFillUpdates, summarizeCodes } from '../../lib/planungAutoFill'
 import {
   buildArztVerfuegbarkeit, buildIviVorschlaege, extractIviDaysFromPlans,
-  filterIviDoctors, IVI_DOCTORS_MATCH, IVI_INJECTOR_MATCH, IVI_WORKING, type IviVorschlag,
+  filterIviDoctors, isoKalenderwoche, IVI_DOCTORS_MATCH, IVI_INJECTOR_MATCH, IVI_WORKING, type IviVorschlag,
 } from '../../lib/iviPlanLogic'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
@@ -752,6 +752,16 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
     return buildIviVorschlaege(verf,TODAY,`${year}-12-31`,feiertage,best,injSched)
   },[data,year,feiertage])
 
+  // Bereits stehende IVI-Tage: ALLE Tage ab heute, an denen Injektor + Partner
+  // zusammenpassen — unabhaengig vom Vorschlags-Raster (Nutzerwunsch
+  // 2026-07-22: «Tage ab heute anzeigen»). Sonst fehlten reale Termine in
+  // geraden KW bzw. an Ausweichtagen (Do/Fr).
+  const geplant=useMemo(()=>
+    buildArztVerfuegbarkeit([data],TODAY)
+      .filter(t=>t.passend&&t.date>=TODAY&&!feiertage[t.date])
+      .sort((a,b)=>a.date.localeCompare(b.date)),
+  [data,feiertage])
+
   // Pro Vorschlagstag der gewaehlte Partner (Default: der mit weniger Einsaetzen)
   const defaultPartner=[...partners].sort((a,b)=>(einsaetze[a]??0)-(einsaetze[b]??0))[0]??''
   const [wahl,setWahl]=useState<Record<string,string>>({})
@@ -786,10 +796,10 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
   const fmtD=(s:string)=>`${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
   const fmtWd=(s:string)=>WEEKDAY_SHORT[new Date(s+'T12:00:00').getDay()]
   const offen=vorschlaege.filter(v=>v.status==='partner_fehlt').length
-  // Oben die bereits stehenden IVI-Tage (Injektor + Partner passen), darunter
-  // die noch offenen Moeglichkeiten (Nutzerwunsch 2026-07-22).
-  const fixierte=vorschlaege.filter(v=>v.status==='bereit')
-  const moegliche=vorschlaege.filter(v=>v.status!=='bereit')
+  // Oben die bereits stehenden IVI-Tage (siehe `geplant`), darunter die noch
+  // offenen Moeglichkeiten — bereits geplante Tage dort nicht doppelt zeigen.
+  const geplantDates=new Set(geplant.map(t=>t.date))
+  const moegliche=vorschlaege.filter(v=>v.status!=='bereit'&&!geplantDates.has(v.date))
 
   return(
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
@@ -798,7 +808,7 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
           <div>
             <h2 className="text-lg font-semibold text-gray-900">IVI-Tage vorschlagen</h2>
             <p className="text-sm text-gray-500">
-              {fixierte.length} geplant · {moegliche.length} mögliche Tage{offen>0?` · ${offen} noch offen`:''}
+              {geplant.length} geplant · {moegliche.length} mögliche Tage{offen>0?` · ${offen} noch offen`:''}
             </p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400"/></button>
@@ -810,24 +820,24 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
           {vorschlaege.length===0&&<p className="text-center text-gray-400 py-6">Keine Vorschläge — Einsatzplanung prüfen.</p>}
 
           {/* Geplante IVI-Tage — Darstellung wie die Dashboard-Kachel */}
-          {fixierte.length>0&&(
+          {geplant.length>0&&(
             <div className="rounded-xl border border-gray-200 overflow-hidden mb-3">
               <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/70">
                 <span className="text-sm font-semibold text-gray-800">Geplante IVI-Tage</span>
-                <span className="ml-2 text-xs text-gray-400">{fixierte.length}</span>
+                <span className="ml-2 text-xs text-gray-400">{geplant.length}</span>
               </div>
               <div className="divide-y divide-gray-50">
-                {fixierte.map(v=>(
-                  <div key={v.rasterMontag} className="px-3 py-2">
+                {geplant.map(t=>(
+                  <div key={t.date} className="px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-gray-500 w-6 shrink-0">{fmtWd(v.date)}</span>
-                        <span className="text-sm text-gray-800">{fmtD(v.date)}</span>
+                        <span className="text-xs font-semibold text-gray-500 w-6 shrink-0">{fmtWd(t.date)}</span>
+                        <span className="text-sm text-gray-800">{fmtD(t.date)}</span>
                       </div>
-                      <span className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 shrink-0">KW {v.kw}</span>
+                      <span className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 shrink-0">KW {isoKalenderwoche(t.date)}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 pl-8">
-                      {v.anwesend.map(a=>(
+                      {t.anwesend.map(a=>(
                         <span key={a.name} className="flex items-center gap-1">
                           <span className="text-[11px] text-gray-600">{a.name}</span>
                           <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ${CODE_STYLE[a.code]??'bg-gray-100 text-gray-600'}`}>
@@ -842,7 +852,7 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
             </div>
           )}
 
-          {moegliche.length>0&&fixierte.length>0&&(
+          {moegliche.length>0&&geplant.length>0&&(
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Mögliche Tage</p>
           )}
           {moegliche.map(v=>{
