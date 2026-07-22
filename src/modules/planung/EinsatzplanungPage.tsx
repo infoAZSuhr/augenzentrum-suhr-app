@@ -793,6 +793,44 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
     finally{setBusy(null);setConfirmTag(null)}
   }
 
+  // Sammel-Uebernahme: alle offenen «Partner fehlt»-Tage auf einmal in die
+  // Einsatzplanung schreiben (Nutzerwunsch 2026-07-22). Gruppiert nach
+  // Person+Code, damit onAssign pro Gruppe einmal aufgerufen wird.
+  const [confirmAlle,setConfirmAlle]=useState(false)
+  async function uebernehmenAlle(){
+    const offene=vorschlaege.filter(v=>v.status==='partner_fehlt'&&!geplantDates.has(v.date))
+    if(offene.length===0)return
+    setBusy('alle');setFehler(null)
+    try{
+      const gruppen=new Map<string,{person:string;code:Code;dates:string[]}>()
+      for(const v of offene){
+        const person=partnerFuer(v)
+        const code=(v.empfohlenerPartnerCode??'NM') as Code
+        if(!person)continue
+        if(!canDirect&&person!==eigenerName)continue  // nur eigene Tage als Anfrage
+        const key=`${person}|${code}`
+        const g=gruppen.get(key)??{person,code,dates:[]}
+        g.dates.push(v.date)
+        gruppen.set(key,g)
+      }
+      if(gruppen.size===0){setFehler('Nur Admin/Geschäftsleitung dürfen andere eintragen.');return}
+      for(const {person,code,dates} of gruppen.values()){
+        if(canDirect){
+          onAssign(person,dates,code)
+        }else{
+          if(!profile)continue
+          await addDoc(collection(db,'planungRequests'),{
+            type:'eintrag',uid:profile.uid,username:eigenerName,
+            dates,code,section:data.sections[0]?.label??'',
+            status:'pending',createdAt:serverTimestamp(),
+          })
+          await writePlanEntry(eigenerName,dates,code,'warten auf Freigabe')
+        }
+      }
+    }catch(e){console.error(e);setFehler('Fehler beim Speichern.')}
+    finally{setBusy(null);setConfirmAlle(false)}
+  }
+
   const fmtD=(s:string)=>`${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)}`
   const fmtWd=(s:string)=>WEEKDAY_SHORT[new Date(s+'T12:00:00').getDay()]
   const offen=vorschlaege.filter(v=>v.status==='partner_fehlt').length
@@ -852,8 +890,20 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
             </div>
           )}
 
-          {moegliche.length>0&&geplant.length>0&&(
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Mögliche Tage</p>
+          {moegliche.length>0&&(
+            <div className="flex items-center justify-between gap-2 pt-1">
+              {geplant.length>0
+                ?<p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mögliche Tage</p>
+                :<span/>}
+              {/* Sammel-Übernahme aller offenen Tage direkt in die Einsatzplanung */}
+              {(canDirect||istPartner)&&moegliche.some(v=>v.status==='partner_fehlt')&&(
+                <button onClick={()=>setConfirmAlle(true)} disabled={busy==='alle'}
+                  title="Alle offenen Tage mit dem jeweils gewählten Partner in die Einsatzplanung eintragen"
+                  className="px-2.5 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white text-xs font-semibold whitespace-nowrap">
+                  {busy==='alle'?'…':`Alle ${moegliche.filter(v=>v.status==='partner_fehlt').length} übernehmen`}
+                </button>
+              )}
+            </div>
           )}
           {moegliche.map(v=>{
             const st=VORSCHLAG_STYLE[v.status]
@@ -925,6 +975,26 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
         </div>
       </div>
 
+      {confirmAlle&&(()=>{
+        const offene=moegliche.filter(v=>v.status==='partner_fehlt')
+        const liste=offene.slice(0,8).map(v=>`${fmtWd(v.date)} ${fmtD(v.date)} — ${partnerFuer(v).split(' ').slice(-1)[0]} als ${v.empfohlenerPartnerCode}`).join('\n')
+        return(
+          <ConfirmDialog
+            title={`${offene.length} Tage eintragen?`}
+            danger={false}
+            confirmLabel="Alle eintragen"
+            isLoading={busy==='alle'}
+            message={
+              liste
+              +(offene.length>8?`\n… und ${offene.length-8} weitere`:'')
+              +'\n\n'
+              +(canDirect?'Die Einträge werden direkt gespeichert.':'Die Einträge gehen als Anfrage zur Freigabe.')
+            }
+            onConfirm={()=>void uebernehmenAlle()}
+            onCancel={()=>setConfirmAlle(false)}
+          />
+        )
+      })()}
       {confirmTag&&(
         <ConfirmDialog
           title="Tag eintragen?"
