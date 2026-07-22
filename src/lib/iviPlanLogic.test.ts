@@ -312,6 +312,18 @@ describe('buildIviVorschlaege — Raster', () => {
     expect(r[0].rasterMontag).toBe('2026-08-10')
   })
 
+  it('bevorzugt als Start eine ungerade KW mit ZWEI Ärzten', () => {
+    // Woche KW 32 (gerade): nur Injektor. Woche KW 33 (ungerade): Injektor +
+    // Partner → soll als Startpunkt gewählt werden.
+    const v = verf({
+      'Dmitri Artemiev': { '2026-08-03': 'GT', '2026-08-10': 'GT' },
+      'Markus Tschopp':  { '2026-08-10': 'NM' },
+    })
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-20')
+    expect(r[0].rasterMontag).toBe('2026-08-10')
+    expect(r[0].status).toBe('bereit')
+  })
+
   it('verankert am bestehenden IVI-Montag statt am naechsten Montag (auch gerade KW bleibt)', () => {
     const v = verf({ 'Dmitri Artemiev': { '2026-08-17': 'GT', '2026-08-31': 'GT' } })
     // bestehender IVI-Tag ist der 17.08. (KW 34, gerade) — bereits fixiert,

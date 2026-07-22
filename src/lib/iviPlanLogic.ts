@@ -288,25 +288,42 @@ export function buildIviVorschlaege(
   const byDate = new Map(verfuegbar.map(t => [t.date, t]))
 
   // Anker: erster bestehender IVI-Montag ab heute (bereits fixierter Rhythmus
-  // bleibt so), sonst der nächste Montag.
+  // bleibt so), sonst wird der Startpunkt klug gewählt (siehe unten).
   const ankerKandidat = bestehende
     .filter(d => d >= today && new Date(d + 'T00:00:00Z').getUTCDay() === 1)
     .sort()[0]
   let anker = ankerKandidat ?? naechsterMontag(today)
-  // Nutzerwunsch 2026-07-21: neuen Rhythmus möglichst in UNGERADEN KW verankern.
-  // ABER nur, wenn der Injektor in der ungeraden-KW-Woche auch verfügbar ist —
-  // ist er nur in der geraden KW da (durch Abwesenheiten unausweichlich), bleibt
-  // es bei der geraden KW. Prüft dieselben Kandidaten (Mo/Do/Fr) wie unten.
-  if (!ankerKandidat && isoKalenderwoche(anker) % 2 === 0) {
-    const ungeradeWoche = isoAdd(anker, 7)
+
+  // Frischer Rhythmus (kein fixierter Anker): den Startpunkt so wählen, dass
+  // er möglichst auf einer Woche liegt, in der BEIDE Ärzte (Injektor + Partner)
+  // schon eingeteilt sind, und eine UNGERADE KW ist (Nutzerwunsch 2026-07-22).
+  // Der 14-Tage-Takt ab dort trifft dann weiter ungerade KW.
+  if (!ankerKandidat) {
+    const kandTage = (mo: string) => [mo, isoAdd(mo, 3), isoAdd(mo, 4)].filter(k => !feiertage[k])
     const injektorDaIn = (mo: string) =>
-      [mo, isoAdd(mo, 3), isoAdd(mo, 4)].some(k => !feiertage[k] && byDate.get(k)?.anwesend.some(a => a.injector))
-    // Nur verschieben, wenn die ungerade Woche nutzbar ist. Ist die gerade
-    // Woche gar nicht nutzbar, ebenfalls verschieben (dann ist die gerade KW
-    // ohnehin ein Leer-Tag).
-    if (injektorDaIn(ungeradeWoche) || !injektorDaIn(anker)) {
-      anker = ungeradeWoche
-    }
+      kandTage(mo).some(k => byDate.get(k)?.anwesend.some(a => a.injector))
+    const zweiAerzteIn = (mo: string) =>
+      kandTage(mo).some(k => {
+        const a = byDate.get(k)?.anwesend ?? []
+        return a.some(x => x.injector) && a.some(x => !x.injector)
+      })
+    // Nächste 4 Wochen ab dem regulären Start scannen (deckt ≥1 ungerade + ≥1
+    // gerade KW ab) und nach Priorität wählen:
+    //   1. ungerade KW + 2 Ärzte  → ideal
+    //   2. ungerade KW + Injektor  → wenigstens ungerade KW nutzbar
+    //   3. irgendeine + 2 Ärzte    → lieber voll besetzt als leer
+    //   4. irgendeine + Injektor
+    //   5. sonst: regulärer nächster Montag (unverändert)
+    const wochen = Array.from({ length: 4 }, (_, i) => {
+      const mo = isoAdd(anker, 7 * i)
+      return { mo, ungerade: isoKalenderwoche(mo) % 2 === 1, injektor: injektorDaIn(mo), zwei: zweiAerzteIn(mo) }
+    })
+    const pick =
+      wochen.find(w => w.ungerade && w.zwei) ??
+      wochen.find(w => w.ungerade && w.injektor) ??
+      wochen.find(w => w.zwei) ??
+      wochen.find(w => w.injektor)
+    if (pick) anker = pick.mo
   }
 
   const out: IviVorschlag[] = []
