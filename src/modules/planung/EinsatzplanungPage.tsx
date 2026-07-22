@@ -708,7 +708,7 @@ function AutoFillSection({person,data,yearDays,year}:{
   )
 }
 
-// ── IVI-Tage vorschlagen ──────────────────────────────────────────────────────
+// ── IVI-Tage Planung ──────────────────────────────────────────────────────────
 // Schlaegt im 14-Tage-Montagsraster IVI-Tage vor (Feiertag/Abwesenheit ->
 // Ausweich auf Do/Fr DERSELBEN Woche) und zeigt, was pro Tag noch fehlt.
 // Eintragen darf: Admin/GL direkt, Tschopp/Trachsler fuer sich selbst per
@@ -806,7 +806,7 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] flex flex-col" onClick={e=>e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">IVI-Tage vorschlagen</h2>
+            <h2 className="text-lg font-semibold text-gray-900">IVI-Tage Planung</h2>
             <p className="text-sm text-gray-500">
               {geplant.length} geplant · {moegliche.length} mögliche Tage{offen>0?` · ${offen} noch offen`:''}
             </p>
@@ -3732,9 +3732,9 @@ export default function EinsatzplanungPage(){
             <span className="hidden sm:inline">Offene Tage</span>
           </button>}
 
-          {/* IVI-Tage vorschlagen — nur für Ärzte und Admins */}
+          {/* IVI-Tage Planung — nur für Ärzte und Admins */}
           {(isAdmin||isArzt||isGeschaeftsleitung)&&<button onClick={()=>setShowIviVorschlag(true)}
-            title="Schlägt im 14-Tage-Raster IVI-Tage vor und zeigt, was noch fehlt"
+            title="IVI-Tage Planung: geplante Tage ab heute und mögliche weitere Tage"
             className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-teal-200 bg-teal-50 text-xs sm:text-sm text-teal-700 hover:bg-teal-100 transition-colors font-medium">
             <Calendar className="w-4 h-4 shrink-0"/>
             <span className="hidden sm:inline">IVI-Tage</span>
