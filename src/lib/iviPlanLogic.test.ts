@@ -293,21 +293,31 @@ describe('passenderPartnerCode', () => {
 })
 
 describe('buildIviVorschlaege — Raster', () => {
-  it('schlaegt jeden 2. Montag vor', () => {
+  it('schlaegt jeden 2. Montag vor (Rhythmus in ungeraden KW)', () => {
     const v = verf({
       'Dmitri Artemiev': {
-        '2026-08-03': 'GT', '2026-08-17': 'GT', '2026-08-31': 'GT', '2026-09-14': 'GT',
+        '2026-08-10': 'GT', '2026-08-24': 'GT', '2026-09-07': 'GT', '2026-09-21': 'GT',
       },
     })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-09-20')
-    expect(r.map(x => x.date)).toEqual(['2026-08-03', '2026-08-17', '2026-08-31', '2026-09-14'])
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-09-25')
+    expect(r.map(x => x.date)).toEqual(['2026-08-10', '2026-08-24', '2026-09-07', '2026-09-21'])
   })
 
-  it('verankert am bestehenden IVI-Montag statt am naechsten Montag', () => {
+  it('verankert einen NEUEN Rhythmus auf einer ungeraden KW', () => {
+    // naechster Montag ab 01.08. waere der 03.08. (KW 32, gerade) → soll auf
+    // den 10.08. (KW 33, ungerade) verschoben werden.
     const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT', '2026-08-24': 'GT' } })
-    // naechster Montag waere 03.08., bestehender IVI-Tag ist aber der 10.08.
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-31', {}, ['2026-08-10'])
-    expect(r.map(x => x.rasterMontag)).toEqual(['2026-08-10', '2026-08-24'])
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-31')
+    expect(isoKalenderwoche(r[0].rasterMontag) % 2).toBe(1)
+    expect(r[0].rasterMontag).toBe('2026-08-10')
+  })
+
+  it('verankert am bestehenden IVI-Montag statt am naechsten Montag (auch gerade KW bleibt)', () => {
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-17': 'GT', '2026-08-31': 'GT' } })
+    // bestehender IVI-Tag ist der 17.08. (KW 34, gerade) — bereits fixiert,
+    // bleibt so; der neue-Rhythmus-Ungerade-KW-Regel greift NICHT.
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-31', {}, ['2026-08-17'])
+    expect(r.map(x => x.rasterMontag)).toEqual(['2026-08-17', '2026-08-31'])
   })
 })
 
@@ -341,20 +351,22 @@ describe('buildIviVorschlaege — Feiertags-Ausweich', () => {
 
   it('springt NIE in eine andere Woche', () => {
     // In der ganzen Woche vom 03.08. ist niemand da -> kein_tag, nicht 10.08.
+    // Anker über bestehende[] fixiert (03.08.), damit die Ungerade-KW-Regel
+    // hier nicht greift — getestet wird das NICHT-Springen der Raster-Woche.
     const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05')
+    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05', {}, ['2026-08-03'])
     expect(r[0].status).toBe('kein_tag')
     expect(r[0].date).toBe('2026-08-03')
   })
 })
 
 describe('buildIviVorschlaege — Status', () => {
-  const range = ['2026-08-01', '2026-08-05'] as const
+  const range = ['2026-08-08', '2026-08-14'] as const
 
   it('bereit wenn Injektor + Partner ueberlappen', () => {
     const v = verf({
-      'Dmitri Artemiev': { '2026-08-03': 'GT' },
-      'Markus Tschopp':  { '2026-08-03': 'NM' },
+      'Dmitri Artemiev': { '2026-08-10': 'GT' },
+      'Markus Tschopp':  { '2026-08-10': 'NM' },
     })
     const r = buildIviVorschlaege(v, ...range)
     expect(r[0].status).toBe('bereit')
@@ -363,7 +375,7 @@ describe('buildIviVorschlaege — Status', () => {
   })
 
   it('partner_fehlt wenn nur der Injektor da ist — mit empfohlenem Code', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-03': 'GT' } })
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT' } })
     const r = buildIviVorschlaege(v, ...range)
     expect(r[0].status).toBe('partner_fehlt')
     expect(r[0].empfohlenerPartnerCode).toBe('NM')
@@ -371,8 +383,8 @@ describe('buildIviVorschlaege — Status', () => {
 
   it('halbtag_konflikt wenn beide da sind aber VM gegen NM', () => {
     const v = verf({
-      'Dmitri Artemiev': { '2026-08-03': 'VM' },
-      'Markus Tschopp':  { '2026-08-03': 'NM' },
+      'Dmitri Artemiev': { '2026-08-10': 'VM' },
+      'Markus Tschopp':  { '2026-08-10': 'NM' },
     })
     const r = buildIviVorschlaege(v, ...range)
     expect(r[0].status).toBe('halbtag_konflikt')
@@ -382,13 +394,13 @@ describe('buildIviVorschlaege — Status', () => {
   })
 
   it('kein_tag wenn der Injektor die ganze Woche fehlt', () => {
-    const v = verf({ 'Markus Tschopp': { '2026-08-03': 'GT' } })
+    const v = verf({ 'Markus Tschopp': { '2026-08-10': 'GT' } })
     const r = buildIviVorschlaege(v, ...range)
     expect(r[0].status).toBe('kein_tag')
   })
 
   it('empfiehlt VM wenn der Injektor nur vormittags da ist', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-03': 'VM' } })
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'VM' } })
     const r = buildIviVorschlaege(v, ...range)
     expect(r[0].status).toBe('partner_fehlt')
     expect(r[0].empfohlenerPartnerCode).toBe('VM')
@@ -408,35 +420,36 @@ describe('isoKalenderwoche', () => {
 
 describe('buildIviVorschlaege — geprueft/KW', () => {
   it('protokolliert Mo, Do UND Fr wenn keiner geht', () => {
-    const v = verf({ 'Markus Tschopp': { '2026-08-03': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05', {}, [], {
-      '2026-08-03': 'Fer', '2026-08-06': 'W', '2026-08-07': 'W',
+    // Woche KW 33 (ungerade) — kein KW-Anker-Shift, testet nur die Protokollierung.
+    const v = verf({ 'Markus Tschopp': { '2026-08-10': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-14', {}, [], {
+      '2026-08-10': 'Fer', '2026-08-13': 'W', '2026-08-14': 'W',
     })
     expect(r[0].status).toBe('kein_tag')
     expect(r[0].geprueft).toEqual([
-      { date: '2026-08-03', grund: 'Artemiev Fer' },
-      { date: '2026-08-06', grund: 'Artemiev W' },
-      { date: '2026-08-07', grund: 'Artemiev W' },
+      { date: '2026-08-10', grund: 'Artemiev Fer' },
+      { date: '2026-08-13', grund: 'Artemiev W' },
+      { date: '2026-08-14', grund: 'Artemiev W' },
     ])
   })
 
   it('meldet «nicht eingeteilt» wenn gar kein Code hinterlegt ist', () => {
-    const v = verf({ 'Markus Tschopp': { '2026-08-03': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05')
+    const v = verf({ 'Markus Tschopp': { '2026-08-10': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-14')
     expect(r[0].geprueft.every(g => g.grund === 'Artemiev nicht eingeteilt')).toBe(true)
   })
 
   it('protokolliert nur die verworfenen Tage, nicht den gewaehlten', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-06': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05', { '2026-08-03': 'Feiertag' })
-    expect(r[0].date).toBe('2026-08-06')
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-13': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-14', { '2026-08-10': 'Feiertag' })
+    expect(r[0].date).toBe('2026-08-13')
     expect(r[0].geprueft).toHaveLength(1)             // nur der Montag
     expect(r[0].geprueft[0].grund).toContain('Feiertag')
   })
 
   it('liefert die KW des vorgeschlagenen Tages', () => {
-    const v = verf({ 'Dmitri Artemiev': { '2026-08-03': 'GT' } })
-    const r = buildIviVorschlaege(v, '2026-08-01', '2026-08-05')
-    expect(r[0].kw).toBe(32)
+    const v = verf({ 'Dmitri Artemiev': { '2026-08-10': 'GT' } })
+    const r = buildIviVorschlaege(v, '2026-08-08', '2026-08-14')
+    expect(r[0].kw).toBe(33)
   })
 })

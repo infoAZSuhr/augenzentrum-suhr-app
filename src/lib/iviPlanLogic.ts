@@ -287,11 +287,27 @@ export function buildIviVorschlaege(
 ): IviVorschlag[] {
   const byDate = new Map(verfuegbar.map(t => [t.date, t]))
 
-  // Anker: erster bestehender IVI-Montag ab heute, sonst nächster Montag.
+  // Anker: erster bestehender IVI-Montag ab heute (bereits fixierter Rhythmus
+  // bleibt so), sonst der nächste Montag.
   const ankerKandidat = bestehende
     .filter(d => d >= today && new Date(d + 'T00:00:00Z').getUTCDay() === 1)
     .sort()[0]
-  const anker = ankerKandidat ?? naechsterMontag(today)
+  let anker = ankerKandidat ?? naechsterMontag(today)
+  // Nutzerwunsch 2026-07-21: neuen Rhythmus möglichst in UNGERADEN KW verankern.
+  // ABER nur, wenn der Injektor in der ungeraden-KW-Woche auch verfügbar ist —
+  // ist er nur in der geraden KW da (durch Abwesenheiten unausweichlich), bleibt
+  // es bei der geraden KW. Prüft dieselben Kandidaten (Mo/Do/Fr) wie unten.
+  if (!ankerKandidat && isoKalenderwoche(anker) % 2 === 0) {
+    const ungeradeWoche = isoAdd(anker, 7)
+    const injektorDaIn = (mo: string) =>
+      [mo, isoAdd(mo, 3), isoAdd(mo, 4)].some(k => !feiertage[k] && byDate.get(k)?.anwesend.some(a => a.injector))
+    // Nur verschieben, wenn die ungerade Woche nutzbar ist. Ist die gerade
+    // Woche gar nicht nutzbar, ebenfalls verschieben (dann ist die gerade KW
+    // ohnehin ein Leer-Tag).
+    if (injektorDaIn(ungeradeWoche) || !injektorDaIn(anker)) {
+      anker = ungeradeWoche
+    }
+  }
 
   const out: IviVorschlag[] = []
   for (let mo = anker; mo <= bisDatum; mo = isoAdd(mo, 14)) {
