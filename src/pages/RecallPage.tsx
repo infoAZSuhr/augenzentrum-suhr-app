@@ -3252,6 +3252,7 @@ const lirisExtractRef  = useRef(lirisExtract)
   body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;background:#fff}
   .page{position:relative;width:21cm;height:29.7cm;max-height:29.7cm;overflow:hidden;padding:1.2cm 2.2cm 2cm 2.5cm;margin:auto}
   .footer-id{position:absolute;left:2.5cm;right:2.2cm;bottom:.7cm;font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:.15cm;white-space:nowrap}
+  .footer-id-rechnung{position:absolute;left:2.5cm;right:2.2cm;bottom:10.8cm;font-size:7.5pt;color:#888;white-space:nowrap}
   .letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:-0.1cm}
   .lh-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;max-width:7.5cm}
   .lh-logo{height:1.9cm;width:auto;max-width:7.5cm;object-fit:contain;display:block;margin-bottom:.45cm;margin-left:-.37cm}
@@ -3333,7 +3334,8 @@ const lirisExtractRef  = useRef(lirisExtract)
     <p>Augenzentrum Suhr Team</p>
   </div></div>
 
-  ${form.briefVariante === 'rechnung' ? zahlteilHtml : `<div class="footer-id">${escLine(footerIdCode(patient))}</div>`}
+  <div class="${form.briefVariante === 'rechnung' ? 'footer-id-rechnung' : 'footer-id'}">${escLine(footerIdCode(patient))}</div>
+  ${form.briefVariante === 'rechnung' ? zahlteilHtml : ''}
 
 </div>
 ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBelegPreview.length

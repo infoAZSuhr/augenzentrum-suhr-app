@@ -114,7 +114,10 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
   // Plaintext-Variante des Briefs für den E-Mail-Body.
   const buildPlainBody = (): string => {
     const salut = `Sehr ${anredeForm(anrede)} ${nachname}`
-    const sig = ['', '─────────────────────────────────', 'Freundliche Grüsse', 'Augenzentrum Suhr Team', '', '  Tel.  +41 62 842 18 46', '  Mail  info@augenzentrum-suhr.ch', '  Web   www.augenzentrum-suhr.ch'].join('\n')
+    // Fusszeilen-Code (PID-Geburtsdatum-Initialen) auch in der E-Mail — wie im
+    // Brief und beim Recall-Versand (Nutzerwunsch 2026-07-22).
+    const fc = footerCode()
+    const sig = ['', '─────────────────────────────────', 'Freundliche Grüsse', 'Augenzentrum Suhr Team', '', '  Tel.  +41 62 842 18 46', '  Mail  info@augenzentrum-suhr.ch', '  Web   www.augenzentrum-suhr.ch', ...(fc ? ['', `  Ref.: ${fc}`] : [])].join('\n')
     if (art === 'Aufgebot' || art === 'Bestaetigung') {
       const intro = art === 'Aufgebot'
         ? 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir haben für Sie folgenden Termin reserviert:'
