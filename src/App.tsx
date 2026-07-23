@@ -12,20 +12,40 @@ import GlobalErrorHandler from './components/GlobalErrorHandler'
 import Dashboard from './pages/Dashboard'
 import LoginPage from './pages/LoginPage'
 import PendingApprovalPage from './pages/PendingApprovalPage'
-import UserManagementPage from './pages/UserManagementPage'
-import RequestLogPage from './pages/RequestLogPage'
-import LidPage from './pages/LidPage'
-import KatPage from './pages/KatPage'
 import ForceChangePasswordPage from './pages/ForceChangePasswordPage'
 import ForceSetEmailPage from './pages/ForceSetEmailPage'
-import HelpPage from './pages/HelpPage'
-import TasksPage from './pages/TasksPage'
-import TaskBoardPage from './pages/TaskBoardPage'
-import RecallPage from './pages/RecallPage'
-import LirisPage from './pages/LirisPage'
-import ZuweisungPage from './pages/ZuweisungPage'
-import AkvPage from './pages/AkvPage'
-import AdminSystemPage from './pages/AdminSystemPage'
+
+// Chunk-Nachladen kann nach einem Deploy fehlschlagen (alter Chunk-Hash
+// existiert auf dem Hosting nicht mehr, solange eine aeltere App-Sitzung
+// offen ist). Dann einmalig die Seite neu laden statt weiss zu bleiben.
+function lazyRetry<T extends { default: React.ComponentType<any> }>(factory: () => Promise<T>) {
+  return lazy(() =>
+    factory().then(m => { sessionStorage.removeItem('chunk-reload'); return m }).catch(err => {
+      if (!sessionStorage.getItem('chunk-reload')) {
+        sessionStorage.setItem('chunk-reload', '1')
+        window.location.reload()
+        return new Promise<T>(() => { /* pending bis Reload */ })
+      }
+      throw err
+    })
+  )
+}
+
+// Schwere Seiten lazy laden — sie stecken sonst alle im Start-Bundle und
+// verlangsamen den ersten App-Start (Performance-Optimierung 2026-07-23;
+// RecallPage allein ist ~9500 Zeilen inkl. xlsx/pdf-lib/qrcode).
+const UserManagementPage = lazyRetry(() => import('./pages/UserManagementPage'))
+const RequestLogPage     = lazyRetry(() => import('./pages/RequestLogPage'))
+const LidPage            = lazyRetry(() => import('./pages/LidPage'))
+const KatPage            = lazyRetry(() => import('./pages/KatPage'))
+const HelpPage           = lazyRetry(() => import('./pages/HelpPage'))
+const TasksPage          = lazyRetry(() => import('./pages/TasksPage'))
+const TaskBoardPage      = lazyRetry(() => import('./pages/TaskBoardPage'))
+const RecallPage         = lazyRetry(() => import('./pages/RecallPage'))
+const LirisPage          = lazyRetry(() => import('./pages/LirisPage'))
+const ZuweisungPage      = lazyRetry(() => import('./pages/ZuweisungPage'))
+const AkvPage            = lazyRetry(() => import('./pages/AkvPage'))
+const AdminSystemPage    = lazyRetry(() => import('./pages/AdminSystemPage'))
 
 const IVOMModule        = lazy(() => import('./modules/ivom'))
 const LagerModule       = lazy(() => import('./modules/lager'))
@@ -145,6 +165,7 @@ function PermissionGate({ allowed, children }: { allowed: boolean; children: Rea
 function RoutesWithPermissions() {
   const { isAdmin, isGeschaeftsleitung, canAccessIvom, canAccessLager, canAccessPlanung, canAccessSOP, canAccessRecall, canAccessAkv, canAccessBenutzerverwaltung } = useAuth()
   return (
+    <Suspense fallback={<Loading />}>
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
@@ -166,6 +187,7 @@ function RoutesWithPermissions() {
         <Route path="hilfe"        element={<HelpPage />} />
       </Route>
     </Routes>
+    </Suspense>
   )
 }
 
