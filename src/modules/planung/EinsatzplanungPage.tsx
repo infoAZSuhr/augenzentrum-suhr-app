@@ -853,29 +853,38 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
   // nutzt dasselbe Hidden-Iframe wie die uebrigen Druckfunktionen der Seite.
   function druckeIviPlanung(){
     const esc=(t:string)=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    // Farbige Code-Badges wie am Bildschirm (Ganztag grün, Vormittag blau,
+    // Nachmittag gelb) — print-color-adjust sorgt dafür, dass die Farben
+    // auch im PDF/Druck erhalten bleiben (Nutzerwunsch 2026-07-23).
+    const badge=(txt:string,bg:string,co='#111')=>
+      `<span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:8px;font-weight:bold;background:${bg};color:${co};-webkit-print-color-adjust:exact;print-color-adjust:exact">${txt}</span>`
     const aerzte=(list:{name:string;code:string}[])=>
-      list.map(a=>`${esc(a.name)} <b>${esc(CODE_LABELS[a.code]??a.code)}</b>`).join(' · ')
+      list.map(a=>`${esc(a.name)} ${badge(esc(CODE_LABELS[a.code]??a.code),CODE_PRINT[a.code]??'#f3f4f6')}`).join(' &nbsp; ')
     const geplantRows=geplant.map(t=>`
-      <tr${t.allein?' style="background:#fef3c7"':''}>
+      <tr${t.allein?' style="background:#fef3c7;-webkit-print-color-adjust:exact;print-color-adjust:exact"':''}>
         <td class="wd">${fmtWd(t.date)}</td>
         <td class="dt">${fmtD(t.date)}</td>
-        <td class="kw">KW ${isoKalenderwoche(t.date)}</td>
-        <td class="kw">${patCounts[t.date]??0} Pat.</td>
-        <td>${aerzte(t.anwesend)}${t.allein?' — <b>⚠ allein, ohne Artemiev</b>':''}</td>
+        <td class="kw">${badge(`KW ${isoKalenderwoche(t.date)}`,'#f3f4f6','#6b7280')}</td>
+        <td class="kw">${badge(`${patCounts[t.date]??0} Pat.`,'#dbeafe','#1d4ed8')}</td>
+        <td>${aerzte(t.anwesend)}${t.allein?` ${badge('⚠ allein — ohne Artemiev','#fbbf24','#78350f')}`:''}</td>
       </tr>`).join('')
+    const statusBg:Record<string,[string,string]>={
+      partner_fehlt:['#fef9c3','#854d0e'], halbtag_konflikt:['#dbeafe','#1e40af'],
+      kein_tag:['#f3f4f6','#6b7280'], bereit:['#dcfce7','#166534'],
+    }
     const moeglichRows=moegliche.map(v=>`
       <tr>
         <td class="wd">${fmtWd(v.date)}</td>
         <td class="dt">${fmtD(v.date)}</td>
-        <td class="kw">KW ${v.kw}</td>
+        <td class="kw">${badge(`KW ${v.kw}`,'#f3f4f6','#6b7280')}</td>
         <td>${v.anwesend.length?aerzte(v.anwesend):'<i>niemand eingeteilt</i>'}</td>
-        <td class="st">${esc(VORSCHLAG_STYLE[v.status].label)}</td>
+        <td class="st">${badge(esc(VORSCHLAG_STYLE[v.status].label),...(statusBg[v.status]??['#f3f4f6','#374151']))}</td>
       </tr>`).join('')
     const html=`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">
       <title>IVI-Tage Planung</title>
       <style>
         @page{size:A4 portrait;margin:12mm}
-        body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111}
+        body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         h1{font-size:15px;margin:0 0 2px}
         .sub{font-size:9px;color:#666;margin-bottom:10px}
         h2{font-size:11px;margin:12px 0 4px}
