@@ -756,9 +756,14 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
   // zusammenpassen — unabhaengig vom Vorschlags-Raster (Nutzerwunsch
   // 2026-07-22: «Tage ab heute anzeigen»). Sonst fehlten reale Termine in
   // geraden KW bzw. an Ausweichtagen (Do/Fr).
+  // Geplante Liste enthaelt auch Tage, an denen Tschopp/Trachsler ALLEIN
+  // (ohne Artemiev) eingetragen sind — hervorgehoben, damit auffaellt, dass
+  // dort der Injektor fehlt (Nutzerwunsch 2026-07-23).
   const geplant=useMemo(()=>
     buildArztVerfuegbarkeit([data],TODAY)
-      .filter(t=>t.passend&&t.date>=TODAY&&!feiertage[t.date])
+      .filter(t=>t.date>=TODAY&&!feiertage[t.date])
+      .map(t=>({...t,allein:!t.anwesend.some(a=>a.injector)}))
+      .filter(t=>t.passend||t.allein)
       .sort((a,b)=>a.date.localeCompare(b.date)),
   [data,feiertage])
 
@@ -841,11 +846,11 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
     const aerzte=(list:{name:string;code:string}[])=>
       list.map(a=>`${esc(a.name)} <b>${esc(CODE_LABELS[a.code]??a.code)}</b>`).join(' · ')
     const geplantRows=geplant.map(t=>`
-      <tr>
+      <tr${t.allein?' style="background:#fef3c7"':''}>
         <td class="wd">${fmtWd(t.date)}</td>
         <td class="dt">${fmtD(t.date)}</td>
         <td class="kw">KW ${isoKalenderwoche(t.date)}</td>
-        <td>${aerzte(t.anwesend)}</td>
+        <td>${aerzte(t.anwesend)}${t.allein?' — <b>⚠ allein, ohne Artemiev</b>':''}</td>
       </tr>`).join('')
     const moeglichRows=moegliche.map(v=>`
       <tr>
@@ -926,11 +931,17 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
               </div>
               <div className="divide-y divide-gray-50">
                 {geplant.map(t=>(
-                  <div key={t.date} className="px-3 py-2">
+                  <div key={t.date} className={`px-3 py-2 ${t.allein?'bg-amber-50':''}`}>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-gray-500 w-6 shrink-0">{fmtWd(t.date)}</span>
                         <span className="text-sm text-gray-800">{fmtD(t.date)}</span>
+                        {t.allein&&(
+                          <span title="An diesem Tag ist nur der Partner-Arzt eingetragen — Artemiev (Injektor) fehlt, IVI so nicht möglich."
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 shrink-0 cursor-help">
+                            ⚠ allein — ohne Artemiev
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 shrink-0">KW {isoKalenderwoche(t.date)}</span>
                     </div>
