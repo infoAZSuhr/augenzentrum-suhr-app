@@ -13,6 +13,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { manageFerienPlan, writePlanEntry, removePlanEntry } from '../../lib/firestorePlanung'
+import { getPlannedIviDays } from '../../lib/firestorePatients'
 import { useToast } from '../../lib/ToastContext'
 import { useBrowser } from '../../contexts/BrowserContext'
 
@@ -756,6 +757,15 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
   // zusammenpassen — unabhaengig vom Vorschlags-Raster (Nutzerwunsch
   // 2026-07-22: «Tage ab heute anzeigen»). Sonst fehlten reale Termine in
   // geraden KW bzw. an Ausweichtagen (Do/Fr).
+  // Anzahl eingetragener IVI-Patienten pro Tag (aus den Behandlungen des
+  // IVOM-Moduls, nextAppointment) — wie in der Dashboard-Kachel.
+  const [patCounts,setPatCounts]=useState<Record<string,number>>({})
+  useEffect(()=>{
+    getPlannedIviDays()
+      .then(list=>{const m:Record<string,number>={};for(const x of list)m[x.date]=x.count;setPatCounts(m)})
+      .catch(()=>{/* Zahlen optional — Liste funktioniert auch ohne */})
+  },[])
+
   // Geplante Liste enthaelt auch Tage, an denen Tschopp/Trachsler ALLEIN
   // (ohne Artemiev) eingetragen sind — hervorgehoben, damit auffaellt, dass
   // dort der Injektor fehlt (Nutzerwunsch 2026-07-23).
@@ -850,6 +860,7 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
         <td class="wd">${fmtWd(t.date)}</td>
         <td class="dt">${fmtD(t.date)}</td>
         <td class="kw">KW ${isoKalenderwoche(t.date)}</td>
+        <td class="kw">${patCounts[t.date]??0} Pat.</td>
         <td>${aerzte(t.anwesend)}${t.allein?' — <b>⚠ allein, ohne Artemiev</b>':''}</td>
       </tr>`).join('')
     const moeglichRows=moegliche.map(v=>`
@@ -882,7 +893,7 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
 
       <h2>Geplante IVI-Tage</h2>
       ${geplant.length
-        ?`<table><thead><tr><th></th><th>Datum</th><th>KW</th><th>Ärzte</th></tr></thead><tbody>${geplantRows}</tbody></table>`
+        ?`<table><thead><tr><th></th><th>Datum</th><th>KW</th><th>Pat.</th><th>Ärzte</th></tr></thead><tbody>${geplantRows}</tbody></table>`
         :'<p class="empty">Keine geplanten Tage.</p>'}
 
       <h2>Mögliche Tage</h2>
@@ -943,7 +954,12 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 shrink-0">KW {isoKalenderwoche(t.date)}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full">
+                          {patCounts[t.date]??0} Patient{(patCounts[t.date]??0)!==1?'en':''}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5">KW {isoKalenderwoche(t.date)}</span>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 pl-8">
                       {t.anwesend.map(a=>(
