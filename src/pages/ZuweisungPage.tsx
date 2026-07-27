@@ -10,6 +10,7 @@ import { useAuth } from '../lib/AuthContext'
 import { useBrowser } from '../contexts/BrowserContext'
 import { useToast } from '../lib/ToastContext'
 import { summarizeBericht } from '../lib/ai'
+import { useDraggable } from '../hooks/useDraggable'
 
 const isElectron = typeof window !== 'undefined' && !!(window as { electronApp?: unknown }).electronApp
 
@@ -110,6 +111,7 @@ export default function ZuweisungPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const { open: openBrowser, openWithPid, lirisExtract } = useBrowser()
+  const { style: reportDragStyle, onHeaderMouseDown: onReportHeaderMouseDown } = useDraggable('zuweisung-report')
   const displayLabel = profile?.displayName || profile?.username || 'System'
   const ROLE_FALLBACK: Record<string, string> = { admin: 'Administration', arzt: 'Arzt/Ärztin', mpa: 'Medizinische Praxisassistenz', geschaeftsleitung: 'Geschäftsleitung' }
   const displayFunktion = profile?.funktion?.trim()
@@ -1251,8 +1253,8 @@ export default function ZuweisungPage() {
       {/* Quartalsbericht-Modal */}
       {showReport && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowReport(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto" style={reportDragStyle} onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between cursor-move select-none" onMouseDown={onReportHeaderMouseDown}>
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-violet-600" />
                 Zuweisungsbericht — extern
@@ -1407,7 +1409,16 @@ export default function ZuweisungPage() {
                                   : <span className="text-gray-300">—</span>}
                               </td>
                               <td className="px-2 py-1.5 font-mono text-gray-500 whitespace-nowrap">{r.pid || '—'}</td>
-                              <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
+                              <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">
+                                {r.pid ? (
+                                  <button
+                                    onClick={() => { openBrowser(); openWithPid(r.pid) }}
+                                    className="text-violet-700 hover:text-violet-900 hover:underline font-medium"
+                                    title="Patient in Liris öffnen">
+                                    {r.name}
+                                  </button>
+                                ) : r.name}
+                              </td>
                               <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.doctor || '—'}</td>
                               <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.ziel}</td>
                               <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grund}</td>
