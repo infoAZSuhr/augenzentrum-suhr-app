@@ -462,7 +462,9 @@ function computeRecallSummary(patients: Record<string, any>[]): RecallSummary {
       zwPendent++
       if (z.datum && z.datum <= eightWeeksAgo) {
         zwUeberfaellig++
-        if (!z.berichtAngefragt) zwAnfrageFaellig++
+        // Kein Anfrage-Hinweis, solange der extern geplante Termin noch
+        // in der Zukunft liegt (Behandlung hat noch nicht stattgefunden).
+        if (!z.berichtAngefragt && !(z.geplanterTermin && z.geplanterTermin > today)) zwAnfrageFaellig++
       }
     }
     // Check for past-due Reminder entries + open phone calls

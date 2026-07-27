@@ -294,8 +294,11 @@ export default function ZuweisungPage() {
 
   // Automatische Berichtsanfrage-Erinnerung: Zuweisung ist >8 Wochen pendent,
   // kein Bericht da und noch KEINE Anfrage verschickt — sollte angefragt werden.
+  // Liegt der von extern mitgeteilte geplante Termin noch in der Zukunft, ist
+  // eine Anfrage sinnlos (Behandlung hat noch gar nicht stattgefunden).
   const istAnfrageFaellig = (z: Zuweisung) =>
     normStatus(z.status) === 'pendent' && !z.berichtErhalten && !z.berichtAngefragt && (wochenSeit(z.datum) ?? 0) >= 8
+    && !(z.geplanterTermin && z.geplanterTermin > new Date().toISOString().slice(0, 10))
   const [filterAnfrageFaellig, setFilterAnfrageFaellig] = useState(false)
   // Deep-Link vom Dashboard: /zuweisungen?filter=anfrage aktiviert den Filter.
   const location = useLocation()
