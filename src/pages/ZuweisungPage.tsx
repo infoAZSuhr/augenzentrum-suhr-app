@@ -328,7 +328,11 @@ export default function ZuweisungPage() {
     .flatMap(p => patientZuweisungen(p).map(z => ({ p, z, key: `${p.id}:${z.id}` })))
     .filter(({ p, z }) => {
       if (filterAnfrageFaellig && !istAnfrageFaellig(z)) return false
-      if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
+      // Abgesagte Termine gelten als abgeschlossen und erscheinen darum
+      // auch unter dem Filter «Erledigt» (eigener Filter «Abgesagt» bleibt).
+      if (filterStatus === 'erledigt') {
+        if (!['erledigt', 'abgesagt'].includes(normStatus(z.status))) return false
+      } else if (filterStatus !== 'alle' && normStatus(z.status) !== filterStatus) return false
       if (filterTyp !== 'alle' && z.typ !== filterTyp) return false
       if (filterGrund && (z.grund || '').trim() !== filterGrund) return false
       const q = search.trim().toLowerCase()
@@ -535,7 +539,7 @@ export default function ZuweisungPage() {
     const lines = [
       header.join(';'),
       ...report.detailRows.map(r => [
-        r.status === 'erledigt' ? 'Erfolgt' : 'Noch nicht erfolgt',
+        r.status === 'erledigt' ? 'Erfolgt' : r.status === 'abgesagt' ? 'Abgesagt' : 'Noch nicht erfolgt',
         r.geplanterTermin ? formatDate(r.geplanterTermin) : '—',
         r.pid, r.name, r.doctor, r.ziel, r.grund,
         rueckkehrLabel(r),
@@ -557,10 +561,11 @@ export default function ZuweisungPage() {
     // wuerden das gedruckte Markup sonst zerbrechen.
     const esc = (v: string) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     const rowsHtml = report.detailRows.map(r => {
-      const isErledigt = r.status === 'erledigt'
+      const statusBadge = r.status === 'erledigt' ? ['badge-green', 'Erfolgt']
+        : r.status === 'abgesagt' ? ['badge-gray', 'Abgesagt'] : ['badge-amber', 'Noch nicht erfolgt']
       return `
       <tr>
-        <td><span class="badge ${isErledigt ? 'badge-green' : 'badge-amber'}">${isErledigt ? 'Erfolgt' : 'Noch nicht erfolgt'}</span></td>
+        <td><span class="badge ${statusBadge[0]}">${statusBadge[1]}</span></td>
         <td>${r.geplanterTermin ? esc(formatDate(r.geplanterTermin)) : '—'}</td>
         <td>${esc(r.pid)}</td><td>${esc(r.name)}</td><td>${esc(r.doctor)}</td><td>${esc(r.ziel)}</td><td>${esc(r.grund)}</td>
         <td><span class="badge ${r.terminOffen ? 'badge-amber' : r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${esc(rueckkehrLabel(r))}</span></td>
@@ -1396,12 +1401,13 @@ export default function ZuweisungPage() {
                         </thead>
                         <tbody>
                           {report.detailRows.map((r, i) => (
-                            <tr key={i} className={r.status !== 'erledigt' ? 'bg-amber-50' : i % 2 === 1 ? 'bg-violet-50/50' : 'bg-white'}>
+                            <tr key={i} className={r.status === 'pendent' ? 'bg-amber-50' : i % 2 === 1 ? 'bg-violet-50/50' : 'bg-white'}>
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  r.status === 'erledigt' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                                }`} title="Behandlung/OP am externen Zielort (z.B. KSA)">
-                                  {r.status === 'erledigt' ? 'Erfolgt' : 'Noch nicht erfolgt'}
+                                  r.status === 'erledigt' ? 'bg-green-100 text-green-700'
+                                    : r.status === 'abgesagt' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-700'
+                                }`} title={r.status === 'abgesagt' ? 'Termin bei der Zielstelle wurde abgesagt — Zuweisung abgeschlossen' : 'Behandlung/OP am externen Zielort (z.B. KSA)'}>
+                                  {r.status === 'erledigt' ? 'Erfolgt' : r.status === 'abgesagt' ? 'Abgesagt' : 'Noch nicht erfolgt'}
                                 </span>
                               </td>
                               <td className="px-2 py-1.5 whitespace-nowrap">
