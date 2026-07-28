@@ -33,6 +33,8 @@ import {
   saveZuweisungConfig,
   ZUWEISUNG_DEFAULT_PRAXEN,
   ZUWEISUNG_DEFAULT_GRUENDE,
+  loadRecallActivity,
+  RecallActivityLog,
 } from '../lib/firestoreRecall'
 import { loadPlanungDoctorNames, loadPlanung, type PlanungData } from '../lib/firestorePlanung'
 import {
@@ -1873,6 +1875,16 @@ const lirisExtractRef  = useRef(lirisExtract)
   const [neuPeriod, setNeuPeriod] = useState<ActPeriod>('all')
   const [inaktivPeriod, setInaktivPeriod] = useState<ActPeriod>('all')
   // Zentrale Definition der Period-Buttons (Reihenfolge + Labels) — beide
+  // Append-only Aktivitäts-Log aus Firestore (recall_activity_log): jede
+  // Speicherung schreibt dort einen unveränderlichen Eintrag. Damit zählt
+  // «Bearbeitet» auch dann korrekt pro Person, wenn dieselbe Akte später von
+  // jemand anderem nachbearbeitet wurde (der aktualisiert-Stempel wird dabei
+  // überschrieben — das Log nicht).
+  const [activityLog, setActivityLog] = useState<RecallActivityLog[]>([])
+  useEffect(() => {
+    loadRecallActivity('2020-01-01').then(setActivityLog).catch(() => setActivityLog([]))
+  }, [])
+
   // Filter-Bars (Aktivität + Neupatienten) rendern aus dieser Liste.
   const PERIODS: Array<{ key: ActPeriod; label: string }> = [
     { key: 'today',     label: 'Heute' },
@@ -1954,6 +1966,15 @@ const lirisExtractRef  = useRef(lirisExtract)
       if (!inPeriod(isoDate)) return
       ensureCell(isoDate, user.trim().toLowerCase(), user.trim())[field]++
     }
+    // Log-Einträge (type 'updated') pro Patient gruppieren — sie werden unten
+    // mit den verlauf-/Stempel-Touches vereinigt (Set dedupliziert pro Tag+User).
+    const logByPatient = new Map<string, RecallActivityLog[]>()
+    for (const e of activityLog) {
+      if (!e.date || !e.user) continue
+      const list = logByPatient.get(e.patientId)
+      if (list) list.push(e); else logByPatient.set(e.patientId, [e])
+    }
+
     for (const p of all) {
       const ce = parseStamp(p.erstellt)
       if (ce) tally(ce.isoDate, ce.user, 'created')
@@ -1977,6 +1998,14 @@ const lirisExtractRef  = useRef(lirisExtract)
       }
       const cu = parseStamp(p.aktualisiert)
       if (cu) touches.set(`${cu.isoDate}\x00${cu.user.trim().toLowerCase()}`, cu.user.trim())
+      // Append-only-Log: bewahrt Bearbeitungen, deren aktualisiert-Stempel
+      // inzwischen von einem anderen User überschrieben wurde.
+      for (const e of logByPatient.get(p.id) ?? []) {
+        if (e.type !== 'updated') continue
+        const name = e.user.trim()
+        touches.set(`${e.date}\x00${name.toLowerCase()}`, name)
+      }
+      logByPatient.delete(p.id)
 
       for (const [k, displayName] of touches) {
         const sep = k.indexOf('\x00')
@@ -2058,6 +2087,20 @@ const lirisExtractRef  = useRef(lirisExtract)
         }
       }
     }
+    // Log-Einträge zu Patienten, die es nicht mehr gibt (gelöscht/umgehängt):
+    // zählen trotzdem — die Arbeit wurde ja geleistet. Dedupe pro
+    // Patient+Tag+User wie oben.
+    for (const [pid, entries] of logByPatient) {
+      const seen = new Set<string>()
+      for (const e of entries) {
+        if (e.type !== 'updated' && e.type !== 'created') continue
+        const key = `${pid}\x00${e.date}\x00${e.user.trim().toLowerCase()}\x00${e.type}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        tally(e.date, e.user, e.type === 'created' ? 'created' : 'updated')
+      }
+    }
+
     const actRows = Object.entries(actMap)
       .sort(([a], [b]) => b.localeCompare(a))
       .flatMap(([iso, users]) =>
@@ -2432,7 +2475,7 @@ const lirisExtractRef  = useRef(lirisExtract)
       .sort(byName)
 
     return { actRows, actRowsGrouped, actAufgebotTotals, docStats, inactiveDocStats, inactiveDocTotal, aufgebot, aufgebotMax, upcoming, neupatienten, neupatientRows, neupatientRowsGrouped, inaktiveRows, inaktivCounts, duplicatePidGroups, total: all.length, recall, rcLast, ageBuckets, riskZuweisung, riskReminder, riskAdresse, riskDeaktiviert, riskAusgeschieden }
-  }, [allData, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allData, activityLog, actPeriod, neuPeriod, inaktivPeriod, doctors]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Letzte Excel-Einlesung — gruppiert Patienten nach importedAt-Stamp,
   // findet den jüngsten (= chronologisch letzte Import-Session) + alle
