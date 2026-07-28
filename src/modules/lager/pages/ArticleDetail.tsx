@@ -374,8 +374,18 @@ const addLotMut = useMutation({
         {/* Info-Karten */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Bestand', value: `${article.currentStock ?? 0} ${article.unit}` },
-            { label: 'Mindestbestand', value: `${article.minStock} ${article.unit}` },
+            // Inhaltseinheit mit anzeigen (z.B. «7 Karton (70 Sets)»), wenn
+            // Inhalt pro Bestelleinheit + Mengeneinheit hinterlegt sind.
+            ...(() => {
+              const qty = article.quantityPerUnit
+              const qUnit = (article as any).quantityUnit as string | undefined
+              const mitInhalt = (n: number) =>
+                `${n} ${article.unit}` + (qty && qty > 0 && qUnit ? ` (${n * qty} ${qUnit})` : '')
+              return [
+                { label: 'Bestand', value: mitInhalt(article.currentStock ?? 0) },
+                { label: 'Mindestbestand', value: mitInhalt(article.minStock) },
+              ]
+            })(),
             { label: 'Lieferant', value: article.supplier || '—' },
             { label: 'Kategorie', value: article.category || '—' },
             { label: 'GTIN', value: (article as any).gtin || '—' },
