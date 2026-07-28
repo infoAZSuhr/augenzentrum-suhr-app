@@ -374,16 +374,14 @@ const addLotMut = useMutation({
         {/* Info-Karten */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            // Inhaltseinheit mit anzeigen (z.B. «7 Karton (70 Sets)»), wenn
-            // Inhalt pro Bestelleinheit + Mengeneinheit hinterlegt sind.
+            // Als Einheit die Inhaltseinheit anzeigen (z.B. «7 Sets» statt
+            // «7 Karton»), falls am Artikel eine Mengeneinheit hinterlegt ist.
+            // Die Zahl bleibt unverändert — nur die Bezeichnung wechselt.
             ...(() => {
-              const qty = article.quantityPerUnit
-              const qUnit = (article as any).quantityUnit as string | undefined
-              const mitInhalt = (n: number) =>
-                `${n} ${article.unit}` + (qty && qty > 0 && qUnit ? ` (${n * qty} ${qUnit})` : '')
+              const einheit = ((article as any).quantityUnit as string | undefined) || article.unit
               return [
-                { label: 'Bestand', value: mitInhalt(article.currentStock ?? 0) },
-                { label: 'Mindestbestand', value: mitInhalt(article.minStock) },
+                { label: 'Bestand', value: `${article.currentStock ?? 0} ${einheit}` },
+                { label: 'Mindestbestand', value: `${article.minStock} ${einheit}` },
               ]
             })(),
             { label: 'Lieferant', value: article.supplier || '—' },
