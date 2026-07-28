@@ -7293,7 +7293,15 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
                             <tr key={r.id} className="hover:bg-gray-50">
                               <td className="px-4 py-2.5 tabular-nums text-gray-500 text-xs">{r.dateStr || <span className="text-gray-300">—</span>}</td>
                               <td className="px-4 py-2.5 text-gray-800">
-                                <span className="font-medium">{r.vorname || <span className="text-gray-400 italic">ohne Name</span>}</span>
+                                {r.pid ? (
+                                  <button onClick={() => { openBrowser(); openWithPid(r.pid!) }}
+                                    className="font-medium text-primary-700 hover:text-primary-900 hover:underline"
+                                    title="Patient in Liris öffnen">
+                                    {r.vorname || <span className="text-gray-400 italic">ohne Name</span>}
+                                  </button>
+                                ) : (
+                                  <span className="font-medium">{r.vorname || <span className="text-gray-400 italic">ohne Name</span>}</span>
+                                )}
                                 {r.pid && <span className="ml-2 text-xs text-gray-400 tabular-nums">#{r.pid}</span>}
                               </td>
                               <td className="px-4 py-2.5 text-gray-600 text-xs">
