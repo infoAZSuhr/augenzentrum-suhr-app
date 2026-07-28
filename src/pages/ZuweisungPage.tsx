@@ -890,7 +890,10 @@ export default function ZuweisungPage() {
             >
               {/* Main row */}
               <div className="p-4">
-                <div className="flex items-start gap-3">
+                {/* flex-wrap + min-w: bei schmalem Fenster (Liris-Panel offen)
+                    rutscht der Aktions-Block unter die Patienteninfo, statt
+                    beide Spalten unlesbar schmal zu quetschen. */}
+                <div className="flex items-start gap-3 flex-wrap">
                   {/* Status icon */}
                   <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     isErledigt ? 'bg-green-100' : isAbgesagt ? 'bg-red-100' : 'bg-amber-100'
@@ -904,7 +907,7 @@ export default function ZuweisungPage() {
                   </div>
 
                   {/* Patient info */}
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-[240px]">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900 text-sm">
                         {p.vorname || '—'}
@@ -999,8 +1002,8 @@ export default function ZuweisungPage() {
                   </div>
 
                   {/* Actions: Buttons oben, Geplanter Termin + Bericht darunter (untereinander) */}
-                  <div className="shrink-0 flex flex-col items-end gap-1.5">
-                  <div className="flex items-center gap-1.5">
+                  <div className="ml-auto flex flex-col items-end gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {isElectron && p.pid && (
                       <button
                         onClick={() => openInLiris(p)}
