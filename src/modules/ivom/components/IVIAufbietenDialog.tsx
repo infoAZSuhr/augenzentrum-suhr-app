@@ -66,6 +66,12 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
   }
 
   const [art, setArt] = useState<Art>('Aufgebot')
+  // Terminart: Behandlung (Injektion) oder Kontrolluntersuchung — bestimmt
+  // die Formulierung im Brief (Nutzerwunsch 2026-07-31: unterscheiden).
+  const [terminArt, setTerminArt] = useState<'ivi' | 'kontrolle'>('ivi')
+  // Formulierungen je Terminart (HTML-escaped / plain).
+  const wasHtml  = terminArt === 'ivi' ? 'Ihre n&#228;chste Behandlung (intravitreale Injektion)' : 'Ihre n&#228;chste Kontrolluntersuchung'
+  const wasPlain = terminArt === 'ivi' ? 'Ihre nächste Behandlung (intravitreale Injektion)' : 'Ihre nächste Kontrolluntersuchung'
   const [anrede, setAnrede] = useState<'Frau' | 'Herr' | 'Familie' | ''>(
     (lx?.anrede as any) || (patient.gender === 'M' ? 'Herr' : patient.gender === 'W' ? 'Frau' : '')
   )
@@ -92,8 +98,8 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
     if (art === 'Aufgebot' || art === 'Bestaetigung') {
       const terminZeile = formatTerminLong(terminDatum, terminZeit)
       const intro = art === 'Aufgebot'
-        ? 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir haben f&#252;r Sie folgenden Termin <strong>reserviert</strong>:'
-        : 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre n&#228;chste Kontrolle bzw. Behandlung an. Wir best&#228;tigen Ihnen gerne folgenden Termin:'
+        ? `Im Rahmen Ihrer laufenden intravitrealen Therapie steht ${wasHtml} an. Wir haben f&#252;r Sie folgenden Termin <strong>reserviert</strong>:`
+        : `Im Rahmen Ihrer laufenden intravitrealen Therapie steht ${wasHtml} an. Wir best&#228;tigen Ihnen gerne folgenden Termin:`
       const boxLabel = art === 'Aufgebot' ? 'Reservierter Termin' : 'Best&#228;tigter Termin'
       return `${salut}
         <p>${intro}</p>
@@ -102,7 +108,7 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
         <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>`
     }
     return `${salut}
-      <p>Im Rahmen Ihrer intravitrealen Therapie w&#228;re Ihre n&#228;chste Kontrolle bzw. Behandlung f&#228;llig. F&#252;r den bestm&#246;glichen Behandlungserfolg ist eine regelm&#228;ssige Kontrolle wichtig.</p>
+      <p>Im Rahmen Ihrer intravitrealen Therapie w&#228;re ${wasHtml} f&#228;llig. F&#252;r den bestm&#246;glichen Behandlungserfolg ist eine regelm&#228;ssige Kontrolle wichtig.</p>
       <p>Bitte vereinbaren Sie einen Termin mit uns. Sie erreichen uns telefonisch unter <strong>062 842 18 46</strong>, per E-Mail an <a href="mailto:info@augenzentrum-suhr.ch">info@augenzentrum-suhr.ch</a> oder &#252;ber unser Web-Formular auf <a href="https://www.augenzentrum-suhr.ch">www.augenzentrum-suhr.ch</a>.</p>
       <p>Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
       <p>Wir danken Ihnen f&#252;r Ihr Vertrauen.</p>`
@@ -120,15 +126,15 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
     const sig = ['', '─────────────────────────────────', 'Freundliche Grüsse', 'Augenzentrum Suhr Team', '', '  Tel.  +41 62 842 18 46', '  Mail  info@augenzentrum-suhr.ch', '  Web   www.augenzentrum-suhr.ch', ...(fc ? ['', `  Ref.: ${fc}`] : [])].join('\n')
     if (art === 'Aufgebot' || art === 'Bestaetigung') {
       const intro = art === 'Aufgebot'
-        ? 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir haben für Sie folgenden Termin reserviert:'
-        : 'Im Rahmen Ihrer laufenden intravitrealen Therapie steht Ihre nächste Kontrolle bzw. Behandlung an. Wir bestätigen Ihnen gerne folgenden Termin:'
+        ? `Im Rahmen Ihrer laufenden intravitrealen Therapie steht ${wasPlain} an. Wir haben für Sie folgenden Termin reserviert:`
+        : `Im Rahmen Ihrer laufenden intravitrealen Therapie steht ${wasPlain} an. Wir bestätigen Ihnen gerne folgenden Termin:`
       return [salut, '', intro,
         '', `  ${formatTerminLong(terminDatum, terminZeit)}`, '',
         'Sollten Sie diesen Termin nicht wahrnehmen können, bitten wir Sie um eine Rückmeldung bis spätestens 24 Stunden vorher per Tel. 062 842 18 46 oder info@augenzentrum-suhr.ch.',
         'Wir danken Ihnen für Ihr Vertrauen.', sig].join('\n')
     }
     return [salut, '',
-      'Im Rahmen Ihrer intravitrealen Therapie wäre Ihre nächste Kontrolle bzw. Behandlung fällig. Für den bestmöglichen Behandlungserfolg ist eine regelmässige Kontrolle wichtig.',
+      `Im Rahmen Ihrer intravitrealen Therapie wäre ${wasPlain} fällig. Für den bestmöglichen Behandlungserfolg ist eine regelmässige Kontrolle wichtig.`,
       '', 'Bitte vereinbaren Sie einen Termin mit uns. Sie erreichen uns telefonisch unter 062 842 18 46, per E-Mail an info@augenzentrum-suhr.ch oder über unser Web-Formular auf www.augenzentrum-suhr.ch.',
       '', 'Sollten Sie bereits einen Termin bei uns vereinbart haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
       'Wir danken Ihnen für Ihr Vertrauen.', sig].join('\n')
@@ -206,6 +212,15 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
               }`}>
               <Icon className="w-4 h-4" /> {label}
             </button>
+          ))}
+        </div>
+
+        {/* Terminart: bestimmt die Brief-Formulierung (Injektion vs. Kontrolle) */}
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Terminart</p>
+        <div className="flex gap-2 mb-3">
+          {([['ivi', 'IVI-Behandlung (Injektion)'], ['kontrolle', 'Kontrolluntersuchung']] as const).map(([v, label]) => (
+            <button key={v} type="button" onClick={() => setTerminArt(v)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${terminArt === v ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>{label}</button>
           ))}
         </div>
 
