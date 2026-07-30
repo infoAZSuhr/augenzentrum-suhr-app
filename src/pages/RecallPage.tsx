@@ -472,6 +472,10 @@ export default function RecallPage() {
   // NUR in der Desktop-App. Im Browser blockiert CORS, daher Buttons
   // ausblenden statt einen toten Link anzubieten.
   const isElectron = typeof window !== 'undefined' && /Electron/i.test(navigator.userAgent)
+  /** Auswertung: GL/Ärzte/Admin sehen die komplette Statistik; MPA sehen nur
+   *  die Aktivitäts-Tabelle mit den eigenen Zeilen (Nutzerwunsch 2026-07-30). */
+  const canSeeFullAuswertung = isAdmin || isGeschaeftsleitung || isArzt
+  const ownActName = (profile?.displayName || profile?.username || '').trim().toLowerCase()
   /** Wer darf die Patientenliste hochladen und Imports rückgängig machen?
    *  Nur Admin + Geschäftsleitung — destruktive bzw. weitreichende Aktionen. */
   const canManageImports = isAdmin || isGeschaeftsleitung
@@ -4592,8 +4596,8 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
 
           {/* Aufgebot-Plan -> jetzt ueber den gleichnamigen Tab oben */}
 
-          {/* Auswertung — nur GL / Ärzte / Admin */}
-          {(isGeschaeftsleitung || isArzt || isAdmin) && (
+          {/* Auswertung — GL/Ärzte/Admin sehen alles, MPA nur die eigene Aktivität */}
+          {(
             <button
               onClick={() => setAuswertungOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors shrink-0"
@@ -6566,7 +6570,7 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
       })()}
 
       {/* ── Auswertung modal (nur GL / Ärzte / Admin) ────────────────────────── */}
-      {auswertungOpen && (isGeschaeftsleitung || isArzt || isAdmin) && (
+      {auswertungOpen && (
         <>
           <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setAuswertungOpen(false)} />
           <div className="fixed inset-2 sm:inset-8 z-[51] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
@@ -6620,9 +6624,11 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
                   // Tag×User. Erste Spalte wird zum Tage-Counter (z.B. "8 Tage")
                   // statt einem konkreten Datum.
                   const actGrouped = actPeriod !== 'all'
-                  const actBodyRows = actGrouped
+                  const actBodyRows = (actGrouped
                     ? auswertungStats.actRowsGrouped.map((r, i) => ({ key: `g${i}`, leftCol: `${r.days} ${r.days === 1 ? 'Tag' : 'Tage'}`, user: r.user, created: r.created, updated: r.updated, aufgebote: r.aufgebote }))
                     : auswertungStats.actRows.map(       (r, i) => ({ key: `d${i}`, leftCol: r.dateStr,                                  user: r.user, created: r.created, updated: r.updated, aufgebote: r.aufgebote }))
+                  // MPA sehen nur die eigenen Zeilen, keine Zahlen der anderen.
+                  ).filter(r => canSeeFullAuswertung || r.user.trim().toLowerCase() === ownActName)
                   if (actBodyRows.length === 0) return <p className="text-sm text-gray-400 py-4 text-center">Keine Aktivität im gewählten Zeitraum.</p>
                   return (
                   // Inline-scrollbar: max-h begrenzt die sichtbare Höhe, lange Listen
@@ -6706,6 +6712,10 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
                 })()}
               </div>
 
+              {/* Alle weiteren Sektionen (Neupatienten, Ärzte-Statistik, Inaktive,
+                  Risikogruppen …) nur für GL/Ärzte/Admin — MPA sehen ausschliesslich
+                  die eigene Aktivität oben. */}
+              {canSeeFullAuswertung && <>
               {/* ── Neupatienten ── */}
               <div>
                 <div className="flex items-center justify-between mb-3 gap-2">
@@ -7415,6 +7425,7 @@ ${opts?.includeBelegPreview && form.briefVariante === 'rechnung' && rechnungBele
                   </p>
                 )}
               </div>
+              </>}
 
             </div>
           </div>
