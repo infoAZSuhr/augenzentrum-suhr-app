@@ -14,6 +14,8 @@ type Art = 'Aufgebot' | 'Bestaetigung' | 'Reminder'
 
 interface ElectronBriefApi {
   renderBriefPdf?: (html: string) => Promise<{ ok: boolean; buffer?: ArrayBuffer; error?: string }>
+  writePdfTmp?: (buf: ArrayBuffer, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>
+  openMailWithAttachments?: (filePaths: string[], subject: string, recipient?: string, bodyText?: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 /** Wandelt VOLLSTÄNDIG grossgeschriebene Wörter in normale Schreibweise. */
@@ -179,8 +181,23 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
         const subject = art === 'Aufgebot' ? 'Terminaufgebot – intravitreale Therapie'
           : art === 'Bestaetigung' ? 'Terminbestätigung – intravitreale Therapie'
           : 'Erinnerung – intravitreale Therapie'
-        window.location.href = `mailto:${encodeURIComponent(patientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainBody())}`
-        setMsg({ kind: 'ok', text: '✓ E-Mail in Outlook geöffnet · Brief im Postausgang (für Liris-Ablage).' })
+        // Brief als PDF-Anhang (wie beim Recall-Versand) — kurzer Mail-Text,
+        // der Inhalt steht im angehängten Schreiben.
+        if (ea.writePdfTmp && ea.openMailWithAttachments) {
+          const fc = footerCode()
+          const shortBody = [`Sehr ${anredeForm(anrede)} ${nachname}`, '', 'Im Anhang erhalten Sie unser Schreiben.', '',
+            '─────────────────────────────────', 'Freundliche Grüsse', 'Augenzentrum Suhr Team', '',
+            '  Tel.  +41 62 842 18 46', '  Mail  info@augenzentrum-suhr.ch', '  Web   www.augenzentrum-suhr.ch',
+            ...(fc ? ['', `  Ref.: ${fc}`] : [])].join('\n')
+          const tmpRes = await ea.writePdfTmp(res.buffer, `IVI_${art}_${nachname || pid}_${today}.pdf`)
+          if (!tmpRes.ok || !tmpRes.path) { setMsg({ kind: 'err', text: `PDF konnte nicht gespeichert werden: ${tmpRes.error || 'unbekannt'}` }); return }
+          const mailRes = await ea.openMailWithAttachments([tmpRes.path], subject, patientEmail, shortBody)
+          if (!mailRes.ok) { setMsg({ kind: 'err', text: `E-Mail konnte nicht geöffnet werden: ${mailRes.error || 'unbekannt'}` }); return }
+        } else {
+          // Fallback (alte Desktop-App ohne Anhang-API): reiner Text-Mailto.
+          window.location.href = `mailto:${encodeURIComponent(patientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildPlainBody())}`
+        }
+        setMsg({ kind: 'ok', text: '✓ E-Mail mit PDF-Anhang in Outlook geöffnet · Brief im Postausgang (für Liris-Ablage).' })
       } else {
         setMsg({ kind: 'ok', text: '✓ Im Postausgang abgelegt — von dort drucken / ins Liris hochladen.' })
       }
