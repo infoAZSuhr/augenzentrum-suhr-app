@@ -3898,8 +3898,10 @@ export default function EinsatzplanungPage(){
             <span className="hidden sm:inline">Offene Tage</span>
           </button>}
 
-          {/* IVI-Tage Planung — nur für Ärzte und Admins */}
-          {(isAdmin||isArzt||isGeschaeftsleitung)&&<button onClick={()=>setShowIviVorschlag(true)}
+          {/* IVI-Tage Planung — MPA sehen die Übersicht (nur lesend, die
+              Übernehmen-Aktionen im Dialog bleiben Admin/GL/Partnerärzten
+              vorbehalten), Ärzte/GL/Admin können zusätzlich eintragen. */}
+          {profile&&!isGuest&&<button onClick={()=>setShowIviVorschlag(true)}
             title="IVI-Tage Planung: geplante Tage ab heute und mögliche weitere Tage"
             className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-teal-200 bg-teal-50 text-xs sm:text-sm text-teal-700 hover:bg-teal-100 transition-colors font-medium">
             <Calendar className="w-4 h-4 shrink-0"/>
