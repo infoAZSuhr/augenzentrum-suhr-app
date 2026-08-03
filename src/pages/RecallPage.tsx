@@ -1886,9 +1886,17 @@ const lirisExtractRef  = useRef(lirisExtract)
   // jemand anderem nachbearbeitet wurde (der aktualisiert-Stempel wird dabei
   // überschrieben — das Log nicht).
   const [activityLog, setActivityLog] = useState<RecallActivityLog[]>([])
+  const activityLogLoaded = useRef(false)
+  // Erst laden, wenn die Auswertung tatsächlich geöffnet wird (spart beim
+  // normalen Arbeiten einen wachsenden Firestore-Read), und nur ab dem
+  // 1.1. des Vorjahres — weiter reicht kein Zeitraum-Filter ausser «Alle»,
+  // und für ältere Daten greifen weiterhin verlauf/Stempel.
   useEffect(() => {
-    loadRecallActivity('2020-01-01').then(setActivityLog).catch(() => setActivityLog([]))
-  }, [])
+    if (!auswertungOpen || activityLogLoaded.current) return
+    activityLogLoaded.current = true
+    const since = `${new Date().getFullYear() - 1}-01-01`
+    loadRecallActivity(since).then(setActivityLog).catch(() => setActivityLog([]))
+  }, [auswertungOpen])
 
   // Filter-Bars (Aktivität + Neupatienten) rendern aus dieser Liste.
   const PERIODS: Array<{ key: ActPeriod; label: string }> = [
