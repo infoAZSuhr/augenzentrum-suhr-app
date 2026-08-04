@@ -889,6 +889,8 @@ function IviVorschlagModal({data,yearDays,year,feiertage,onClose,onAssign}:{
         .sub{font-size:9px;color:#666;margin-bottom:10px}
         h2{font-size:11px;margin:12px 0 4px}
         table{width:100%;border-collapse:collapse}
+        thead{display:table-header-group}
+        tr{page-break-inside:avoid}
         th,td{text-align:left;padding:3px 4px;border-bottom:1px solid #e5e7eb;vertical-align:top}
         th{font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;border-bottom:1px solid #9ca3af}
         td.wd{width:22px;color:#6b7280;font-weight:bold}

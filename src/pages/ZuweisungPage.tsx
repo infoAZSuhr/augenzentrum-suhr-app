@@ -587,6 +587,10 @@ export default function ZuweisungPage() {
         .kpi .l{font-size:10px;opacity:.9;}
         h2{font-size:13px;margin:18px 0 6px;color:#5b21b6;}
         table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+        /* Tabellenkopf auf JEDER gedruckten Seite wiederholen + Zeilen nicht
+           über Seitenumbrüche zerreissen. */
+        thead{display:table-header-group;}
+        tr{page-break-inside:avoid;}
         th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:11px;}
         th{background:#5b21b6;color:#fff;}
         tr:nth-child(even) td{background:#f8f7ff;}
@@ -604,11 +608,11 @@ export default function ZuweisungPage() {
         <div class="kpi k4"><div class="n">${report.ueberfaelligCount}</div><div class="l">Überfällig (&gt;8 Wo.)</div></div>
       </div>
       <h2>Nach Grund</h2>
-      <table><tr><th>Grund</th><th>Anzahl</th></tr>${report.byGrund.map(([g, n]) => `<tr><td>${esc(g)}</td><td>${n}</td></tr>`).join('')}</table>
+      <table><thead><tr><th>Grund</th><th>Anzahl</th></tr></thead><tbody>${report.byGrund.map(([g, n]) => `<tr><td>${esc(g)}</td><td>${n}</td></tr>`).join('')}</tbody></table>
       <h2>Nach Zielort</h2>
-      <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${esc(z)}</td><td>${n}</td></tr>`).join('')}</table>
+      <table><thead><tr><th>Zielort</th><th>Anzahl</th></tr></thead><tbody>${report.byZiel.map(([z, n]) => `<tr><td>${esc(z)}</td><td>${n}</td></tr>`).join('')}</tbody></table>
       <h2>Details</h2>
-      <table><tr><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Behandlung extern</th><th>Geplant extern</th><th>Termin Suhr</th><th>Bericht</th></tr>${rowsHtml}</table>
+      <table><thead><tr><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Behandlung extern</th><th>Geplant extern</th><th>Termin Suhr</th><th>Bericht</th></tr></thead><tbody>${rowsHtml}</tbody></table>
       </body></html>`
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
