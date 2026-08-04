@@ -537,14 +537,14 @@ export default function ZuweisungPage() {
       : r.zurueckgekehrt ? 'Ja' : 'Nein'
 
   function exportReportCsv() {
-    const header = ['Behandlung extern', 'Geplanter Termin extern', 'PID', 'Name', 'Zuweisender Arzt', 'Zielort', 'Grund', 'Termin Suhr', 'Bericht']
+    const header = ['PID', 'Name', 'Zuweisender Arzt', 'Zielort', 'Grund', 'Behandlung extern', 'Geplanter Termin extern', 'Termin Suhr', 'Bericht']
     const csvEscape = (v: string) => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
     const lines = [
       header.join(';'),
       ...report.detailRows.map(r => [
+        r.pid, r.name, r.doctor, r.ziel, r.grund,
         r.status === 'erledigt' ? 'Erfolgt' : r.status === 'abgesagt' ? 'Abgesagt' : 'Noch nicht erfolgt',
         r.geplanterTermin ? formatDate(r.geplanterTermin) : '—',
-        r.pid, r.name, r.doctor, r.ziel, r.grund,
         rueckkehrLabel(r),
         r.berichtErhalten ? 'Ja' : 'Nein',
       ].map(v => csvEscape(String(v))).join(';')),
@@ -568,9 +568,9 @@ export default function ZuweisungPage() {
         : r.status === 'abgesagt' ? ['badge-gray', 'Abgesagt'] : ['badge-amber', 'Noch nicht erfolgt']
       return `
       <tr>
+        <td>${esc(r.pid)}</td><td>${esc(r.name)}</td><td>${esc(r.doctor)}</td><td>${esc(r.ziel)}</td><td>${esc(r.grund)}</td>
         <td><span class="badge ${statusBadge[0]}">${statusBadge[1]}</span></td>
         <td>${r.geplanterTermin ? esc(formatDate(r.geplanterTermin)) : '—'}</td>
-        <td>${esc(r.pid)}</td><td>${esc(r.name)}</td><td>${esc(r.doctor)}</td><td>${esc(r.ziel)}</td><td>${esc(r.grund)}</td>
         <td><span class="badge ${r.terminOffen ? 'badge-amber' : r.zurueckgekehrt ? 'badge-green' : 'badge-red'}">${esc(rueckkehrLabel(r))}</span></td>
         <td><span class="badge ${r.berichtErhalten ? 'badge-blue' : 'badge-gray'}">${r.berichtErhalten ? 'Ja' : 'Nein'}</span></td>
       </tr>`
@@ -608,7 +608,7 @@ export default function ZuweisungPage() {
       <h2>Nach Zielort</h2>
       <table><tr><th>Zielort</th><th>Anzahl</th></tr>${report.byZiel.map(([z, n]) => `<tr><td>${esc(z)}</td><td>${n}</td></tr>`).join('')}</table>
       <h2>Details</h2>
-      <table><tr><th>Behandlung extern</th><th>Geplant extern</th><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Termin Suhr</th><th>Bericht</th></tr>${rowsHtml}</table>
+      <table><tr><th>PID</th><th>Name</th><th>Zuw. Arzt</th><th>Zielort</th><th>Grund</th><th>Behandlung extern</th><th>Geplant extern</th><th>Termin Suhr</th><th>Bericht</th></tr>${rowsHtml}</table>
       </body></html>`
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
@@ -1394,13 +1394,13 @@ export default function ZuweisungPage() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-violet-600 text-white">
-                            <th className="px-2 py-1.5 text-left font-semibold" title="Behandlung/OP am externen Zielort (z.B. KSA)">Behandlung extern</th>
-                            <th className="px-2 py-1.5 text-left font-semibold" title="Von der externen Stelle mitgeteilter geplanter Termin">Geplant extern</th>
                             <th className="px-2 py-1.5 text-left font-semibold">PID</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Name</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Zuw. Arzt</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Zielort</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Grund</th>
+                            <th className="px-2 py-1.5 text-left font-semibold" title="Behandlung/OP am externen Zielort (z.B. KSA)">Behandlung extern</th>
+                            <th className="px-2 py-1.5 text-left font-semibold" title="Von der externen Stelle mitgeteilter geplanter Termin">Geplant extern</th>
                             <th className="px-2 py-1.5 text-left font-semibold" title="Folgetermin/Rückkehr bei uns in Suhr">Termin Suhr</th>
                             <th className="px-2 py-1.5 text-left font-semibold">Bericht</th>
                           </tr>
@@ -1408,6 +1408,20 @@ export default function ZuweisungPage() {
                         <tbody>
                           {report.detailRows.map((r, i) => (
                             <tr key={i} className={r.status === 'pendent' ? 'bg-amber-50' : i % 2 === 1 ? 'bg-violet-50/50' : 'bg-white'}>
+                              <td className="px-2 py-1.5 font-mono text-gray-500 whitespace-nowrap">{r.pid || '—'}</td>
+                              <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">
+                                {r.pid ? (
+                                  <button
+                                    onClick={() => { openBrowser(); openWithPid(r.pid) }}
+                                    className="text-violet-700 hover:text-violet-900 hover:underline font-medium"
+                                    title="Patient in Liris öffnen">
+                                    {r.name}
+                                  </button>
+                                ) : r.name}
+                              </td>
+                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.doctor || '—'}</td>
+                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.ziel}</td>
+                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grund}</td>
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                                   r.status === 'erledigt' ? 'bg-green-100 text-green-700'
@@ -1423,20 +1437,6 @@ export default function ZuweisungPage() {
                                     </span>
                                   : <span className="text-gray-300">—</span>}
                               </td>
-                              <td className="px-2 py-1.5 font-mono text-gray-500 whitespace-nowrap">{r.pid || '—'}</td>
-                              <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">
-                                {r.pid ? (
-                                  <button
-                                    onClick={() => { openBrowser(); openWithPid(r.pid) }}
-                                    className="text-violet-700 hover:text-violet-900 hover:underline font-medium"
-                                    title="Patient in Liris öffnen">
-                                    {r.name}
-                                  </button>
-                                ) : r.name}
-                              </td>
-                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.doctor || '—'}</td>
-                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.ziel}</td>
-                              <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grund}</td>
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                                   r.terminOffen ? 'bg-amber-100 text-amber-700' : r.zurueckgekehrt ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
