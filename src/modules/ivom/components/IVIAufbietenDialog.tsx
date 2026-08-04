@@ -304,7 +304,9 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
 
       {/* Brief-Vorschau (A4-Seite als iframe, wie sie gedruckt wird) */}
       {showPreview && (
-        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
+        // pointer-events-auto: der äussere Dialog-Container ist pointer-events-none
+        // (nicht-modal) — ohne Reaktivierung wäre die Vorschau nicht schliessbar.
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4 pointer-events-auto" onClick={() => setShowPreview(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 shrink-0">
               <span className="text-sm font-bold text-gray-800">Brief-Vorschau</span>
