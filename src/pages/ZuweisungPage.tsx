@@ -435,11 +435,15 @@ export default function ZuweisungPage() {
   const [reportYear, setReportYear] = useState(now.getFullYear())
   const [reportQuarter, setReportQuarter] = useState<1 | 2 | 3 | 4>((Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4)
   const [reportMonth, setReportMonth] = useState(now.getMonth() + 1) // 1-12
+  // Optionales Ende eines Monats-Bereichs (inklusive): «August bis Oktober».
+  // Gleicher Wert wie reportMonth = einzelner Monat.
+  const [reportMonthBis, setReportMonthBis] = useState(now.getMonth() + 1)
 
   const report = useMemo(() => {
     const startMonth = reportPeriodType === 'monat' ? reportMonth - 1
       : reportPeriodType === 'jahr' ? 0 : (reportQuarter - 1) * 3
-    const monthSpan = reportPeriodType === 'monat' ? 1 : reportPeriodType === 'jahr' ? 12 : 3
+    const monthSpan = reportPeriodType === 'monat' ? Math.max(1, reportMonthBis - reportMonth + 1)
+      : reportPeriodType === 'jahr' ? 12 : 3
     const start = `${reportYear}-${String(startMonth + 1).padStart(2, '0')}-01`
     const endDate = new Date(reportYear, startMonth + monthSpan, 1)
     const end = endDate.toISOString().slice(0, 10) // exklusiv
@@ -520,13 +524,16 @@ export default function ZuweisungPage() {
       byZielPendent,
       detailRows,
     }
-  }, [patients, reportYear, reportQuarter, reportMonth, reportPeriodType])
+  }, [patients, reportYear, reportQuarter, reportMonth, reportMonthBis, reportPeriodType])
 
   const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
   // Kurzbezeichnung des gewaehlten Zeitraums fuer Titel/Dateiname (z.B. "Q3_2026" oder "Juli_2026")
-  const reportPeriodLabel = reportPeriodType === 'monat' ? `${MONTH_NAMES[reportMonth - 1]}_${reportYear}`
+  const monatLabel = reportMonthBis > reportMonth
+    ? `${MONTH_NAMES[reportMonth - 1]}–${MONTH_NAMES[reportMonthBis - 1]}`
+    : MONTH_NAMES[reportMonth - 1]
+  const reportPeriodLabel = reportPeriodType === 'monat' ? `${monatLabel.replace('–', '_bis_')}_${reportYear}`
     : reportPeriodType === 'jahr' ? `Jahr_${reportYear}` : `Q${reportQuarter}_${reportYear}`
-  const reportPeriodTitle = reportPeriodType === 'monat' ? `${MONTH_NAMES[reportMonth - 1]} ${reportYear}`
+  const reportPeriodTitle = reportPeriodType === 'monat' ? `${monatLabel} ${reportYear}`
     : reportPeriodType === 'jahr' ? `Jahr ${reportYear}` : `Q${reportQuarter} ${reportYear}`
 
   // Dreistufige Rückkehr-Anzeige: "Ja" (tatsächlich zurückgekehrt),
@@ -1301,10 +1308,19 @@ export default function ZuweisungPage() {
                     {[1, 2, 3, 4].map(q => <option key={q} value={q}>Q{q}</option>)}
                   </select>
                 ) : reportPeriodType === 'jahr' ? null : (
-                  <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                  </select>
+                  <>
+                    <select value={reportMonth}
+                      onChange={e => { const v = Number(e.target.value); setReportMonth(v); if (reportMonthBis < v) setReportMonthBis(v) }}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
+                      {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                    </select>
+                    <span className="text-xs text-gray-400">bis</span>
+                    <select value={reportMonthBis} onChange={e => setReportMonthBis(Number(e.target.value))}
+                      title="Bis-Monat: gleicher Monat = einzelner Monat, späterer Monat = Bereich"
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
+                      {MONTH_NAMES.map((m, i) => i + 1 >= reportMonth ? <option key={m} value={i + 1}>{m}</option> : null)}
+                    </select>
+                  </>
                 )}
                 <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
                   className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
