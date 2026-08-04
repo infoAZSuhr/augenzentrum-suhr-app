@@ -81,8 +81,17 @@ export default function IVIAufbietenDialog({ patient, onClose, onAufgeboten, arz
     const name = `${titleCase(patient.firstName || '')} ${titleCase(patient.lastName || '')}`.trim()
     return (name ? name + '\n' : '') + (lx?.postAdresse || '')
   })
-  const [terminDatum, setTerminDatum] = useState<string>(patient.nextAppointmentDate || '')
+  const [terminDatum, setTerminDatum] = useState<string>(patient.nextAppointmentDate || lx?.naechsterTerminDatum || '')
   const [terminZeit, setTerminZeit] = useState<string>('')
+  // Zeit automatisch aus dem in Liris bestehenden Termin übernehmen, wenn das
+  // gewählte Datum dem «Nächster Termin» aus der Akte entspricht — die MPA
+  // muss die Uhrzeit dann nicht mehr abtippen. Manuell geänderte Zeit wird
+  // nicht überschrieben (nur Ausfüllen, wenn das Feld leer ist).
+  useEffect(() => {
+    if (!terminZeit && lx?.naechsterTerminZeit && terminDatum && terminDatum === lx?.naechsterTerminDatum) {
+      setTerminZeit(lx.naechsterTerminZeit)
+    }
+  }, [terminDatum, lx?.naechsterTerminDatum, lx?.naechsterTerminZeit]) // eslint-disable-line react-hooks/exhaustive-deps
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
