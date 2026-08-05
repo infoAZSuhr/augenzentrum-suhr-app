@@ -52,6 +52,9 @@ export interface TaskCard {
   attachments: TaskAttachment[]
   checklist: ChecklistItem[]
   members: TaskMember[]
+  // Persönliche Merkliste: UIDs der User, die sich diese Karte als «noch zu
+  // erledigen» markiert haben — pro Person, unabhängig von Zuweisung/Status.
+  flaggedBy?: string[]
   createdBy: string
   createdByUid: string
   createdAt: unknown

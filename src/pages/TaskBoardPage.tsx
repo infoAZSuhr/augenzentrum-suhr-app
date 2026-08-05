@@ -14,7 +14,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import {
   Plus, X, Loader2, Clock, Trash2, CheckCircle2,
   Circle, MessageSquare, Settings, GripVertical, Paperclip, Square, CheckSquare, Users, User,
-  Search, SortAsc, UserCheck, ArrowRightLeft,
+  Search, SortAsc, UserCheck, ArrowRightLeft, Flag,
 } from 'lucide-react'
 
 const LABEL_COLOR_MAP: Record<string, string> = Object.fromEntries(LABEL_PRESETS.map(l => [l.id, l.color]))
@@ -102,6 +102,16 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
   const [assigneeName, setAssigneeName] = useState(card.assigneeName)
   const [assigneeRole, setAssigneeRole] = useState(card.assigneeRole)
   const [done, setDone]     = useState(card.done)
+  // Persönliche Merkliste («noch zu erledigen»): lokaler Spiegel von
+  // card.flaggedBy für sofortiges UI-Feedback.
+  const [flaggedBy, setFlaggedBy] = useState<string[]>(card.flaggedBy ?? [])
+  const isFlagged = !!profile && flaggedBy.includes(profile.uid)
+  async function toggleFlag() {
+    if (!profile) return
+    const next = isFlagged ? flaggedBy.filter(u => u !== profile.uid) : [...flaggedBy, profile.uid]
+    setFlaggedBy(next)
+    await updateCard(card.id, { flaggedBy: next })
+  }
   const [attachments, setAttachments] = useState<TaskAttachment[]>(card.attachments ?? [])
   const [checklist, setChecklist] = useState<ChecklistItem[]>(card.checklist ?? [])
   const [newCheckItem, setNewCheckItem] = useState('')
@@ -379,6 +389,15 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
           </button>
           <input value={title} onChange={e => canEdit && setTitle(e.target.value)} readOnly={!canEdit}
             className={`flex-1 font-bold text-gray-900 text-base bg-transparent focus:outline-none ${canEdit ? 'focus:bg-gray-50' : 'cursor-default'} rounded px-1 -ml-1 ${done ? 'line-through text-gray-400' : ''}`} />
+          {/* Persönliche Merkliste: «für mich noch zu erledigen» — pro User,
+              unabhängig von Zuweisung/Status (Nutzerwunsch 2026-08-05). */}
+          {profile && (
+            <button onClick={() => void toggleFlag()}
+              title={isFlagged ? 'Merker entfernen' : 'Für mich merken — noch zu erledigen'}
+              className={`shrink-0 mt-0.5 p-1 rounded-lg transition-colors ${isFlagged ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-gray-300 hover:text-amber-500 hover:bg-amber-50'}`}>
+              <Flag className={`w-4 h-4 ${isFlagged ? 'fill-amber-400' : ''}`} />
+            </button>
+          )}
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0">
             <X className="w-4 h-4" />
           </button>
@@ -1142,6 +1161,7 @@ export default function TaskBoardPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [onlyMine, setOnlyMine] = useState(false)
+  const [onlyFlagged, setOnlyFlagged] = useState(false)
   const [sortByDue, setSortByDue] = useState(false)
 
   // Drag state
@@ -1213,6 +1233,8 @@ export default function TaskBoardPage() {
         (card.assigneeType === 'user' && card.assigneeKey === profile?.uid)
       if (!mine) return false
     }
+    // Merker-Filter: nur Karten, die ich mir selbst markiert habe
+    if (onlyFlagged && !(card.flaggedBy ?? []).includes(profile?.uid ?? '')) return false
     // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -1307,6 +1329,11 @@ export default function TaskBoardPage() {
             title="Nach Fälligkeit sortieren"
             className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors ${sortByDue ? 'bg-white/30 text-white' : 'text-white/70 hover:text-white bg-white/10 hover:bg-white/20'}`}>
             <SortAsc className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => setOnlyFlagged(s => !s)}
+            title="Nur meine markierten Aufgaben (Merkliste)"
+            className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors ${onlyFlagged ? 'bg-white/30 text-white' : 'text-white/70 hover:text-white bg-white/10 hover:bg-white/20'}`}>
+            <Flag className="w-3.5 h-3.5" />
           </button>
           <button onClick={() => setOnlyMine(s => !s)}
             title="Nur meine Aufgaben"
@@ -1441,6 +1468,10 @@ export default function TaskBoardPage() {
                         )}
 
                         <p className={`text-sm font-medium leading-snug ${card.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                          {(card.flaggedBy ?? []).includes(profile?.uid ?? '') && (
+                            <Flag className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5 text-amber-500 fill-amber-400"
+                              aria-label="Von mir markiert — noch zu erledigen" />
+                          )}
                           {card.title}
                         </p>
 
