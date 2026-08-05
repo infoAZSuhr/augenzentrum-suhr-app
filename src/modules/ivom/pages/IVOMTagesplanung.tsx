@@ -388,9 +388,14 @@ export default function IVOMTagesplanung() {
                             <td className="py-1.5 pr-4 text-gray-400 text-xs">{e.performedBy || '—'}</td>
                             <td className="py-1.5 text-right">
                               <button
-                                onClick={() => setFormEntry({ ...e, iviDate: date })}
+                                onClick={() => {
+                                  // Zusätzlich die Patientenakte in Liris öffnen —
+                                  // die Behandlung wird direkt daneben erfasst.
+                                  if (e.patientNumber) { openLiris(); openWithPid(e.patientNumber) }
+                                  setFormEntry({ ...e, iviDate: date })
+                                }}
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-medium"
-                                title="Neue Behandlung erfassen"
+                                title="Neue Behandlung erfassen — öffnet die Akte in Liris"
                               >
                                 <Plus className="w-3 h-3" /> Behandlung
                               </button>
