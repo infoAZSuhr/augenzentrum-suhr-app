@@ -35,11 +35,14 @@ function dueStyle(due: string | null, done: boolean) {
 /** Rendert Text mit anklickbaren Links + hervorgehobenen @-Mentions.
  *  Erkennt http://, https://, www. URLs und @-Mentions als Token. Andere
  *  Komponenten koennen diese Funktion auch verwenden. */
-function renderRichText(text: string): React.ReactNode[] {
+function renderRichText(text: string, knownNames?: string[]): React.ReactNode[] {
   // Combined Regex: greift @Mention ODER URL.
   // URL-Pattern: http(s)://... oder www.... bis Whitespace/Klammer.
   // Trailing-Punctuation (.,;:!?) wird vom Match exkludiert (in eigenes Token).
   const pattern = /(@\S+|https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/g
+  // Bekannte Benutzernamen, längste zuerst — damit «@Dijana Stolz» als GANZES
+  // hervorgehoben wird und nicht nur «@Dijana» (Nutzerwunsch 2026-08-04).
+  const sortedNames = (knownNames ?? []).filter(Boolean).sort((a, b) => b.length - a.length)
   const parts: React.ReactNode[] = []
   let lastIndex = 0
   let m: RegExpExecArray | null
@@ -47,6 +50,17 @@ function renderRichText(text: string): React.ReactNode[] {
   while ((m = pattern.exec(text)) !== null) {
     if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index))
     let token = m[0]
+    // Mention auf den vollen bekannten Namen erweitern, falls der Text an
+    // dieser Stelle einem mehrteiligen Benutzernamen entspricht.
+    if (token.startsWith('@')) {
+      const rest = text.slice(m.index + 1) // Text ab dem Zeichen nach «@»
+      const full = sortedNames.find(n => rest.toLowerCase().startsWith(n.toLowerCase()))
+      if (full && full.length > token.length - 1) {
+        token = '@' + rest.slice(0, full.length)
+        pattern.lastIndex = m.index + 1 + full.length
+        m[0] = token
+      }
+    }
     // Trailing-Punctuation abschneiden (.,;:!?) und an plain text anhaengen
     let trail = ''
     while (token.length > 0 && /[.,;:!?)]/.test(token[token.length - 1])) {
@@ -877,7 +891,7 @@ function CardDetail({ card, board, onClose, isManager, profile, approvedUsers, a
                       {ts && <span className="text-[10px] text-gray-400">{new Date(ts * 1000).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                      {renderRichText(c.text)}
+                      {renderRichText(c.text, approvedUsers.flatMap(u => [u.displayName || '', u.username || '']))}
                     </p>
                   </div>
                 )
