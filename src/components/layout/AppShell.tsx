@@ -805,8 +805,8 @@ export default function AppShell() {
                                         : <LayoutList className="w-4 h-4 text-primary-600" />}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-gray-900 truncate">{title}</p>
-                                    <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                                    <p className="text-sm font-bold text-gray-900 break-words">{title}</p>
+                                    <p className="text-xs text-gray-500 break-words">{subtitle}</p>
                                     {!!(n.createdAt) && (
                                       <p className="text-[10px] text-gray-400">
                                         {new Date(((n.createdAt as { seconds: number }).seconds) * 1000).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -1054,8 +1054,8 @@ export default function AppShell() {
                                       : <LayoutList className="w-4 h-4 text-primary-600" />}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-gray-900 truncate">{title}</p>
-                                    <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                                    <p className="text-sm font-bold text-gray-900 break-words">{title}</p>
+                                    <p className="text-xs text-gray-500 break-words">{subtitle}</p>
                                   </div>
                                   <button onClick={() => { markTaskNotifRead(n.id); setBellOpen(false); navigate(target) }}
                                     className={`text-xs ${isSop ? 'text-purple-700 hover:text-purple-900' : 'text-primary-600 hover:text-primary-700'} font-medium shrink-0 whitespace-nowrap`}>
