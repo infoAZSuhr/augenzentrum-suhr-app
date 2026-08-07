@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Printer, Plus } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getArticles } from '../../../lib/firestoreLager'
+import { updatePatient } from '../../../lib/firestorePatients'
 import { useDraggable } from '../../../hooks/useDraggable'
 import type { Patient, Treatment } from '../../../types/ivom.types'
 
@@ -116,27 +117,26 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
     queryKey: ['inventory_articles', 'Medikament'],
     queryFn: () => getArticles({ category: 'Medikament' }),
   })
-  const usedNames = new Set(treatments.map(t => (t.medicationName ?? '').trim().toLowerCase()).filter(Boolean))
-  const baseMeds = buildMedNames(treatments, medArticles.map(a => a.name))
-  // Manuell ergaenzte Medikamente + manuelle Haken (frei aenderbar vor Druck)
-  const [extraMeds, setExtraMeds] = useState<string[]>([])
+  // Gewählte Medikamente: am Patienten gespeichert (intervallblattMeds),
+  // sonst initial die in den Behandlungen verwendeten. Jede Änderung wird
+  // sofort am Patienten persistiert, damit sie beim nächsten Öffnen bleibt.
+  const usedMeds = buildMedNames(treatments, [])
+  const [shownMeds, setShownMeds] = useState<string[]>(() => patient.intervallblattMeds ?? usedMeds)
   const [newMed, setNewMed] = useState('')
-  const [checkOverride, setCheckOverride] = useState<Record<string, boolean>>({})
-  const allMeds = [...baseMeds, ...extraMeds]
-  const isChecked = (name: string) =>
-    checkOverride[name.toLowerCase()] ?? usedNames.has(name.toLowerCase())
-  // Angezeigt/gedruckt werden NUR gewählte Medikamente — die volle
-  // Lagerliste dient lediglich als Vorschlag beim Hinzufügen.
-  const shownMeds = allMeds.filter(isChecked)
+  const persistMeds = (list: string[]) => {
+    setShownMeds(list)
+    void updatePatient(patient.id, { intervallblattMeds: list }).catch(() => {/* Anzeige bleibt */})
+  }
+  const allMeds = buildMedNames(treatments, [...medArticles.map(a => a.name), ...shownMeds])
   const toggleMed = (name: string) =>
-    setCheckOverride(o => ({ ...o, [name.toLowerCase()]: !isChecked(name) }))
+    persistMeds(shownMeds.filter(m => m.toLowerCase() !== name.toLowerCase()))
   const addExtraMed = () => {
     const n = newMed.trim()
     if (!n) return
-    if (!allMeds.some(m => m.toLowerCase() === n.toLowerCase())) setExtraMeds(x => [...x, n])
-    setCheckOverride(o => ({ ...o, [n.toLowerCase()]: true }))
+    if (!shownMeds.some(m => m.toLowerCase() === n.toLowerCase())) persistMeds([...shownMeds, n])
     setNewMed('')
   }
+  const isChecked = (name: string) => shownMeds.some(m => m.toLowerCase() === name.toLowerCase())
 
   const odRows = treatments
     .filter(t => t.eyeSide === 'OD')
