@@ -1,4 +1,7 @@
-import { X, Printer } from 'lucide-react'
+import { useState } from 'react'
+import { X, Printer, Plus } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { getArticles } from '../../../lib/firestoreLager'
 import { useDraggable } from '../../../hooks/useDraggable'
 import type { Patient, Treatment } from '../../../types/ivom.types'
 
@@ -13,15 +16,20 @@ function fmt(date?: string) {
   return `${date.slice(8, 10)}.${date.slice(5, 7)}.${date.slice(0, 4)}`
 }
 
-function detectMeds(treatments: Treatment[]) {
-  const names = treatments.map(t => (t.medicationName ?? '').toLowerCase())
-  return {
-    eylea2:   names.some(n => n.includes('eylea') && (n.includes('2mg') || n.includes('2 mg'))),
-    eylea8:   names.some(n => n.includes('eylea') && (n.includes('8mg') || n.includes('8 mg'))),
-    lucentis: names.some(n => n.includes('lucentis')),
-    syfore:   names.some(n => n.includes('syfore')),
-    avastin:  names.some(n => n.includes('avastin')),
+/** Dynamische Medikamentenliste: alle Lager-Medikamente plus alle in den
+ *  Behandlungen dieses Patienten vorkommenden Namen (Legacy/umbenannte).
+ *  Verwendete Medikamente sind vorangekreuzt; weitere lassen sich im Dialog
+ *  frei an-/abhaken oder per Eingabefeld ergaenzen (Medikamentenwechsel). */
+function buildMedNames(treatments: Treatment[], articleNames: string[]): string[] {
+  const list: string[] = []
+  const seen = new Set<string>()
+  const add = (n: string) => {
+    const t = n.trim()
+    if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); list.push(t) }
   }
+  articleNames.forEach(add)
+  treatments.forEach(t => add(t.medicationName ?? ''))
+  return list
 }
 
 interface AutoEvent {
@@ -75,9 +83,8 @@ const PRINT_STYLE = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 9pt; padding: 12mm 15mm; color: #000; }
   h1 { font-size: 14pt; font-weight: bold; text-align: center; text-decoration: underline; margin-bottom: 10px; }
-  .med-row { display: flex; gap: 0; border: 1.5px solid #000; }
-  .med-cell { flex: 1; padding: 5px 8px; border-right: 1.5px solid #000; font-size: 10pt; }
-  .med-cell:last-child { border-right: none; }
+  .med-row { display: flex; flex-wrap: wrap; gap: 0; border: 1.5px solid #000; }
+  .med-cell { padding: 5px 8px; border-right: 1.5px solid #000; border-bottom: 1px solid #000; font-size: 10pt; white-space: nowrap; }
   .med-cell strong { font-size: 11pt; }
   .eyes { display: flex; gap: 0; border: 1.5px solid #000; margin-top: 10px; }
   .eye-col { flex: 1; border-right: 1.5px solid #000; }
@@ -105,7 +112,28 @@ const PRINT_STYLE = `
 
 export default function IVTIntervallblatt({ patient, treatments, onClose }: Props) {
   const { style: dragStyle, onHeaderMouseDown } = useDraggable('ivt-intervallblatt')
-  const meds = detectMeds(treatments)
+  const { data: medArticles = [] } = useQuery({
+    queryKey: ['inventory_articles', 'Medikament'],
+    queryFn: () => getArticles({ category: 'Medikament' }),
+  })
+  const usedNames = new Set(treatments.map(t => (t.medicationName ?? '').trim().toLowerCase()).filter(Boolean))
+  const baseMeds = buildMedNames(treatments, medArticles.map(a => a.name))
+  // Manuell ergaenzte Medikamente + manuelle Haken (frei aenderbar vor Druck)
+  const [extraMeds, setExtraMeds] = useState<string[]>([])
+  const [newMed, setNewMed] = useState('')
+  const [checkOverride, setCheckOverride] = useState<Record<string, boolean>>({})
+  const allMeds = [...baseMeds, ...extraMeds]
+  const isChecked = (name: string) =>
+    checkOverride[name.toLowerCase()] ?? usedNames.has(name.toLowerCase())
+  const toggleMed = (name: string) =>
+    setCheckOverride(o => ({ ...o, [name.toLowerCase()]: !isChecked(name) }))
+  const addExtraMed = () => {
+    const n = newMed.trim()
+    if (!n) return
+    if (!allMeds.some(m => m.toLowerCase() === n.toLowerCase())) setExtraMeds(x => [...x, n])
+    setCheckOverride(o => ({ ...o, [n.toLowerCase()]: true }))
+    setNewMed('')
+  }
 
   const odRows = treatments
     .filter(t => t.eyeSide === 'OD')
@@ -199,10 +227,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
     <h1>Intravitreale Injektion – Intervallblatt</h1>
 
     <div class="med-row">
-      <div class="med-cell"><strong>Eylea</strong> ${cb(meds.eylea2)} 2mg &nbsp; ${cb(meds.eylea8)} 8mg</div>
-      <div class="med-cell"><strong>Lucentis</strong> ${cb(meds.lucentis)}</div>
-      <div class="med-cell"><strong>Syfore</strong> ${cb(meds.syfore)}</div>
-      <div class="med-cell"><strong>Avastin 5mg</strong> ${cb(meds.avastin)}</div>
+      ${allMeds.map(m => `<div class="med-cell"><strong>${m.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</strong> ${cb(isChecked(m))}</div>`).join('')}
     </div>
 
     <div class="eyes">
@@ -303,21 +328,25 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
 
           <h1 className="text-center text-lg font-bold underline">Intravitreale Injektion – Intervallblatt</h1>
 
-          {/* Medication */}
-          <div className="border border-gray-800 flex text-sm">
-            <div className="flex-1 px-3 py-2 border-r border-gray-800">
-              <span className="font-bold">Eylea</span>
-              <span className="ml-2 inline-flex items-center gap-1"><Check on={meds.eylea2} /> 2mg</span>
-              <span className="ml-3 inline-flex items-center gap-1"><Check on={meds.eylea8} /> 8mg</span>
-            </div>
-            <div className="flex-1 px-3 py-2 border-r border-gray-800 font-bold flex items-center gap-1">
-              Lucentis <Check on={meds.lucentis} />
-            </div>
-            <div className="flex-1 px-3 py-2 border-r border-gray-800 font-bold flex items-center gap-1">
-              Syfore <Check on={meds.syfore} />
-            </div>
-            <div className="flex-1 px-3 py-2 font-bold flex items-center gap-1">
-              Avastin 5mg <Check on={meds.avastin} />
+          {/* Medication — dynamisch aus Lager + Behandlungen; Klick toggelt,
+              weitere Medikamente frei ergaenzbar (Medikamentenwechsel). */}
+          <div className="border border-gray-800 flex flex-wrap text-sm">
+            {allMeds.map(m => (
+              <button key={m} type="button" onClick={() => toggleMed(m)}
+                title="Anklicken zum An-/Abhaken (wird so gedruckt)"
+                className="px-3 py-2 border-r border-b border-gray-800 font-bold flex items-center gap-1.5 hover:bg-gray-50">
+                {m} <Check on={isChecked(m)} />
+              </button>
+            ))}
+            <div className="px-2 py-1.5 flex items-center gap-1">
+              <input value={newMed} onChange={e => setNewMed(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addExtraMed()}
+                placeholder="Weiteres Medikament…"
+                className="border border-gray-300 rounded px-2 py-1 text-xs w-44 focus:outline-none focus:ring-1 focus:ring-primary-400" />
+              <button type="button" onClick={addExtraMed} disabled={!newMed.trim()}
+                className="p-1 rounded text-primary-600 hover:bg-primary-50 disabled:opacity-30">
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
