@@ -12,7 +12,7 @@ import IVIOverlayModal from '../components/IVIOverlayModal'
 import type { Treatment, Patient } from '../../../types/ivom.types'
 import { useToast } from '../../../lib/ToastContext'
 import { useBrowser } from '../../../contexts/BrowserContext'
-import { updatePatient } from '../../../lib/firestorePatients'
+import { updatePatient, createPatient } from '../../../lib/firestorePatients'
 
 const WORKING_CODES = new Set(['GT', 'VM', 'NM', 'W', 'NFD'])
 const CODE_LABEL: Record<string, string> = {
@@ -76,6 +76,8 @@ export default function IVOMTagesplanung() {
   const [planung, setPlanung] = useState<PlanungData | null>(null)
   const [formEntry, setFormEntry] = useState<(IviDayPlanEntry & { iviDate: string }) | null>(null)
   const [editPatientData, setEditPatientData] = useState<Patient | null>(null)
+  // Datum des Tages, für den ein neuer Patient erfasst wird (null = Form zu)
+  const [newPatientDate, setNewPatientDate] = useState<string | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const year = new Date().getFullYear()
   const qc = useQueryClient()
@@ -407,10 +409,34 @@ export default function IVOMTagesplanung() {
                   </div>
                 </>
               )}
+              {/* Neuen Patienten direkt aus der Tagesansicht erfassen (z.B.
+                  kurzfristig dazugekommener Patient) — nach dem Speichern
+                  öffnet sich gleich das Behandlungsformular für diesen Tag. */}
+              <div className="mt-3">
+                <button onClick={() => setNewPatientDate(date)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:border-primary-300 hover:text-primary-700 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Neuer Patient
+                </button>
+              </div>
             </div>
           </div>
         )
       })}
+
+      {newPatientDate && (
+        <PatientForm
+          onClose={() => setNewPatientDate(null)}
+          onSubmit={async (data) => {
+            const p = await createPatient(data as Omit<Patient, 'id'>)
+            qc.invalidateQueries({ queryKey: ['patients'] })
+            qc.invalidateQueries({ queryKey: ['ivi-day-plan'] })
+            const forDate = newPatientDate
+            setNewPatientDate(null)
+            toast.success('Patient erfasst — Behandlung erfassen')
+            setFormEntry({ id: p.id, firstName: p.firstName, patientNumber: p.patientNumber, iviDate: forDate } as unknown as IviDayPlanEntry & { iviDate: string })
+          }}
+        />
+      )}
 
       {formEntry && (
         <TreatmentForm
