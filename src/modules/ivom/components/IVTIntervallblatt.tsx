@@ -125,6 +125,9 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
   const allMeds = [...baseMeds, ...extraMeds]
   const isChecked = (name: string) =>
     checkOverride[name.toLowerCase()] ?? usedNames.has(name.toLowerCase())
+  // Angezeigt/gedruckt werden NUR gewählte Medikamente — die volle
+  // Lagerliste dient lediglich als Vorschlag beim Hinzufügen.
+  const shownMeds = allMeds.filter(isChecked)
   const toggleMed = (name: string) =>
     setCheckOverride(o => ({ ...o, [name.toLowerCase()]: !isChecked(name) }))
   const addExtraMed = () => {
@@ -227,7 +230,7 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
     <h1>Intravitreale Injektion – Intervallblatt</h1>
 
     <div class="med-row">
-      ${allMeds.map(m => `<div class="med-cell"><strong>${m.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</strong> ${cb(isChecked(m))}</div>`).join('')}
+      ${shownMeds.map(m => `<div class="med-cell"><strong>${m.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</strong> ${cb(true)}</div>`).join('') || '<div class="med-cell">&nbsp;</div>'}
     </div>
 
     <div class="eyes">
@@ -331,18 +334,21 @@ export default function IVTIntervallblatt({ patient, treatments, onClose }: Prop
           {/* Medication — dynamisch aus Lager + Behandlungen; Klick toggelt,
               weitere Medikamente frei ergaenzbar (Medikamentenwechsel). */}
           <div className="border border-gray-800 flex flex-wrap text-sm">
-            {allMeds.map(m => (
+            {shownMeds.map(m => (
               <button key={m} type="button" onClick={() => toggleMed(m)}
-                title="Anklicken zum An-/Abhaken (wird so gedruckt)"
+                title="Anklicken entfernt das Medikament vom Blatt"
                 className="px-3 py-2 border-r border-b border-gray-800 font-bold flex items-center gap-1.5 hover:bg-gray-50">
-                {m} <Check on={isChecked(m)} />
+                {m} <Check on />
               </button>
             ))}
             <div className="px-2 py-1.5 flex items-center gap-1">
               <input value={newMed} onChange={e => setNewMed(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addExtraMed()}
-                placeholder="Weiteres Medikament…"
-                className="border border-gray-300 rounded px-2 py-1 text-xs w-44 focus:outline-none focus:ring-1 focus:ring-primary-400" />
+                placeholder="Medikament hinzufügen…" list="ivt-med-suggestions"
+                className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-primary-400" />
+              <datalist id="ivt-med-suggestions">
+                {allMeds.filter(m => !isChecked(m)).map(m => <option key={m} value={m} />)}
+              </datalist>
               <button type="button" onClick={addExtraMed} disabled={!newMed.trim()}
                 className="p-1 rounded text-primary-600 hover:bg-primary-50 disabled:opacity-30">
                 <Plus className="w-4 h-4" />
