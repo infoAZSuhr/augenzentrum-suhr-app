@@ -31,6 +31,12 @@ jobs:
       - name: Refdata Artikelstamm herunterladen
         run: node scripts/update-refdata.js --force
 
+      # BAG Spezialitätenliste (sl.bag.admin.ch) — schlägt der Download fehl,
+      # bleibt die alte sl-data.json erhalten und der Rest des Workflows läuft.
+      - name: BAG Spezialitätenliste herunterladen
+        continue-on-error: true
+        run: node scripts/update-sl.js
+
       - name: App bauen
         run: npx vite build
 
@@ -49,6 +55,6 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase --autostash origin main
-          git add public/refdata-meta.json
-          git diff --staged --quiet || git commit -m "chore: Refdata Artikelstamm $(date +%d.%m.%Y)"
+          git add public/refdata-meta.json public/sl-meta.json
+          git diff --staged --quiet || git commit -m "chore: Refdata + BAG-SL $(date +%d.%m.%Y)"
           git push

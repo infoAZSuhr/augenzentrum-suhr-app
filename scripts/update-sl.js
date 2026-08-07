@@ -41,10 +41,17 @@ async function fetchBuffer(url) {
   return Buffer.from(await res.arrayBuffer())
 }
 
-function colIndex(header, needle) {
-  const i = header.findIndex(h => String(h).toLowerCase().includes(needle.toLowerCase()))
-  if (i === -1) throw new Error(`Spalte "${needle}" nicht im Header gefunden: ${JSON.stringify(header)}`)
-  return i
+// Akzeptiert mehrere Kandidaten-Namen — das BAG benennt Spalten gelegentlich
+// um (2026-08: "Hersteller" -> "Zulassungsinhaberin", "Bezeichnung" ->
+// "Handelsname", "Substanzen" -> "Wirkstoffe", Preisspalten ausgeschrieben).
+function colIndex(header, needles, optional = false) {
+  const list = Array.isArray(needles) ? needles : [needles]
+  for (const needle of list) {
+    const i = header.findIndex(h => String(h).toLowerCase().includes(needle.toLowerCase()))
+    if (i !== -1) return i
+  }
+  if (optional) return -1
+  throw new Error(`Spalte "${list.join('" / "')}" nicht im Header gefunden: ${JSON.stringify(header)}`)
 }
 
 async function main() {
@@ -65,18 +72,25 @@ async function main() {
   if (rows.length < 2) throw new Error('Publications-Sheet leer')
 
   const header = rows[0]
-  const iName = colIndex(header, 'Bezeichnung')
+  const iName = colIndex(header, ['Bezeichnung', 'Handelsname'])
   const iGtin = colIndex(header, 'GTIN')
-  const iHerst = colIndex(header, 'Hersteller')
-  const iSubst = colIndex(header, 'Substanzen')
-  const iExf = colIndex(header, 'Exf-Preis')
-  const iPub = colIndex(header, 'Pub-Preis')
+  const iHerst = colIndex(header, ['Hersteller', 'Zulassungsinhaberin'])
+  const iSubst = colIndex(header, ['Substanzen', 'Wirkstoffe'])
+  const iExf = colIndex(header, ['Exf-Preis', 'Fabrikabgabepreis'])
+  const iPub = colIndex(header, ['Pub-Preis', 'Publikumspreis'])
+  // Neue Struktur: Handelsname ist nur der Markenname — gal. Form und
+  // Packung ergaenzen, damit der Eintrag wie frueher eindeutig lesbar ist.
+  const iForm = colIndex(header, 'gal.Form', true)
+  const iPack = colIndex(header, ['Packung'], true)
 
   const data = []
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i]
-    const n = String(r[iName] || '').trim()
+    let n = String(r[iName] || '').trim()
     if (!n) continue
+    const form = iForm !== -1 ? String(r[iForm] || '').trim() : ''
+    const pack = iPack !== -1 ? String(r[iPack] || '').trim() : ''
+    n = [n, form, pack].filter(Boolean).join(', ')
     const entry = { n }
     const g = String(r[iGtin] || '').trim()
     if (g) entry.g = g
