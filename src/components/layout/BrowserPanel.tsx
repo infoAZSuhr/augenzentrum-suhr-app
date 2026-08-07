@@ -1,5 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, RotateCcw, X, GripVertical, FileEdit } from 'lucide-react'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 import { useBrowser } from '../../contexts/BrowserContext'
 import { useAuth } from '../../lib/AuthContext'
 import { useToast } from '../../lib/ToastContext'
@@ -541,6 +544,34 @@ async function extractLirisInfo(wv: any, pid: string): Promise<{ pid: string; pi
 export default function BrowserPanel() {
   const { isOpen, close, defaultUrl, pendingPid, clearPendingPid, setLirisExtract, requestRecallByPid, requestRecallNew, staleRecallPids, knownRecallPids, staleReferenceDate, setStaleReferenceDate, reloadLirisAt, setLirisWebContentsId, terminAnlegenRequest, clearTerminAnlegenRequest, lirisSuppressed, setLirisPanelWidth } = useBrowser()
   const toast = useToast()
+  const routerNavigate = useNavigate()
+  const location = useLocation()
+
+  // Im IVI-Modul hat der Patient-Button eine eigene Bedeutung: bestehende
+  // IVOM-Patienten -> Behandlungsverlauf oeffnen, Neupatienten -> Formular
+  // mit den Daten aus der Liris-Akte vorbefuellen (Nutzerwunsch 2026-08-06).
+  async function openIvomForPid(pid: string, wv: any) {
+    const digits = (v: string) => (v || '').replace(/\D/g, '').replace(/^0+/, '')
+    const want = digits(pid)
+    try {
+      const snap = await getDocs(collection(db, 'patients'))
+      const found = snap.docs.find(d => digits(String((d.data() as { patientNumber?: string }).patientNumber || '')) === want)
+      if (found) { routerNavigate(`/ivom/${found.id}`); return }
+      // Neupatient: Stammdaten aus der offenen Liris-Akte lesen und das
+      // Patientenformular in der IVOM-Patientenliste vorbefuellen.
+      const info = await extractLirisInfo(wv, pid).catch(() => null)
+      const prefill = {
+        patientNumber: want,
+        firstName: info?.vorname || '',
+        lastName: info?.nachname || '',
+        dateOfBirth: info?.gebDatum || '',
+        gender: info?.anrede === 'Herr' ? 'M' : info?.anrede === 'Frau' ? 'W' : undefined,
+      }
+      routerNavigate('/ivom/patienten', { state: { prefill } })
+    } catch (e) {
+      toast.error('IVI-Patient konnte nicht geoeffnet werden: ' + String(e))
+    }
+  }
 
   // WebContents-ID beim Unmount zuruecksetzen. Das Panel ist nur auf
   // /recall, /ivom und /zuweisung gemountet (siehe AppShell) — navigiert der
@@ -2207,7 +2238,10 @@ export default function BrowserPanel() {
                     return m ? m[1] : null;
                   })();
                 `).catch(() => null)
-                if (detailPid) { requestRecallByPid(detailPid); return }
+                if (detailPid) {
+                  if (location.pathname.startsWith('/ivom')) { void openIvomForPid(detailPid, wv); return }
+                  requestRecallByPid(detailPid); return
+                }
                 // 2) Fallback: erstes #PID DD.MM.YYYY in der Seite
                 const anyPid: string | null = await wv.executeJavaScript(`
                   (function() {
@@ -2216,11 +2250,14 @@ export default function BrowserPanel() {
                     return m ? m[1] : null;
                   })();
                 `).catch(() => null)
-                if (anyPid) requestRecallByPid(anyPid)
+                if (anyPid) {
+                  if (location.pathname.startsWith('/ivom')) { void openIvomForPid(anyPid, wv) }
+                  else requestRecallByPid(anyPid)
+                }
               } catch { /* ignore */ }
             }}
             className="p-1.5 rounded hover:bg-primary-50 hover:text-primary-600 transition-colors ml-1"
-            title="Recall-Eintrag des aktuell in Liris geoeffneten Patienten bearbeiten"
+            title={location.pathname.startsWith('/ivom') ? 'IVI-Patient oeffnen: bestehende Patienten -> Behandlungsverlauf, Neupatienten -> Formular mit Liris-Daten' : 'Recall-Eintrag des aktuell in Liris geoeffneten Patienten bearbeiten'}
           >
             <FileEdit className="w-3.5 h-3.5 text-gray-500" />
           </button>

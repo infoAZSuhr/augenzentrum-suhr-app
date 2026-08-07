@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Search, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Users, ShieldAlert, Bell } from 'lucide-react'
 import { getPatients, createPatient, deletePatient } from '../../../lib/firestorePatients'
 import PageHeader from '../../../components/ui/PageHeader'
@@ -44,10 +44,21 @@ export default function PatientList() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'alle' | 'aktiv' | 'abgeschlossen'>('aktiv')
   const [showForm, setShowForm] = useState(false)
+  // Vorbefuellung aus der Liris-Akte (Button im Liris-Panel bei Neupatienten)
+  const [prefill, setPrefill] = useState<Partial<Patient> | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Patient | null>(null)
   const [sortKey, setSortKey] = useState<SortKey | null>('nextAppointmentDate')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => {
+    const pf = (location.state as { prefill?: Partial<Patient> } | null)?.prefill
+    if (pf) {
+      setPrefill(pf)
+      setShowForm(true)
+      navigate('.', { replace: true, state: null })
+    }
+  }, [location.state]) // eslint-disable-line react-hooks/exhaustive-deps
   const qc = useQueryClient()
 
   const { data: patients = [], isLoading, error } = useQuery({
@@ -231,7 +242,8 @@ export default function PatientList() {
 
       {showForm && (
         <PatientForm
-          onClose={() => setShowForm(false)}
+          initial={prefill ?? undefined}
+          onClose={() => { setShowForm(false); setPrefill(null) }}
           onSubmit={(data) => createMut.mutate(data as Omit<Patient, 'id'>)}
           isLoading={createMut.isPending}
         />
